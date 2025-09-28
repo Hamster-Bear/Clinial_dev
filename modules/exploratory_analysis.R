@@ -1,0 +1,327 @@
+# 探索分析模块
+# 负责数据的交互式可视化和探索性分析
+
+exploratory_analysis_ui <- function(id) {
+  ns <- NS(id)
+  
+  tagList(
+    fluidRow(
+      box(
+        width = 3, 
+        title = "变量托盘", 
+        status = "primary",
+        uiOutput(ns("variable_tray"))
+      ),
+      box(
+        width = 9, 
+        title = "图形控制器", 
+        status = "warning",
+        fluidRow(
+          column(6,
+                selectizeInput(ns("plot_type_exp"), "图形类型",
+                              choices = c("散点图", "箱线图", "直方图", "条形图")),
+                bsTooltip(ns("plot_type_exp"), "选择图形类型将自动过滤可用的变量选项")
+          ),
+          column(6, actionButton(ns("reset_mapping"), "重置映射", icon = icon("refresh")))
+        ),
+        fluidRow(
+          column(3,
+                uiOutput(ns("aes_x")),
+                bsTooltip(ns("aes_x"), "X轴变量：散点图和箱线图需要数值变量，直方图和条形图需要分类变量")
+          ),
+          column(3,
+                uiOutput(ns("aes_y")),
+                bsTooltip(ns("aes_y"), "Y轴变量：散点图和箱线图需要数值变量")
+          ),
+          column(3,
+                uiOutput(ns("aes_color")),
+                bsTooltip(ns("aes_color"), "颜色变量：可以是分类变量或数值变量")
+          ),
+          column(3,
+                uiOutput(ns("aes_facet")),
+                bsTooltip(ns("aes_facet"), "分面变量：应该是分类变量")
+          )
+        )
+      )
+    ),
+    fluidRow(
+      box(
+        width = 12, 
+        title = "图形输出", 
+        status = "success",
+        plotly::plotlyOutput(ns("exploratory_plot"), height = "600px"),
+        br(),
+        uiOutput(ns("plotly_info"))
+      )
+    )
+  )
+}
+
+exploratory_analysis_server <- function(input, output, session, data) {
+  ns <- session$ns
+  
+  # 探索分析变量托盘
+  output$variable_tray <- renderUI({
+    req(data())
+    
+    tagList(
+      h4("可用变量"),
+      lapply(names(data()), function(var) {
+        var_type <- if (is.numeric(data()[[var]])) "numeric"
+        else if (is.character(data()[[var]]) || is.factor(data()[[var]])) "categorical"
+        else "other"
+        
+        type_display <- switch(var_type,
+                              "numeric" = tags$span("123", style = "font-weight: bold; color: blue;"),
+                              "categorical" = tags$span("abc", style = "font-weight: bold; color: green;"),
+                              "other" = tags$span("?", style = "font-weight: bold; color: gray;"))
+        
+        tags$div(
+          class = "variable-item",
+          type_display,
+          tags$span(var),
+          style = "margin: 5px; padding: 5px; background: #f0f0f0; border-radius: 3px; display: flex; align-items: center; gap: 5px;"
+        )
+      })
+    )
+  })
+  
+  # 图形映射控制器
+  output$aes_x <- renderUI({
+    req(data(), input$plot_type_exp)
+    
+    data_df <- data()
+    var_types <- sapply(data_df, function(x) {
+      if (is.numeric(x)) "numeric"
+      else if (is.factor(x) || is.character(x)) "categorical"
+      else "other"
+    })
+    
+    allowed_types <- switch(input$plot_type_exp,
+                           "散点图" = "numeric",
+                           "箱线图" = "categorical",
+                           "直方图" = "numeric",
+                           "条形图" = "categorical")
+    
+    allowed_vars <- names(data_df)[var_types %in% allowed_types]
+    
+    selectizeInput(ns("x_var"), "X轴变量", choices = c("无" = "", allowed_vars))
+  })
+  
+  output$aes_y <- renderUI({
+    req(data(), input$plot_type_exp)
+    
+    data_df <- data()
+    var_types <- sapply(data_df, function(x) {
+      if (is.numeric(x)) "numeric"
+      else if (is.factor(x) || is.character(x)) "categorical"
+      else "other"
+    })
+    
+    if (input$plot_type_exp %in% c("散点图", "箱线图")) {
+      allowed_types <- "numeric"
+      allowed_vars <- names(data_df)[var_types %in% allowed_types]
+    } else {
+      allowed_vars <- character(0)
+    }
+    
+    selectizeInput(ns("y_var"), "Y轴变量", choices = c("无" = "", allowed_vars))
+  })
+  
+  output$aes_color <- renderUI({
+    req(data())
+    data_df <- data()
+    var_types <- sapply(data_df, function(x) {
+      if (is.numeric(x)) "numeric"
+      else if (is.factor(x) || is.character(x)) "categorical"
+      else "other"
+    })
+    
+    # 颜色变量可以是分类变量或数值变量（用于连续颜色映射）
+    allowed_vars <- names(data_df)[var_types %in% c("categorical", "numeric")]
+    
+    selectizeInput(ns("color_var"), "颜色变量", choices = c("无" = "", allowed_vars))
+  })
+  
+  output$aes_facet <- renderUI({
+    req(data())
+    data_df <- data()
+    var_types <- sapply(data_df, function(x) {
+      if (is.numeric(x)) "numeric"
+      else if (is.factor(x) || is.character(x)) "categorical"
+      else "other"
+    })
+    
+    # 分面变量应该是分类变量
+    allowed_vars <- names(data_df)[var_types %in% "categorical"]
+    
+    selectizeInput(ns("facet_var"), "分面变量", choices = c("无" = "", allowed_vars))
+  })
+  
+  # Plotly分页信息显示
+  output$plotly_info <- renderUI({
+    req(input$plotly_pagination_info)
+    tags$div(
+      style = "background-color: #f8f9fa; border-left: 4px solid #007bff; padding: 10px; margin-top: 10px;",
+      tags$strong("关于Plotly分页功能:"),
+      tags$p(input$plotly_pagination_info)
+    )
+  })
+  
+  # 探索性图形
+  output$exploratory_plot <- plotly::renderPlotly({
+    req(data(), input$plot_type_exp)
+    
+    # 验证必要的输入
+    if (input$plot_type_exp %in% c("散点图", "箱线图") &&
+        (is.null(input$x_var) || input$x_var == "" || is.null(input$y_var) || input$y_var == "")) {
+      showNotification("散点图和箱线图需要选择X轴和Y轴变量", type = "warning")
+      return(
+        ggplot() +
+          annotate("text", x = 0.5, y = 0.5,
+                   label = "请选择X轴和Y轴变量", size = 6, color = "red") +
+          theme_void()
+      ) %>% ggplotly() %>% layout(height = 600)
+    }
+    
+    if (input$plot_type_exp %in% c("直方图", "条形图") &&
+        (is.null(input$x_var) || input$x_var == "")) {
+      showNotification("直方图和条形图需要选择X轴变量", type = "warning")
+      return(
+        ggplot() +
+          annotate("text", x = 0.5, y = 0.5,
+                   label = "请选择X轴变量", size = 6, color = "red") +
+          theme_void()
+      ) %>% ggplotly() %>% layout(height = 600)
+    }
+    
+    # 验证变量是否存在数据中
+    if (!is.null(input$x_var) && input$x_var != "" && !input$x_var %in% names(data())) {
+      showNotification(paste("X轴变量", input$x_var, "不存在于数据中"), type = "error")
+      return(NULL)
+    }
+    
+    if (!is.null(input$y_var) && input$y_var != "" && !input$y_var %in% names(data())) {
+      showNotification(paste("Y轴变量", input$y_var, "不存在于数据中"), type = "error")
+      return(NULL)
+    }
+    
+    if (!is.null(input$color_var) && input$color_var != "" && !input$color_var %in% names(data())) {
+      showNotification(paste("颜色变量", input$color_var, "不存在于数据中"), type = "error")
+      return(NULL)
+    }
+    
+    if (!is.null(input$facet_var) && input$facet_var != "" && !input$facet_var %in% names(data())) {
+      showNotification(paste("分面变量", input$facet_var, "不存在于数据中"), type = "error")
+      return(NULL)
+    }
+    
+    tryCatch({
+      p <- switch(input$plot_type_exp,
+                  "散点图" = {
+                    req(input$x_var, input$y_var)
+                    # 检查变量类型是否匹配
+                    if (!is.numeric(data()[[input$x_var]]) || !is.numeric(data()[[input$y_var]])) {
+                      stop("散点图需要数值型变量作为X轴和Y轴")
+                    }
+                    
+                    p <- ggplot(data(), aes(x = .data[[input$x_var]], y = .data[[input$y_var]]))
+                    if (input$color_var != "") {
+                      p <- p + geom_point(aes(color = .data[[input$color_var]]), alpha = 0.6, size = 3)
+                    } else {
+                      p <- p + geom_point(alpha = 0.6, size = 3)
+                    }
+                    p + theme_minimal(base_size = 14) +
+                      labs(x = input$x_var, y = input$y_var)
+                  },
+                  "箱线图" = {
+                    req(input$x_var, input$y_var)
+                    # 检查变量类型是否匹配
+                    if (!is.numeric(data()[[input$y_var]])) {
+                      stop("箱线图需要数值型变量作为Y轴")
+                    }
+                    
+                    p <- ggplot(data(), aes(x = .data[[input$x_var]], y = .data[[input$y_var]]))
+                    if (input$color_var != "") {
+                      p <- p + geom_boxplot(aes(fill = .data[[input$color_var]]), alpha = 0.7)
+                    } else {
+                      p <- p + geom_boxplot(alpha = 0.7)
+                    }
+                    p + theme_minimal(base_size = 14) +
+                      labs(x = input$x_var, y = input$y_var)
+                  },
+                  "直方图" = {
+                    req(input$x_var)
+                    # 检查变量类型是否匹配
+                    if (!is.numeric(data()[[input$x_var]])) {
+                      stop("直方图需要数值型变量作为X轴")
+                    }
+                    
+                    p <- ggplot(data(), aes(x = .data[[input$x_var]]))
+                    if (input$color_var != "") {
+                      p <- p + geom_histogram(aes(fill = .data[[input$color_var]]), bins = 30, alpha = 0.7, color = "white")
+                    } else {
+                      p <- p + geom_histogram(bins = 30, alpha = 0.7, color = "white")
+                    }
+                    p + theme_minimal(base_size = 14) +
+                      labs(x = input$x_var, y = "频数")
+                  },
+                  "条形图" = {
+                    req(input$x_var)
+                    p <- ggplot(data(), aes(x = .data[[input$x_var]]))
+                    if (input$color_var != "") {
+                      p <- p + geom_bar(aes(fill = .data[[input$color_var]]), alpha = 0.7, color = "white")
+                    } else {
+                      p <- p + geom_bar(alpha = 0.7, color = "white")
+                    }
+                    p + theme_minimal(base_size = 14) +
+                      labs(x = input$x_var, y = "计数")
+                  })
+      
+      if (input$facet_var != "") {
+        p <- p + facet_wrap(as.formula(paste("~", input$facet_var)))
+      }
+      
+      # 添加标题
+      p <- p + ggtitle(paste("图形类型:", input$plot_type_exp))
+      
+      ggplotly(p, height = 600) %>%
+        layout(autosize = TRUE)
+      
+    }, error = function(e) {
+      # 记录详细的错误信息到控制台
+      message(paste("探索性图形生成错误详情:", e$message))
+      message(paste("调用栈:", paste(deparse(e$call), collapse = "\n")))
+      
+      showNotification(paste("图形生成错误:", e$message), type = "error")
+      
+      # 返回错误信息图
+      p <- ggplot() +
+        annotate("text", x = 0.5, y = 0.5,
+                 label = paste("图形生成失败:\n", e$message),
+                 size = 4, color = "red") +
+        theme_void()
+      
+      ggplotly(p) %>% layout(height = 600)
+    })
+  })
+  
+  # 重置映射
+  observeEvent(input$reset_mapping, {
+    updateSelectizeInput(session, "x_var", selected = "")
+    updateSelectizeInput(session, "y_var", selected = "")
+    updateSelectizeInput(session, "color_var", selected = "")
+    updateSelectizeInput(session, "facet_var", selected = "")
+  })
+  
+  # 返回模块状态（可选）
+  return(reactive({
+    list(
+      x_var = input$x_var,
+      y_var = input$y_var,
+      color_var = input$color_var,
+      facet_var = input$facet_var,
+      plot_type = input$plot_type_exp
+    )
+  }))
+}

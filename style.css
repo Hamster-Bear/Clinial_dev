@@ -1,0 +1,278 @@
+/* 自定义样式表 */
+
+/* 主布局调整 */
+.skin-blue .main-header .logo {
+  background-color: #1E88E5;
+  font-weight: bold;
+}
+
+.skin-blue .main-header .logo:hover {
+  background-color: #1976D2;
+}
+
+/* 菜单项激活状态 */
+.sidebar-menu li.active > a {
+  border-left-color: #1E88E5;
+  font-weight: bold;
+}
+
+/* 禁用菜单项样式 */
+.sidebar-menu li.disabled > a {
+  color: #999 !important;
+  cursor: not-allowed !important;
+}
+
+.sidebar-menu li.disabled > a:hover {
+  background-color: #f4f4f4 !important;
+}
+
+/* 变量托盘样式 */
+.variable-item {
+  margin: 5px;
+  padding: 8px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 5px;
+  cursor: move;
+  transition: all 0.2s ease;
+}
+
+.variable-item:hover {
+  background: #e9ecef;
+  border-color: #1E88E5;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* 文件上传区域样式 */
+.dropzone {
+  border: 2px dashed #1E88E5;
+  border-radius: 5px;
+  padding: 20px;
+  text-align: center;
+  background: #f8f9fa;
+  transition: all 0.3s ease;
+}
+
+.dropzone:hover {
+  background: #e3f2fd;
+  border-color: #0D47A1;
+}
+
+.dz-dragging {
+  background: #bbdefb !important;
+  border-color: #0D47A1 !important;
+}
+
+/* 按钮样式增强 */
+.btn-success {
+  background-color: #4CAF50;
+  border-color: #45a049;
+}
+
+.btn-success:hover {
+  background-color: #45a049;
+  border-color: #3d8b40;
+}
+
+.btn-lg {
+  padding: 12px 24px;
+  font-size: 16px;
+  border-radius: 6px;
+}
+
+/* 卡片和盒子样式 */
+.box {
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.box-header {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+/* 值框样式 */
+.value-box {
+  border-radius: 8px;
+}
+
+/* 表格样式 */
+.dataTables_wrapper {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .sidebar-menu li > a {
+    padding: 12px 15px;
+  }
+  
+  .box {
+    margin-bottom: 15px;
+  }
+}
+
+/* 动画效果 */
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* 状态指示器 */
+.status-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.status-active {
+  background-color: #4CAF50;
+}
+
+.status-inactive {
+  background-color: #f44336;
+}
+
+.status-pending {
+  background-color: #ff9800;
+}
+
+/* 进度条样式 */
+.progress {
+  height: 8px;
+  border-radius: 4px;
+  background-color: #f0f0f0;
+}
+
+.progress-bar {
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* 工具提示样式 */
+.tooltip-inner {
+  border-radius: 4px;
+  padding: 8px 12px;
+  background-color: #333;
+}
+
+.tooltip-arrow {
+  border-top-color: #333 !important;
+}
+
+/* 表单控件样式 */
+.form-control {
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+}
+
+.form-control:focus {
+  border-color: #1E88E5;
+  box-shadow: 0 0 0 0.2rem rgba(30, 136, 229, 0.25);
+}
+
+/* 选择器样式 */
+.selectize-control {
+  border-radius: 4px;
+}
+
+.selectize-input {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 8px 12px;
+}
+
+.selectize-input.focus {
+  border-color: #1E88E5;
+  box-shadow: 0 0 0 0.2rem rgba(30, 136, 229, 0.25);
+}
+
+/* 标签页样式 */
+.nav-tabs-custom > .nav-tabs > li.active {
+  border-top-color: #1E88E5;
+}
+
+.nav-tabs-custom > .nav-tabs > li.active > a {
+  color: #1E88E5;
+  font-weight: bold;
+}
+
+/* 图标样式 */
+.fa-icon {
+  margin-right: 5px;
+}
+
+/* 加载动画 */
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #1E88E5;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 错误消息样式 */
+.alert-error {
+  background-color: #ffebee;
+  border-color: #f44336;
+  color: #c62828;
+}
+
+.alert-warning {
+  background-color: #fff8e1;
+  border-color: #ffc107;
+  color: #f57c00;
+}
+
+.alert-success {
+  background-color: #e8f5e9;
+  border-color: #4CAF50;
+  color: #2e7d32;
+}
+
+.alert-info {
+  background-color: #e3f2fd;
+  border-color: #2196f3;
+  color: #1565c0;
+}
+
+/* 响应式表格 */
+.table-responsive {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 卡片悬停效果 */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
