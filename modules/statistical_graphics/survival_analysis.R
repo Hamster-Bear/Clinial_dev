@@ -88,6 +88,64 @@ survival_analysis_ui <- function(id) {
           ),
           column(2,
                  numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1)
+          ),
+          column(2,
+                 checkboxInput(ns("show_grid"), "显示网格线", value = FALSE)
+          )
+        )
+      )
+    ),
+    
+    # 图例设置
+    fluidRow(
+      box(
+        width = 12,
+        title = "图例设置",
+        status = "primary",
+        collapsible = TRUE,
+        collapsed = TRUE,
+        fluidRow(
+          column(3,
+                 selectInput(ns("legend_position"), "图例位置",
+                           choices = c("顶部" = "top", "底部" = "bottom", "左侧" = "left", "右侧" = "right", "无" = "none", "自定义位置" = "custom"),
+                           selected = "top")
+          ),
+          column(3,
+                 selectInput(ns("legend_direction"), "图例方向",
+                           choices = c("垂直" = "vertical", "水平" = "horizontal"),
+                           selected = "vertical")
+          ),
+          column(3,
+                 numericInput(ns("legend_size"), "图例文字大小", value = 12, min = 6, max = 20, step = 1)
+          ),
+          column(3,
+                 numericInput(ns("legend_marker_size"), "图例标记大小", value = 4, min = 1, max = 10, step = 0.5)
+          )
+        ),
+        fluidRow(
+          column(3,
+                 numericInput(ns("legend_width"), "图例宽度", value = 0.5, min = 0.1, max = 2, step = 0.1)
+          ),
+          column(3,
+                 numericInput(ns("legend_height"), "图例高度", value = 0.5, min = 0.1, max = 2, step = 0.1)
+          ),
+          column(3,
+                 colourInput(ns("legend_background_color"), "图例背景色", value = "white")
+          ),
+          column(3,
+                 colourInput(ns("legend_border_color"), "图例边框色", value = "gray50")
+          )
+        ),
+        # 自定义位置控制（仅当选择自定义位置时显示）
+        conditionalPanel(
+          condition = paste0("input['", ns("legend_position"), "'] == 'custom'"),
+          fluidRow(
+            column(6,
+                   numericInput(ns("legend_custom_x"), "图例X位置 (0-1)", value = 0.95, min = 0, max = 1, step = 0.01)
+            ),
+            column(6,
+                   numericInput(ns("legend_custom_y"), "图例Y位置 (0-1)", value = 0.95, min = 0, max = 1, step = 0.01)
+            )
           )
         )
       )
@@ -118,7 +176,6 @@ survival_analysis_ui <- function(id) {
                          choices = c("0 = 删失, 1 = 事件" = "0", "1 = 删失, 0 = 事件" = "1"),
                          selected = "0"),
               checkboxInput(ns("km_show_risktable"), "显示风险表", value = TRUE),
-              checkboxInput(ns("show_ci"), "显示置信区间", value = FALSE),
               # 时间范围滑块
               uiOutput(ns("time_range_slider")),
               br(),
@@ -168,7 +225,18 @@ survival_analysis_server <- function(input, output, session, data) {
     title_size = 14,
     caption_size = 10,
     xlab_size = 12,
-    ylab_size = 12
+    ylab_size = 12,
+    legend_position = "top",
+    legend_size = 12,
+    legend_width = 0.5,
+    legend_height = 0.5,
+    legend_direction = "vertical",
+    legend_background_color = "white",
+    legend_border_color = "gray50",
+    legend_marker_size = 4,
+    legend_custom_x = 0.95,
+    legend_custom_y = 0.95,
+    show_grid = FALSE
   )
   
   # 更新变量选择
@@ -324,6 +392,11 @@ survival_analysis_server <- function(input, output, session, data) {
     graphics_state$caption_size <- input$caption_size
     graphics_state$xlab_size <- input$xlab_size
     graphics_state$ylab_size <- input$ylab_size
+    graphics_state$legend_position <- input$legend_position
+    graphics_state$legend_size <- input$legend_size
+    graphics_state$legend_width <- input$legend_width
+    graphics_state$legend_height <- input$legend_height
+    graphics_state$show_grid <- input$show_grid
   })
   
   # 获取过滤后的数据
@@ -455,87 +528,175 @@ survival_analysis_server <- function(input, output, session, data) {
     req(fit(), filtered_data())
     data <- filtered_data()
     
-    # 使用滑块控制的时间范围
+    # 时间范围设置保持不变...
     time_range <- if (!is.null(input$time_range)) {
       input$time_range
     } else {
-      # 如果没有滑块，使用基于时间变量的最大值+50
       time_var_name <- input$km_time
       time_max <- max(data[[time_var_name]], na.rm = TRUE)
-      time_range_max <- min(ceiling(time_max) + 50, 1000)  # 限制最大值为1000
+      time_range_max <- min(ceiling(time_max) + 50, 1000)
       c(0, time_range_max)
     }
     
-    # 创建生存曲线图
+    # 创建生存曲线图 - 禁用默认置信区间和图例，但禁用默认删失点
     p <- ggsurvplot(
       fit(),
       data = data,
       risk.table = input$km_show_risktable,
-      conf.int = input$show_ci,
-      pval = TRUE,
-      censor = input$km_show_censor,
-      censor.size = input$km_censor_size,
-      censor.shape = as.numeric(input$km_censor_shape),
+      conf.int = FALSE,  # 关键：禁用默认置信区间
+      pval = FALSE,
+      censor = FALSE,  # 关键：禁用默认删失点
       xlim = time_range,
       break.time.by = round((time_range[2] - time_range[1]) / 10),
       ggtheme = theme_bw(),
-      palette = input$plot_palette,
-      legend = "top",  # 显示图例在顶部
-      legend.title = "Strata",  # 设置图例标题
-      legend.labs = if (!is.null(fit()$strata)) {
-        # 如果有分层变量，使用分层变量名作为图例标签
-        levels(as.factor(fit()$strata))
-      } else {
-        # 如果没有分层变量，不显示图例
-        NULL
-      }
+      palette = "Set1",
+      legend = "none",  # 禁用所有默认图例
+      surv.alpha = 1   # 明确设置生存曲线透明度为1（不透明）
     )
     
-    # 应用线条样式
-    if (!is.null(input$line_size) && !is.null(input$line_type)) {
-      p$plot <- p$plot +
-        update_geom_defaults("step", list(size = input$line_size, linetype = input$line_type))
+    # 手动添加删失点，并生成单独的图例
+    if (input$km_show_censor) {
+      # 获取生存数据
+      surv_data <- surv_summary(fit())
+      
+      # 只选择删失点
+      censored_points <- surv_data[surv_data$n.censor > 0, ]
+      
+      if (nrow(censored_points) > 0) {
+        # 手动添加删失点，使用固定颜色和形状，但显示图例
+        p$plot <- p$plot +
+          geom_point(
+            data = censored_points,
+            aes(x = time, y = surv, shape = "删失"),
+            size = input$km_censor_size,
+            color = "black",  # 固定颜色，不映射
+            alpha = 1         # 固定透明度
+          ) +
+          scale_shape_manual(
+            name = "删失符号",
+            values = c("删失" = as.numeric(input$km_censor_shape))
+          )
+      }
     }
     
-    # 应用高级美学设置（标题、脚注和标签）
-    # 处理标题换行
+    
+    # 完全重构图例系统 - 彻底移除所有删失图例
+    # 首先确定图例位置和方向
+    legend_position <- if(input$legend_position == "none") "none" else input$legend_position
+    
+    # 设置图例基本属性 - 完全移除边框
+    p$plot <- p$plot +
+      theme(
+        legend.position = legend_position,
+        legend.direction = input$legend_direction,
+        legend.text = element_text(size = input$legend_size),
+        legend.title = element_text(size = input$legend_size),
+        legend.key = element_blank(),
+        legend.background = element_blank(),
+        legend.box.background = element_blank(),
+        legend.key.size = unit(input$legend_marker_size, "mm")
+      )
+    
+    # 自定义图例位置
+    if (input$legend_position == "custom") {
+      p$plot <- p$plot +
+        theme(
+          legend.position = c(input$legend_custom_x, input$legend_custom_y),
+          legend.justification = c(1, 1)
+        )
+    }
+    
+    # 清理图例标签 - 移除括号外的内容
+    if (input$strata_var != "None" && !is.null(fit()$strata)) {
+      # 有分层的情况 - 清理分层变量图例
+      strata_levels <- names(fit()$strata)
+      # 清理标签：移除括号外的内容，只保留括号内的值
+      cleaned_labels <- sapply(strata_levels, function(x) {
+        # 匹配括号内的内容
+        matches <- regmatches(x, gregexpr("\\(([^)]+)\\)", x))
+        if (length(matches[[1]]) > 0) {
+          # 提取括号内的内容
+          gsub("[()]", "", matches[[1]][1])
+        } else {
+          x
+        }
+      })
+      
+      p$plot <- p$plot +
+        guides(
+          color = guide_legend(
+            title = input$strata_var,
+            override.aes = list(
+              size = input$line_size,
+              linetype = input$line_type,
+              shape = NA,
+              alpha = 1
+            )
+          ),
+          shape = "none",  # 彻底隐藏删失图例
+          alpha = "none"   # 彻底隐藏透明度图例
+        ) +
+        scale_color_discrete(labels = cleaned_labels)
+    } else {
+      # 无分层的情况 - 只显示生存曲线图例
+      p$plot <- p$plot +
+        guides(
+          color = guide_legend(
+            title = "生存曲线",
+            override.aes = list(
+              size = input$line_size,
+              linetype = input$line_type,
+              shape = NA,
+              alpha = 1
+            )
+          ),
+          shape = "none",  # 彻底隐藏删失图例
+          alpha = "none"   # 彻底隐藏透明度图例
+        )
+    }
+    
+    # 应用线条样式
+    p$plot <- p$plot +
+      update_geom_defaults("step", list(size = input$line_size, linetype = input$line_type))
+    
+    # 添加网格线控制
+    if (!input$show_grid) {
+      p$plot <- p$plot +
+        theme(panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank())
+    }
+    
+    # 其余的美学设置（标题、标签等）保持不变...
+    # 处理标题
     if (!is.null(input$plot_title) && input$plot_title != "") {
-      # 将\n替换为实际换行符
       formatted_title <- gsub("\\\\n", "\n", input$plot_title)
       p$plot <- p$plot + labs(title = formatted_title)
     }
     
-    # 处理脚注 - 放在图形底部左对齐
+    # 处理脚注
     if (!is.null(input$plot_caption) && input$plot_caption != "") {
-      # 将\n替换为实际换行符
       formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
-      p$plot <- p$plot + labs(caption = formatted_caption)
-      
-      # 设置脚注样式：左对齐，调整位置
-      p$plot <- p$plot + theme(
-        plot.caption = element_text(hjust = 0, vjust = 1, size = 10),  # 左对齐
-        plot.caption.position = "plot"  # 脚注在整个图形底部
-      )
+      p$plot <- p$plot + labs(caption = formatted_caption) +
+        theme(plot.caption = element_text(hjust = 0, vjust = 1, size = 10))
     }
     
+    # 处理坐标轴标签
     if (!is.null(input$plot_xlab) && input$plot_xlab != "") {
-      # 处理X轴标签换行
       formatted_xlab <- gsub("\\\\n", "\n", input$plot_xlab)
       p$plot <- p$plot + labs(x = formatted_xlab)
     } else {
       p$plot <- p$plot + labs(x = input$km_time)
     }
+    
     if (!is.null(input$plot_ylab) && input$plot_ylab != "") {
-      # 处理Y轴标签换行
       formatted_ylab <- gsub("\\\\n", "\n", input$plot_ylab)
       p$plot <- p$plot + labs(y = formatted_ylab)
     } else {
       p$plot <- p$plot + labs(y = "生存概率")
     }
     
-    # 如果需要显示风险表，组合图形
+    # 组合图形（风险表处理）
     if (input$km_show_risktable && !is.null(p$table)) {
-      # 设置风险表主题
       p$table <- p$table +
         theme_minimal() +
         theme(
@@ -544,14 +705,10 @@ survival_analysis_server <- function(input, output, session, data) {
           axis.text.x = element_blank(),
           axis.ticks = element_blank(),
           panel.grid = element_blank(),
-          plot.margin = margin(0, 0, 0, 0, "pt")
+          plot.margin = margin(0, 0, 0, 0, "pt"),
+          axis.text.y = element_text(size = input$y_text_size)
         )
       
-      # 设置Y轴文本大小
-      p$table <- p$table +
-        theme(axis.text.y = element_text(size = input$y_text_size))
-      
-      # 使用cowplot包组合图形，确保脚注位置正确
       combined_plot <- plot_grid(
         p$plot,
         p$table,
@@ -561,14 +718,11 @@ survival_analysis_server <- function(input, output, session, data) {
         rel_heights = c(2, 0.5)
       )
       
-      # 添加额外的主题设置确保脚注位置
       combined_plot + theme(
         plot.caption = element_text(hjust = 0, vjust = 1, size = 10),
         plot.caption.position = "plot"
       )
     } else {
-      # 如果不显示风险表，只返回生存曲线图
-      # 确保脚注位置正确
       p$plot + theme(
         plot.caption = element_text(hjust = 0, vjust = 1, size = 10),
         plot.caption.position = "plot"
@@ -583,13 +737,12 @@ survival_analysis_server <- function(input, output, session, data) {
     create_surv_plot()
   }, height = 600)
   
-  # 交互式生存曲线图
-  output$interactiveSurvPlot <- renderPlotly({
-    input$render_km_plot  # 依赖于render_km_plot按钮
+  # 创建专门的交互式生存曲线图（避免转换警告）
+  create_interactive_surv_plot <- function() {
     req(fit(), filtered_data())
     data <- filtered_data()
     
-    # 创建基础生存曲线图
+    # 时间范围设置
     time_range <- if (!is.null(input$time_range)) {
       input$time_range
     } else {
@@ -599,39 +752,114 @@ survival_analysis_server <- function(input, output, session, data) {
       c(0, time_range_max)
     }
     
+    # 创建生存曲线图 - 使用 survminer 但不使用删失点功能
     p <- ggsurvplot(
       fit(),
       data = data,
-      conf.int = input$show_ci,
-      pval = TRUE,
-      censor = input$km_show_censor,
-      censor.size = input$km_censor_size,
-      censor.shape = as.numeric(input$km_censor_shape),
+      risk.table = FALSE,  # 交互式图不显示风险表
+      conf.int = FALSE,  # 关键：禁用默认置信区间
+      pval = FALSE,
+      censor = FALSE,  # 关键：完全禁用默认删失点
       xlim = time_range,
       break.time.by = round((time_range[2] - time_range[1]) / 10),
       ggtheme = theme_bw(),
-      palette = input$plot_palette,
-      legend = "top",  # 显示图例在顶部
-      legend.title = "Strata",  # 设置图例标题
-      legend.labs = if (!is.null(fit()$strata)) {
-        # 如果有分层变量，使用分层变量名作为图例标签
-        levels(as.factor(fit()$strata))
-      } else {
-        # 如果没有分层变量，不显示图例
-        NULL
-      }
+      palette = "Set1",
+      legend = "none",  # 禁用所有默认图例
+      surv.alpha = 1   # 明确设置生存曲线透明度为1（不透明）
     )$plot
     
-    # 应用线条样式
-    if (!is.null(input$line_size) && !is.null(input$line_type)) {
-      p <- p +
-        update_geom_defaults("step", list(size = input$line_size, linetype = input$line_type))
+    # 手动添加删失点，并生成单独的图例
+    if (input$km_show_censor) {
+      # 获取生存数据
+      surv_data <- surv_summary(fit())
+      
+      # 只选择删失点
+      censored_points <- surv_data[surv_data$n.censor > 0, ]
+      
+      if (nrow(censored_points) > 0) {
+        # 手动添加删失点，使用固定颜色和形状，但显示图例
+        p <- p +
+          geom_point(
+            data = censored_points,
+            aes(x = time, y = surv, shape = "删失"),
+            size = input$km_censor_size,
+            color = "black",  # 固定颜色，不映射
+            alpha = 1         # 固定透明度
+          ) +
+          scale_shape_manual(
+            name = "删失符号",
+            values = c("删失" = as.numeric(input$km_censor_shape))
+          )
+      }
     }
     
-    # 应用高级美学设置
-    # 处理标题换行
+    
+    # 完全重构图例系统 - 彻底移除所有删失图例和边框
+    legend_position <- if(input$legend_position == "none") "none" else input$legend_position
+    
+    # 设置图例基本属性 - 完全移除边框
+    p <- p +
+      theme(
+        legend.position = legend_position,
+        legend.direction = input$legend_direction,
+        legend.text = element_text(size = input$legend_size),
+        legend.title = element_text(size = input$legend_size),
+        legend.key = element_blank(),
+        legend.background = element_blank(),
+        legend.box.background = element_blank(),
+        legend.key.size = unit(input$legend_marker_size, "mm")
+      )
+    
+    # 自定义图例位置
+    if (input$legend_position == "custom") {
+      p <- p +
+        theme(
+          legend.position = c(input$legend_custom_x, input$legend_custom_y),
+          legend.justification = c(1, 1)
+        )
+    }
+    
+    # 构建图例逻辑 - 只显示生存曲线图例，彻底移除删失图例
+    if (input$strata_var != "None" && !is.null(fit()$strata)) {
+      # 有分层的情况 - 只显示分层变量图例
+      p <- p +
+        guides(
+          color = guide_legend(
+            title = input$strata_var,
+            override.aes = list(
+              size = input$line_size,
+              linetype = input$line_type,
+              shape = NA,
+              alpha = 1
+            )
+          ),
+          shape = "none",  # 彻底隐藏删失图例
+          alpha = "none"   # 彻底隐藏透明度图例
+        )
+    } else {
+      # 无分层的情况 - 只显示生存曲线图例
+      p <- p +
+        guides(
+          color = guide_legend(
+            title = "生存曲线",
+            override.aes = list(
+              size = input$line_size,
+              linetype = input$line_type,
+              shape = NA,
+              alpha = 1
+            )
+          ),
+          shape = "none",  # 彻底隐藏删失图例
+          alpha = "none"   # 彻底隐藏透明度图例
+        )
+    }
+    
+    # 应用线条样式
+    p <- p +
+      update_geom_defaults("step", list(size = input$line_size, linetype = input$line_type))
+    
+    # 处理标题
     if (!is.null(input$plot_title) && input$plot_title != "") {
-      # 将\n替换为实际换行符
       formatted_title <- gsub("\\\\n", "\n", input$plot_title)
       p <- p + labs(title = formatted_title)
     } else if (input$facet_var != "None" && !is.null(input$facet_value)) {
@@ -640,19 +868,14 @@ survival_analysis_server <- function(input, output, session, data) {
       p <- p + labs(title = "交互式生存分析曲线")
     }
     
-    # 处理脚注 - 放在图形底部左对齐
+    # 处理脚注
     if (!is.null(input$plot_caption) && input$plot_caption != "") {
-      # 将\n替换为实际换行符
       formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
-      p <- p + labs(caption = formatted_caption)
-      
-      # 设置脚注样式：左对齐
-      p <- p + theme(
-        plot.caption = element_text(hjust = 0, vjust = 1, size = 10)  # 左对齐
-      )
+      p <- p + labs(caption = formatted_caption) +
+        theme(plot.caption = element_text(hjust = 0, vjust = 1, size = 10))
     }
     
-    # 处理X轴标签换行
+    # 处理坐标轴标签
     if (!is.null(input$plot_xlab) && input$plot_xlab != "") {
       formatted_xlab <- gsub("\\\\n", "\n", input$plot_xlab)
       p <- p + labs(x = formatted_xlab)
@@ -660,7 +883,6 @@ survival_analysis_server <- function(input, output, session, data) {
       p <- p + labs(x = input$km_time)
     }
     
-    # 处理Y轴标签换行
     if (!is.null(input$plot_ylab) && input$plot_ylab != "") {
       formatted_ylab <- gsub("\\\\n", "\n", input$plot_ylab)
       p <- p + labs(y = formatted_ylab)
@@ -668,9 +890,45 @@ survival_analysis_server <- function(input, output, session, data) {
       p <- p + labs(y = "生存概率")
     }
     
-    # 转换为plotly交互式图形
-    ggplotly(p, tooltip = c("x", "y", "colour")) %>%
-      layout(height = 600)
+    return(p)
+  }
+  
+  # 交互式生存曲线图
+  output$interactiveSurvPlot <- renderPlotly({
+    input$render_km_plot
+    req(fit(), filtered_data())
+    
+    # 创建专门的交互式图形
+    interactive_plot <- create_interactive_surv_plot()
+    
+    # 转换为plotly，指定高度避免弃用警告
+    plotly_obj <- ggplotly(interactive_plot, height = 600, tooltip = c("x", "y", "colour"))
+    
+    # 设置图例位置和方向
+    if (input$legend_position != "none") {
+      # 将ggplot位置转换为plotly位置
+      legend_position <- switch(input$legend_position,
+        "top" = list(x = 0.5, y = 1, xanchor = "center", yanchor = "top"),
+        "bottom" = list(x = 0.5, y = 0, xanchor = "center", yanchor = "bottom"),
+        "left" = list(x = 0, y = 0.5, xanchor = "left", yanchor = "middle"),
+        "right" = list(x = 1, y = 0.5, xanchor = "right", yanchor = "middle"),
+        "custom" = list(x = input$legend_custom_x, y = input$legend_custom_y, xanchor = "left", yanchor = "top")
+      )
+      
+      plotly_obj <- plotly_obj %>%
+        layout(
+          legend = list(
+            orientation = if(input$legend_direction == "horizontal") "h" else "v",
+            font = list(size = input$legend_size),
+            x = legend_position$x,
+            y = legend_position$y,
+            xanchor = legend_position$xanchor,
+            yanchor = legend_position$yanchor
+          )
+        )
+    }
+    
+    return(plotly_obj)
   })
   
   # 生存分析数据表

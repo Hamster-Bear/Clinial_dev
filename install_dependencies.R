@@ -34,6 +34,7 @@ required_packages <- c(
   
   # 颜色主题支持
   "ggsci",
+  "colourpicker",
   
   # 数据安全
   "digest"

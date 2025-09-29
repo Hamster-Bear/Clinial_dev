@@ -20,6 +20,7 @@ library(corrplot)
 library(ggsci)
 library(patchwork)
 library(digest)
+library(colourpicker)
 
 # 加载所有模块
 source("modules/data_preparation.R")

@@ -8,6 +8,7 @@
 - **shinyjs**: JavaScript交互增强
 - **shinyBS**: Bootstrap组件和提示工具
 - **bslib**: 现代UI组件和手风琴面板
+- **colourpicker**: 颜色选择器输入控件
 
 ### 数据处理与读取
 - **dplyr**: 数据操作和转换
@@ -39,7 +40,7 @@
 ```r
 # 检查并安装缺失的包
 required_packages <- c(
-  "shiny", "shinydashboard", "shinyjs", "shinyBS", "bslib",
+  "shiny", "shinydashboard", "shinyjs", "shinyBS", "bslib", "colourpicker",
   "dplyr", "readr", "readxl", "haven", "tibble",
   "ggplot2", "plotly", "DT", "gt",
   "broom", "survival", "lmtest",
