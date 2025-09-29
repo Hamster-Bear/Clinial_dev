@@ -1,4 +1,20 @@
-# 统计分析模块
+# 统计分析主模块
+# 负责集成所有统计分析子模块
+
+# 加载必要的包
+library(shiny)
+library(dplyr)
+library(broom)
+library(survival)
+library(gt)
+
+# 加载子模块
+source("modules/statistical_analysis/cox.R")
+source("modules/statistical_analysis/logistic.R")
+source("modules/statistical_analysis/linear.R")
+source("modules/statistical_analysis/anova.R")
+source("modules/statistical_analysis/chisq.R")
+source("modules/statistical_analysis/desc.R")
 
 # 统计方法选择UI
 statistical_analysis_ui <- function(id) {
@@ -74,64 +90,6 @@ statistical_analysis_server <- function(input, output, session, data) {
            NULL
     )
   })
-  
-  # Cox回归参数UI
-  cox_params_ui <- function(ns) {
-    tagList(
-      selectInput(ns("cox_time"), "时间变量 (Time)", choices = NULL),
-      selectInput(ns("cox_status"), "删失变量 (Status)", choices = NULL),
-      selectizeInput(ns("cox_covariates"), "协变量 (Covariates)", choices = NULL, multiple = TRUE),
-      selectInput(ns("cox_strata"), "分层变量 (Strata) - 可选", choices = c("None", NULL))
-    )
-  }
-  
-  # 逻辑回归参数UI
-  logistic_params_ui <- function(ns, data) {
-    numeric_vars <- names(data)[sapply(data, is.numeric)]
-    tagList(
-      selectInput(ns("logistic_response"), "响应变量", choices = numeric_vars),
-      selectizeInput(ns("logistic_predictors"), "预测变量", choices = names(data), multiple = TRUE)
-    )
-  }
-  
-  # 线性回归参数UI
-  linear_params_ui <- function(ns, data) {
-    numeric_vars <- names(data)[sapply(data, is.numeric)]
-    tagList(
-      selectInput(ns("linear_response"), "响应变量", choices = numeric_vars),
-      selectizeInput(ns("linear_predictors"), "预测变量", choices = names(data), multiple = TRUE)
-    )
-  }
-  
-  # 方差分析参数UI
-  anova_params_ui <- function(ns, data) {
-    numeric_vars <- names(data)[sapply(data, is.numeric)]
-    factor_vars <- names(data)[sapply(data, is.factor)]
-    tagList(
-      selectInput(ns("anova_response"), "响应变量", choices = numeric_vars),
-      selectizeInput(ns("anova_factors"), "分组变量", choices = factor_vars, multiple = TRUE)
-    )
-  }
-  
-  # 卡方检验参数UI
-  chisq_params_ui <- function(ns, data) {
-    factor_vars <- names(data)[sapply(data, is.factor)]
-    tagList(
-      selectInput(ns("chisq_var1"), "变量1", choices = factor_vars),
-      selectInput(ns("chisq_var2"), "变量2", choices = factor_vars)
-    )
-  }
-  
-  # 描述性统计参数UI
-  desc_params_ui <- function(ns, data) {
-    tagList(
-      selectizeInput(ns("desc_vars"), "选择变量", choices = names(data), multiple = TRUE),
-      checkboxGroupInput(ns("desc_stats"), "统计量",
-                         choices = c("平均值" = "mean", "标准差" = "sd", "中位数" = "median",
-                                     "最小值" = "min", "最大值" = "max", "缺失值" = "na"),
-                         selected = c("mean", "sd"))
-    )
-  }
   
   # 更新变量选择
   observe({
@@ -230,180 +188,4 @@ statistical_analysis_server <- function(input, output, session, data) {
   
   # 返回分析结果
   return(analysis_results)
-}
-
-# Cox回归分析
-perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox_strata) {
-  req(cox_time, cox_status)
-  
-  # 验证变量是否存在
-  if (!cox_time %in% names(data)) {
-    stop(paste("时间变量", cox_time, "不存在于数据中"))
-  }
-  if (!cox_status %in% names(data)) {
-    stop(paste("状态变量", cox_status, "不存在于数据中"))
-  }
-  
-  # 验证协变量是否存在
-  if (!is.null(cox_covariates) && length(cox_covariates) > 0) {
-    missing_covariates <- cox_covariates[!cox_covariates %in% names(data)]
-    if (length(missing_covariates) > 0) {
-      stop(paste("协变量不存在:", paste(missing_covariates, collapse = ", ")))
-    }
-  }
-  
-  # 直接构建公式，避免中间变量
-  if (length(cox_covariates) > 0) {
-    formula <- as.formula(paste("Surv(", cox_time, ",", cox_status, ") ~",
-                                paste(cox_covariates, collapse = "+")))
-  } else {
-    formula <- as.formula(paste("Surv(", cox_time, ",", cox_status, ") ~ 1"))
-  }
-  
-  # 添加分层变量
-  if (!is.null(cox_strata) && cox_strata != "None") {
-    if (!cox_strata %in% names(data)) {
-      stop(paste("分层变量", cox_strata, "不存在于数据中"))
-    }
-    formula <- as.formula(paste0(deparse(formula), " + strata(", cox_strata, ")"))
-  }
-  
-  # 执行Cox回归
-  model <- survival::coxph(formula, data = data)
-  
-  # 提取结果
-  result <- broom::tidy(model, conf.int = TRUE, exponentiate = TRUE)
-  
-  return(result)
-}
-
-# 逻辑回归分析
-perform_logistic_analysis <- function(data, logistic_response, logistic_predictors) {
-  req(logistic_response, logistic_predictors)
-  
-  formula <- as.formula(
-    paste(logistic_response, "~", paste(logistic_predictors, collapse = "+"))
-  )
-  
-  model <- glm(formula, data = data, family = binomial())
-  result <- broom::tidy(model, conf.int = TRUE, exponentiate = TRUE)
-  
-  return(result)
-}
-
-# 线性回归分析
-perform_linear_analysis <- function(data, linear_response, linear_predictors) {
-  req(linear_response, linear_predictors)
-  
-  formula <- as.formula(
-    paste(linear_response, "~", paste(linear_predictors, collapse = "+"))
-  )
-  
-  model <- lm(formula, data = data)
-  result <- broom::tidy(model, conf.int = TRUE)
-  
-  return(result)
-}
-
-# 方差分析
-perform_anova_analysis <- function(data, anova_response, anova_factors) {
-  req(anova_response, anova_factors)
-  
-  formula <- as.formula(
-    paste(anova_response, "~", paste(anova_factors, collapse = "*"))
-  )
-  
-  model <- aov(formula, data = data)
-  result <- broom::tidy(model)
-  
-  return(result)
-}
-
-# 卡方检验
-perform_chisq_analysis <- function(data, chisq_var1, chisq_var2) {
-  req(chisq_var1, chisq_var2)
-  
-  table <- table(data[[chisq_var1]], data[[chisq_var2]])
-  test <- chisq.test(table)
-  
-  result <- data.frame(
-    Statistic = test$statistic,
-    p.value = test$p.value,
-    df = test$parameter
-  )
-  
-  return(result)
-}
-
-# 描述性统计
-perform_desc_analysis <- function(data, desc_vars, desc_stats) {
-  req(desc_vars, desc_stats)
-  
-  # 验证变量是否存在
-  missing_vars <- desc_vars[!desc_vars %in% names(data)]
-  if (length(missing_vars) > 0) {
-    stop(paste("变量不存在:", paste(missing_vars, collapse = ", ")))
-  }
-  
-  desc_data <- data %>% select(all_of(desc_vars))
-  
-  stats_list <- list()
-  
-  # 只对数值型变量计算统计量
-  numeric_vars <- names(desc_data)[sapply(desc_data, is.numeric)]
-  
-  if ("mean" %in% desc_stats) {
-    if (length(numeric_vars) > 0) {
-      stats_list$Mean <- sapply(desc_data[numeric_vars], function(x) {
-        if (is.numeric(x)) mean(x, na.rm = TRUE) else NA
-      })
-    }
-  }
-  
-  if ("sd" %in% desc_stats) {
-    if (length(numeric_vars) > 0) {
-      stats_list$SD <- sapply(desc_data[numeric_vars], function(x) {
-        if (is.numeric(x)) sd(x, na.rm = TRUE) else NA
-      })
-    }
-  }
-  
-  if ("median" %in% desc_stats) {
-    if (length(numeric_vars) > 0) {
-      stats_list$Median <- sapply(desc_data[numeric_vars], function(x) {
-        if (is.numeric(x)) median(x, na.rm = TRUE) else NA
-      })
-    }
-  }
-  
-  if ("min" %in% desc_stats) {
-    if (length(numeric_vars) > 0) {
-      stats_list$Min <- sapply(desc_data[numeric_vars], function(x) {
-        if (is.numeric(x)) min(x, na.rm = TRUE) else NA
-      })
-    }
-  }
-  
-  if ("max" %in% desc_stats) {
-    if (length(numeric_vars) > 0) {
-      stats_list$Max <- sapply(desc_data[numeric_vars], function(x) {
-        if (is.numeric(x)) max(x, na.rm = TRUE) else NA
-      })
-    }
-  }
-  
-  if ("na" %in% desc_stats) {
-    stats_list$Missing <- colSums(is.na(desc_data))
-  }
-  
-  # 处理空结果的情况
-  if (length(stats_list) == 0) {
-    return(data.frame(Variable = desc_vars, Note = "无可用统计量"))
-  }
-  
-  result <- as.data.frame(do.call(cbind, stats_list))
-  result$Variable <- rownames(result)
-  result <- result %>% select(Variable, everything())
-  
-  return(result)
 }
