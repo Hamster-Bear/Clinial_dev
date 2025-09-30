@@ -13,16 +13,44 @@ data_preparation_ui <- function(id) {
         status = "primary", 
         solidHeader = TRUE,
         fileInput(
-          ns("file_upload"), 
-          label = NULL, 
-          buttonLabel = "浏览...", 
-          placeholder = "选择 .csv, .xlsx 或 .sav 文件",
-          accept = c(".csv", ".xlsx", ".xls", ".sav")
+          ns("file_upload"),
+          label = NULL,
+          buttonLabel = "浏览...",
+          placeholder = "选择 .csv, .xlsx, .sav, .sas7bdat 或 .xpt 文件",
+          accept = c(".csv", ".xlsx", ".xls", ".sav", ".sas7bdat", ".xpt")
         ),
-        helpText("支持 CSV, Excel, SPSS 格式。文件大小限制为 50MB。")
+        helpText("支持 CSV, Excel, SPSS, SAS 格式。文件大小限制为 50MB。")
+      ),
+      
+      # SAS数据变量显示选项
+      conditionalPanel(
+        condition = paste0("input['", ns("file_upload"), "'] != null && ",
+                          "(tools::file_ext(input['", ns("file_upload"), "']$name) == 'sas7bdat' || ",
+                          "tools::file_ext(input['", ns("file_upload"), "']$name) == 'xpt')"),
+        box(
+          width = 12,
+          title = "SAS数据变量显示选项",
+          status = "info",
+          solidHeader = TRUE,
+          collapsible = TRUE,
+          collapsed = FALSE,
+          radioButtons(
+            ns("sas_col_display"),
+            "列名显示方式:",
+            choices = c(
+              "仅变量名" = "names",
+              "仅变量标签" = "labels",
+              "变量名 + 标签" = "both"
+            ),
+            selected = "names"
+          ),
+          actionButton(ns("btn_apply_sas_display"), "应用显示设置",
+                      icon = icon("refresh"), class = "btn-primary btn-sm"),
+          helpText("对于SAS数据，可以选择显示变量名、变量标签或两者结合。")
+        )
       )
     ),
-
+    
     # 性能优化选项
     conditionalPanel(
       condition = paste0("input['", ns("file_upload"), "'] != null"),
@@ -62,6 +90,24 @@ data_preparation_ui <- function(id) {
       valueBoxOutput(ns("file_info_box"), width = 2),
       valueBoxOutput(ns("performance_info_box"), width = 2),
       valueBoxOutput(ns("memory_info_box"), width = 2)
+    ),
+    
+    # 变量信息汇总 (仅SAS数据)
+    conditionalPanel(
+      condition = paste0("input['", ns("file_upload"), "'] != null && ",
+                        "(tools::file_ext(input['", ns("file_upload"), "']$name) == 'sas7bdat' || ",
+                        "tools::file_ext(input['", ns("file_upload"), "']$name) == 'xpt')"),
+      fluidRow(
+        box(
+          width = 12,
+          title = "SAS变量信息汇总",
+          status = "success",
+          solidHeader = TRUE,
+          collapsible = TRUE,
+          collapsed = TRUE,
+          tableOutput(ns("sas_var_summary"))
+        )
+      )
     ),
     
     # 数据预览区域
@@ -108,7 +154,6 @@ data_preparation_ui <- function(id) {
       )
     ),
     
-    
     # 数据预处理区域
     fluidRow(
       box(
@@ -136,12 +181,17 @@ data_preparation_server <- function(input, output, session) {
   clean_data <- reactiveVal(NULL)
   type_info <- reactiveVal(NULL)
   sampled_data <- reactiveVal(NULL)
+  sas_data <- reactiveVal(NULL)  # 存储原始SAS数据（包含标签）
+  display_data <- reactiveVal(NULL)  # 存储显示数据（根据显示设置）
   performance_stats <- reactiveValues(
     load_time = NULL,
     memory_usage = NULL,
     row_count = NULL,
     col_count = NULL
   )
+  
+  # SAS显示设置
+  sas_display_mode <- reactiveVal("names")
   
   # 文件上传处理 - 移除文件大小限制
   observeEvent(input$file_upload, {
@@ -151,8 +201,8 @@ data_preparation_server <- function(input, output, session) {
     ext <- tools::file_ext(file$name)
     
     # 文件验证 - 只检查格式，不检查大小
-    if (!ext %in% c("csv", "xlsx", "xls", "sav")) {
-      showNotification("仅支持 CSV, Excel, SPSS 格式", type = "error")
+    if (!ext %in% c("csv", "xlsx", "xls", "sav", "sas7bdat", "xpt")) {
+      showNotification("仅支持 CSV, Excel, SPSS, SAS 格式", type = "error")
       reset("file_upload")
       return()
     }
@@ -205,7 +255,9 @@ data_preparation_server <- function(input, output, session) {
                                                ~ ifelse(grepl("^[0-9.]+$", .), as.numeric(.), .)))
                       df
                     },
-                    sav = read_sav(file$datapath))
+                    sav = read_sav(file$datapath),
+                    sas7bdat = read_sas(file$datapath),
+                    xpt = read_xpt(file$datapath))
       
       # 验证数据是否成功读取
       if (is.null(data) || nrow(data) == 0) {
@@ -216,14 +268,24 @@ data_preparation_server <- function(input, output, session) {
      end_time <- Sys.time()
      load_time <- round(as.numeric(difftime(end_time, start_time, units = "secs")), 2)
      memory_usage <- round(object.size(data) / 1024 / 1024, 2)  # MB
-      
+       
      performance_stats$load_time <- load_time
      performance_stats$memory_usage <- memory_usage
      performance_stats$row_count <- nrow(data)
      performance_stats$col_count <- ncol(data)
-      
+       
+     # 对于SAS数据，保存原始数据（包含标签）
+     if (ext %in% c("sas7bdat", "xpt")) {
+       sas_data(data)
+       # 初始显示设置
+       display_data(create_sas_display_data(data, "names"))
+     } else {
+       sas_data(NULL)
+       display_data(NULL)
+     }
+     
      raw_data(data)
-      
+       
      # 应用初始采样（如果启用）
      if (!is.null(input$enable_sampling) && input$enable_sampling && nrow(data) > input$sample_size) {
        sampled <- data %>% sample_n(min(input$sample_size, nrow(data)))
@@ -235,14 +297,14 @@ data_preparation_server <- function(input, output, session) {
        clean_data(data)
        showNotification("文件读取成功", type = "message")
      }
-      
+       
      # 显示性能信息
      showNotification(
        paste("加载时间:", load_time, "秒 | 内存占用:", memory_usage, "MB | 行数:", nrow(data), "| 列数:", ncol(data)),
        type = "message",
        duration = 10
      )
-      
+       
    }, error = function(e) {
      # 记录详细的错误信息到控制台
      message(paste("文件读取错误详情:", e$message))
@@ -291,12 +353,78 @@ data_preparation_server <- function(input, output, session) {
     )
   })
   
+  # 应用SAS显示设置
+  observeEvent(input$btn_apply_sas_display, {
+    req(sas_data(), input$sas_col_display)
+    display_data(create_sas_display_data(sas_data(), input$sas_col_display))
+    sas_display_mode(input$sas_col_display)
+    showNotification("SAS显示设置已应用", type = "message")
+  })
+  
+  # 创建SAS显示数据的辅助函数
+  create_sas_display_data <- function(sas_data, display_mode) {
+    if (is.null(sas_data)) return(NULL)
+    
+    if (display_mode == "names") {
+      return(as.data.frame(sas_data))
+    } else if (display_mode == "labels") {
+      col_labels <- sapply(sas_data, function(x) {
+        label <- attr(x, "label")
+        if (is.null(label) || label == "") names(x)[1] else as.character(label)
+      })
+      display_df <- as.data.frame(sas_data)
+      names(display_df) <- col_labels
+      return(display_df)
+    } else if (display_mode == "both") {
+      col_names <- names(sas_data)
+      col_labels <- sapply(sas_data, function(x) {
+        label <- attr(x, "label")
+        if (is.null(label) || label == "") "" else as.character(label)
+      })
+      
+      # 合并变量名和标签
+      combined_names <- ifelse(col_labels == "",
+                               col_names,
+                               paste0(col_names, " [", col_labels, "]"))
+      
+      display_df <- as.data.frame(sas_data)
+      names(display_df) <- combined_names
+      return(display_df)
+    }
+  }
+  
+  # SAS变量信息汇总
+  output$sas_var_summary <- renderTable({
+    req(sas_data())
+    
+    data <- sas_data()
+    var_info <- data.frame(
+      变量名 = names(data),
+      变量标签 = sapply(data, function(x) {
+        label <- attr(x, "label")
+        if (is.null(label)) "无标签" else as.character(label)
+      }),
+      类型 = sapply(data, function(x) class(x)[1]),
+      非缺失值数 = sapply(data, function(x) sum(!is.na(x))),
+      缺失值数 = sapply(data, function(x) sum(is.na(x))),
+      stringsAsFactors = FALSE
+    )
+    
+    var_info
+  }, striped = TRUE, hover = TRUE, bordered = TRUE,
+     align = 'c', width = '100%')
+  
   # 数据预览 - 添加筛选功能和延迟加载
   output$raw_data_preview <- DT::renderDataTable({
     req(raw_data())
     
     # 使用延迟加载：只在需要时获取数据
-    data_to_show <- if (!is.null(clean_data())) clean_data() else raw_data()
+    # 对于SAS数据，使用display_data；否则使用原始或清理后的数据
+    if (!is.null(sas_data()) && !is.null(display_data())) {
+      data_to_show <- display_data()
+    } else {
+      data_to_show <- if (!is.null(clean_data())) clean_data() else raw_data()
+    }
     
     # 对于大型数据集，使用服务器端处理提高性能
     if (nrow(data_to_show) > 10000 && input$lazy_loading) {
@@ -381,7 +509,12 @@ data_preparation_server <- function(input, output, session) {
   })
   
   output$obs_count_box <- renderValueBox({
-    data_to_count <- if (!is.null(clean_data())) clean_data() else raw_data()
+    # 对于SAS数据，使用显示数据；否则使用原始或清理后的数据
+    if (!is.null(sas_data()) && !is.null(display_data())) {
+      data_to_count <- display_data()
+    } else {
+      data_to_count <- if (!is.null(clean_data())) clean_data() else raw_data()
+    }
     req(data_to_count)
     
     valueBox(
@@ -530,7 +663,6 @@ data_preparation_server <- function(input, output, session) {
     )
   })
   
-  
   # 应用预处理
   observeEvent(input$apply_preprocess, {
     req(raw_data())
@@ -591,7 +723,8 @@ data_preparation_server <- function(input, output, session) {
                                          replace = TRUE)
                      processed_data[[col]] <- random_vals
                    }
-                 })
+                 }
+          )
         }
       }
     }
@@ -620,7 +753,6 @@ data_preparation_server <- function(input, output, session) {
                }
              })
     }
-    
     
     # 应用DT表格的筛选条件
     # 获取当前显示的行的索引

@@ -1,12 +1,15 @@
 # Cox回归分析模块
 
 # Cox回归参数UI
-cox_params_ui <- function(ns) {
+cox_params_ui <- function(ns, data) {
+  numeric_vars <- names(data)[sapply(data, is.numeric)]
+  factor_vars <- names(data)[sapply(data, is.factor)]
+  
   tagList(
-    selectInput(ns("cox_time"), "时间变量 (Time)", choices = NULL),
-    selectInput(ns("cox_status"), "删失变量 (Status)", choices = NULL),
-    selectizeInput(ns("cox_covariates"), "协变量 (Covariates)", choices = NULL, multiple = TRUE),
-    selectInput(ns("cox_strata"), "分层变量 (Strata) - 可选", choices = c("None", NULL))
+    selectInput(ns("cox_time"), "时间变量 (Time)", choices = numeric_vars),
+    selectInput(ns("cox_status"), "删失变量 (Status)", choices = numeric_vars),
+    selectizeInput(ns("cox_covariates"), "协变量 (Covariates)", choices = names(data), multiple = TRUE),
+    selectInput(ns("cox_strata"), "分层变量 (Strata) - 可选", choices = c("None", factor_vars))
   )
 }
 

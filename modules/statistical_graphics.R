@@ -10,6 +10,7 @@ source("modules/statistical_graphics/boxplot.R")
 source("modules/statistical_graphics/forest_plot.R")
 source("modules/statistical_graphics/heatmap.R")
 source("modules/statistical_graphics/correlation_matrix.R")
+source("modules/statistical_graphics/combo_plot.R")
 
 statistical_graphics_ui <- function(id) {
   ns <- NS(id)
@@ -29,7 +30,8 @@ statistical_graphics_ui <- function(id) {
             "箱线图" = "boxplot",
             "森林图" = "forest",
             "热图" = "heatmap",
-            "相关性矩阵" = "correlation"
+            "相关性矩阵" = "correlation",
+            "组合图形" = "combo"
           )
         )
       )
@@ -49,7 +51,8 @@ statistical_graphics_server <- function(input, output, session, data) {
     boxplot = NULL,
     forest = NULL,
     heatmap = NULL,
-    correlation = NULL
+    correlation = NULL,
+    combo = NULL
   )
   
   # 动态显示选定的图形子模块UI
@@ -61,7 +64,8 @@ statistical_graphics_server <- function(input, output, session, data) {
            "boxplot" = boxplot_ui(ns("boxplot")),
            "forest" = forest_plot_ui(ns("forest")),
            "heatmap" = heatmap_ui(ns("heatmap")),
-           "correlation" = correlation_matrix_ui(ns("correlation"))
+           "correlation" = correlation_matrix_ui(ns("correlation")),
+           "combo" = combo_plot_ui(ns("combo"))
     )
   })
   
@@ -95,6 +99,11 @@ statistical_graphics_server <- function(input, output, session, data) {
              if (is.null(module_states$correlation)) {
                module_states$correlation <- callModule(correlation_matrix_server, "correlation", data)
              }
+           },
+           "combo" = {
+             if (is.null(module_states$combo)) {
+               module_states$combo <- callModule(combo_plot_server, "combo", data)
+             }
            }
     )
   })
@@ -107,6 +116,7 @@ statistical_graphics_server <- function(input, output, session, data) {
            "forest" = module_states$forest(),
            "heatmap" = module_states$heatmap(),
            "correlation" = module_states$correlation(),
+           "combo" = module_states$combo(),
            NULL
     )
   }))

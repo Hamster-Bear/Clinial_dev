@@ -7,6 +7,9 @@ library(dplyr)
 library(broom)
 library(survival)
 library(gt)
+library(shinyWidgets)
+library(DT)
+library(tidyr)
 
 # 加载子模块
 source("modules/statistical_analysis/cox.R")
@@ -21,53 +24,84 @@ statistical_analysis_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
-    box(
-      width = 12,
-      title = "统计方法选择",
-      status = "primary",
-      solidHeader = TRUE,
-      selectInput(
-        ns("stat_method"),
-        "选择统计方法",
-        choices = list(
-          "描述性统计" = "desc",
-          "回归模型" = list(
-            "Cox回归" = "cox",
-            "逻辑回归" = "logistic", 
-            "线性回归" = "linear"
-          ),
-          "组间比较" = list(
-            "方差分析(ANOVA)" = "anova",
-            "卡方检验" = "chi-sq",
-            "CMH检验" = "cmh"
-          ),
-          "高级方法" = list(
-            "MMRM" = "mmrm",
-            "多重填补" = "mi"
+    fluidRow(
+      # 左侧：方法选择和变量选择
+      column(
+        width = 4,
+        box(
+          width = 12,
+          title = "统计方法选择",
+          status = "primary",
+          solidHeader = TRUE,
+          selectInput(
+            ns("stat_method"),
+            "选择统计方法",
+            choices = list(
+              "描述性统计" = "desc",
+              "回归模型" = list(
+                "Cox回归" = "cox",
+                "逻辑回归" = "logistic",
+                "线性回归" = "linear"
+              ),
+              "组间比较" = list(
+                "方差分析(ANOVA)" = "anova",
+                "卡方检验" = "chi-sq",
+                "CMH检验" = "cmh"
+              ),
+              "高级方法" = list(
+                "MMRM" = "mmrm",
+                "多重填补" = "mi"
+              )
+            )
+          )
+        ),
+        
+        # 变量选择和参数设置面板
+        box(
+          width = 12,
+          title = "变量选择和参数设置",
+          status = "info",
+          solidHeader = TRUE,
+          # 动态参数UI
+          uiOutput(ns("stat_params_ui")),
+          
+          # 执行按钮
+          actionButton(
+            ns("run_analysis"),
+            "运行分析",
+            icon = icon("play"),
+            class = "btn-success",
+            width = "100%"
           )
         )
+      ),
+      
+      # 右侧：结果展示
+      column(
+        width = 8,
+        box(
+          width = 12,
+          title = "分析结果",
+          status = "success",
+          solidHeader = TRUE,
+          tabsetPanel(
+            tabPanel("统计表格", DTOutput(ns("result_table"))),
+            tabPanel("结果说明",
+                     br(),
+                     h4("输出说明:"),
+                     tags$ul(
+                       tags$li("分类变量: n (n/N%)"),
+                       tags$li("连续变量: mean (sd)"),
+                       tags$li("中位数: median"),
+                       tags$li("最小值/最大值: min, max"),
+                       tags$li("四分位数: q1, q3")
+                     )
+            )
+          ),
+          br(),
+          downloadButton(ns("dl_table"), "导出为Word", class = "btn-primary")
+        )
       )
-    ),
-    
-    # 动态参数UI
-    uiOutput(ns("stat_params_ui")),
-    
-    # 执行按钮
-    actionButton(
-      ns("run_analysis"),
-      "运行分析",
-      icon = icon("play"),
-      class = "btn-success"
-    ),
-    
-    # 结果展示
-    box(
-      width = 12,
-      title = "分析结果",
-      status = "success",
-      gt_output(ns("result_table")),
-      br(),
-      downloadButton(ns("dl_table"), "导出为Word")
     )
   )
 }
@@ -76,12 +110,59 @@ statistical_analysis_ui <- function(id) {
 statistical_analysis_server <- function(input, output, session, data) {
   ns <- session$ns
   
+  # 获取分组变量的水平（用于描述性统计）
+  desc_group_levels <- reactive({
+    req(data(), input$desc_group_var != "无")
+    unique(data()[[input$desc_group_var]])
+  })
+  
+  # 动态生成描述性统计的总计列设置UI
+  output$desc_total_cols_ui <- renderUI({
+    req(input$desc_total_cols_count >= 1, desc_group_levels())
+    
+    total_cols <- lapply(1:input$desc_total_cols_count, function(i) {
+      wellPanel(
+        textInput(ns(paste0("desc_total_col_name_", i)),
+                  paste("总计列", i, "名称"),
+                  value = paste("总计", i)),
+        selectizeInput(
+          inputId = ns(paste0("desc_total_col_groups_", i)),
+          label = paste("选择总计列", i, "包含的组"),
+          choices = desc_group_levels(),
+          multiple = TRUE
+        )
+      )
+    })
+    
+    do.call(tagList, total_cols)
+  })
+  
+  # 获取描述性统计的总计列设置
+  desc_total_cols_settings <- reactive({
+    req(input$desc_total_cols_count >= 1, input$desc_group_var != "无")
+    
+    settings <- list()
+    for (i in 1:input$desc_total_cols_count) {
+      name_id <- paste0("desc_total_col_name_", i)
+      groups_id <- paste0("desc_total_col_groups_", i)
+      
+      if (!is.null(input[[name_id]]) && !is.null(input[[groups_id]])) {
+        settings[[i]] <- list(
+          name = input[[name_id]],
+          groups = input[[groups_id]]
+        )
+      }
+    }
+    
+    settings
+  })
+  
   # 动态参数UI
   output$stat_params_ui <- renderUI({
     req(input$stat_method, data())
     
     switch(input$stat_method,
-           "cox" = cox_params_ui(ns),
+           "cox" = cox_params_ui(ns, data()),
            "logistic" = logistic_params_ui(ns, data()),
            "linear" = linear_params_ui(ns, data()),
            "anova" = anova_params_ui(ns, data()),
@@ -117,7 +198,9 @@ statistical_analysis_server <- function(input, output, session, data) {
              "linear" = perform_linear_analysis(data(), input$linear_response, input$linear_predictors),
              "anova" = perform_anova_analysis(data(), input$anova_response, input$anova_factors),
              "chi-sq" = perform_chisq_analysis(data(), input$chisq_var1, input$chisq_var2),
-             "desc" = perform_desc_analysis(data(), input$desc_vars, input$desc_stats),
+             "desc" = perform_desc_analysis(data(), input$desc_variables, input$desc_group_var,
+                                           input$desc_total_cols_count, desc_total_cols_settings(),
+                                           input$desc_decimals),
              NULL
       )
     }, error = function(e) {
@@ -131,24 +214,32 @@ statistical_analysis_server <- function(input, output, session, data) {
   })
   
   # 显示结果表格
-  output$result_table <- render_gt({
+  output$result_table <- renderDT({
     req(analysis_results())
     
     result <- analysis_results()
     
     if (is.data.frame(result)) {
-      gt(result) %>%
-        tab_header(
-          title = "统计分析结果",
-          subtitle = paste("方法:", input$stat_method)
-        ) %>%
-        fmt_number(columns = where(is.numeric), decimals = 3)
+      datatable(result,
+                options = list(
+                  pageLength = 25,
+                  scrollX = TRUE,
+                  dom = 'Bfrtip'
+                ),
+                rownames = FALSE)
     } else if (is.list(result) && !is.null(result$table)) {
-      result$table
+      datatable(result$table,
+                options = list(
+                  pageLength = 25,
+                  scrollX = TRUE,
+                  dom = 'Bfrtip'
+                ),
+                rownames = FALSE)
     } else {
       # 默认显示
-      gt(tibble(Result = "无可用结果")) %>%
-        tab_header(title = "分析结果")
+      datatable(data.frame(Result = "无可用结果"),
+                options = list(dom = 't'),
+                rownames = FALSE)
     }
   })
   
