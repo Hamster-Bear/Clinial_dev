@@ -19,7 +19,7 @@ data_preparation_ui <- function(id) {
           placeholder = "选择 .csv, .xlsx, .sav, .sas7bdat 或 .xpt 文件",
           accept = c(".csv", ".xlsx", ".xls", ".sav", ".sas7bdat", ".xpt")
         ),
-        helpText("支持 CSV, Excel, SPSS, SAS 格式。文件大小限制为 50MB。")
+        helpText("支持 CSV, Excel, SPSS, SAS 格式。最大支持 100MB 文件。")
       ),
       
       # SAS数据变量显示选项
@@ -51,30 +51,34 @@ data_preparation_ui <- function(id) {
       )
     ),
     
-    # 性能优化选项
+    # 表格显示选项
     conditionalPanel(
       condition = paste0("input['", ns("file_upload"), "'] != null"),
       fluidRow(
         box(
           width = 12,
-          title = "性能优化选项 (用于大型数据集)",
+          title = "表格显示选项",
           status = "info",
           solidHeader = TRUE,
           collapsible = TRUE,
-          collapsed = TRUE,
+          collapsed = FALSE,
           fluidRow(
             column(6,
-                   numericInput(ns("sample_size"), "采样观测数",
-                               value = 10000, min = 1000, max = 1000000, step = 1000),
-                   helpText("对于大型数据集，建议使用采样来提高响应速度")
+                   # 列宽调整
+                   h4("列宽调整"),
+                   sliderInput(ns("col_width"), "默认列宽 (px):",
+                               min = 50, max = 500, value = 180, step = 10),
+                   actionButton(ns("btn_reset_width"), "重置列宽",
+                               icon = icon("refresh"), class = "btn-warning btn-sm"),
+                   helpText("调整表格列的默认宽度")
             ),
             column(6,
+                   # 性能优化选项
+                   h4("性能优化选项"),
+                   numericInput(ns("sample_size"), "采样观测数",
+                               value = 10000, min = 1000, max = 1000000, step = 1000),
                    checkboxInput(ns("enable_sampling"), "启用数据采样", value = FALSE),
-                   checkboxInput(ns("lazy_loading"), "启用延迟加载", value = TRUE)
-            )
-          ),
-          fluidRow(
-            column(12,
+                   checkboxInput(ns("lazy_loading"), "启用延迟加载", value = TRUE),
                    actionButton(ns("apply_sampling"), "应用采样设置",
                                icon = icon("bolt"), class = "btn-info btn-sm")
             )
@@ -193,16 +197,25 @@ data_preparation_server <- function(input, output, session) {
   # SAS显示设置
   sas_display_mode <- reactiveVal("names")
   
-  # 文件上传处理 - 移除文件大小限制
+  # 表格刷新触发器 (已移除，采用直接依赖模式)
+  
+  # 文件上传处理
   observeEvent(input$file_upload, {
     req(input$file_upload)
     
     file <- input$file_upload
     ext <- tools::file_ext(file$name)
     
-    # 文件验证 - 只检查格式，不检查大小
+    # 文件验证 - 检查格式和大小
     if (!ext %in% c("csv", "xlsx", "xls", "sav", "sas7bdat", "xpt")) {
       showNotification("仅支持 CSV, Excel, SPSS, SAS 格式", type = "error")
+      reset("file_upload")
+      return()
+    }
+    
+    # 检查文件大小（最大100MB）
+    if (file$size > 100 * 1024^2) {
+      showNotification("文件大小超过100MB限制，请选择较小的文件", type = "error")
       reset("file_upload")
       return()
     }
@@ -361,18 +374,43 @@ data_preparation_server <- function(input, output, session) {
     showNotification("SAS显示设置已应用", type = "message")
   })
   
+  # 列宽调整 - 实时应用 (通过直接依赖input$col_width实现)
+  
+  # 重置列宽
+  observeEvent(input$btn_reset_width, {
+    updateSliderInput(session, "col_width", value = 180)
+    showNotification("列宽已重置为默认值", type = "message")
+    message("列宽已重置为默认值")
+  })
+  
   # 创建SAS显示数据的辅助函数
   create_sas_display_data <- function(sas_data, display_mode) {
     if (is.null(sas_data)) return(NULL)
     
+    # 将字符型变量转换为因子，确保筛选器能正确显示分类值
+    processed_data <- as.data.frame(sas_data, stringsAsFactors = FALSE)
+    
+    # 自动识别并转换字符型分类变量为因子
+    for (col_name in names(processed_data)) {
+      if (is.character(processed_data[[col_name]])) {
+        # 检查是否为分类变量（唯一值数量较少）
+        unique_vals <- unique(na.omit(processed_data[[col_name]]))
+        if (length(unique_vals) <= 50 && length(unique_vals) > 1) {
+          # 转换为因子，保持原始顺序
+          processed_data[[col_name]] <- factor(processed_data[[col_name]],
+                                              levels = unique_vals)
+        }
+      }
+    }
+    
     if (display_mode == "names") {
-      return(as.data.frame(sas_data))
+      return(processed_data)
     } else if (display_mode == "labels") {
       col_labels <- sapply(sas_data, function(x) {
         label <- attr(x, "label")
         if (is.null(label) || label == "") names(x)[1] else as.character(label)
       })
-      display_df <- as.data.frame(sas_data)
+      display_df <- processed_data
       names(display_df) <- col_labels
       return(display_df)
     } else if (display_mode == "both") {
@@ -387,7 +425,7 @@ data_preparation_server <- function(input, output, session) {
                                col_names,
                                paste0(col_names, " [", col_labels, "]"))
       
-      display_df <- as.data.frame(sas_data)
+      display_df <- processed_data
       names(display_df) <- combined_names
       return(display_df)
     }
@@ -426,32 +464,40 @@ data_preparation_server <- function(input, output, session) {
       data_to_show <- if (!is.null(clean_data())) clean_data() else raw_data()
     }
     
+    # 直接依赖列宽设置，采用成功实例的模式
+    col_width <- if (!is.null(input$col_width)) input$col_width else 180
+    
+    # 打印调试信息
+    message(paste("渲染表格，列宽设置为:", col_width, "px"))
+    message(paste("数据列数:", ncol(data_to_show)))
+    
+    # 采用成功实例中的简单列宽设置模式
+    dt_options <- list(
+      scrollX = TRUE,
+      scrollY = "500px",  # 增加表格高度
+      pageLength = 20,
+      autoWidth = TRUE,   # 使用自动宽度，配合列宽设置
+      buttons = c('copy', 'csv', 'excel', 'pdf', 'colvis'),
+      lengthMenu = list(c(10, 20, 50, 100, -1), c('10', '20', '50', '100', 'All')),
+      # 启用高级筛选功能，确保分类值能正确显示
+      searchHighlight = TRUE,
+      stateSave = FALSE,
+      # 集成列宽调整功能 - 使用固定列宽
+      columnDefs = list(
+        list(width = paste0(col_width, "px"), targets = "_all")
+      ),
+      dom = 'Blfrtip'
+    )
+    
     # 对于大型数据集，使用服务器端处理提高性能
-    if (nrow(data_to_show) > 10000 && input$lazy_loading) {
-      # 服务器端处理配置
-      dt_options <- list(
-        scrollX = TRUE,
-        scrollY = "400px",
-        pageLength = 20,
-        dom = 'Blfrtip',
-        autoWidth = TRUE,
-        buttons = c('copy', 'csv', 'excel', 'pdf'),
-        lengthMenu = list(c(10, 20, 50, 100, -1), c('10', '20', '50', '100', 'All')),
-        serverSide = TRUE,
-        processing = TRUE,
-        deferRender = TRUE
-      )
+    if (nrow(data_to_show) > 10000 && !is.null(input$lazy_loading) && input$lazy_loading) {
+      dt_options$serverSide <- TRUE
+      dt_options$processing <- TRUE
+      dt_options$deferRender <- TRUE
     } else {
-      # 客户端处理（小型数据集）
-      dt_options <- list(
-        scrollX = TRUE,
-        scrollY = "400px",
-        pageLength = 20,
-        dom = 'Blfrtip',
-        autoWidth = TRUE,
-        buttons = c('copy', 'csv', 'excel', 'pdf'),
-        lengthMenu = list(c(10, 20, 50, 100, -1), c('10', '20', '50', '100', 'All'))
-      )
+      # 对于小型数据集，启用客户端处理以支持完整的筛选功能
+      dt_options$serverSide <- FALSE
+      dt_options$searchCols <- NULL
     }
     
     obs_count <- nrow(data_to_show)
@@ -465,7 +511,8 @@ data_preparation_server <- function(input, output, session) {
       ""
     }
     
-    DT::datatable(
+    # 创建数据表格
+    dt <- DT::datatable(
       data_to_show,
       options = dt_options,
       extensions = 'Buttons',
@@ -495,7 +542,20 @@ data_preparation_server <- function(input, output, session) {
         }
       )
     ) %>%
-      DT::formatStyle(columns = names(data_to_show), fontSize = '12px')
+      DT::formatStyle(columns = names(data_to_show), fontSize = '13px')
+    
+    # 对于SAS数据，确保因子变量被正确识别
+    if (!is.null(sas_data())) {
+      # 检查哪些列是因子类型
+      factor_cols <- sapply(data_to_show, is.factor)
+      if (any(factor_cols)) {
+        # 为因子列启用更好的筛选支持
+        dt <- dt %>% DT::formatStyle(which(factor_cols),
+                                   backgroundColor = '#f8f9fa')
+      }
+    }
+    
+    return(dt)
   })
   
   # 信息框

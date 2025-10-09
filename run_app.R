@@ -79,6 +79,8 @@ cat("按 Ctrl+C 停止应用\n\n")
 # 设置启动选项
 options(shiny.port = 8101)
 options(shiny.host = "127.0.0.1")
+# 设置最大上传文件大小为100MB
+options(shiny.maxRequestSize = 100 * 1024^2)
 
 # 检查app.R文件是否存在
 if (!file.exists("app.R")) {

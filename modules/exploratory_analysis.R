@@ -7,15 +7,18 @@ exploratory_analysis_ui <- function(id) {
   tagList(
     fluidRow(
       box(
-        width = 3, 
-        title = "变量托盘", 
+        width = 3,
+        title = "变量托盘",
         status = "primary",
+        solidHeader = TRUE,
+        style = "max-height: 500px; overflow-y: auto;",
         uiOutput(ns("variable_tray"))
       ),
       box(
-        width = 9, 
-        title = "图形控制器", 
+        width = 9,
+        title = "图形控制器",
         status = "warning",
+        solidHeader = TRUE,
         fluidRow(
           column(6,
                 selectizeInput(ns("plot_type_exp"), "图形类型",
@@ -40,6 +43,23 @@ exploratory_analysis_ui <- function(id) {
           column(3,
                 uiOutput(ns("aes_facet")),
                 bsTooltip(ns("aes_facet"), "分面变量：应该是分类变量")
+          )
+        ),
+        # 新增：图形标题和坐标轴标签设置
+        fluidRow(
+          column(6,
+                 textInput(ns("plot_title"), "图形标题", value = "", placeholder = "输入图形标题")
+          ),
+          column(6,
+                 textInput(ns("plot_subtitle"), "图形副标题", value = "", placeholder = "输入图形副标题（可选）")
+          )
+        ),
+        fluidRow(
+          column(6,
+                 textInput(ns("x_axis_label"), "X轴标签", value = "", placeholder = "输入X轴标签")
+          ),
+          column(6,
+                 textInput(ns("y_axis_label"), "Y轴标签", value = "", placeholder = "输入Y轴标签")
           )
         )
       )
@@ -66,23 +86,26 @@ exploratory_analysis_server <- function(input, output, session, data) {
     
     tagList(
       h4("可用变量"),
-      lapply(names(data()), function(var) {
-        var_type <- if (is.numeric(data()[[var]])) "numeric"
-        else if (is.character(data()[[var]]) || is.factor(data()[[var]])) "categorical"
-        else "other"
-        
-        type_display <- switch(var_type,
-                              "numeric" = tags$span("123", style = "font-weight: bold; color: blue;"),
-                              "categorical" = tags$span("abc", style = "font-weight: bold; color: green;"),
-                              "other" = tags$span("?", style = "font-weight: bold; color: gray;"))
-        
-        tags$div(
-          class = "variable-item",
-          type_display,
-          tags$span(var),
-          style = "margin: 5px; padding: 5px; background: #f0f0f0; border-radius: 3px; display: flex; align-items: center; gap: 5px;"
-        )
-      })
+      tags$div(
+        class = "variable-tray-container",
+        lapply(names(data()), function(var) {
+          var_type <- if (is.numeric(data()[[var]])) "numeric"
+          else if (is.character(data()[[var]]) || is.factor(data()[[var]])) "categorical"
+          else "other"
+          
+          type_display <- switch(var_type,
+                                "numeric" = tags$span("123", style = "font-weight: bold; color: blue;"),
+                                "categorical" = tags$span("abc", style = "font-weight: bold; color: green;"),
+                                "other" = tags$span("?", style = "font-weight: bold; color: gray;"))
+          
+          tags$div(
+            class = "variable-item",
+            type_display,
+            tags$span(var),
+            style = "margin: 5px; padding: 5px; background: #f0f0f0; border-radius: 3px; display: flex; align-items: center; gap: 5px;"
+          )
+        })
+      )
     )
   })
   
@@ -282,8 +305,28 @@ exploratory_analysis_server <- function(input, output, session, data) {
         p <- p + facet_wrap(as.formula(paste("~", input$facet_var)))
       }
       
-      # 添加标题
-      p <- p + ggtitle(paste("图形类型:", input$plot_type_exp))
+      # 添加自定义标题和坐标轴标签
+      if (input$plot_title != "") {
+        p <- p + ggtitle(input$plot_title)
+      } else {
+        p <- p + ggtitle(paste("图形类型:", input$plot_type_exp))
+      }
+      
+      if (input$plot_subtitle != "") {
+        p <- p + labs(subtitle = input$plot_subtitle)
+      }
+      
+      if (input$x_axis_label != "") {
+        p <- p + xlab(input$x_axis_label)
+      } else if (!is.null(input$x_var) && input$x_var != "") {
+        p <- p + xlab(input$x_var)
+      }
+      
+      if (input$y_axis_label != "") {
+        p <- p + ylab(input$y_axis_label)
+      } else if (!is.null(input$y_var) && input$y_var != "") {
+        p <- p + ylab(input$y_var)
+      }
       
       ggplotly(p, height = 600) %>%
         layout(autosize = TRUE)
@@ -312,6 +355,10 @@ exploratory_analysis_server <- function(input, output, session, data) {
     updateSelectizeInput(session, "y_var", selected = "")
     updateSelectizeInput(session, "color_var", selected = "")
     updateSelectizeInput(session, "facet_var", selected = "")
+    updateTextInput(session, "plot_title", value = "")
+    updateTextInput(session, "plot_subtitle", value = "")
+    updateTextInput(session, "x_axis_label", value = "")
+    updateTextInput(session, "y_axis_label", value = "")
   })
   
   # 返回模块状态（可选）
