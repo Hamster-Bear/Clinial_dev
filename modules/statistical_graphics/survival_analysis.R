@@ -96,60 +96,6 @@ survival_analysis_ui <- function(id) {
       )
     ),
     
-    # 图例设置
-    fluidRow(
-      box(
-        width = 12,
-        title = "图例设置",
-        status = "primary",
-        collapsible = TRUE,
-        collapsed = TRUE,
-        fluidRow(
-          column(3,
-                 selectInput(ns("legend_position"), "图例位置",
-                           choices = c("顶部" = "top", "底部" = "bottom", "左侧" = "left", "右侧" = "right", "无" = "none", "自定义位置" = "custom"),
-                           selected = "top")
-          ),
-          column(3,
-                 selectInput(ns("legend_direction"), "图例方向",
-                           choices = c("垂直" = "vertical", "水平" = "horizontal"),
-                           selected = "vertical")
-          ),
-          column(3,
-                 numericInput(ns("legend_size"), "图例文字大小", value = 12, min = 6, max = 20, step = 1)
-          ),
-          column(3,
-                 numericInput(ns("legend_marker_size"), "图例标记大小", value = 4, min = 1, max = 10, step = 0.5)
-          )
-        ),
-        fluidRow(
-          column(3,
-                 numericInput(ns("legend_width"), "图例宽度", value = 0.5, min = 0.1, max = 2, step = 0.1)
-          ),
-          column(3,
-                 numericInput(ns("legend_height"), "图例高度", value = 0.5, min = 0.1, max = 2, step = 0.1)
-          ),
-          column(3,
-                 colourInput(ns("legend_background_color"), "图例背景色", value = "white")
-          ),
-          column(3,
-                 colourInput(ns("legend_border_color"), "图例边框色", value = "gray50")
-          )
-        ),
-        # 自定义位置控制（仅当选择自定义位置时显示）
-        conditionalPanel(
-          condition = paste0("input['", ns("legend_position"), "'] == 'custom'"),
-          fluidRow(
-            column(6,
-                   numericInput(ns("legend_custom_x"), "图例X位置 (0-1)", value = 0.95, min = 0, max = 1, step = 0.01)
-            ),
-            column(6,
-                   numericInput(ns("legend_custom_y"), "图例Y位置 (0-1)", value = 0.95, min = 0, max = 1, step = 0.01)
-            )
-          )
-        )
-      )
-    ),
     
     # 生存曲线输出
     fluidRow(
@@ -226,16 +172,6 @@ survival_analysis_server <- function(input, output, session, data) {
     caption_size = 10,
     xlab_size = 12,
     ylab_size = 12,
-    legend_position = "top",
-    legend_size = 12,
-    legend_width = 0.5,
-    legend_height = 0.5,
-    legend_direction = "vertical",
-    legend_background_color = "white",
-    legend_border_color = "gray50",
-    legend_marker_size = 4,
-    legend_custom_x = 0.95,
-    legend_custom_y = 0.95,
     show_grid = FALSE
   )
   
@@ -392,10 +328,6 @@ survival_analysis_server <- function(input, output, session, data) {
     graphics_state$caption_size <- input$caption_size
     graphics_state$xlab_size <- input$xlab_size
     graphics_state$ylab_size <- input$ylab_size
-    graphics_state$legend_position <- input$legend_position
-    graphics_state$legend_size <- input$legend_size
-    graphics_state$legend_width <- input$legend_width
-    graphics_state$legend_height <- input$legend_height
     graphics_state$show_grid <- input$show_grid
   })
   
@@ -580,78 +512,18 @@ survival_analysis_server <- function(input, output, session, data) {
     }
     
     
-    # 完全重构图例系统 - 彻底移除所有删失图例
-    # 首先确定图例位置和方向
-    legend_position <- if(input$legend_position == "none") "none" else input$legend_position
-    
-    # 设置图例基本属性 - 完全移除边框
-    p$plot <- p$plot +
-      theme(
-        legend.position = legend_position,
-        legend.direction = input$legend_direction,
-        legend.text = element_text(size = input$legend_size),
-        legend.title = element_text(size = input$legend_size),
-        legend.key = element_blank(),
-        legend.background = element_blank(),
-        legend.box.background = element_blank(),
-        legend.key.size = unit(input$legend_marker_size, "mm")
-      )
-    
-    # 自定义图例位置
-    if (input$legend_position == "custom") {
-      p$plot <- p$plot +
-        theme(
-          legend.position = c(input$legend_custom_x, input$legend_custom_y),
-          legend.justification = c(1, 1)
-        )
-    }
-    
-    # 清理图例标签 - 移除括号外的内容
+    # 使用默认图例设置
     if (input$strata_var != "None" && !is.null(fit()$strata)) {
-      # 有分层的情况 - 清理分层变量图例
-      strata_levels <- names(fit()$strata)
-      # 清理标签：移除括号外的内容，只保留括号内的值
-      cleaned_labels <- sapply(strata_levels, function(x) {
-        # 匹配括号内的内容
-        matches <- regmatches(x, gregexpr("\\(([^)]+)\\)", x))
-        if (length(matches[[1]]) > 0) {
-          # 提取括号内的内容
-          gsub("[()]", "", matches[[1]][1])
-        } else {
-          x
-        }
-      })
-      
+      # 有分层的情况 - 使用默认图例
       p$plot <- p$plot +
         guides(
-          color = guide_legend(
-            title = input$strata_var,
-            override.aes = list(
-              size = input$line_size,
-              linetype = input$line_type,
-              shape = NA,
-              alpha = 1
-            )
-          ),
-          shape = "none",  # 彻底隐藏删失图例
-          alpha = "none"   # 彻底隐藏透明度图例
-        ) +
-        scale_color_discrete(labels = cleaned_labels)
+          color = guide_legend(title = input$strata_var)
+        )
     } else {
-      # 无分层的情况 - 只显示生存曲线图例
+      # 无分层的情况 - 使用默认图例
       p$plot <- p$plot +
         guides(
-          color = guide_legend(
-            title = "生存曲线",
-            override.aes = list(
-              size = input$line_size,
-              linetype = input$line_type,
-              shape = NA,
-              alpha = 1
-            )
-          ),
-          shape = "none",  # 彻底隐藏删失图例
-          alpha = "none"   # 彻底隐藏透明度图例
+          color = guide_legend(title = "生存曲线")
         )
     }
     
@@ -794,63 +666,18 @@ survival_analysis_server <- function(input, output, session, data) {
     }
     
     
-    # 完全重构图例系统 - 彻底移除所有删失图例和边框
-    legend_position <- if(input$legend_position == "none") "none" else input$legend_position
-    
-    # 设置图例基本属性 - 完全移除边框
-    p <- p +
-      theme(
-        legend.position = legend_position,
-        legend.direction = input$legend_direction,
-        legend.text = element_text(size = input$legend_size),
-        legend.title = element_text(size = input$legend_size),
-        legend.key = element_blank(),
-        legend.background = element_blank(),
-        legend.box.background = element_blank(),
-        legend.key.size = unit(input$legend_marker_size, "mm")
-      )
-    
-    # 自定义图例位置
-    if (input$legend_position == "custom") {
-      p <- p +
-        theme(
-          legend.position = c(input$legend_custom_x, input$legend_custom_y),
-          legend.justification = c(1, 1)
-        )
-    }
-    
-    # 构建图例逻辑 - 只显示生存曲线图例，彻底移除删失图例
+    # 使用默认图例设置
     if (input$strata_var != "None" && !is.null(fit()$strata)) {
-      # 有分层的情况 - 只显示分层变量图例
+      # 有分层的情况 - 使用默认图例
       p <- p +
         guides(
-          color = guide_legend(
-            title = input$strata_var,
-            override.aes = list(
-              size = input$line_size,
-              linetype = input$line_type,
-              shape = NA,
-              alpha = 1
-            )
-          ),
-          shape = "none",  # 彻底隐藏删失图例
-          alpha = "none"   # 彻底隐藏透明度图例
+          color = guide_legend(title = input$strata_var)
         )
     } else {
-      # 无分层的情况 - 只显示生存曲线图例
+      # 无分层的情况 - 使用默认图例
       p <- p +
         guides(
-          color = guide_legend(
-            title = "生存曲线",
-            override.aes = list(
-              size = input$line_size,
-              linetype = input$line_type,
-              shape = NA,
-              alpha = 1
-            )
-          ),
-          shape = "none",  # 彻底隐藏删失图例
-          alpha = "none"   # 彻底隐藏透明度图例
+          color = guide_legend(title = "生存曲线")
         )
     }
     
@@ -904,29 +731,6 @@ survival_analysis_server <- function(input, output, session, data) {
     # 转换为plotly，指定高度避免弃用警告
     plotly_obj <- ggplotly(interactive_plot, height = 600, tooltip = c("x", "y", "colour"))
     
-    # 设置图例位置和方向
-    if (input$legend_position != "none") {
-      # 将ggplot位置转换为plotly位置
-      legend_position <- switch(input$legend_position,
-        "top" = list(x = 0.5, y = 1, xanchor = "center", yanchor = "top"),
-        "bottom" = list(x = 0.5, y = 0, xanchor = "center", yanchor = "bottom"),
-        "left" = list(x = 0, y = 0.5, xanchor = "left", yanchor = "middle"),
-        "right" = list(x = 1, y = 0.5, xanchor = "right", yanchor = "middle"),
-        "custom" = list(x = input$legend_custom_x, y = input$legend_custom_y, xanchor = "left", yanchor = "top")
-      )
-      
-      plotly_obj <- plotly_obj %>%
-        layout(
-          legend = list(
-            orientation = if(input$legend_direction == "horizontal") "h" else "v",
-            font = list(size = input$legend_size),
-            x = legend_position$x,
-            y = legend_position$y,
-            xanchor = legend_position$xanchor,
-            yanchor = legend_position$yanchor
-          )
-        )
-    }
     
     return(plotly_obj)
   })
