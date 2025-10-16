@@ -7,15 +7,48 @@ library(shinydashboard)
 library(reactable)
 library(dplyr)
 library(shinyWidgets)
-library(readr)
 library(readxl)
 library(haven)  # 支持SAS、SPSS、Stata文件
+library(vroom)  # 高性能CSV读取
+library(memoise) # 函数缓存
 
 # 数据准备UI
 data_preparation_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
+    tags$head(
+      tags$style(HTML("
+        /* 只针对高级筛选中的分类变量选择框 */
+        .filter-group .selectize-control.multi .selectize-input > div {
+          display: block !important;
+          margin-bottom: 4px !important;
+        }
+        .filter-group .selectize-control.multi .selectize-input {
+          padding: 4px !important;
+          height: auto !important;
+        }
+        /* 优化滚动条样式 */
+        .filter-controls-container {
+          scrollbar-width: thin;
+          scrollbar-color: #888 #f1f1f1;
+        }
+        .filter-controls-container::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        .filter-controls-container::-webkit-scrollbar-track {
+          background: #f1f1f1;
+        }
+        .filter-controls-container::-webkit-scrollbar-thumb {
+          background: #888;
+          border-radius: 4px;
+        }
+        .filter-controls-container::-webkit-scrollbar-thumb:hover {
+          background: #555;
+        }
+      "))
+    ),
     fluidRow(
       # 数据上传区域
       box(
@@ -120,12 +153,122 @@ data_preparation_ui <- function(id) {
             title = "数据预览",
             status = "success",
             solidHeader = TRUE,
-            reactable::reactableOutput(ns("data_table"))
+            reactable::reactableOutput(ns("data_table")),
+            # 添加渲染状态提示
+            conditionalPanel(
+              condition = "output.renderingTable == true",
+              ns = ns,
+              div("正在渲染数据表格...", style = "text-align: center; padding: 20px; color: #666;")
+            )
           )
         )
       )
     )
   )
+}
+
+# 缓存列定义函数 - 使用memoise优化
+get_column_def_cached <- memoise(function(col_name, col_data) {
+  if (col_name == "行号") {
+    return(reactable::colDef(
+      minWidth = 60,
+      maxWidth = 80,
+      align = "center",
+      style = list(fontSize = "12px", fontWeight = "bold", color = "#666")
+    ))
+  } else if (is.numeric(col_data)) {
+    return(reactable::colDef(
+      minWidth = 100,
+      maxWidth = 150,
+      align = "right",
+      style = list(fontSize = "13px", color = "#212529")
+    ))
+  } else if (is.factor(col_data) || is.character(col_data)) {
+    return(reactable::colDef(
+      minWidth = 120,
+      maxWidth = 200,
+      align = "left",
+      style = list(fontSize = "13px", color = "#212529")
+    ))
+  } else if (inherits(col_data, "Date")) {
+    return(reactable::colDef(
+      minWidth = 120,
+      maxWidth = 150,
+      align = "center",
+      format = reactable::colFormat(date = TRUE),
+      style = list(fontSize = "13px", color = "#212529")
+    ))
+  } else {
+    return(reactable::colDef(
+      minWidth = 120,
+      maxWidth = 200,
+      align = "left",
+      style = list(fontSize = "13px", color = "#212529")
+    ))
+  }
+})
+
+# 判断变量类型
+determine_var_type <- function(x) {
+  if (is.numeric(x)) {
+    return("numeric")
+  } else if (is.factor(x) || (is.character(x) && length(unique(x[!is.na(x)])) <= 20)) {
+    return("factor")
+  } else if (inherits(x, "Date") || inherits(x, "POSIXct") || inherits(x, "POSIXlt")) {
+    return("date")
+  } else {
+    return("text")
+  }
+}
+
+# 安全计算数值范围 - 处理全空值的情况
+safe_numeric_range <- function(var_data) {
+  # 过滤出非空值
+  valid_data <- var_data[!is.na(var_data)]
+  
+  # 如果没有有效数据，返回默认范围
+  if (length(valid_data) == 0) {
+    return(list(min = 0.0, max = 1.0))
+  }
+  
+  # 尝试计算最小值
+  min_val <- tryCatch({
+    result <- min(valid_data, na.rm = TRUE)
+    # 确保结果是标量且有限
+    if (length(result) == 0 || is.na(result) || !is.finite(result)) {
+      0.0
+    } else {
+      as.numeric(result)
+    }
+  }, error = function(e) {
+    0.0
+  })
+  
+  # 尝试计算最大值
+  max_val <- tryCatch({
+    result <- max(valid_data, na.rm = TRUE)
+    # 确保结果是标量且有限
+    if (length(result) == 0 || is.na(result) || !is.finite(result)) {
+      1.0
+    } else {
+      as.numeric(result)
+    }
+  }, error = function(e) {
+    1.0
+  })
+  
+  # 确保最小值不大于最大值
+  if (min_val > max_val) {
+    temp <- min_val
+    min_val <- max_val
+    max_val <- temp + 1
+  }
+  
+  # 最终检查确保值是有限的
+  if (!is.finite(min_val)) min_val <- 0.0
+  if (!is.finite(max_val)) max_val <- 1.0
+  
+  return(list(min = min_val, max = max_val))
 }
 
 # 数据准备服务器逻辑
@@ -135,107 +278,100 @@ data_preparation_server <- function(input, output, session) {
   # 数据存储
   data_store <- reactiveVal()
   
+  # 渲染状态
+  rendering_table <- reactiveVal(FALSE)
+  
+  # 性能监控
+  performance_metrics <- reactiveValues(
+    load_time = NULL,
+    filter_time = NULL,
+    render_time = NULL
+  )
+  
   # 文件上传处理
- observeEvent(input$file, {
+  observeEvent(input$file, {
     req(input$file)
+    
+    # 显示加载提示
+    notification_id <- showNotification("正在加载数据文件，请稍候...", type = "message", duration = NULL)
+    
+    # 记录开始时间
+    start_time <- Sys.time()
     
     ext <- tools::file_ext(input$file$datapath)
     
     tryCatch({
+      data <- NULL
+      
+      # 根据文件类型使用不同的读取策略
       if (ext %in% c("xlsx", "xls")) {
-        data <- readxl::read_excel(input$file$datapath)
+        # 对于Excel文件，使用最优参数
+        data <- readxl::read_excel(input$file$datapath, guess_max = 1000)
       } else if (ext == "csv") {
-        data <- readr::read_csv(input$file$datapath)
+        # 使用vroom提高CSV读取性能
+        data <- vroom::vroom(input$file$datapath, progress = FALSE)
       } else if (ext == "sas7bdat") {
-        data <- haven::read_sas(input$file$datapath)
+        data <- haven::read_sas(input$file$datapath, encoding = "UTF-8")
       } else if (ext %in% c("sav", "por")) {
-        data <- haven::read_spss(input$file$datapath)
+        data <- haven::read_spss(input$file$datapath, encoding = "UTF-8")
       } else if (ext == "dta") {
-        data <- haven::read_dta(input$file$datapath)
+        data <- haven::read_dta(input$file$datapath, encoding = "UTF-8")
       } else {
         stop("不支持的文件格式")
       }
       
-      # 转换haven包的数据类型为标准R类型
+      # 优化数据类型转换 - 只转换有意义的labelled变量
       data <- data %>%
-        mutate_if(haven::is.labelled, haven::as_factor)
+        mutate(across(where(haven::is.labelled), ~ haven::as_factor(.x, levels = "labels")))
+      
+      # 强制垃圾回收以释放内存
+      gc()
       
       data_store(data)
+      
+      # 记录加载时间
+      load_time <- Sys.time() - start_time
+      performance_metrics$load_time <- load_time
       
       # 更新变量选择
       updateSelectizeInput(session, "selected_var",
                            choices = names(data),
                            server = TRUE)
+      
+      # 更新列选择 - 限制默认显示列数以提高性能
+      max_default_cols <- min(25, length(names(data)))  # 最多显示25列
+      default_display_cols <- head(names(data), max_default_cols)
+      updateSelectInput(session, "selected_columns",
+                       choices = names(data),
+                       selected = default_display_cols)
+      
+      # 显示成功提示
+      showNotification(paste("数据加载完成！耗时:", round(load_time, 2), "秒，共", nrow(data), "行 x", ncol(data), "列"),
+                     type = "message")
+      
+      # 关闭加载提示
+      removeNotification(id = notification_id)
     }, error = function(e) {
+      removeNotification(id = notification_id)
       showNotification(paste("文件读取错误:", e$message), type = "error")
     })
   })
   
   
   # 输出数据加载状态
- output$dataLoaded <- reactive({
+  output$dataLoaded <- reactive({
     !is.null(data_store())
   })
   outputOptions(output, "dataLoaded", suspendWhenHidden = FALSE)
   
-  # 显示示例数据表（当没有上传数据时）
-  output$sample_table <- reactable::renderReactable({
-    req(!is.null(data_store()))
-    
-    data <- data_store()
-    
-    # 根据变量类型设置列定义
-    col_defs <- list()
-    
-    for (col_name in names(data)) {
-      col_data <- data[[col_name]]
-      
-      if (is.numeric(col_data)) {
-        col_defs[[col_name]] <- reactable::colDef(
-          minWidth = 120,
-          align = "right",
-          style = function(value) {
-            list(fontSize = "13px", color = ifelse(is.na(value), "#999999", "#212529"))
-          }
-        )
-      } else if (is.factor(col_data) || is.character(col_data)) {
-        col_defs[[col_name]] <- reactable::colDef(
-          minWidth = 120,
-          align = "left",
-          style = function(value) {
-            list(fontSize = "13px", color = ifelse(is.na(value), "#99999", "#212529"))
-          }
-        )
-      } else if (inherits(col_data, "Date")) {
-        col_defs[[col_name]] <- reactable::colDef(
-          minWidth = 120,
-          align = "center",
-          format = reactable::colFormat(date = TRUE),
-          style = function(value) {
-            list(fontSize = "13px", color = ifelse(is.na(value), "#999999", "#212529"))
-          }
-        )
-      }
-    }
-    
-    reactable(
-      data[1:min(10, nrow(data)), ],
-      columns = col_defs,
-      pagination = TRUE,
-      searchable = TRUE,
-      filterable = TRUE,
-      striped = TRUE,
-      highlight = TRUE,
-      bordered = TRUE,
-      compact = TRUE,
-      defaultPageSize = 10,
-      showPageSizeOptions = TRUE,
-      pageSizeOptions = c(5, 10, 25)
-    )
+  # 输出渲染状态
+  output$renderingTable <- reactive({
+    rendering_table()
   })
+  outputOptions(output, "renderingTable", suspendWhenHidden = FALSE)
   
   # 动态生成筛选控件
- output$filter_controls <- renderUI({
+  output$filter_controls <- renderUI({
     req(data_store(), input$selected_var)
     
     data <- data_store()
@@ -243,7 +379,13 @@ data_preparation_server <- function(input, output, session) {
     
     if (length(selected_vars) == 0) return(NULL)
     
-    # 使用fluidRow和column来实现横向布局
+    # 限制最多显示20个筛选控件以提高性能
+    if (length(selected_vars) > 20) {
+      selected_vars <- head(selected_vars, 20)
+      showNotification("为提高性能，最多显示20个筛选控件", type = "warning", duration = 3000)
+    }
+    
+    # 使用更高效的控件生成方式
     controls <- lapply(selected_vars, function(var_name) {
       var_data <- data[[var_name]]
       var_type <- determine_var_type(var_data)
@@ -251,60 +393,145 @@ data_preparation_server <- function(input, output, session) {
       # 创建控件组
       div(
         class = "filter-group",
-        style = "border: 1px solid #ddd; padding: 10px; margin: 5px; border-radius: 5px; background-color: #f8f9fa; display: inline-block; vertical-align: top; width: 320px; margin-right: 10px; word-wrap: break-word;",
+        style = "border: 1px solid #ddd; padding: 8px; margin: 3px; border-radius: 4px; background-color: #f8f9fa; display: inline-block; vertical-align: top; width: 280px; margin-right: 8px; word-wrap: break-word;",
         
         # 变量名和类型显示
-        h5(paste(var_name, "(", var_type, ")"), style = "margin-top: 0; color: #3; word-break: break-all;"),
+        h5(paste(var_name, "(", var_type, ")"), style = "margin-top: 0; color: #3; font-size: 13px; word-break: break-all;"),
         
         # 排除空值选项
-        checkboxInput(ns(paste0("exclude_na_", var_name)), "排除空值", value = FALSE),
+        checkboxInput(ns(paste0("exclude_na_", var_name)), "排除空值", value = FALSE, width = "100%"),
         
         # 根据变量类型生成不同控件
         if (var_type == "numeric") {
-          wellPanel(
-            style = "padding: 10px; background-color: white;",
-            h6("数值范围筛选:"),
-            numericInput(ns(paste0("num_min_", var_name)), "最小值:",
-                         value = ifelse(length(var_data[!is.na(var_data)]) > 0, min(var_data, na.rm = TRUE), 0),
-                         min = ifelse(length(var_data[!is.na(var_data)]) > 0, min(var_data, na.rm = TRUE), 0),
-                         max = ifelse(length(var_data[!is.na(var_data)]) > 0, max(var_data, na.rm = TRUE), 1)),
-            numericInput(ns(paste0("num_max_", var_name)), "最大值:",
-                         value = ifelse(length(var_data[!is.na(var_data)]) > 0, max(var_data, na.rm = TRUE), 1),
-                         min = ifelse(length(var_data[!is.na(var_data)]) > 0, min(var_data, na.rm = TRUE), 0),
-                         max = ifelse(length(var_data[!is.na(var_data)]) > 0, max(var_data, na.rm = TRUE), 1))
+          # 使用安全函数计算数值范围
+          range_vals <- safe_numeric_range(var_data)
+          
+          # 强制转换为标量并确保有效性
+          safe_min <- as.numeric(range_vals$min)[1]
+          safe_max <- as.numeric(range_vals$max)[1]
+          
+          # 最终防护：确保所有值都是有效数值
+          if (length(safe_min) == 0 || is.na(safe_min) || !is.finite(safe_min)) safe_min <- 0.0
+          if (length(safe_max) == 0 || is.na(safe_max) || !is.finite(safe_max)) safe_max <- 1.0
+          
+          # 确保最小值不大于最大值
+          if (safe_min > safe_max) {
+            temp <- safe_min
+            safe_min <- safe_max
+            safe_max <- temp + 1
+          }
+          
+          # 使用固定的参数值，避免任何条件逻辑
+          final_min_val <- as.numeric(safe_min)
+          final_max_val <- as.numeric(safe_max)
+          final_min_range <- as.numeric(safe_min - 1)
+          final_max_range <- as.numeric(safe_max + 1)
+          final_step <- 1  # 固定步长，避免NULL
+          
+          # 最终验证：确保所有参数都是长度为1的数值向量
+          stopifnot(
+            length(final_min_val) == 1 && is.numeric(final_min_val),
+            length(final_max_val) == 1 && is.numeric(final_max_val),
+            length(final_min_range) == 1 && is.numeric(final_min_range),
+            length(final_max_range) == 1 && is.numeric(final_max_range),
+            length(final_step) == 1 && is.numeric(final_step)
+          )
+          
+          tagList(
+            h6("数值范围:", style = "margin: 5px 0; font-size: 11px; color: #666;"),
+            fluidRow(
+              column(6,
+                numericInput(
+                  ns(paste0("num_min_", var_name)),
+                  "最小值:",
+                  value = final_min_val,
+                  min = final_min_range,
+                  max = final_max_val,
+                  step = final_step,
+                  width = "100%"
+                )
+              ),
+              column(6,
+                numericInput(
+                  ns(paste0("num_max_", var_name)),
+                  "最大值:",
+                  value = final_max_val,
+                  min = final_min_val,
+                  max = final_max_range,
+                  step = final_step,
+                  width = "100%"
+                )
+              )
+            )
           )
         } else if (var_type == "factor") {
-          wellPanel(
-            style = "padding: 10px; background-color: white;",
-            h6("分类筛选:"),
-            selectizeInput(ns(paste0("cat_values_", var_name)),
-                           "选择值:",
-                           choices = unique(var_data[!is.na(var_data)]),
-                           selected = unique(var_data[!is.na(var_data)]),
-                           multiple = TRUE,
-                           options = list(
-                             placeholder = "选择要包含的值...",
-                             maxItems = 30,
-                             plugins = list('remove_button'),
-                             dropdownParent = "body"
-                           ))
-          )
+          # 限制分类变量的选项数量以提高性能
+          unique_values <- unique(var_data[!is.na(var_data)])
+          if (length(unique_values) > 100) {
+            unique_values <- head(unique_values, 100)
+            tagList(
+              h6("分类值 (前100):", style = "margin: 5px 0; font-size: 11px; color: #666;"),
+              selectizeInput(ns(paste0("cat_values_", var_name)),
+                             NULL,
+                             choices = unique_values,
+                             selected = unique_values,
+                             multiple = TRUE,
+                             options = list(
+                               placeholder = "选择值...",
+                               maxItems = 30,  # 限制选择项数
+                               plugins = list('remove_button'),
+                               dropdownParent = "body"
+                             ))
+            )
+          } else {
+            tagList(
+              h6("分类值:", style = "margin: 5px 0; font-size: 11px; color: #666;"),
+              selectizeInput(ns(paste0("cat_values_", var_name)),
+                             NULL,
+                             choices = unique_values,
+                             selected = unique_values,
+                             multiple = TRUE,
+                             options = list(
+                               placeholder = "选择值...",
+                               maxItems = 30,
+                               plugins = list('remove_button'),
+                               dropdownParent = "body"
+                             ))
+            )
+          }
         } else if (var_type == "date") {
-          wellPanel(
-            style = "padding: 10px; background-color: white;",
-            h6("日期范围筛选:"),
-            dateInput(ns(paste0("date_start_", var_name)), "开始日期:",
-                      value = ifelse(length(var_data[!is.na(var_data)]) > 0, min(var_data, na.rm = TRUE), Sys.Date())),
-            dateInput(ns(paste0("date_end_", var_name)), "结束日期:",
-                      value = ifelse(length(var_data[!is.na(var_data)]) > 0, max(var_data, na.rm = TRUE), Sys.Date()))
+          # 预先计算日期范围以避免在UI函数中出现长度为零的向量
+          valid_data <- var_data[!is.na(var_data)]
+          has_valid_data <- length(valid_data) > 0
+          
+          min_val <- if(has_valid_data) {
+            tryCatch(min(valid_data), error = function(e) NA)
+          } else NA
+          
+          max_val <- if(has_valid_data) {
+            tryCatch(max(valid_data), error = function(e) NA)
+          } else NA
+          
+          # 确保日期是有效的，否则使用默认值
+          final_start <- if(!is.na(min_val) && inherits(min_val, "Date")) min_val else Sys.Date()
+          final_end <- if(!is.na(max_val) && inherits(max_val, "Date")) max_val else Sys.Date()
+          
+          tagList(
+            h6("日期范围:", style = "margin: 5px 0; font-size: 11px; color: #666;"),
+            dateInput(ns(paste0("date_start_", var_name)), "开始:",
+                      value = final_start,
+                      width = "100%"),
+            dateInput(ns(paste0("date_end_", var_name)), "结束:",
+                      value = final_end,
+                      width = "100%")
           )
         } else {
-          wellPanel(
-            style = "padding: 10px; background-color: white;",
-            h6("文本筛选:"),
+          tagList(
+            h6("文本搜索:", style = "margin: 5px 0; font-size: 11px; color: #666;"),
             textInput(ns(paste0("text_search_", var_name)),
-                     "关键词搜索:",
-                     placeholder = "输入搜索关键词...")
+                     NULL,
+                     placeholder = "关键词...",
+                     width = "100%")
           )
         }
       )
@@ -312,26 +539,14 @@ data_preparation_server <- function(input, output, session) {
     
     # 将控件包装在div中以实现横向滚动布局
     div(
-      style = "overflow-x: auto; white-space: nowrap;",
+      class = "filter-controls-container",
+      style = "overflow-x: auto; white-space: nowrap; padding: 5px; max-height: 200px;",
       controls
     )
   })
   
-  # 判断变量类型
- determine_var_type <- function(x) {
-    if (is.numeric(x)) {
-      return("numeric")
-    } else if (is.factor(x) || (is.character(x) && length(unique(x[!is.na(x)])) <= 20)) {
-      return("factor")
-    } else if (inherits(x, "Date") || inherits(x, "POSIXct") || inherits(x, "POSIXlt")) {
-      return("date")
-    } else {
-      return("text")
-    }
-  }
-  
   # 应用筛选
-filtered_data <- reactive({
+  filtered_data <- reactive({
     req(data_store())
     
     data <- data_store()
@@ -343,17 +558,20 @@ filtered_data <- reactive({
         # 确保选择的列在数据中存在
         existing_cols <- intersect(input$selected_columns, names(data))
         if (length(existing_cols) > 0) {
-          data <- data[, existing_cols, drop = FALSE]
+          data <- data %>% select(all_of(existing_cols))
         }
       }
       # 添加行号列
-      data_with_row_numbers <- data %>%
+      data <- data %>%
         mutate(行号 = row_number()) %>%
         select(行号, everything())
-      return(data_with_row_numbers)
+      return(data)
     }
     
     selected_vars <- input$selected_var
+    
+    # 使用dplyr管道提高筛选效率
+    filter_start_time <- Sys.time()
     
     # 逐个应用筛选
     for (var_name in selected_vars) {
@@ -363,7 +581,7 @@ filtered_data <- reactive({
       # 排除空值
       exclude_na_val <- input[[paste0("exclude_na_", var_name)]]
       if (!is.null(exclude_na_val) && exclude_na_val) {
-        data <- data[!is.na(data[[var_name]]), ]
+        data <- data %>% filter(!is.na(!!sym(var_name)))
       }
       
       # 根据变量类型应用筛选
@@ -373,12 +591,12 @@ filtered_data <- reactive({
         
         if (!is.null(min_val) && !is.null(max_val) &&
             is.numeric(min_val) && is.numeric(max_val)) {
-          data <- data[data[[var_name]] >= min_val & data[[var_name]] <= max_val, ]
+          data <- data %>% filter(!!sym(var_name) >= min_val & !!sym(var_name) <= max_val)
         }
       } else if (var_type == "factor") {
         selected_values <- input[[paste0("cat_values_", var_name)]]
         if (!is.null(selected_values) && length(selected_values) > 0) {
-          data <- data[data[[var_name]] %in% selected_values | is.na(data[[var_name]]), ]
+          data <- data %>% filter(!!sym(var_name) %in% selected_values | is.na(!!sym(var_name)))
         }
       } else if (var_type == "date") {
         start_date <- input[[paste0("date_start_", var_name)]]
@@ -386,13 +604,13 @@ filtered_data <- reactive({
         
         if (!is.null(start_date) && !is.null(end_date) &&
             inherits(start_date, "Date") && inherits(end_date, "Date")) {
-          data <- data[data[[var_name]] >= start_date & data[[var_name]] <= end_date, ]
+          data <- data %>% filter(!!sym(var_name) >= start_date & !!sym(var_name) <= end_date)
         }
       } else { # text
         search_text <- input[[paste0("text_search_", var_name)]]
         if (!is.null(search_text) && search_text != "") {
           pattern <- paste0(".*", search_text, ".*", sep = "")
-          data <- data[grepl(pattern, data[[var_name]], ignore.case = TRUE) | is.na(data[[var_name]]), ]
+          data <- data %>% filter(grepl(pattern, !!sym(var_name), ignore.case = TRUE) | is.na(!!sym(var_name)))
         }
       }
     }
@@ -402,88 +620,110 @@ filtered_data <- reactive({
       # 确保选择的列在数据中存在
       existing_cols <- intersect(input$selected_columns, names(data))
       if (length(existing_cols) > 0) {
-        data <- data[, existing_cols, drop = FALSE]
+        data <- data %>% select(all_of(existing_cols))
       }
     }
     
     # 添加行号列
-    data_with_row_numbers <- data %>%
+    data <- data %>%
       mutate(行号 = row_number()) %>%
       select(行号, everything())
     
-    return(data_with_row_numbers)
+    # 记录筛选时间
+    filter_time <- Sys.time() - filter_start_time
+    performance_metrics$filter_time <- filter_time
+    
+    return(data)
   })
   
- # 显示数据表
- output$data_table <- reactable::renderReactable({
+  # 显示数据表 - 优化渲染性能
+  output$data_table <- reactable::renderReactable({
     req(filtered_data())
+    
+    # 设置渲染状态
+    rendering_table(TRUE)
+    on.exit(rendering_table(FALSE))
     
     data <- filtered_data()
     
+    # 记录渲染开始时间
+    render_start_time <- Sys.time()
     
-    # 根据变量类型设置列定义
-    col_defs <- list()
+    # 智能列限制 - 最多显示60列以避免性能问题
+    total_rows <- nrow(data)
+    total_cols <- ncol(data)
     
-    for (col_name in names(data_with_row_numbers)) {
-      col_data <- data_with_row_numbers[[col_name]]
-      
-      if (col_name == "行号") {
-        # 行号列特殊处理
-        col_defs[[col_name]] <- reactable::colDef(
-          minWidth = 60,
-          align = "center",
-          style = function(value) {
-            list(fontSize = "12px", fontWeight = "bold", color = "#666")
-          }
-        )
-      } else if (is.numeric(col_data)) {
-        col_defs[[col_name]] <- reactable::colDef(
-          minWidth = 120,
-          align = "right",
-          style = function(value) {
-            list(fontSize = "13px", color = ifelse(is.na(value), "#9999", "#212529"))
-          }
-        )
-      } else if (is.factor(col_data) || is.character(col_data)) {
-        col_defs[[col_name]] <- reactable::colDef(
-          minWidth = 120,
-          align = "left",
-          style = function(value) {
-            list(fontSize = "13px", color = ifelse(is.na(value), "#999999", "#212529"))
-          }
-        )
-      } else if (inherits(col_data, "Date")) {
-        col_defs[[col_name]] <- reactable::colDef(
-          minWidth = 120,
-          align = "center",
-          format = reactable::colFormat(date = TRUE),
-          style = function(value) {
-            list(fontSize = "13px", color = ifelse(is.na(value), "#999999", "#212529"))
-          }
-        )
-      }
+    max_display_cols <- min(60, total_cols)  # 提高到60列
+    if (total_cols > max_display_cols) {
+      display_cols <- c("行号", head(setdiff(names(data), "行号"), max_display_cols - 1))
+      data <- data[, display_cols, drop = FALSE]
+      showNotification(paste("检测到大数据集 (", total_cols, "列)，为提高性能仅显示前", max_display_cols, "列。"),
+                     type = "warning", duration = 3000)
     }
     
-    reactable(
-      data_with_row_numbers,
+    # 预先计算列定义以提高性能
+    col_defs <- list()
+    
+    # 批量生成列定义而不是循环
+    for (col_name in names(data)) {
+      col_data <- data[[col_name]]
+      col_defs[[col_name]] <- get_column_def_cached(col_name, col_data)
+    }
+    
+    # 智能分页设置
+    default_page_size <- if (total_rows > 100000) {
+      25  # 超大数据集默认显示25行
+    } else if (total_rows > 50000) {
+      50  # 大数据集默认显示50行
+    } else if (total_rows > 10000) {
+      100  # 中等数据集默认显示100行
+    } else {
+      200  # 小数据集默认显示200行
+    }
+    
+    page_size_options <- if (total_rows > 100000) {
+      c(10, 25, 50)
+    } else if (total_rows > 50000) {
+      c(25, 50, 100)
+    } else if (total_rows > 10000) {
+      c(50, 100, 200)
+    } else {
+      c(100, 200, 500)
+    }
+    
+    # 优化的Reactable配置
+    table_output <- reactable(
+      data,
       columns = col_defs,
       pagination = TRUE,
       searchable = TRUE,
-      filterable = TRUE,
+      filterable = FALSE,  # 关闭内置筛选以提高性能
       striped = TRUE,
       highlight = TRUE,
       bordered = TRUE,
       compact = TRUE,
-      defaultPageSize = 25,
+      defaultPageSize = default_page_size,
       showPageSizeOptions = TRUE,
-      pageSizeOptions = c(10, 25, 50, 100),
+      pageSizeOptions = page_size_options,
       resizable = TRUE,
-      height = 800
+      height = 600,  # 固定高度
+      # 性能优化参数
+      rownames = FALSE,
+      fullWidth = TRUE,
+      wrap = FALSE,  # 不自动换行提高性能
+      showSortIcon = TRUE,
+      showSortable = TRUE
     )
+    
+    # 记录渲染时间
+    render_time <- Sys.time() - render_start_time
+    performance_metrics$render_time <- render_time
+    
+    table_output
   })
   
   # 显示筛选统计
- output$filter_stats <- renderText({
+  output$filter_stats <- renderText({
     req(data_store(), filtered_data())
     
     original_rows <- nrow(data_store())
@@ -494,10 +734,10 @@ filtered_data <- reactive({
       "筛选后行数:", filtered_rows, "\n",
       "筛选比例:", round(filtered_rows/original_rows * 100, 2), "%"
     )
- })
+  })
   
   # 重置筛选
- observeEvent(input$reset_filters, {
+  observeEvent(input$reset_filters, {
     # 重置所有输入控件
     selected_vars <- input$selected_var
     if (!is.null(selected_vars)) {
@@ -506,20 +746,64 @@ filtered_data <- reactive({
         var_type <- determine_var_type(var_data)
         
         if (var_type == "numeric") {
+          # 使用安全函数计算数值范围
+          range_vals <- safe_numeric_range(var_data)
+          
+          # 强制转换为标量并确保有效性
+          safe_min <- as.numeric(range_vals$min)[1]
+          safe_max <- as.numeric(range_vals$max)[1]
+          
+          # 最终防护：确保所有值都是有效数值
+          if (length(safe_min) == 0 || is.na(safe_min) || !is.finite(safe_min)) safe_min <- 0.0
+          if (length(safe_max) == 0 || is.na(safe_max) || !is.finite(safe_max)) safe_max <- 1.0
+          
+          # 确保最小值不大于最大值
+          if (safe_min > safe_max) {
+            temp <- safe_min
+            safe_min <- safe_max
+            safe_max <- temp + 1
+          }
+          
+          # 使用固定的参数值，避免任何条件逻辑
+          final_min_val <- as.numeric(safe_min)
+          final_max_val <- as.numeric(safe_max)
+          
+          # 最终验证：确保所有参数都是长度为1的数值向量
+          stopifnot(
+            length(final_min_val) == 1 && is.numeric(final_min_val),
+            length(final_max_val) == 1 && is.numeric(final_max_val)
+          )
+          
           updateNumericInput(session, paste0("num_min_", var_name),
-                             value = ifelse(length(var_data[!is.na(var_data)]) > 0, min(var_data, na.rm = TRUE), 0))
+                             value = final_min_val)
           updateNumericInput(session, paste0("num_max_", var_name),
-                             value = ifelse(length(var_data[!is.na(var_data)]) > 0, max(var_data, na.rm = TRUE), 1))
+                             value = final_max_val)
         } else if (var_type == "factor") {
           if(length(var_data[!is.na(var_data)]) > 0) {
             updateSelectizeInput(session, paste0("cat_values_", var_name),
                                  selected = unique(var_data[!is.na(var_data)]))
           }
         } else if (var_type == "date") {
+          # 预先计算日期范围以避免在更新函数中出现长度为零的向量
+          valid_data <- var_data[!is.na(var_data)]
+          has_valid_data <- length(valid_data) > 0
+          
+          min_val <- if(has_valid_data) {
+            tryCatch(min(valid_data), error = function(e) NA)
+          } else NA
+          
+          max_val <- if(has_valid_data) {
+            tryCatch(max(valid_data), error = function(e) NA)
+          } else NA
+          
+          # 确保日期是有效的，否则使用默认值
+          final_start <- if(!is.na(min_val) && inherits(min_val, "Date")) min_val else Sys.Date()
+          final_end <- if(!is.na(max_val) && inherits(max_val, "Date")) max_val else Sys.Date()
+          
           updateDateInput(session, paste0("date_start_", var_name),
-                          value = ifelse(length(var_data[!is.na(var_data)]) > 0, min(var_data, na.rm = TRUE), Sys.Date()))
+                          value = final_start)
           updateDateInput(session, paste0("date_end_", var_name),
-                          value = ifelse(length(var_data[!is.na(var_data)]) > 0, max(var_data, na.rm = TRUE), Sys.Date()))
+                          value = final_end)
         } else {
           updateTextInput(session, paste0("text_search_", var_name), value = "")
         }
@@ -530,15 +814,17 @@ filtered_data <- reactive({
   })
   
   # 监听数据变化，重置筛选变量选择和列选择
- observeEvent(data_store(), {
+  observeEvent(data_store(), {
     updateSelectizeInput(session, "selected_var",
                          choices = names(data_store()),
                          server = TRUE)
     
-    # 更新列选择
+    # 更新列选择 - 保持合理的默认显示列数
+    max_default_cols <- min(25, length(names(data_store())))
+    default_display_cols <- head(names(data_store()), max_default_cols)
     updateSelectInput(session, "selected_columns",
                      choices = names(data_store()),
-                     selected = names(data_store()))
+                     selected = default_display_cols)
   })
   
   # 返回筛选后的数据
