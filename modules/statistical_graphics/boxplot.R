@@ -32,7 +32,7 @@ boxplot_ui <- function(id) {
       box(
         width = 12,
         title = "高级美学设置",
-        status = "warning",
+        status = "primary",
         collapsible = TRUE,
         collapsed = TRUE,
         fluidRow(

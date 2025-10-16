@@ -179,12 +179,33 @@ statistical_analysis_server <- function(input, output, session, data) {
     df <- data()
     numeric_vars <- names(df)[sapply(df, is.numeric)]
     factor_vars <- names(df)[sapply(df, is.factor)]
+    all_vars <- names(df)
     
     # 更新Cox回归变量选择
     updateSelectInput(session, "cox_time", choices = numeric_vars)
     updateSelectInput(session, "cox_status", choices = numeric_vars)
-    updateSelectizeInput(session, "cox_covariates", choices = names(df))
+    updateSelectizeInput(session, "cox_covariates", choices = all_vars)
     updateSelectInput(session, "cox_strata", choices = c("None", factor_vars))
+    
+    # 更新逻辑回归变量选择
+    updateSelectInput(session, "logistic_response", choices = numeric_vars)
+    updateSelectizeInput(session, "logistic_predictors", choices = all_vars)
+    
+    # 更新线性回归变量选择
+    updateSelectInput(session, "linear_response", choices = numeric_vars)
+    updateSelectizeInput(session, "linear_predictors", choices = all_vars)
+    
+    # 更新方差分析变量选择
+    updateSelectInput(session, "anova_response", choices = numeric_vars)
+    updateSelectizeInput(session, "anova_factors", choices = factor_vars)
+    
+    # 更新卡方检验变量选择
+    updateSelectInput(session, "chisq_var1", choices = factor_vars)
+    updateSelectInput(session, "chisq_var2", choices = factor_vars)
+    
+    # 更新描述性统计变量选择
+    updateSelectizeInput(session, "desc_variables", choices = all_vars)
+    updateSelectInput(session, "desc_group_var", choices = c("无", factor_vars))
   })
   
   # 执行分析

@@ -62,7 +62,7 @@ combo_plot_ui <- function(id) {
       box(
         width = 12,
         title = "图形组合设置",
-        status = "success",
+        status = "primary",
         solidHeader = TRUE,
         fluidRow(
           column(6,
@@ -97,7 +97,7 @@ combo_plot_ui <- function(id) {
       box(
         width = 12,
         title = "详细参数设置",
-        status = "info",
+        status = "primary",
         solidHeader = TRUE,
         collapsible = TRUE,
         collapsed = TRUE,
@@ -191,7 +191,7 @@ combo_plot_ui <- function(id) {
              box(
                width = 12,
                title = "组合图形预览",
-               status = "info",
+               status = "success",
                solidHeader = TRUE,
                uiOutput(ns("plot_output"))
              )
@@ -200,7 +200,7 @@ combo_plot_ui <- function(id) {
              box(
                width = 12,
                title = "输出控制",
-               status = "success",
+               status = "primary",
                solidHeader = TRUE,
                actionButton(ns("refresh_plot"), "刷新图形", class = "btn-primary btn-block"),
                br(), br(),

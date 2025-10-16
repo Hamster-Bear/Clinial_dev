@@ -1,26 +1,18 @@
-library(shiny)
-library(shinydashboard)
-library(shinyjs)
-library(shinyBS)
-library(bslib)
-library(dplyr)
-library(readr)
-library(readxl)
-library(haven)
-library(ggplot2)
-library(plotly)
-library(DT)
-library(gt)
-library(purrr)
-library(stringr)
-library(survival)
-library(broom)
-library(survminer)
-library(corrplot)
-library(ggsci)
-library(patchwork)
-library(digest)
-library(colourpicker)
+# 检查并加载必要的包
+required_packages <- c(
+  "shiny", "shinydashboard", "shinyjs", "shinyBS", "bslib",
+  "dplyr", "readr", "readxl", "haven", "ggplot2", "plotly",
+  "DT", "gt", "purrr", "stringr", "survival", "broom", "survminer",
+  "corrplot", "ggsci", "patchwork", "digest", "colourpicker", "reactable"
+)
+
+# 安装缺失的包
+for (pkg in required_packages) {
+  if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+    install.packages(pkg, dependencies = TRUE)
+    library(pkg, character.only = TRUE)
+  }
+}
 
 # 加载所有模块
 source("modules/data_preparation.R")
@@ -30,7 +22,7 @@ source("modules/statistical_graphics.R")
 
 # 定义UI
 ui <- dashboardPage(
-  skin = "blue",
+  skin = "black",
   
   # 头部
   dashboardHeader(
@@ -51,29 +43,29 @@ ui <- dashboardPage(
     width = 300,
     sidebarMenu(
       id = "tabs",
-      menuItem("1. 数据准备", 
-               tabName = "data_prep", 
+      menuItem("1. 数据准备",
+               tabName = "data_prep",
                icon = icon("database"),
-               badgeLabel = "第一步", 
+               badgeLabel = "第一步",
                badgeColor = "blue"),
       
       menuItem("2. 探索与可视化",
                tabName = "explore",
                icon = icon("bar-chart"),
                badgeLabel = "可访问",
-               badgeColor = "blue"),
+               badgeColor = "green"),
       
       menuItem("3. 统计分析",
                tabName = "stats",
                icon = icon("table"),
                badgeLabel = "可访问",
-               badgeColor = "blue"),
+               badgeColor = "green"),
       
       menuItem("4. 统计图形",
                tabName = "plots",
                icon = icon("line-chart"),
                badgeLabel = "可访问",
-               badgeColor = "blue")
+               badgeColor = "green")
     )
   ),
   
@@ -123,32 +115,31 @@ server <- function(input, output, session) {
   # NULL coalescing operator for reactive values
   `%||%` <- function(x, y) if (is.null(x)) y else x
   
-  # 反应式数据存储 - 在模块间共享
+  # 反应式数据存储 - 在模块间共享（简化）
   raw_data <- reactiveVal(NULL)
-  clean_data <- reactiveVal(NULL)
-  type_info <- reactiveVal(NULL)
+  filtered_data <- reactiveVal(NULL)  # 所有模块使用筛选后的数据
   
   # 调用数据准备模块
   data_prep_module <- callModule(data_preparation_server, "data_prep")
   
-  # 观察数据准备模块返回的数据
+  # 观察数据准备模块返回的数据（筛选后的数据）
   observe({
     req(data_prep_module())
-    clean_data(data_prep_module())
+    filtered_data(data_prep_module())
   })
   
-  # 调用探索性分析模块
-  explore_module <- callModule(exploratory_analysis_server, "explore", data = clean_data)
+  # 调用探索性分析模块 - 使用筛选后的数据
+  explore_module <- callModule(exploratory_analysis_server, "explore", data = filtered_data)
   
-  # 调用统计分析模块
-  stats_module <- callModule(statistical_analysis_server, "stats", data = clean_data)
+  # 调用统计分析模块 - 使用筛选后的数据
+  stats_module <- callModule(statistical_analysis_server, "stats", data = filtered_data)
   
-  # 调用统计图形模块
-  plots_module <- callModule(statistical_graphics_server, "plots", data = clean_data)
+  # 调用统计图形模块 - 使用筛选后的数据
+  plots_module <- callModule(statistical_graphics_server, "plots", data = filtered_data)
   
   # 观察数据状态变化并更新侧边栏状态
   observe({
-    data_available <- !is.null(clean_data())
+    data_available <- !is.null(filtered_data())
     
     if (data_available) {
       # 启用所有分析步骤

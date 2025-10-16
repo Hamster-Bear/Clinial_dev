@@ -34,7 +34,7 @@ heatmap_ui <- function(id) {
       box(
         width = 12,
         title = "高级美学设置",
-        status = "warning",
+        status = "primary",
         collapsible = TRUE,
         collapsed = TRUE,
         fluidRow(
@@ -74,7 +74,7 @@ heatmap_ui <- function(id) {
       box(
         width = 12,
         title = "热图输出",
-        status = "info",
+        status = "success",
         solidHeader = TRUE,
         sidebarLayout(
           sidebarPanel(

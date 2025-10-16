@@ -6,10 +6,11 @@
 required_packages <- c(
   # Shiny相关
   "shiny",
-  "shinydashboard", 
+  "shinydashboard",
   "shinyjs",
   "shinyBS",
   "bslib",
+  "shinyWidgets",
   
   # 数据处理
   "dplyr",
@@ -25,6 +26,7 @@ required_packages <- c(
   "DT",
   "gt",
   "patchwork",
+  "reactable",
   
   # 统计分析
   "survival",

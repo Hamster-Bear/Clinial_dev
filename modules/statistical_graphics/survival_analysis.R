@@ -17,7 +17,7 @@ survival_analysis_ui <- function(id) {
       box(
         width = 12,
         title = "高级美学设置",
-        status = "warning",
+        status = "primary",
         collapsible = TRUE,
         collapsed = TRUE,
         fluidRow(
@@ -124,6 +124,8 @@ survival_analysis_ui <- function(id) {
               checkboxInput(ns("km_show_risktable"), "显示风险表", value = TRUE),
               # 时间范围滑块
               uiOutput(ns("time_range_slider")),
+              # 时间轴步长设置
+              numericInput(ns("time_step"), "时间轴步长", value = NULL, min = 1, max = 1000, step = 1),
               br(),
               actionButton(ns("render_km_plot"), "生成图形", icon = icon("chart-line"),
                          class = "btn btn-primary"),
@@ -172,7 +174,8 @@ survival_analysis_server <- function(input, output, session, data) {
     caption_size = 10,
     xlab_size = 12,
     ylab_size = 12,
-    show_grid = FALSE
+    show_grid = FALSE,
+    time_step = NULL
   )
   
   # 更新变量选择
@@ -329,6 +332,7 @@ survival_analysis_server <- function(input, output, session, data) {
     graphics_state$xlab_size <- input$xlab_size
     graphics_state$ylab_size <- input$ylab_size
     graphics_state$show_grid <- input$show_grid
+    graphics_state$time_step <- input$time_step
   })
   
   # 获取过滤后的数据
@@ -365,12 +369,12 @@ survival_analysis_server <- function(input, output, session, data) {
         
         if (length(time_var) > 0) {
           time_max <- max(time_var, na.rm = TRUE)
-          time_range_max <- min(ceiling(time_max) + 50, 1000)  # 最大限制为1000
+          time_range_max <- time_max + 30  # 最大值 = 实际最大值 + 30
           
           ns <- session$ns
           sliderInput(
             ns("time_range"),
-            paste("时间范围 (最大值:", time_range_max, ")"),
+            paste("时间范围 (最大值:", round(time_max, 2), ")"),
             min = 0,
             max = time_range_max,
             value = c(0, time_range_max)
@@ -460,17 +464,24 @@ survival_analysis_server <- function(input, output, session, data) {
     req(fit(), filtered_data())
     data <- filtered_data()
     
-    # 时间范围设置保持不变...
+    # 时间范围设置
     time_range <- if (!is.null(input$time_range)) {
       input$time_range
     } else {
       time_var_name <- input$km_time
       time_max <- max(data[[time_var_name]], na.rm = TRUE)
-      time_range_max <- min(ceiling(time_max) + 50, 1000)
+      time_range_max <- time_max + 30  # 最大值 = 实际最大值 + 30
       c(0, time_range_max)
     }
     
-    # 创建生存曲线图 - 禁用默认置信区间和图例，但禁用默认删失点
+    # 计算时间步长 - 使用自定义步长或自动计算
+    time_step <- if (!is.null(input$time_step) && !is.na(input$time_step) && input$time_step > 0) {
+      input$time_step
+    } else {
+      round((time_range[2] - time_range[1]) / 10)
+    }
+    
+    # 创建生存曲线图 - 启用默认图例，禁用默认置信区间和删失点
     p <- ggsurvplot(
       fit(),
       data = data,
@@ -479,11 +490,10 @@ survival_analysis_server <- function(input, output, session, data) {
       pval = FALSE,
       censor = FALSE,  # 关键：禁用默认删失点
       xlim = time_range,
-      break.time.by = round((time_range[2] - time_range[1]) / 10),
+      break.time.by = time_step,  # 使用自定义时间步长
       ggtheme = theme_bw(),
-      palette = "Set1",
-      legend = "none",  # 禁用所有默认图例
-      surv.alpha = 1   # 明确设置生存曲线透明度为1（不透明）
+      palette = "Set1"
+      # 移除了 surv.alpha 参数以避免透明度警告
     )
     
     # 手动添加删失点，并生成单独的图例
@@ -505,26 +515,34 @@ survival_analysis_server <- function(input, output, session, data) {
             alpha = 1         # 固定透明度
           ) +
           scale_shape_manual(
-            name = "删失符号",
+            name = "",
             values = c("删失" = as.numeric(input$km_censor_shape))
           )
       }
     }
     
     
-    # 使用默认图例设置
-    if (input$strata_var != "None" && !is.null(fit()$strata)) {
-      # 有分层的情况 - 使用默认图例
-      p$plot <- p$plot +
-        guides(
-          color = guide_legend(title = input$strata_var)
-        )
-    } else {
-      # 无分层的情况 - 使用默认图例
-      p$plot <- p$plot +
-        guides(
-          color = guide_legend(title = "生存曲线")
-        )
+    # 修复图例和透明度警告
+    p$plot <- p$plot +
+      # 确保没有透明度映射到离散变量
+      scale_alpha_discrete(guide = "none") +
+      # 明确设置颜色图例标题
+      guides(
+        colour = guide_legend(
+          title = ifelse(input$strata_var != "None", input$strata_var, "")
+        ),
+        # 确保形状图例正确
+        shape = guide_legend(title = "")
+      )
+    
+    # 移除任何可能存在的alpha美学映射
+    if ("alpha" %in% names(p$plot$layers)) {
+      p$plot$layers <- lapply(p$plot$layers, function(layer) {
+        if ("alpha" %in% names(layer$aes_params)) {
+          layer$aes_params$alpha <- NULL
+        }
+        layer
+      })
     }
     
     # 应用线条样式
@@ -545,12 +563,7 @@ survival_analysis_server <- function(input, output, session, data) {
       p$plot <- p$plot + labs(title = formatted_title)
     }
     
-    # 处理脚注
-    if (!is.null(input$plot_caption) && input$plot_caption != "") {
-      formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
-      p$plot <- p$plot + labs(caption = formatted_caption) +
-        theme(plot.caption = element_text(hjust = 0, vjust = 1, size = 10))
-    }
+    # 脚注处理将在组合图形时进行
     
     # 处理坐标轴标签
     if (!is.null(input$plot_xlab) && input$plot_xlab != "") {
@@ -567,6 +580,8 @@ survival_analysis_server <- function(input, output, session, data) {
       p$plot <- p$plot + labs(y = "生存概率")
     }
     
+
+
     # 组合图形（风险表处理）
     if (input$km_show_risktable && !is.null(p$table)) {
       p$table <- p$table +
@@ -581,24 +596,41 @@ survival_analysis_server <- function(input, output, session, data) {
           axis.text.y = element_text(size = input$y_text_size)
         )
       
+      # 创建图形列表
+      plot_list <- list(p$plot, p$table)
+      
+      # 如果有脚注，创建脚注文本并添加到图形列表最后
+      if (!is.null(input$plot_caption) && input$plot_caption != "") {
+        formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
+        caption_plot <- ggplot() +
+          theme_void() +
+          labs(caption = formatted_caption) +
+          theme(plot.caption = element_text(hjust = 0, vjust = 0, size = input$caption_size))
+        
+        plot_list <- c(plot_list, list(caption_plot))
+        rel_heights <- c(2, 0.5, 0.2)
+      } else {
+        rel_heights <- c(2, 0.5)
+      }
+      
+      # 组合图形
       combined_plot <- plot_grid(
-        p$plot,
-        p$table,
+        plotlist = plot_list,
         ncol = 1,
         align = "v",
         axis = "lr",
-        rel_heights = c(2, 0.5)
+        rel_heights = rel_heights
       )
       
-      combined_plot + theme(
-        plot.caption = element_text(hjust = 0, vjust = 1, size = 10),
-        plot.caption.position = "plot"
-      )
+      combined_plot
     } else {
-      p$plot + theme(
-        plot.caption = element_text(hjust = 0, vjust = 1, size = 10),
-        plot.caption.position = "plot"
-      )
+      # 不显示风险表的情况
+      if (!is.null(input$plot_caption) && input$plot_caption != "") {
+        formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
+        p$plot <- p$plot + labs(caption = formatted_caption) +
+          theme(plot.caption = element_text(hjust = 0, vjust = 1, size = input$caption_size))
+      }
+      p$plot
     }
   }
   
@@ -620,11 +652,18 @@ survival_analysis_server <- function(input, output, session, data) {
     } else {
       time_var_name <- input$km_time
       time_max <- max(data[[time_var_name]], na.rm = TRUE)
-      time_range_max <- min(ceiling(time_max) + 50, 1000)
+      time_range_max <- time_max + 30  # 最大值 = 实际最大值 + 30
       c(0, time_range_max)
     }
     
-    # 创建生存曲线图 - 使用 survminer 但不使用删失点功能
+    # 计算时间步长 - 使用自定义步长或自动计算
+    time_step <- if (!is.null(input$time_step) && !is.na(input$time_step) && input$time_step > 0) {
+      input$time_step
+    } else {
+      round((time_range[2] - time_range[1]) / 10)
+    }
+    
+    # 创建生存曲线图 - 启用默认图例，禁用默认置信区间和删失点
     p <- ggsurvplot(
       fit(),
       data = data,
@@ -633,11 +672,10 @@ survival_analysis_server <- function(input, output, session, data) {
       pval = FALSE,
       censor = FALSE,  # 关键：完全禁用默认删失点
       xlim = time_range,
-      break.time.by = round((time_range[2] - time_range[1]) / 10),
+      break.time.by = time_step,  # 使用自定义时间步长
       ggtheme = theme_bw(),
-      palette = "Set1",
-      legend = "none",  # 禁用所有默认图例
-      surv.alpha = 1   # 明确设置生存曲线透明度为1（不透明）
+      palette = "Set1"
+      # 移除了 surv.alpha 参数以避免透明度警告
     )$plot
     
     # 手动添加删失点，并生成单独的图例
@@ -659,26 +697,34 @@ survival_analysis_server <- function(input, output, session, data) {
             alpha = 1         # 固定透明度
           ) +
           scale_shape_manual(
-            name = "删失符号",
+            name = "",
             values = c("删失" = as.numeric(input$km_censor_shape))
           )
       }
     }
     
     
-    # 使用默认图例设置
-    if (input$strata_var != "None" && !is.null(fit()$strata)) {
-      # 有分层的情况 - 使用默认图例
-      p <- p +
-        guides(
-          color = guide_legend(title = input$strata_var)
-        )
-    } else {
-      # 无分层的情况 - 使用默认图例
-      p <- p +
-        guides(
-          color = guide_legend(title = "生存曲线")
-        )
+    # 修复图例和透明度警告
+    p <- p +
+      # 确保没有透明度映射到离散变量
+      scale_alpha_discrete(guide = "none") +
+      # 明确设置颜色图例标题
+      guides(
+        colour = guide_legend(
+          title = ifelse(input$strata_var != "None", input$strata_var, "")
+        ),
+        # 确保形状图例正确
+        shape = guide_legend(title = "")
+      )
+    
+    # 移除任何可能存在的alpha美学映射
+    if ("alpha" %in% names(p$layers)) {
+      p$layers <- lapply(p$layers, function(layer) {
+        if ("alpha" %in% names(layer$aes_params)) {
+          layer$aes_params$alpha <- NULL
+        }
+        layer
+      })
     }
     
     # 应用线条样式
