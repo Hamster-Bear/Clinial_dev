@@ -78,7 +78,7 @@ cat("应用将在浏览器中打开，请稍候...\n")
 cat("按 Ctrl+C 停止应用\n\n")
 
 # 设置启动选项
-options(shiny.port = 8105)
+options(shiny.port = 8106)
 options(shiny.host = "127.0.0.1")
 # 设置最大上传文件大小为100MB
 options(shiny.maxRequestSize = 100 * 1024^2)
