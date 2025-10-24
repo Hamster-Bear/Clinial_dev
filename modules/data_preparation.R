@@ -188,6 +188,10 @@ get_column_def_cached <- memoise(function(col_name, col_data) {
       minWidth = 120,
       maxWidth = 200,
       align = "left",
+      # 对于字符和因子变量，将NA值显示为空字符串
+      cell = function(value) {
+        if (is.na(value)) "" else as.character(value)
+      },
       style = list(fontSize = "13px", color = "#212529")
     ))
   } else if (inherits(col_data, "Date")) {
@@ -219,6 +223,25 @@ determine_var_type <- function(x) {
   } else {
     return("text")
   }
+}
+
+# 数据预处理函数 - 将空字符串和特定缺失值标记转换为NA
+preprocess_missing_values <- function(data) {
+  # 定义常见的缺失值标记
+  missing_patterns <- c("", "NULL", "N/A", "null", "n/a", "missing", "Missing", "MISSING", "NA", "na")
+  
+  # 对数据框的每一列应用预处理
+  data <- data %>%
+    mutate(across(everything(), ~ {
+      # 如果是字符型或因子型，将缺失值标记转换为NA
+      if (is.character(.x) || is.factor(.x)) {
+        # 将匹配缺失值标记的转换为NA
+        .x[.x %in% missing_patterns] <- NA
+      }
+      return(.x)
+    }))
+  
+  return(data)
 }
 
 # 安全计算数值范围 - 处理全空值的情况
@@ -324,6 +347,9 @@ data_preparation_server <- function(input, output, session) {
       data <- data %>%
         mutate(across(where(haven::is.labelled), ~ haven::as_factor(.x, levels = "labels")))
       
+      # 应用数据预处理 - 将空字符串和特定缺失值标记转换为NA
+      data <- preprocess_missing_values(data)
+      
       # 强制垃圾回收以释放内存
       gc()
       
@@ -398,15 +424,17 @@ data_preparation_server <- function(input, output, session) {
         # 变量名和类型显示
         h5(paste(var_name, "(", var_type, ")"), style = "margin-top: 0; color: #3; font-size: 13px; word-break: break-all;"),
         
-        # 空值筛选选项
-        radioButtons(ns(paste0("na_filter_", var_name)),
-                    "空值筛选:",
-                    choices = c("全部" = "all",
-                               "排除空值" = "exclude",
-                               "仅显示空值" = "only"),
-                    selected = "all",
-                    inline = TRUE,
-                    width = "100%"),
+        # 空值筛选选项（仅对数值、日期和文本变量显示）
+        if (var_type != "factor") {
+          radioButtons(ns(paste0("na_filter_", var_name)),
+                      "空值筛选:",
+                      choices = c("全部" = "all",
+                                 "排除空值" = "exclude",
+                                 "仅显示空值" = "only"),
+                      selected = "all",
+                      inline = TRUE,
+                      width = "100%")
+        },
         
         # 根据变量类型生成不同控件
         if (var_type == "numeric") {
@@ -473,29 +501,39 @@ data_preparation_server <- function(input, output, session) {
           )
         } else if (var_type == "factor") {
           # 限制分类变量的选项数量以提高性能
-          unique_values <- unique(var_data[!is.na(var_data)])
+          unique_values <- unique(var_data)
           
-          # 检查是否存在空值，如果存在则添加"NA"选项
-          has_na_values <- any(is.na(var_data))
+          # 获取所有唯一值（包括NA）
+          all_values <- unique_values
+          
+          # 检查是否存在NA值
+          has_na_values <- any(is.na(all_values))
+          
+          # 构建选项列表：非NA值 + 如果有NA则添加"NA"选项
+          non_na_values <- all_values[!is.na(all_values)]
+          choices_with_na <- as.character(non_na_values)
+          
           if (has_na_values) {
-            # 将"NA"添加到选项中
-            choices_with_na <- c(unique_values, "NA")
-            selected_with_na <- choices_with_na
-          } else {
-            choices_with_na <- unique_values
-            selected_with_na <- unique_values
+            choices_with_na <- c(choices_with_na, "NA")
           }
           
-          if (length(unique_values) > 100) {
+          # 默认选中所有值（包括NA）
+          selected_with_na <- choices_with_na
+          
+          # 确保没有重复值和空字符串
+          choices_with_na <- unique(choices_with_na[choices_with_na != ""])
+          selected_with_na <- choices_with_na
+          
+          if (length(non_na_values) > 100) {
             # 如果唯一值超过100个，限制显示数量
-            unique_non_na_values <- head(unique_values, 99)  # 取前99个非NA值
-            choices_with_na <- c(unique_non_na_values, "NA")  # 添加NA选项
-            selected_with_na <- choices_with_na  # 选择所有显示的值
-            if (!has_na_values) {
-              # 如果没有NA值，则不添加NA选项
-              choices_with_na <- head(unique_values, 100)
-              selected_with_na <- choices_with_na
+            limited_values <- head(non_na_values, 99)  # 取前99个非NA值
+            choices_with_na <- as.character(limited_values)
+            
+            if (has_na_values) {
+              choices_with_na <- c(choices_with_na, "NA")
             }
+            
+            selected_with_na <- choices_with_na
             
             tagList(
               h6("分类值 (前100):", style = "margin: 5px 0; font-size: 11px; color: #666;"),
@@ -606,123 +644,88 @@ data_preparation_server <- function(input, output, session) {
       var_data <- data[[var_name]]
       var_type <- determine_var_type(var_data)
       
-      # 空值筛选
-      na_filter_val <- input[[paste0("na_filter_", var_name)]]
-      
-      if (!is.null(na_filter_val) && na_filter_val == "only") {
-        # 仅显示空值：只保留该变量为空的行，忽略其他筛选条件
-        if (var_type == "factor") {
-          # 对于分类变量，获取所有可能的唯一值（不包括NA）
-          all_possible_values <- unique(var_data[!is.na(var_data)])
-          if (length(all_possible_values) > 0) {
-            # 按照您的建议：选择变量的值不等于所有这个变量里任一的分类值
-            # 这在实际中意味着值不在all_possible_values中，包括NA值
-            # 但这样会包含不在分类中的有效值，我们只想选择空值
-            # 所以对于"仅显示空值"，仍然使用is.na()是最准确的
-            data <- data %>% filter(is.na(data[[var_name]]))
-          } else {
-            # 如果没有非空值，选择所有行（因为所有都是空值）
-            data <- data %>% filter(is.na(data[[var_name]]))
-          }
-        } else {
-          # 对于其他变量类型，直接选择空值
-          data <- data %>% filter(is.na(data[[var_name]]))
-        }
-      } else if (!is.null(na_filter_val) && na_filter_val == "exclude") {
-        # 排除空值：只保留该变量非空的行
-        data <- data %>% filter(!is.na(data[[var_name]]))
+      # 空值筛选逻辑（仅对数值、日期和文本变量）
+      if (var_type != "factor") {
+        na_filter_val <- input[[paste0("na_filter_", var_name)]]
         
-        # 在非空值基础上应用其他筛选条件
-        if (var_type == "numeric") {
-          min_val <- input[[paste0("num_min_", var_name)]]
-          max_val <- input[[paste0("num_max_", var_name)]]
+        if (!is.null(na_filter_val) && na_filter_val == "only") {
+          # 仅显示空值
+          data <- data %>% filter(is.na(data[[var_name]]))
+        } else if (!is.null(na_filter_val) && na_filter_val == "exclude") {
+          # 排除空值
+          data <- data %>% filter(!is.na(data[[var_name]]))
           
-          if (!is.null(min_val) && !is.null(max_val) &&
-              is.numeric(min_val) && is.numeric(max_val)) {
-            data <- data %>% filter(data[[var_name]] >= min_val & data[[var_name]] <= max_val)
-          }
-        } else if (var_type == "factor") {
-          selected_values <- input[[paste0("cat_values_", var_name)]]
-          if (!is.null(selected_values) && length(selected_values) > 0) {
-            # 在非空值基础上，只保留选中的分类值
-            # 检查是否选择了"NA"值
-            if ("NA" %in% selected_values) {
-              # 如果选择了"NA"，则保留选中的非NA值和NA值
-              non_na_selected <- setdiff(selected_values, "NA")
-              if (length(non_na_selected) > 0) {
-                # 保留选中的非NA值和NA值
-                data <- data %>% filter(data[[var_name]] %in% non_na_selected | is.na(data[[var_name]]))
-              } else {
-                # 只保留NA值
-                data <- data %>% filter(is.na(data[[var_name]]))
-              }
-            } else {
-              # 没有选择"NA"，只保留选中的非NA值
-              data <- data %>% filter(data[[var_name]] %in% selected_values)
+          # 在非空值基础上应用其他筛选条件
+          if (var_type == "numeric") {
+            min_val <- input[[paste0("num_min_", var_name)]]
+            max_val <- input[[paste0("num_max_", var_name)]]
+            
+            if (!is.null(min_val) && !is.null(max_val) &&
+                is.numeric(min_val) && is.numeric(max_val)) {
+              data <- data %>% filter(data[[var_name]] >= min_val & data[[var_name]] <= max_val)
+            }
+          } else if (var_type == "date") {
+            start_date <- input[[paste0("date_start_", var_name)]]
+            end_date <- input[[paste0("date_end_", var_name)]]
+            
+            if (!is.null(start_date) && !is.null(end_date) &&
+                inherits(start_date, "Date") && inherits(end_date, "Date")) {
+              data <- data %>% filter(data[[var_name]] >= start_date & data[[var_name]] <= end_date)
+            }
+          } else { # text
+            search_text <- input[[paste0("text_search_", var_name)]]
+            if (!is.null(search_text) && search_text != "") {
+              pattern <- paste0(".*", search_text, ".*", sep = "")
+              data <- data %>% filter(grepl(pattern, data[[var_name]], ignore.case = TRUE))
             }
           }
-          # 如果没有选择分类值，只排除空值（已经完成）
-        } else if (var_type == "date") {
-          start_date <- input[[paste0("date_start_", var_name)]]
-          end_date <- input[[paste0("date_end_", var_name)]]
-          
-          if (!is.null(start_date) && !is.null(end_date) &&
-              inherits(start_date, "Date") && inherits(end_date, "Date")) {
-            data <- data %>% filter(data[[var_name]] >= start_date & data[[var_name]] <= end_date)
-          }
-        } else { # text
-          search_text <- input[[paste0("text_search_", var_name)]]
-          if (!is.null(search_text) && search_text != "") {
-            pattern <- paste0(".*", search_text, ".*", sep = "")
-            data <- data %>% filter(grepl(pattern, data[[var_name]], ignore.case = TRUE))
+        } else {
+          # "全部"模式：保留所有值（包括空值和非空值），但对非空值应用筛选条件
+          if (var_type == "numeric") {
+            min_val <- input[[paste0("num_min_", var_name)]]
+            max_val <- input[[paste0("num_max_", var_name)]]
+            
+            if (!is.null(min_val) && !is.null(max_val) &&
+                is.numeric(min_val) && is.numeric(max_val)) {
+              data <- data %>% filter(data[[var_name]] >= min_val & data[[var_name]] <= max_val | is.na(data[[var_name]]))
+            }
+          } else if (var_type == "date") {
+            start_date <- input[[paste0("date_start_", var_name)]]
+            end_date <- input[[paste0("date_end_", var_name)]]
+            
+            if (!is.null(start_date) && !is.null(end_date) &&
+                inherits(start_date, "Date") && inherits(end_date, "Date")) {
+              data <- data %>% filter(data[[var_name]] >= start_date & data[[var_name]] <= end_date | is.na(data[[var_name]]))
+            }
+          } else { # text
+            search_text <- input[[paste0("text_search_", var_name)]]
+            if (!is.null(search_text) && search_text != "") {
+              pattern <- paste0(".*", search_text, ".*", sep = "")
+              data <- data %>% filter(grepl(pattern, data[[var_name]], ignore.case = TRUE) | is.na(data[[var_name]]))
+            }
           }
         }
       } else {
-        # "全部"模式：保留所有值（包括空值和非空值），但对非空值应用筛选条件
-        if (var_type == "numeric") {
-          min_val <- input[[paste0("num_min_", var_name)]]
-          max_val <- input[[paste0("num_max_", var_name)]]
-          
-          if (!is.null(min_val) && !is.null(max_val) &&
-              is.numeric(min_val) && is.numeric(max_val)) {
-            data <- data %>% filter(data[[var_name]] >= min_val & data[[var_name]] <= max_val | is.na(data[[var_name]]))
-          }
-        } else if (var_type == "factor") {
-          selected_values <- input[[paste0("cat_values_", var_name)]]
-          if (!is.null(selected_values) && length(selected_values) > 0) {
-            # 保留选中的值和空值
-            # 检查是否选择了"NA"值
-            if ("NA" %in% selected_values) {
-              # 如果选择了"NA"，则保留选中的非NA值和NA值
-              non_na_selected <- setdiff(selected_values, "NA")
-              if (length(non_na_selected) > 0) {
-                # 保留选中的非NA值和NA值
-                data <- data %>% filter(data[[var_name]] %in% non_na_selected | is.na(data[[var_name]]))
-              } else {
-                # 只保留NA值
-                data <- data %>% filter(is.na(data[[var_name]]))
-              }
+        # 分类变量使用新的筛选逻辑（无空值筛选控件）
+        selected_values <- input[[paste0("cat_values_", var_name)]]
+        if (!is.null(selected_values) && length(selected_values) > 0) {
+          # 检查是否选择了"NA"值
+          if ("NA" %in% selected_values) {
+            # 如果选择了"NA"，则保留选中的非NA值和NA值
+            non_na_selected <- setdiff(selected_values, "NA")
+            if (length(non_na_selected) > 0) {
+              # 保留选中的非NA值和NA值
+              data <- data %>% filter(data[[var_name]] %in% non_na_selected | is.na(data[[var_name]]))
             } else {
-              # 没有选择"NA"，保留选中的非NA值和所有NA值
-              data <- data %>% filter(data[[var_name]] %in% selected_values | is.na(data[[var_name]]))
+              # 只保留NA值
+              data <- data %>% filter(is.na(data[[var_name]]))
             }
-          }
-          # 如果没有选择分类值，保留所有值（包括空值和非空值）
-        } else if (var_type == "date") {
-          start_date <- input[[paste0("date_start_", var_name)]]
-          end_date <- input[[paste0("date_end_", var_name)]]
-          
-          if (!is.null(start_date) && !is.null(end_date) &&
-              inherits(start_date, "Date") && inherits(end_date, "Date")) {
-            data <- data %>% filter(data[[var_name]] >= start_date & data[[var_name]] <= end_date | is.na(data[[var_name]]))
-          }
-        } else { # text
-          search_text <- input[[paste0("text_search_", var_name)]]
-          if (!is.null(search_text) && search_text != "") {
-            pattern <- paste0(".*", search_text, ".*", sep = "")
-            data <- data %>% filter(grepl(pattern, data[[var_name]], ignore.case = TRUE) | is.na(data[[var_name]]))
+          } else {
+            # 没有选择"NA"，只保留选中的非NA值（排除NA值）
+            data <- data %>% filter(data[[var_name]] %in% selected_values)
           }
         }
+        # 如果没有选择分类值，保留所有值（包括空值和非空值）
       }
     }
     
@@ -890,31 +893,30 @@ data_preparation_server <- function(input, output, session) {
           updateNumericInput(session, paste0("num_max_", var_name),
                              value = final_max_val)
         } else if (var_type == "factor") {
-          # 获取所有非空值
-          non_na_values <- var_data[!is.na(var_data)]
-          if(length(non_na_values) > 0) {
-            # 检查是否存在空值，如果存在则添加"NA"选项
-            has_na_values <- any(is.na(var_data))
-            if (has_na_values) {
-              # 将"NA"添加到选项中
-              choices_with_na <- c(unique(non_na_values), "NA")
-              selected_with_na <- choices_with_na
-            } else {
-              choices_with_na <- unique(non_na_values)
-              selected_with_na <- choices_with_na
-            }
-            updateSelectizeInput(session, paste0("cat_values_", var_name),
-                                 choices = choices_with_na,
-                                 selected = selected_with_na)
-          } else {
-            # 如果没有非空值，但仍可能存在空值
-            has_na_values <- any(is.na(var_data))
-            if (has_na_values) {
-              updateSelectizeInput(session, paste0("cat_values_", var_name),
-                                   choices = "NA",
-                                   selected = "NA")
-            }
+          # 获取所有唯一值，包括NA
+          unique_values <- unique(var_data)
+          
+          # 检查是否存在空值
+          has_na_values <- any(is.na(var_data))
+          
+          # 构建选项列表：非NA值 + 如果有NA则添加"NA"选项
+          non_na_values <- unique_values[!is.na(unique_values)]
+          choices_with_na <- as.character(non_na_values)
+          
+          if (has_na_values) {
+            choices_with_na <- c(choices_with_na, "NA")
           }
+          
+          # 默认选中所有值（包括NA）
+          selected_with_na <- choices_with_na
+          
+          # 确保没有重复值和空字符串
+          choices_with_na <- unique(choices_with_na[choices_with_na != ""])
+          selected_with_na <- choices_with_na
+          
+          updateSelectizeInput(session, paste0("cat_values_", var_name),
+                               choices = choices_with_na,
+                               selected = selected_with_na)
         } else if (var_type == "date") {
           # 预先计算日期范围以避免在更新函数中出现长度为零的向量
           valid_data <- var_data[!is.na(var_data)]
@@ -940,7 +942,10 @@ data_preparation_server <- function(input, output, session) {
           updateTextInput(session, paste0("text_search_", var_name), value = "")
         }
         
-        updateRadioButtons(session, paste0("na_filter_", var_name), selected = "all")
+        # 更新空值筛选按钮（仅对数值、日期和文本变量）
+        if (var_type != "factor") {
+          updateRadioButtons(session, paste0("na_filter_", var_name), selected = "all")
+        }
       }
     }
   })
