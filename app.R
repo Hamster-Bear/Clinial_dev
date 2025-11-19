@@ -3,7 +3,9 @@ required_packages <- c(
   "shiny", "shinydashboard", "shinyjs", "shinyBS", "bslib",
   "dplyr", "readr", "readxl", "haven", "ggplot2", "plotly",
   "DT", "gt", "purrr", "stringr", "survival", "broom", "survminer",
-  "corrplot", "ggsci", "patchwork", "digest", "colourpicker", "reactable"
+  "corrplot", "ggsci", "patchwork", "digest", "colourpicker", "reactable",
+  "waiter", "shinyalert", "scales", "gridExtra", "cowplot", "RColorBrewer",
+  "tidyr", "vroom", "memoise", "shinyWidgets"
 )
 
 # 安装缺失的包

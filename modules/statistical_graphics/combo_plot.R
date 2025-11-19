@@ -12,7 +12,7 @@ library(shinyjs)
 library(gridExtra)
 library(cowplot)
 library(RColorBrewer)
-library(viridis)
+# library(viridis)  # 注释掉，因为安装有问题
 library(shinyalert)
 library(scales)
 

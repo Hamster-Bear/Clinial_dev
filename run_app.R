@@ -42,9 +42,11 @@ cat("3. 加载必需的包...\n")
 # 加载所有必需的包
 required_packages <- c(
   "shiny", "shinydashboard", "shinyjs", "shinyBS", "bslib",
-  "dplyr", "readr", "readxl", "haven", "purrr", "stringr",
-  "ggplot2", "plotly", "DT", "gt", "survival", "broom", "survminer", "corrplot",
-  "reactable"
+  "dplyr", "readr", "readxl", "haven", "ggplot2", "plotly",
+  "DT", "gt", "purrr", "stringr", "survival", "broom", "survminer",
+  "corrplot", "ggsci", "patchwork", "digest", "colourpicker", "reactable",
+  "waiter", "shinyalert", "scales", "gridExtra", "cowplot", "RColorBrewer",
+  "tidyr", "vroom", "memoise", "shinyWidgets"
 )
 
 successful_loads <- 0
