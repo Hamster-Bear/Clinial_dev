@@ -92,7 +92,62 @@ survival_analysis_ui <- function(id) {
           column(2,
                  checkboxInput(ns("show_grid"), "显示网格线", value = FALSE)
           )
-        )
+        ),
+        fluidRow(
+          column(4,
+                 checkboxInput(ns("show_median"), "显示中位生存时间", value = TRUE)
+          ),
+          column(4,
+                 checkboxInput(ns("show_stats"), "显示统计量(P值/HR)", value = TRUE)
+          ),
+          column(4,
+                 selectInput(ns("legend_position"), "图例位置",
+                             choices = c("top-right", "top", "top-left", "left", "right", "bottom-left", "bottom", "bottom-right", "none"),
+                             selected = "top-right")
+          )
+        ),
+        fluidRow(
+          column(12,
+                 textInput(ns("legend_title"), "图例标题", value = "", placeholder = "留空则使用变量名")
+          )
+        ),
+        conditionalPanel(
+          condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
+          fluidRow(
+            column(12,
+              box(
+                width = 12,
+                title = "分层变量标签映射",
+                status = "warning",
+                collapsible = TRUE,
+                collapsed = TRUE,
+                uiOutput(ns("strata_labels_ui"))
+              )
+            )
+          )
+        ),
+        fluidRow(
+          column(12,
+                 h5("文本位置设置"),
+                 selectInput(ns("text_position_preset"), "预设位置",
+                             choices = c("自动（默认）" = "auto",
+                                         "左上" = "top-left",
+                                         "右上" = "top-right",
+                                         "左下" = "bottom-left",
+                                         "右下" = "bottom-right",
+                                         "自定义" = "custom"),
+                             selected = "auto")
+          )
+        ),
+        conditionalPanel(
+          condition = paste0("input['", ns("text_position_preset"), "'] == 'custom'"),
+          fluidRow(
+            column(3, numericInput(ns("median_x"), "中位生存X坐标", value = 0.98, min = 0, max = 1, step = 0.01)),
+            column(3, numericInput(ns("median_y"), "中位生存Y坐标", value = 0.95, min = 0, max = 1, step = 0.01)),
+            column(3, numericInput(ns("stats_x"), "统计量X坐标", value = 0.02, min = 0, max = 1, step = 0.01)),
+            column(3, numericInput(ns("stats_y"), "统计量Y坐标", value = 0.95, min = 0, max = 1, step = 0.01))
+          )
+        ),
       )
     ),
     
@@ -112,6 +167,10 @@ survival_analysis_ui <- function(id) {
               selectizeInput(ns("km_time"), "时间变量 (数值型)", choices = NULL),
               selectizeInput(ns("km_status"), "状态变量 (数值型)", choices = NULL),
               selectizeInput(ns("strata_var"), "分层变量 (分组)", choices = c("无" = "None")),
+              conditionalPanel(
+                condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
+                uiOutput(ns("hr_reference_ui"))
+              ),
               selectizeInput(ns("facet_var"), "分面变量 (分组)", choices = c("无" = "None")),
               # 分面值选择器（仅当选择了分面变量时显示）
               conditionalPanel(
@@ -175,7 +234,18 @@ survival_analysis_server <- function(input, output, session, data) {
     xlab_size = 12,
     ylab_size = 12,
     show_grid = FALSE,
-    time_step = NULL
+    time_step = NULL,
+    show_median = TRUE,
+    show_stats = TRUE,
+    legend_position = "top-right",
+    legend_title = "",
+    text_position_preset = "auto",
+    median_x = 0.98,
+    median_y = 0.95,
+    stats_x = 0.02,
+    stats_y = 0.95,
+    hr_reference = NULL,
+    strata_labels = list()
   )
   
   # 更新变量选择
@@ -313,7 +383,72 @@ survival_analysis_server <- function(input, output, session, data) {
     } else {
       NULL
     }
- })
+  })
+  
+  # 动态HR参考组选择UI
+  output$hr_reference_ui <- renderUI({
+    req(data(), input$strata_var)
+    
+    if (input$strata_var != "None" && input$strata_var %in% names(data())) {
+      # 获取分层变量的唯一值
+      strata_col <- data()[[input$strata_var]]
+      strata_values <- unique(strata_col)
+      strata_values <- strata_values[!is.na(strata_values)]
+      
+      # 转换为字符向量
+      strata_values_char <- as.character(strata_values)
+      # 过滤空值
+      strata_values_char <- strata_values_char[strata_values_char != ""]
+      
+      if (length(strata_values_char) > 1) {
+        selectInput(
+          ns("hr_reference"),
+          "HR参考组（与其他组比较）",
+          choices = c("无（自动选择第一组）" = "auto", strata_values_char),
+          selected = if(is.null(graphics_state$hr_reference) || !graphics_state$hr_reference %in% c("auto", strata_values_char)) "auto" else graphics_state$hr_reference
+        )
+      } else {
+        NULL
+      }
+    } else {
+      NULL
+    }
+  })
+  
+  # 动态分层变量标签映射UI
+  output$strata_labels_ui <- renderUI({
+    req(data(), input$strata_var)
+    
+    if (input$strata_var != "None" && input$strata_var %in% names(data())) {
+      # 获取分层变量的唯一值
+      strata_col <- data()[[input$strata_var]]
+      strata_values <- unique(strata_col)
+      strata_values <- strata_values[!is.na(strata_values)]
+      
+      # 转换为字符向量
+      strata_values_char <- as.character(strata_values)
+      # 过滤空值
+      strata_values_char <- strata_values_char[strata_values_char != ""]
+      
+      if (length(strata_values_char) > 0) {
+        # 为每个值创建一个文本输入框
+        tagList(
+          h5("为每个分层值设置自定义标签"),
+          p("留空则使用原始值"),
+          lapply(strata_values_char, function(val) {
+            textInput(ns(paste0("strata_label_", val)),
+                     label = paste("值:", val),
+                     value = "",
+                     placeholder = val)
+          })
+        )
+      } else {
+        p("没有可用的分层值")
+      }
+    } else {
+      NULL
+    }
+  })
   
   # 观察并保存图形参数
   observe({
@@ -333,6 +468,37 @@ survival_analysis_server <- function(input, output, session, data) {
     graphics_state$ylab_size <- input$ylab_size
     graphics_state$show_grid <- input$show_grid
     graphics_state$time_step <- input$time_step
+    graphics_state$show_median <- input$show_median
+    graphics_state$show_stats <- input$show_stats
+    graphics_state$legend_position <- input$legend_position
+    graphics_state$legend_title <- input$legend_title
+    graphics_state$text_position_preset <- input$text_position_preset
+    graphics_state$median_x <- input$median_x
+    graphics_state$median_y <- input$median_y
+    graphics_state$stats_x <- input$stats_x
+    graphics_state$stats_y <- input$stats_y
+    graphics_state$hr_reference <- input$hr_reference
+    
+    # 收集分层变量标签映射
+    if (!is.null(input$strata_var) && input$strata_var != "None") {
+      req(data())
+      strata_col <- data()[[input$strata_var]]
+      strata_values <- unique(strata_col)
+      strata_values <- strata_values[!is.na(strata_values)]
+      strata_values_char <- as.character(strata_values)
+      strata_values_char <- strata_values_char[strata_values_char != ""]
+      
+      label_list <- list()
+      for (val in strata_values_char) {
+        input_name <- paste0("strata_label_", val)
+        if (!is.null(input[[input_name]])) {
+          label_list[[val]] <- input[[input_name]]
+        }
+      }
+      graphics_state$strata_labels <- label_list
+    } else {
+      graphics_state$strata_labels <- list()
+    }
   })
   
   # 获取过滤后的数据
@@ -459,6 +625,26 @@ survival_analysis_server <- function(input, output, session, data) {
     }
   })
   
+  # 获取标签映射后的分层变量值
+  mapped_strata <- reactive({
+    req(data(), input$strata_var)
+    if (input$strata_var == "None") return(NULL)
+    
+    strata_col <- data()[[input$strata_var]]
+    strata_values <- as.character(strata_col)
+    
+    # 应用标签映射
+    labels <- graphics_state$strata_labels
+    if (length(labels) > 0) {
+      for (orig in names(labels)) {
+        if (labels[[orig]] != "") {
+          strata_values[strata_values == orig] <- labels[[orig]]
+        }
+      }
+    }
+    return(strata_values)
+  })
+  
   # 创建生存曲线图
   create_surv_plot <- function() {
     req(fit(), filtered_data())
@@ -481,10 +667,59 @@ survival_analysis_server <- function(input, output, session, data) {
       round((time_range[2] - time_range[1]) / 10)
     }
     
+    # 如果有标签映射，创建一个使用映射标签的副本数据
+    plot_data <- data
+    if (input$strata_var != "None" && length(graphics_state$strata_labels) > 0) {
+      # 复制数据以避免修改原始数据
+      plot_data <- data
+      strata_col <- plot_data[[input$strata_var]]
+      strata_values <- as.character(strata_col)
+      labels <- graphics_state$strata_labels
+      for (orig in names(labels)) {
+        if (labels[[orig]] != "") {
+          strata_values[strata_values == orig] <- labels[[orig]]
+        }
+      }
+      plot_data[[input$strata_var]] <- factor(strata_values, levels = unique(strata_values))
+    }
+    
+    # 使用映射后的数据重新拟合生存曲线
+    if (input$strata_var != "None" && length(graphics_state$strata_labels) > 0) {
+      # 重新创建生存对象
+      time_var <- plot_data[[input$km_time]]
+      status_var <- plot_data[[input$km_status]]
+      if (input$km_censor_value == "1") {
+        status_var <- ifelse(status_var == 1, 0, ifelse(status_var == 0, 1, status_var))
+      }
+      unique_status <- unique(status_var)
+      valid_status <- unique_status[!is.na(unique_status)]
+      if (!all(valid_status %in% c(0, 1))) {
+        min_status <- min(valid_status, na.rm = TRUE)
+        status_var <- ifelse(status_var == min_status, 0, 1)
+      }
+      surv_obj_local <- Surv(time_var, status_var)
+      
+      # 重新拟合
+      if (input$strata_var == "None") {
+        fit_local <- surv_fit(surv_obj_local ~ 1, data = plot_data)
+      } else {
+        formula_str <- paste("surv_obj_local ~", input$strata_var)
+        fit_local <- surv_fit(as.formula(formula_str), data = plot_data)
+      }
+    } else {
+      # 使用原始拟合
+      fit_local <- fit()
+      plot_data <- data
+    }
+    
+    # 计算图例标题文本
+    legend_title_text <- ifelse(input$legend_title != "", input$legend_title,
+                               ifelse(input$strata_var != "None", input$strata_var, ""))
+    
     # 创建生存曲线图 - 启用默认图例，禁用默认置信区间和删失点
-    p <- ggsurvplot(
-      fit(),
-      data = data,
+    p <- suppressWarnings(ggsurvplot(
+      fit_local,
+      data = plot_data,
       risk.table = input$km_show_risktable,
       conf.int = FALSE,  # 关键：禁用默认置信区间
       pval = FALSE,
@@ -492,9 +727,230 @@ survival_analysis_server <- function(input, output, session, data) {
       xlim = time_range,
       break.time.by = time_step,  # 使用自定义时间步长
       ggtheme = theme_bw(),
-      palette = "Set1"
-      # 移除了 surv.alpha 参数以避免透明度警告
-    )
+      palette = "Set1",
+      surv.alpha = 1,  # 设置生存曲线透明度为1，避免alpha警告
+      legend.title = legend_title_text
+    ))
+    
+    # 计算并标注中位生存时间
+    if (input$show_median) {
+      median_surv <- surv_median(fit())
+      if (!is.null(median_surv) && nrow(median_surv) > 0) {
+        # 准备标注文本（使用映射后的标签）
+        # 获取标签映射
+        labels <- graphics_state$strata_labels
+        # 提取strata中的水平值部分（去掉变量名前缀）
+        extract_level <- function(x) {
+          if (grepl("=", x)) {
+            sub(".*=", "", x)
+          } else {
+            x
+          }
+        }
+        # 映射函数：如果用户设置了自定义标签，则使用；否则使用整个strata字符串（例如“grp=1”）
+        map_strata_label <- function(x) {
+          orig <- extract_level(x)
+          if (orig %in% names(labels) && labels[[orig]] != "") {
+            labels[[orig]]
+          } else {
+            x   # 返回整个原始字符串，如“grp=1”
+          }
+        }
+        mapped_strata_names <- sapply(median_surv$strata, map_strata_label)
+        median_surv$label <- paste0(mapped_strata_names, ": ",
+                                    round(median_surv$median, 2),
+                                    " (95%CI: ",
+                                    round(median_surv$lower, 2), "-",
+                                    round(median_surv$upper, 2), ")")
+        
+        # 确定标注位置
+        # 1. 根据预设位置或自定义坐标计算x,y
+        preset <- input$text_position_preset
+        n_groups <- nrow(median_surv)
+        
+        # 定义预设位置映射
+        if (preset == "auto") {
+          # 自动布局：右侧垂直排列，从0.95开始向下，根据分组数量动态调整行距
+          x_pos <- max(time_range) * 0.98
+          # 动态行距：根据分组数量压缩，最少留0.1的间距，最多到0.6
+          start_y <- 0.95
+          end_y <- max(0.6, 0.95 - (n_groups-1)*0.1)
+          y_positions <- seq(start_y, end_y, length.out = n_groups)
+        } else if (preset == "top-left") {
+          x_pos <- min(time_range) + 0.02 * diff(time_range)
+          start_y <- 0.95
+          end_y <- max(0.6, 0.95 - (n_groups-1)*0.1)
+          y_positions <- seq(start_y, end_y, length.out = n_groups)
+        } else if (preset == "top-right") {
+          x_pos <- max(time_range) * 0.98
+          start_y <- 0.95
+          end_y <- max(0.6, 0.95 - (n_groups-1)*0.1)
+          y_positions <- seq(start_y, end_y, length.out = n_groups)
+        } else if (preset == "bottom-left") {
+          x_pos <- min(time_range) + 0.02 * diff(time_range)
+          start_y <- 0.4
+          end_y <- max(0.05, 0.4 - (n_groups-1)*0.1)
+          y_positions <- seq(start_y, end_y, length.out = n_groups)
+        } else if (preset == "bottom-right") {
+          x_pos <- max(time_range) * 0.98
+          start_y <- 0.4
+          end_y <- max(0.05, 0.4 - (n_groups-1)*0.1)
+          y_positions <- seq(start_y, end_y, length.out = n_groups)
+        } else if (preset == "custom") {
+          # 使用自定义坐标（比例坐标转换为实际坐标）
+          # input$median_x是比例（0-1），需要转换为实际x坐标
+          x_pos <- min(time_range) + input$median_x * diff(time_range)
+          # input$median_y是比例（0-1），需要转换为实际y坐标（生存概率范围0-1）
+          # 但注意：图形的y轴范围是0-1，所以可以直接使用
+          base_y <- input$median_y
+          # 根据分组数量动态分配y位置，从base_y向下排列，行距0.05
+          y_positions <- base_y - seq(0, n_groups-1) * 0.05
+        }
+        
+        median_surv$x <- x_pos
+        median_surv$y <- y_positions
+        # 添加标注到图形
+        p$plot <- p$plot +
+          geom_text(data = median_surv,
+                    aes(x = x, y = y, label = label),
+                    hjust = ifelse(preset %in% c("top-left", "bottom-left"), 0, 1),
+                    vjust = 0.5, size = 3.5,
+                    color = "black", fontface = "bold")
+      }
+    }
+    
+    # 计算并显示统计量（P值/HR）
+    if (input$show_stats) {
+      # 计算log-rank检验P值
+      logrank_p <- tryCatch({
+        survdiff_obj <- survdiff(surv_obj() ~ data[[input$strata_var]], data = data)
+        pchisq(survdiff_obj$chisq, length(survdiff_obj$n) - 1, lower.tail = FALSE)
+      }, error = function(e) NA)
+      
+      # 准备统计量文本
+      stats_text <- ""
+      if (!is.na(logrank_p)) {
+        stats_text <- paste0(stats_text, "Log-rank P = ", formatC(logrank_p, format = "f", digits = 3))
+      }
+      
+      # 如果存在分层变量，计算Cox回归HR（支持多分类和参考组选择）
+      if (input$strata_var != "None") {
+        strata_var <- data[[input$strata_var]]
+        strata_levels <- unique(strata_var)
+        n_levels <- length(strata_levels)
+        
+        # 确定参考组
+        reference <- input$hr_reference
+        if (is.null(reference) || reference == "auto") {
+          # 自动选择第一组作为参考
+          reference_level <- as.character(strata_levels[1])
+        } else {
+          reference_level <- reference
+        }
+        
+        # 重新编码因子变量，将参考组设为基线
+        strata_fac <- factor(strata_var)
+        if (reference_level %in% levels(strata_fac)) {
+          strata_fac <- relevel(strata_fac, ref = reference_level)
+        }
+        
+        # 拟合Cox模型
+        cox_fit <- tryCatch({
+          coxph(surv_obj() ~ strata_fac, data = data)
+        }, error = function(e) NULL)
+        
+        if (!is.null(cox_fit)) {
+          cox_summary <- summary(cox_fit)
+          n_coef <- nrow(cox_summary$coefficients)
+          
+          if (n_coef > 0) {
+            # 构建HR表格文本（新格式：组别vs参考组 HR=值 (95%CI: 下限-上限)）
+            hr_lines <- c()
+            # 标签映射
+            labels <- graphics_state$strata_labels
+            map_label <- function(x) {
+              if (x %in% names(labels) && labels[[x]] != "") labels[[x]] else x
+            }
+            for (i in 1:n_coef) {
+              hr <- exp(cox_summary$coefficients[i, 1])
+              hr_lower <- exp(cox_summary$coefficients[i, 1] - 1.96 * cox_summary$coefficients[i, 3])
+              hr_upper <- exp(cox_summary$coefficients[i, 1] + 1.96 * cox_summary$coefficients[i, 3])
+              # 获取对比组名称（去掉因子前缀）
+              contrast_name <- rownames(cox_summary$coefficients)[i]
+              # 移除因子变量名前缀（例如"strata_fac"）
+              contrast_clean <- gsub("^.*?([^.]+)$", "\\1", contrast_name)  # 简单提取最后一个单词
+              # 如果前缀存在，尝试移除
+              if (grepl("strata_fac", contrast_name)) {
+                contrast_clean <- gsub("strata_fac", "", contrast_name)
+              }
+              # 应用标签映射
+              contrast_mapped <- map_label(contrast_clean)
+              reference_mapped <- map_label(reference_level)
+              # 构建新格式
+              hr_line <- paste0(contrast_mapped, " vs ", reference_mapped,
+                                " HR = ", formatC(hr, format = "f", digits = 2),
+                                " (95%CI: ", formatC(hr_lower, format = "f", digits = 2), "-",
+                                formatC(hr_upper, format = "f", digits = 2), ")")
+              hr_lines <- c(hr_lines, hr_line)
+            }
+            
+            # 如果有HR结果，添加到统计量文本（每行单独一行，去掉Cox P值和标题）
+            if (length(hr_lines) > 0) {
+              # 如果已有log-rank P值，先加换行
+              if (stats_text != "") {
+                stats_text <- paste0(stats_text, "\n")
+              }
+              # 将HR行连接起来，每行用换行分隔
+              stats_text <- paste0(stats_text, paste(hr_lines, collapse = "\n"))
+            }
+          }
+        }
+      }
+      
+      # 确定统计量文本位置
+      preset <- input$text_position_preset
+      if (preset == "auto") {
+        # 默认左上角
+        stats_x <- min(time_range) + 0.02 * diff(time_range)
+        stats_y <- 0.95
+        hjust_val <- 0
+        vjust_val <- 1
+      } else if (preset == "top-left") {
+        stats_x <- min(time_range) + 0.02 * diff(time_range)
+        stats_y <- 0.95
+        hjust_val <- 0
+        vjust_val <- 1
+      } else if (preset == "top-right") {
+        stats_x <- max(time_range) * 0.98
+        stats_y <- 0.95
+        hjust_val <- 1
+        vjust_val <- 1
+      } else if (preset == "bottom-left") {
+        stats_x <- min(time_range) + 0.02 * diff(time_range)
+        stats_y <- 0.05
+        hjust_val <- 0
+        vjust_val <- 0
+      } else if (preset == "bottom-right") {
+        stats_x <- max(time_range) * 0.98
+        stats_y <- 0.05
+        hjust_val <- 1
+        vjust_val <- 0
+      } else if (preset == "custom") {
+        # 使用自定义坐标
+        stats_x <- min(time_range) + input$stats_x * diff(time_range)
+        stats_y <- input$stats_y
+        hjust_val <- ifelse(input$stats_x < 0.5, 0, 1)
+        vjust_val <- ifelse(input$stats_y < 0.5, 0, 1)
+      }
+      
+      # 将统计量文本添加到图形
+      if (stats_text != "") {
+        p$plot <- p$plot +
+          annotate("text", x = stats_x, y = stats_y, label = stats_text,
+                   hjust = hjust_val, vjust = vjust_val, size = 3.5,
+                   color = "black", fontface = "bold")
+      }
+    }
     
     # 手动添加删失点，并生成单独的图例
     if (input$km_show_censor) {
@@ -523,16 +979,12 @@ survival_analysis_server <- function(input, output, session, data) {
     
     
     # 修复图例和透明度警告
+    # 注意：图例标题已经在ggsurvplot中通过legend.title设置，这里无需重复设置
+    # 确保形状图例正确，并移除alpha图例
     p$plot <- p$plot +
-      # 确保没有透明度映射到离散变量
-      scale_alpha_discrete(guide = "none") +
-      # 明确设置颜色图例标题
       guides(
-        colour = guide_legend(
-          title = ifelse(input$strata_var != "None", input$strata_var, "")
-        ),
-        # 确保形状图例正确
-        shape = guide_legend(title = "")
+        shape = guide_legend(title = ""),
+        alpha = "none"
       )
     
     # 移除任何可能存在的alpha美学映射
@@ -555,7 +1007,27 @@ survival_analysis_server <- function(input, output, session, data) {
         theme(panel.grid.major = element_blank(),
               panel.grid.minor = element_blank())
     }
-    
+
+    # 设置图例位置
+    if (input$legend_position == "none") {
+      p$plot <- p$plot + theme(legend.position = "none")
+    } else if (input$legend_position %in% c("top", "bottom", "left", "right")) {
+      p$plot <- p$plot + theme(legend.position = input$legend_position)
+    } else {
+      # 处理角落位置
+      pos_map <- list(
+        "top-left"     = c(0, 1),
+        "top-right"    = c(1, 1),
+        "bottom-left"  = c(0, 0),
+        "bottom-right" = c(1, 0)
+      )
+      pos <- pos_map[[input$legend_position]]
+      if (!is.null(pos)) {
+        p$plot <- p$plot +
+          theme(legend.position = pos, legend.justification = pos)
+      }
+    }
+
     # 其余的美学设置（标题、标签等）保持不变...
     # 处理标题
     if (!is.null(input$plot_title) && input$plot_title != "") {
@@ -663,8 +1135,12 @@ survival_analysis_server <- function(input, output, session, data) {
       round((time_range[2] - time_range[1]) / 10)
     }
     
+    # 计算图例标题文本
+    legend_title_text <- ifelse(input$legend_title != "", input$legend_title,
+                               ifelse(input$strata_var != "None", input$strata_var, ""))
+    
     # 创建生存曲线图 - 启用默认图例，禁用默认置信区间和删失点
-    p <- ggsurvplot(
+    p <- suppressWarnings(ggsurvplot(
       fit(),
       data = data,
       risk.table = FALSE,  # 交互式图不显示风险表
@@ -674,9 +1150,10 @@ survival_analysis_server <- function(input, output, session, data) {
       xlim = time_range,
       break.time.by = time_step,  # 使用自定义时间步长
       ggtheme = theme_bw(),
-      palette = "Set1"
-      # 移除了 surv.alpha 参数以避免透明度警告
-    )$plot
+      palette = "Set1",
+      surv.alpha = 1,  # 设置生存曲线透明度为1，避免alpha警告
+      legend.title = legend_title_text
+    ))$plot
     
     # 手动添加删失点，并生成单独的图例
     if (input$km_show_censor) {
@@ -705,16 +1182,12 @@ survival_analysis_server <- function(input, output, session, data) {
     
     
     # 修复图例和透明度警告
+    # 注意：颜色图例已经在ggsurvplot中通过legend.title设置，无需重复设置
+    # 确保形状图例正确（标题为空），并移除alpha图例
     p <- p +
-      # 确保没有透明度映射到离散变量
-      scale_alpha_discrete(guide = "none") +
-      # 明确设置颜色图例标题
       guides(
-        colour = guide_legend(
-          title = ifelse(input$strata_var != "None", input$strata_var, "")
-        ),
-        # 确保形状图例正确
-        shape = guide_legend(title = "")
+        shape = guide_legend(title = ""),
+        alpha = "none"
       )
     
     # 移除任何可能存在的alpha美学映射
