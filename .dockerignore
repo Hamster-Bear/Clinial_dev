@@ -1,0 +1,51 @@
+# R Shiny应用 Docker ignore文件
+
+# Git相关文件
+.git
+.gitignore
+
+# R相关文件
+.Rprofile
+.RData
+.Rhistory
+.Rproj.user/
+
+# R包管理
+renv/
+.packrat/
+
+# IDE相关
+.vscode/
+.Rproj
+
+# 临时文件
+*.tmp
+*.temp
+tmp/
+temp/
+
+# 日志文件
+*.log
+logs/
+
+# 缓存文件
+.cache/
+__pycache__/
+*.pyc
+
+# 用户配置
+config/
+*.config
+
+# 测试文件
+test/
+tests/
+
+# 文档
+*.md
+*.txt
+docs/
+
+# 其他不需要的文件
+.DS_Store
+Thumbs.db

@@ -524,7 +524,6 @@ survival_analysis_server <- function(input, output, session, data) {
     data <- filtered_data()
     
     if (is.null(data) || nrow(data) == 0) {
-      ns <- session$ns
       helpText("没有可用的数据")
     } else if (input$km_time %in% names(data)) {
       time_var <- data[[input$km_time]]
@@ -537,24 +536,38 @@ survival_analysis_server <- function(input, output, session, data) {
           time_max <- max(time_var, na.rm = TRUE)
           time_range_max <- time_max + 30  # 最大值 = 实际最大值 + 30
           
-          ns <- session$ns
-          sliderInput(
-            ns("time_range"),
-            paste("时间范围 (最大值:", round(time_max, 2), ")"),
-            min = 0,
-            max = time_range_max,
-            value = c(0, time_range_max)
+          # 生成滑块并添加禁用鼠标滚轮的脚本
+          tagList(
+            sliderInput(
+              ns("time_range"),
+              paste("时间范围 (最大值:", round(time_max, 2), ")"),
+              min = 0,
+              max = time_range_max,
+              value = c(0, time_range_max)
+            ),
+            tags$script(HTML(sprintf("
+              $(document).ready(function() {
+                // 禁用滑块区域的鼠标滚轮事件
+                $('#%s').on('mousewheel DOMMouseScroll', function(e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                });
+                
+                // 同时禁用滑块内部input元素的滚轮事件
+                $('#%s').closest('.shiny-input-container').find('input').on('mousewheel DOMMouseScroll', function(e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                });
+              });
+            ", ns("time_range"), ns("time_range"))))
           )
         } else {
-          ns <- session$ns
           helpText("时间变量没有有效数据")
         }
       } else {
-        ns <- session$ns
         helpText("请选择数值型时间变量")
       }
     } else {
-      ns <- session$ns
       helpText("请选择时间变量")
     }
   })
@@ -715,6 +728,10 @@ survival_analysis_server <- function(input, output, session, data) {
     # 计算图例标题文本
     legend_title_text <- ifelse(input$legend_title != "", input$legend_title,
                                ifelse(input$strata_var != "None", input$strata_var, ""))
+    # 如果图例标题为空字符串，设置为NULL，避免产生空标签
+    if (legend_title_text == "") {
+      legend_title_text <- NULL
+    }
     
     # 创建生存曲线图 - 启用默认图例，禁用默认置信区间和删失点
     p <- suppressWarnings(ggsurvplot(
@@ -729,35 +746,16 @@ survival_analysis_server <- function(input, output, session, data) {
       ggtheme = theme_bw(),
       palette = "Set1",
       surv.alpha = 1,  # 设置生存曲线透明度为1，避免alpha警告
-      legend.title = legend_title_text
+      legend.title = legend_title_text,
+      legend.labs = NULL  # 使用默认标签，避免产生未知标签
     ))
     
     # 计算并标注中位生存时间
     if (input$show_median) {
-      median_surv <- surv_median(fit())
+      median_surv <- surv_median(fit_local)
       if (!is.null(median_surv) && nrow(median_surv) > 0) {
-        # 准备标注文本（使用映射后的标签）
-        # 获取标签映射
-        labels <- graphics_state$strata_labels
-        # 提取strata中的水平值部分（去掉变量名前缀）
-        extract_level <- function(x) {
-          if (grepl("=", x)) {
-            sub(".*=", "", x)
-          } else {
-            x
-          }
-        }
-        # 映射函数：如果用户设置了自定义标签，则使用；否则使用整个strata字符串（例如“grp=1”）
-        map_strata_label <- function(x) {
-          orig <- extract_level(x)
-          if (orig %in% names(labels) && labels[[orig]] != "") {
-            labels[[orig]]
-          } else {
-            x   # 返回整个原始字符串，如“grp=1”
-          }
-        }
-        mapped_strata_names <- sapply(median_surv$strata, map_strata_label)
-        median_surv$label <- paste0(mapped_strata_names, ": ",
+        # 直接使用fit_local的strata作为标签（已经过映射处理）
+        median_surv$label <- paste0(median_surv$strata, ": ",
                                     round(median_surv$median, 2),
                                     " (95%CI: ",
                                     round(median_surv$lower, 2), "-",
@@ -869,7 +867,19 @@ survival_analysis_server <- function(input, output, session, data) {
             # 标签映射
             labels <- graphics_state$strata_labels
             map_label <- function(x) {
-              if (x %in% names(labels) && labels[[x]] != "") labels[[x]] else x
+              # 如果x在labels中有直接映射，则使用
+              if (x %in% names(labels) && labels[[x]] != "") {
+                return(labels[[x]])
+              }
+              # 否则，尝试提取等号后面的部分
+              if (grepl("=", x)) {
+                extracted <- sub(".*=", "", x)
+                if (extracted %in% names(labels) && labels[[extracted]] != "") {
+                  return(labels[[extracted]])
+                }
+              }
+              # 如果都没有，返回原始x
+              return(x)
             }
             for (i in 1:n_coef) {
               hr <- exp(cox_summary$coefficients[i, 1])
@@ -1138,6 +1148,10 @@ survival_analysis_server <- function(input, output, session, data) {
     # 计算图例标题文本
     legend_title_text <- ifelse(input$legend_title != "", input$legend_title,
                                ifelse(input$strata_var != "None", input$strata_var, ""))
+    # 如果图例标题为空字符串，设置为NULL，避免产生空标签
+    if (legend_title_text == "") {
+      legend_title_text <- NULL
+    }
     
     # 创建生存曲线图 - 启用默认图例，禁用默认置信区间和删失点
     p <- suppressWarnings(ggsurvplot(
@@ -1152,7 +1166,8 @@ survival_analysis_server <- function(input, output, session, data) {
       ggtheme = theme_bw(),
       palette = "Set1",
       surv.alpha = 1,  # 设置生存曲线透明度为1，避免alpha警告
-      legend.title = legend_title_text
+      legend.title = legend_title_text,
+      legend.labs = NULL  # 使用默认标签，避免产生未知标签
     ))$plot
     
     # 手动添加删失点，并生成单独的图例

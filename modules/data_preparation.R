@@ -741,6 +741,17 @@ data_preparation_server <- function(input, output, session) {
     return(data)
   })
   
+  # 为分析模块准备的数据（去除行号列）
+  analysis_data <- reactive({
+    req(filtered_data())
+    data <- filtered_data()
+    # 移除行号列（如果存在）
+    if ("行号" %in% names(data)) {
+      data <- data %>% select(-`行号`)
+    }
+    data
+  })
+  
   # 显示数据表 - 优化渲染性能
   output$data_table <- reactable::renderReactable({
     req(filtered_data())
@@ -969,6 +980,6 @@ data_preparation_server <- function(input, output, session) {
                      selected = default_display_cols)
   })
   
-  # 返回筛选后的数据
-  return(filtered_data)
+  # 返回供分析模块使用的数据（已去除行号）
+  return(analysis_data)
 }
