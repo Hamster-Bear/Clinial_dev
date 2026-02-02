@@ -85,7 +85,7 @@ statistical_analysis_ui <- function(id) {
           status = "success",
           solidHeader = TRUE,
           tabsetPanel(
-            tabPanel("统计表格", DTOutput(ns("result_table"))),
+            tabPanel("统计表格", gt::gt_output(ns("result_table"))),
             tabPanel("结果说明",
                      br(),
                      h4("输出说明:"),
@@ -110,10 +110,10 @@ statistical_analysis_ui <- function(id) {
 statistical_analysis_server <- function(input, output, session, data) {
   ns <- session$ns
   
-  # 获取分组变量的水平（用于描述性统计）
+  # 获取列分组变量的水平（用于描述性统计）
   desc_group_levels <- reactive({
-    req(data(), input$desc_group_var != "无")
-    unique(data()[[input$desc_group_var]])
+    req(data(), input$desc_col_group_var != "无")
+    unique(data()[[input$desc_col_group_var]])
   })
   
   # 动态生成描述性统计的总计列设置UI
@@ -139,7 +139,7 @@ statistical_analysis_server <- function(input, output, session, data) {
   
   # 获取描述性统计的总计列设置
   desc_total_cols_settings <- reactive({
-    req(input$desc_total_cols_count >= 1, input$desc_group_var != "无")
+    req(input$desc_total_cols_count >= 1, input$desc_col_group_var != "无")
     
     settings <- list()
     for (i in 1:input$desc_total_cols_count) {
@@ -205,7 +205,8 @@ statistical_analysis_server <- function(input, output, session, data) {
     
     # 更新描述性统计变量选择
     updateSelectizeInput(session, "desc_variables", choices = all_vars)
-    updateSelectInput(session, "desc_group_var", choices = c("无", factor_vars))
+    updateSelectInput(session, "desc_col_group_var", choices = c("无", factor_vars))
+    updateSelectInput(session, "desc_row_group_var", choices = c("无", factor_vars))
   })
   
   # 执行分析
@@ -219,9 +220,9 @@ statistical_analysis_server <- function(input, output, session, data) {
              "linear" = perform_linear_analysis(data(), input$linear_response, input$linear_predictors),
              "anova" = perform_anova_analysis(data(), input$anova_response, input$anova_factors),
              "chi-sq" = perform_chisq_analysis(data(), input$chisq_var1, input$chisq_var2),
-             "desc" = perform_desc_analysis(data(), input$desc_variables, input$desc_group_var,
-                                           input$desc_total_cols_count, desc_total_cols_settings(),
-                                           input$desc_decimals),
+             "desc" = perform_desc_analysis(data(), input$desc_variables, input$desc_col_group_var, input$desc_row_group_var,
+                                            input$desc_total_cols_count, desc_total_cols_settings(),
+                                            input$desc_decimals, input$desc_auto_decimals),
              NULL
       )
     }, error = function(e) {
@@ -235,32 +236,21 @@ statistical_analysis_server <- function(input, output, session, data) {
   })
   
   # 显示结果表格
-  output$result_table <- renderDT({
+  output$result_table <- render_gt({
     req(analysis_results())
     
     result <- analysis_results()
     
-    if (is.data.frame(result)) {
-      datatable(result,
-                options = list(
-                  pageLength = 25,
-                  scrollX = TRUE,
-                  dom = 'Bfrtip'
-                ),
-                rownames = FALSE)
+    if (inherits(result, "gt_tbl")) {
+      return(result)
+    } else if (is.data.frame(result)) {
+      # 简单转换为gt表格
+      gt::gt(result)
     } else if (is.list(result) && !is.null(result$table)) {
-      datatable(result$table,
-                options = list(
-                  pageLength = 25,
-                  scrollX = TRUE,
-                  dom = 'Bfrtip'
-                ),
-                rownames = FALSE)
+      gt::gt(result$table)
     } else {
-      # 默认显示
-      datatable(data.frame(Result = "无可用结果"),
-                options = list(dom = 't'),
-                rownames = FALSE)
+      # 默认显示空表格
+      gt::gt(data.frame(Result = "无可用结果"))
     }
   })
   

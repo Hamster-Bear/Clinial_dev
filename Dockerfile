@@ -67,6 +67,7 @@ RUN apt-get update && \
         libsodium-dev \
         libxt-dev \
         libmagick++-dev \
+        libarchive-dev \
     && ldconfig \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -102,4 +103,4 @@ RUN chown -R shiny:shiny /app && chmod -R 755 /app
 EXPOSE 3838
 
 # 使用run_app.R启动应用，这是项目推荐的方式
-CMD ["R", "-e", "options(shiny.port=3838, shiny.host='0.0.0.0'); source('run_app.R')"]
+CMD ["R", "-e", "options(shiny.port=3838, shiny.host='0.0.0.0'); shiny::runApp('app.R', port=3838, host='0.0.0.0')"]

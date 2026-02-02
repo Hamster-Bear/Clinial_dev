@@ -21,6 +21,7 @@ source("modules/data_preparation.R")
 source("modules/exploratory_analysis.R")
 source("modules/statistical_analysis.R")
 source("modules/statistical_graphics.R")
+source("modules/tables.R")
 
 # 定义UI
 ui <- dashboardPage(
@@ -67,6 +68,12 @@ ui <- dashboardPage(
                tabName = "plots",
                icon = icon("line-chart"),
                badgeLabel = "可访问",
+               badgeColor = "green"),
+      
+      menuItem("5. 专业表格",
+               tabName = "tables",
+               icon = icon("table"),
+               badgeLabel = "可访问",
                badgeColor = "green")
     )
   ),
@@ -106,6 +113,12 @@ ui <- dashboardPage(
       tabItem(
         tabName = "plots",
         statistical_graphics_ui("plots")
+      ),
+      
+      # 专业表格标签页
+      tabItem(
+        tabName = "tables",
+        tables_ui("tables")
       )
     )
   )
@@ -138,6 +151,9 @@ server <- function(input, output, session) {
   
   # 调用统计图形模块 - 使用筛选后的数据
   plots_module <- callModule(statistical_graphics_server, "plots", data = filtered_data)
+  
+  # 调用专业表格模块 - 使用筛选后的数据
+  tables_module <- callModule(tables_server, "tables", data = filtered_data)
   
   # 观察数据状态变化并更新侧边栏状态
   observe({

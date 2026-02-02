@@ -28,6 +28,13 @@ required_packages <- c(
   "patchwork",
   "reactable",
   
+  # 表格生成
+  "cards",
+  "gtsummary",
+  "tfrmt",
+  "forcats",
+  "tidyr",
+  
   # 统计分析
   "survival",
   "broom",

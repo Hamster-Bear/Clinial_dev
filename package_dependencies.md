@@ -23,6 +23,12 @@
 - **DT**: 交互式数据表格
 - **gt**: 出版级表格输出
 
+### 表格生成
+- **cards**: 分析结果数据集构建
+- **tfrmt**: 临床试验表格格式化
+- **forcats**: 因子变量处理
+- **tidyr**: 数据整理
+
 ### 统计分析与建模
 - **stats**: 基础统计函数
 - **broom**: 模型结果整理
@@ -43,6 +49,7 @@ required_packages <- c(
   "shiny", "shinydashboard", "shinyjs", "shinyBS", "bslib", "colourpicker",
   "dplyr", "readr", "readxl", "haven", "tibble",
   "ggplot2", "plotly", "DT", "gt",
+  "cards", "gtsummary", "tfrmt", "forcats", "tidyr",
   "broom", "survival", "lmtest",
   "purrr", "stringr", "lubridate", "magrittr"
 )

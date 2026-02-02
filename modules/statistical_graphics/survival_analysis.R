@@ -207,7 +207,16 @@ survival_analysis_ui <- function(id) {
             )
           )
         )
-      )
+      ),
+      tags$script(HTML('
+        $(document).ready(function() {
+          // 使用事件委托，禁用所有当前和未来出现的select和.selectize-input的鼠标滚轮事件
+          $(document).on("mousewheel DOMMouseScroll", "select, .selectize-input", function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+          });
+        });
+      '))
     )
   )
 }

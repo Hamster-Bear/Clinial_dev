@@ -473,4 +473,24 @@ border-bottom: 1px solid #dee2e6;
   .box[title="图形输出"] {
     min-height: 500px;
   }
+  /* 嵌套显示缩进样式 */
+  .gt_group_heading {
+    font-weight: bold;
+    background-color: #f8f9fa;
+  }
+  .gt_row_group .gt_row {
+    padding-left: 20px !important;
+  }
+  .gt_row_group .gt_row:first-child {
+    padding-left: 10px !important;
+  }
+  /* 变量组标题样式 */
+  .gt_group_heading .gt_heading {
+    font-size: 1.1em;
+    color: #2c3e50;
+  }
+  /* 缩进行分组内的单元格 */
+  .gt_row_group .gt_row td {
+    padding-left: 30px !important;
+  }
 }
