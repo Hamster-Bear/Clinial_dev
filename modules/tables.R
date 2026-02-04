@@ -17,15 +17,17 @@ tables_ui <- function(id) {
   
   tagList(
     useShinyjs(),
+    # 上方：参数设置
     fluidRow(
-      # 左侧：参数设置
       column(
-        width = 4,
+        width = 12,
         box(
-          width = 12,
+          width = NULL,
           title = "表格参数设置",
           status = "primary",
           solidHeader = TRUE,
+          collapsible = TRUE,
+          collapsed = FALSE,
           # 表格类型选择
           selectizeInput(
             ns("table_type"),
@@ -47,16 +49,19 @@ tables_ui <- function(id) {
             width = "100%"
           )
         )
-      ),
-      
-      # 右侧：结果展示
+      )
+    ),
+    # 下方：结果展示
+    fluidRow(
       column(
-        width = 8,
+        width = 12,
         box(
-          width = 12,
+          width = NULL,
           title = "描述性统计表格",
           status = "success",
           solidHeader = TRUE,
+          collapsible = TRUE,
+          collapsed = FALSE,
           tabsetPanel(
             tabPanel("表格结果", uiOutput(ns("table_output"))),
             tabPanel("R代码", verbatimTextOutput(ns("code_output"), placeholder = TRUE))
