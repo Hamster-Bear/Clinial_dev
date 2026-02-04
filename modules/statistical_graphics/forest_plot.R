@@ -3,6 +3,7 @@
 # 数据从父模块传入，不包含数据上传和CSS
 
 # 加载必要的包
+library(shiny)
 library(ggplot2)
 library(dplyr)
 library(cowplot)
@@ -19,191 +20,169 @@ forest_plot_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
+    # 参数配置区域 - 顶部（横向双卡片布局）
     fluidRow(
       box(
         width = 12,
         title = "森林图参数配置",
         status = "primary",
         solidHeader = TRUE,
-        sidebarLayout(
-          sidebarPanel(
-            width = 3,
-            style = "height: 90vh; overflow-y: auto;",
-            
-            # 列映射设置
-            tags$div(class = "well",
-                     h4("数据列映射", style = "color: #007bff;"),
-                     selectInput(ns("subgroup_col"), "亚组列", choices = NULL, width = "100%"),
-                     selectInput(ns("study_col"), "研究列", choices = NULL, width = "100%"),
-                     selectInput(ns("estimate_col"), "估计值列", choices = NULL, width = "100%"),
-                     selectInput(ns("lower_col"), "下限列", choices = NULL, width = "100%"),
-                     selectInput(ns("upper_col"), "上限列", choices = NULL, width = "100%")
-            ),
-            
-            # 表格显示设置
-            tags$div(class = "well",
-                     h4("表格显示设置", style = "color: #007bff;"),
-                     helpText("选择要在表格中显示的列（第一列将作为固定列）"),
-                     uiOutput(ns("column_selection_ui")),
-                     
-                     hr(),
-                     h5("列显示配置"),
-                     uiOutput(ns("column_config_ui"))
-            ),
-            
-            # 图形基本设置
-            tags$div(class = "well",
-                     h4("图形基本设置", style = "color: #007bff;"),
-                     actionButton(ns("generate"), "生成森林图", 
-                                  class = "btn-primary btn-block",
-                                  style = "margin-bottom: 15px; font-weight: bold;"),
-                     
-                     fluidRow(
-                       column(6, numericInput(ns("plot_width"), "宽度(英寸)", value = 14, min = 8, max = 20, step = 1)),
-                       column(6, numericInput(ns("plot_height"), "高度(英寸)", value = 10, min = 6, max = 16, step = 1))
-                     ),
-                     sliderInput(ns("plot_ratio"), "表格/图形宽度比", 
-                                 min = 0.3, max = 0.7, value = 0.55, step = 0.05),
-                     sliderInput(ns("display_height"), "显示高度(像素)", 
-                                 min = 400, max = 1200, value = 800, step = 50)
-            )
-          ),
-          
-          mainPanel(
-            width = 9,
-            tabsetPanel(
-              id = ns("output_tabs"),
-              tabPanel("森林图", 
-                       div(style = "height: 10px;"),
-                       uiOutput(ns("plot_ui")),
-                       div(style = "height: 10px;"),
-                       downloadButton(ns("download_plot"), "下载图形"),
-                       
-                       # 高级设置折叠面板
-                       tags$div(class = "well",
-                                h4("高级设置"),
-                                fluidRow(
-                                  column(6,
-                                         tags$div(class = "panel panel-default",
-                                                  tags$div(class = "panel-heading", "森林图设置"),
-                                                  tags$div(class = "panel-body",
-                                                           fluidRow(
-                                                             column(6, numericInput(ns("x_min"), "X轴下限", value = 0, min = 0, step = 1)),
-                                                             column(6, numericInput(ns("x_max"), "X轴上限", value = 100, min = 0, step = 1))
-                                                           ),
-                                                           numericInput(ns("ref_line"), "参考线位置", value = 1.0, step = 1),
-                                                           sliderInput(ns("line_width"), "线条粗细", 
-                                                                       min = 0.5, max = 3, value = 1.2, step = 0.1),
-                                                           sliderInput(ns("line_height"), "短线长度", 
-                                                                       min = 0.05, max = 0.3, value = 0.15, step = 0.01),
-                                                           checkboxInput(ns("percentage_format"), "X轴显示为百分比", value = FALSE)
-                                                  )
-                                         )
-                                  ),
-                                  column(6,
-                                         tags$div(class = "panel panel-default",
-                                                  tags$div(class = "panel-heading", "布局与字体"),
-                                                  tags$div(class = "panel-body",
-                                                           sliderInput(ns("table_font_size"), "表格字体大小", 
-                                                                       min = 2, max = 5, value = 3.0, step = 0.1),
-                                                           sliderInput(ns("header_font_size"), "表头字体大小", 
-                                                                       min = 2.5, max = 6, value = 3.5, step = 0.1),
-                                                           numericInput(ns("first_col_width"), "第一列宽度比例", 
-                                                                        min = 0.1, max = 0.5, value = 0.45, step = 0.05),
-                                                           numericInput(ns("max_chars_per_line"), "第一列每行最大字符数", 
-                                                                        min = 5, max = 30, value = 45, step = 1)
-                                                  )
-                                         )
-                                  )
-                                ),
-                                
-                                # 颜色设置
-                                tags$div(class = "panel panel-default",
-                                         tags$div(class = "panel-heading", "颜色设置"),
-                                         tags$div(class = "panel-body",
-                                                  fluidRow(
-                                                    column(6,
-                                                           radioButtons(ns("color_mode"), "颜色模式",
-                                                                        choices = c("交替颜色" = "alternating", 
-                                                                                    "随机亚组颜色" = "random_subgroup"),
-                                                                        selected = "alternating"),
-                                                           
-                                                           conditionalPanel(
-                                                             condition = paste0("input['", ns("color_mode"), "'] == 'alternating'"),
-                                                             colourInput(ns("color_picker"), "选择交替颜色", value = "#E6F3FF"),
-                                                             sliderInput(ns("alpha"), "颜色透明度", 
-                                                                         min = 0.1, max = 1, value = 0.4, step = 0.1)
-                                                           ),
-                                                           
-                                                           conditionalPanel(
-                                                             condition = paste0("input['", ns("color_mode"), "'] == 'random_subgroup'"),
-                                                             selectInput(ns("color_palette"), "颜色调色板",
-                                                                         choices = c("Set1", "Set2", "Set3", "Pastel1", "Pastel2", 
-                                                                                     "Dark2", "Accent", "Paired", "Spectral"),
-                                                                         selected = "Set1"),
-                                                             sliderInput(ns("subgroup_alpha"), "颜色透明度", 
-                                                                         min = 0.1, max = 1, value = 0.7, step = 0.1)
-                                                           )
-                                                    ),
-                                                    column(6,
-                                                           helpText("交替颜色模式：奇数行使用选择的颜色，偶数行使用白色"),
-                                                           helpText("随机亚组颜色模式：每个亚组使用不同的随机颜色"),
-                                                           br(),
-                                                           helpText("提示：调整透明度可以改善文本的可读性")
-                                                    )
-                                                  )
-                                         )
-                                ),
-                                
-                                # 文本设置
-                                tags$div(class = "panel panel-default",
-                                         tags$div(class = "panel-heading", "文本设置"),
-                                         tags$div(class = "panel-body",
-                                                  fluidRow(
-                                                    column(6,
-                                                           textInput(ns("plot_title"), "图形标题", 
-                                                                     value = "交互式森林图",
-                                                                     placeholder = "输入图形标题"),
-                                                           tags$div(class = "info-text", 
-                                                                    "提示：使用\"|\"符号表示换行，例如：\"主标题|副标题\""),
-                                                           
-                                                           textInput(ns("x_axis_label"), "X轴标签", 
-                                                                     value = "风险比",
-                                                                     placeholder = "输入X轴标签"),
-                                                           tags$div(class = "info-text", 
-                                                                    "提示：使用\"|\"符号表示换行"),
-                                                           
-                                                           numericInput(ns("title_size"), "标题字体大小", 
-                                                                        min = 10, max = 24, value = 16, step = 1),
-                                                           
-                                                           numericInput(ns("axis_label_size"), "轴标签字体大小", 
-                                                                        min = 8, max = 16, value = 12, step = 1)
-                                                    ),
-                                                    column(6,
-                                                           textAreaInput(ns("plot_footer"), "图形脚注", 
-                                                                         value = "注：点大小反映研究权重，区间线表示95%置信区间。|参考线位于HR=1.0处。",
-                                                                         placeholder = "输入图形脚注",
-                                                                         rows = 4),
-                                                           tags$div(class = "info-text", 
-                                                                    "提示：使用\"|\"符号表示换行"),
-                                                           
-                                                           numericInput(ns("footer_size"), "脚注字体大小", 
-                                                                        min = 6, max = 14, value = 10, step = 1),
-                                                           
-                                                           colourInput(ns("footer_color"), "脚注颜色", value = "gray40"),
-                                                           
-                                                           checkboxInput(ns("show_footer"), "显示脚注", value = TRUE)
-                                                    )
-                                                  )
-                                         )
-                                )
-                       )
+        collapsible = TRUE,
+        collapsed = FALSE,
+        fluidRow(
+          column(6,
+            wellPanel(
+              style = "height: 700px; overflow-y: auto;",
+              h4("数据列与表格设置", style = "color: #007bff; margin-top: 0;"),
+              # 数据列映射 - 横向排列
+              tags$div(class = "panel panel-default",
+                tags$div(class = "panel-heading", "数据列映射"),
+                tags$div(class = "panel-body",
+                  fluidRow(
+                    column(4, selectInput(ns("subgroup_col"), "亚组列", choices = NULL, width = "100%")),
+                    column(4, selectInput(ns("study_col"), "研究列", choices = NULL, width = "100%")),
+                    column(4, selectInput(ns("estimate_col"), "估计值列", choices = NULL, width = "100%"))
+                  ),
+                  fluidRow(
+                    column(4, selectInput(ns("lower_col"), "下限列", choices = NULL, width = "100%")),
+                    column(4, selectInput(ns("upper_col"), "上限列", choices = NULL, width = "100%")),
+                    column(4, br(), helpText("总计5个必需列"))
+                  )
+                )
               ),
-              tabPanel("数据预览", 
-                       div(style = "height: 10px;"),
-                       DTOutput(ns("data_preview"))
+              # 表格显示设置 - 多选变量形式
+              tags$div(class = "panel panel-default",
+                tags$div(class = "panel-heading", "表格显示设置"),
+                tags$div(class = "panel-body",
+                  helpText("选择要在表格中显示的列（第一列将作为固定列）"),
+                  selectizeInput(
+                    ns("selected_table_cols"),
+                    label = NULL,
+                    choices = NULL,
+                    multiple = TRUE,
+                    options = list(
+                      placeholder = '点击选择表格列...',
+                      onInitialize = I('function() { this.setValue(""); }')
+                    )
+                  ),
+                  hr(),
+                  tags$div(class = "panel panel-default",
+                    tags$div(class = "panel-heading", style = "cursor: pointer;", "列显示配置（点击展开）"),
+                    tags$div(class = "panel-body", style = "padding: 10px;",
+                      uiOutput(ns("column_config_ui"))
+                    )
+                  )
+                )
               )
             )
+          ),
+          column(6,
+            wellPanel(
+              style = "height: 700px; overflow-y: auto;",
+              h4("图形与样式设置", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel("基本设置",
+                  actionButton(ns("generate"), "生成森林图",
+                    class = "btn-primary btn-block",
+                    style = "margin-bottom: 10px; font-weight: bold;"),
+                  fluidRow(
+                    column(6, numericInput(ns("plot_width"), "宽度(英寸)", value = 14, min = 8, max = 20, step = 1, width = "100%")),
+                    column(6, numericInput(ns("plot_height"), "高度(英寸)", value = 10, min = 6, max = 16, step = 1, width = "100%"))
+                  ),
+                  sliderInput(ns("plot_ratio"), "表格/图形宽度比",
+                    min = 0.3, max = 0.7, value = 0.55, step = 0.05, width = "100%"),
+                  sliderInput(ns("display_height"), "显示高度(像素)",
+                    min = 400, max = 1200, value = 800, step = 50, width = "100%")
+                ),
+                tabPanel("森林图设置",
+                  fluidRow(
+                    column(6, numericInput(ns("x_min"), "X轴下限", value = 0, min = 0, step = 1, width = "100%")),
+                    column(6, numericInput(ns("x_max"), "X轴上限", value = 100, min = 0, step = 1, width = "100%"))
+                  ),
+                  numericInput(ns("ref_line"), "参考线位置", value = 1.0, step = 1, width = "100%"),
+                  sliderInput(ns("line_width"), "线条粗细",
+                    min = 0.5, max = 3, value = 1.2, step = 0.1, width = "100%"),
+                  sliderInput(ns("line_height"), "短线长度",
+                    min = 0.05, max = 0.3, value = 0.15, step = 0.01, width = "100%"),
+                  checkboxInput(ns("percentage_format"), "X轴显示为百分比", value = FALSE)
+                ),
+                tabPanel("布局与字体",
+                  sliderInput(ns("table_font_size"), "表格字体大小",
+                    min = 2, max = 5, value = 3.0, step = 0.1, width = "100%"),
+                  sliderInput(ns("header_font_size"), "表头字体大小",
+                    min = 2.5, max = 6, value = 3.5, step = 0.1, width = "100%"),
+                  numericInput(ns("first_col_width"), "第一列宽度比例",
+                    min = 0.1, max = 0.5, value = 0.45, step = 0.05, width = "100%"),
+                  numericInput(ns("max_chars_per_line"), "第一列每行最大字符数",
+                    min = 5, max = 30, value = 45, step = 1, width = "100%")
+                ),
+                tabPanel("颜色设置",
+                  radioButtons(ns("color_mode"), "颜色模式",
+                    choices = c("交替颜色" = "alternating", "随机亚组颜色" = "random_subgroup"),
+                    selected = "alternating", inline = TRUE),
+                  conditionalPanel(
+                    condition = paste0("input['", ns("color_mode"), "'] == 'alternating'"),
+                    colourInput(ns("color_picker"), "选择交替颜色", value = "#E6F3FF", width = "100%"),
+                    sliderInput(ns("alpha"), "颜色透明度",
+                      min = 0.1, max = 1, value = 0.4, step = 0.1, width = "100%")
+                  ),
+                  conditionalPanel(
+                    condition = paste0("input['", ns("color_mode"), "'] == 'random_subgroup'"),
+                    selectInput(ns("color_palette"), "颜色调色板",
+                      choices = c("Set1", "Set2", "Set3", "Pastel1", "Pastel2",
+                                  "Dark2", "Accent", "Paired", "Spectral"),
+                      selected = "Set1", width = "100%"),
+                    sliderInput(ns("subgroup_alpha"), "颜色透明度",
+                      min = 0.1, max = 1, value = 0.7, step = 0.1, width = "100%")
+                  ),
+                  helpText("交替颜色模式：奇数亚组使用选择的颜色，偶数亚组使用白色"),
+                  helpText("随机亚组颜色模式：每个亚组使用不同的随机颜色")
+                ),
+                tabPanel("文本设置",
+                  textInput(ns("plot_title"), "图形标题",
+                    value = "交互式森林图", placeholder = "输入图形标题", width = "100%"),
+                  tags$div(class = "info-text", "提示：使用\"|\"符号表示换行，例如：\"主标题|副标题\""),
+                  textInput(ns("x_axis_label"), "X轴标签",
+                    value = "风险比", placeholder = "输入X轴标签", width = "100%"),
+                  tags$div(class = "info-text", "提示：使用\"|\"符号表示换行"),
+                  numericInput(ns("title_size"), "标题字体大小",
+                    min = 10, max = 24, value = 16, step = 1, width = "100%"),
+                  numericInput(ns("axis_label_size"), "轴标签字体大小",
+                    min = 8, max = 16, value = 12, step = 1, width = "100%"),
+                  textAreaInput(ns("plot_footer"), "图形脚注",
+                    value = "注：点大小反映研究权重，区间线表示95%置信区间。|参考线位于HR=1.0处。",
+                    placeholder = "输入图形脚注", rows = 3, width = "100%"),
+                  numericInput(ns("footer_size"), "脚注字体大小",
+                    min = 6, max = 14, value = 10, step = 1, width = "100%"),
+                  colourInput(ns("footer_color"), "脚注颜色", value = "gray40", width = "100%"),
+                  checkboxInput(ns("show_footer"), "显示脚注", value = TRUE)
+                )
+              )
+            )
+          )
+        )
+      )
+    ),
+    
+    # 图形显示区域 - 底部
+    fluidRow(
+      box(
+        width = 12,
+        title = "森林图输出",
+        status = "success",
+        solidHeader = TRUE,
+        tabsetPanel(
+          id = ns("output_tabs"),
+          tabPanel("森林图",
+                   div(style = "height: 10px;"),
+                   uiOutput(ns("plot_ui")),
+                   div(style = "height: 10px;"),
+                   downloadButton(ns("download_plot"), "下载图形",
+                                  class = "btn-primary pull-right")
+          ),
+          tabPanel("数据预览",
+                   div(style = "height: 10px;"),
+                   DTOutput(ns("data_preview"))
           )
         )
       )
@@ -249,14 +228,9 @@ forest_plot_server <- function(input, output, session, data) {
                       selected = ifelse("upper" %in% cols, "upper",
                                        ifelse(length(cols) > 4, cols[5], cols[1])))
     
-    # 初始化选中的列
+    # 不预设任何列，用户需手动选择
     if (length(user_selections$selected_cols) == 0) {
-      default_cols <- c("subgroup", "study")
-      available_defaults <- default_cols[default_cols %in% cols]
-      if (length(available_defaults) == 0 && length(cols) > 0) {
-        available_defaults <- cols[1:min(2, length(cols))]
-      }
-      user_selections$selected_cols <- available_defaults
+      user_selections$selected_cols <- character(0)
     }
     
     # 初始化列显示名称和对齐方式
@@ -276,41 +250,56 @@ forest_plot_server <- function(input, output, session, data) {
     }
   })
   
-  # 动态生成列选择UI
-  output$column_selection_ui <- renderUI({
-    req(data())
-    cols <- names(data())
-    if (length(cols) == 0) return(tags$p("数据没有列"))
-    
-    tagList(
-      wellPanel(
-        style = "max-height: 200px; overflow-y: auto;",
-        helpText("第一列将自动设置为固定列"),
-        lapply(cols, function(col) {
-          checkboxInput(
-            inputId = ns(paste0("col_select_", col)),
-            label = col,
-            value = col %in% user_selections$selected_cols
-          )
-        })
-      )
-    )
-  })
-  
-  # 观察列选择变化
+  # 当数据变化时更新selectizeInput的选项（不自动选择任何列）
   observe({
     req(data())
     cols <- names(data())
-    selected_cols <- c()
+    if (length(cols) == 0) return()
     
-    for (col in cols) {
-      input_id <- paste0("col_select_", col)
-      if (!is.null(input[[input_id]]) && input[[input_id]]) {
-        selected_cols <- c(selected_cols, col)
-      }
+    # 获取当前选择
+    current_selected <- isolate(user_selections$selected_cols)
+    # 过滤掉不存在于新数据中的已选列
+    valid_selected <- intersect(current_selected, cols)
+    
+    # 如果有效选择与当前存储的选择不同，更新reactiveValues
+    if (!identical(sort(valid_selected), sort(current_selected))) {
+      user_selections$selected_cols <- valid_selected
     }
     
-    user_selections$selected_cols <- selected_cols
+    # 更新selectizeInput的选项，不触发额外事件
+    isolate({
+      updateSelectizeInput(session, "selected_table_cols",
+                           choices = cols,
+                           selected = valid_selected,
+                           server = TRUE)
+    })
+  })
+  
+  # 观察用户从selectizeInput中选择的变化，并在更新前保存当前配置
+  observe({
+    selected_cols <- input$selected_table_cols
+    if (is.null(selected_cols)) selected_cols <- character(0)
+    
+    # 防止循环：只有当选择实际发生变化时才更新reactiveValues
+    current <- isolate(user_selections$selected_cols)
+    if (!identical(sort(selected_cols), sort(current))) {
+      # 在更新selected_cols之前，保存当前所有列的配置
+      for (col in current) {
+        name_input <- paste0("name_", col)
+        align_input <- paste0("align_", col)
+        
+        # 如果输入存在，保存其值
+        if (!is.null(input[[name_input]]) && input[[name_input]] != "") {
+          user_selections$display_names[[col]] <- input[[name_input]]
+        }
+        if (!is.null(input[[align_input]])) {
+          user_selections$alignments[[col]] <- input[[align_input]]
+        }
+      }
+      
+      # 更新选中的列
+      user_selections$selected_cols <- selected_cols
+    }
   })
   
   # 生成列配置UI
