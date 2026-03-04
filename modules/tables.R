@@ -10,6 +10,7 @@ library(shinyjs)
 # 加载子模块分析函数
 source("modules/tables/t_dm.R")
 source("modules/tables/t_ae_soc_pt.R")
+source("modules/tables/listing_general.R")
 
 # Tables模块UI
 tables_ui <- function(id) {
@@ -17,10 +18,10 @@ tables_ui <- function(id) {
   
   tagList(
     useShinyjs(),
-    # 上方：参数设置
     fluidRow(
+      # 左侧：参数设置
       column(
-        width = 12,
+        width = 3,
         box(
           width = NULL,
           title = "表格参数设置",
@@ -34,7 +35,8 @@ tables_ui <- function(id) {
             "选择表格类型",
             choices = c(
               "人口统计表格 (t_dm)" = "t_dm",
-              "AE SOC/PT 汇总表 (t_ae_soc_pt)" = "t_ae_soc_pt"
+              "分级统计表 (t_ae_soc_pt)" = "t_ae_soc_pt",
+              "一般列表 (listing_general)" = "listing_general"
             ),
             selected = "t_dm"
           ),
@@ -49,15 +51,13 @@ tables_ui <- function(id) {
             width = "100%"
           )
         )
-      )
-    ),
-    # 下方：结果展示
-    fluidRow(
+      ),
+      # 右侧：结果展示
       column(
-        width = 12,
+        width = 9,
         box(
           width = NULL,
-          title = "描述性统计表格",
+          title = "统计表格结果",
           status = "success",
           solidHeader = TRUE,
           collapsible = TRUE,
@@ -89,6 +89,8 @@ tables_server <- function(input, output, session, data) {
       t_dm_params_ui(ns, df)
     } else if (input$table_type == "t_ae_soc_pt") {
       t_ae_soc_pt_params_ui(ns, df)
+    } else if (input$table_type == "listing_general") {
+      listing_general_params_ui(ns, df)
     } else {
       NULL
     }
@@ -160,6 +162,12 @@ tables_server <- function(input, output, session, data) {
       } else {
         shinyjs::enable("generate")
       }
+    } else if (input$table_type == "listing_general") {
+       if (is.null(input$listing_disp_cols) || length(input$listing_disp_cols) == 0) {
+          shinyjs::disable("generate")
+       } else {
+          shinyjs::enable("generate")
+       }
     } else {
       shinyjs::disable("generate")
     }
@@ -177,78 +185,100 @@ tables_server <- function(input, output, session, data) {
     if (input$table_type == "t_dm") {
       req(input$dm_variables)
     } else if (input$table_type == "t_ae_soc_pt") {
-      req(input$ae_trt_var, input$ae_soc_var, input$ae_pt_var)
-    }
+        req(input$ae_trt_var, input$ae_soc_var, input$ae_pt_var)
+      } else if (input$table_type == "listing_general") {
+        req(input$listing_disp_cols)
+      }
     
-    # 禁用按钮，防止重复点击
+      # 禁用按钮，防止重复点击
     shinyjs::disable("generate")
-    on.exit(shinyjs::enable("generate"))
+    # on.exit(shinyjs::enable("generate")) # 移至末尾，确保在异步或错误时也能恢复
     
     tryCatch({
       df <- data()
-      vars <- input$dm_variables
-      by_var <- input$dm_by_var
-      if (by_var == "无") {
-        by_var <- NULL
-      }
       
-      total_settings <- NULL
-      if (input$dm_enable_total_cols == TRUE && input$dm_by_var != "无") {
-        total_settings <- dm_total_cols_settings()
-      }
+      # 调试信息
+      print(paste("Generating table type:", input$table_type))
       
-      # 调用子模块分析函数（根据表格类型）
-      result <- NULL
+      # ... (t_dm 逻辑保持不变)
+      
       if (input$table_type == "t_dm") {
-        result <- perform_t_dm_analysis(
-          data = df,
-          variables = vars,
-          by_var = by_var,
-          total_cols_settings = total_settings,
-          table_title = input$dm_table_title,
-          table_footnote = input$dm_table_footnote
-        )
-      } else if (input$table_type == "t_ae_soc_pt") {
-        # 获取 AE 相关参数
-        saffl_var <- if (input$ae_enable_saffl) input$ae_saffl_var else NULL
-        saffl_val <- if (input$ae_enable_saffl) input$ae_saffl_val else "Y"
-        result <- perform_t_ae_soc_pt_analysis(
-          data = df,
-          trt_var = input$ae_trt_var,
-          soc_var = input$ae_soc_var,
-          pt_var = input$ae_pt_var,
-          saffl_var = saffl_var,
-          saffl_val = saffl_val
-        )
-      } else {
-        showNotification(paste("未知的表格类型:", input$table_type), type = "error")
-      }
-      
-      if (!is.null(result)) {
-        table_result(result)
-        showNotification("表格生成成功", type = "default")
-        
-        # 生成代码（根据表格类型）
-        if (input$table_type == "t_dm") {
-          code <- generate_t_dm_code(
+        # ... (t_dm 调用逻辑)
+         vars <- input$dm_variables
+         by_var <- input$dm_by_var
+         if (by_var == "无") by_var <- NULL
+         
+         total_settings <- NULL
+         if (input$dm_enable_total_cols == TRUE && input$dm_by_var != "无") {
+            total_settings <- dm_total_cols_settings()
+         }
+         
+         result <- perform_t_dm_analysis(
+            data = df,
             variables = vars,
             by_var = by_var,
             total_cols_settings = total_settings,
             table_title = input$dm_table_title,
             table_footnote = input$dm_table_footnote
-          )
-        } else if (input$table_type == "t_ae_soc_pt") {
-          code <- generate_t_ae_soc_pt_code(
-            trt_var = input$ae_trt_var,
-            soc_var = input$ae_soc_var,
-            pt_var = input$ae_pt_var,
-            saffl_var = if (input$ae_enable_saffl) input$ae_saffl_var else NULL,
-            saffl_val = if (input$ae_enable_saffl) input$ae_saffl_val else "Y"
-          )
-        } else {
-          code <- "# 未知表格类型"
-        }
+         )
+         
+         # 生成代码
+         code <- generate_t_dm_code(
+            variables = vars,
+            by_var = by_var,
+            total_cols_settings = total_settings,
+            table_title = input$dm_table_title,
+            table_footnote = input$dm_table_footnote
+         )
+         
+      } else if (input$table_type == "t_ae_soc_pt") {
+        # 获取 AE/分级统计相关参数
+        pop_var <- if (input$ae_enable_pop) input$ae_pop_var else NULL
+        pop_val <- if (input$ae_enable_pop) input$ae_pop_val else "Y"
+        
+        result <- perform_t_ae_soc_pt_analysis(
+          data = df,
+          trt_var = input$ae_trt_var,
+          soc_var = input$ae_soc_var,
+          pt_var = input$ae_pt_var,
+          id_var = input$subject_id_var,
+          pop_var = pop_var,
+          pop_val = pop_val
+        )
+        
+        # 生成代码
+        code <- generate_t_ae_soc_pt_code(
+          trt_var = input$ae_trt_var,
+          soc_var = input$ae_soc_var,
+          pt_var = input$ae_pt_var,
+          id_var = input$subject_id_var,
+          pop_var = pop_var,
+          pop_val = pop_val
+        )
+      } else if (input$table_type == "listing_general") {
+        # 一般列表分析
+        result <- perform_listing_general_analysis(
+          data = df,
+          key_cols = input$listing_key_cols,
+          disp_cols = input$listing_disp_cols
+        )
+        
+        code <- generate_listing_general_code(
+          key_cols = input$listing_key_cols,
+          disp_cols = input$listing_disp_cols,
+          landscape = input$listing_landscape,
+          font_size = input$listing_font_size
+        )
+      } else {
+        showNotification(paste("未知的表格类型:", input$table_type), type = "error")
+        result <- NULL
+        code <- "# 未知表格类型"
+      }
+      
+      if (!is.null(result)) {
+        table_result(result)
         code_result(code)
+        showNotification("表格生成成功", type = "default")
       } else {
         showNotification("未生成表格，请检查参数设置", type = "warning")
         code_result("# 表格生成失败")
@@ -258,6 +288,8 @@ tables_server <- function(input, output, session, data) {
       showNotification(paste("生成表格时出错:", e$message), type = "error")
       table_result(NULL)
       code_result(paste("# 错误:", e$message))
+    }, finally = {
+      shinyjs::enable("generate")
     })
   })
   
@@ -268,6 +300,8 @@ tables_server <- function(input, output, session, data) {
       gt::gt_output(ns("table_gt"))
     } else if (input$table_type == "t_ae_soc_pt") {
       verbatimTextOutput(ns("table_text"), placeholder = TRUE)
+    } else if (input$table_type == "listing_general") {
+      verbatimTextOutput(ns("listing_text"), placeholder = TRUE)
     } else {
       NULL
     }
@@ -288,6 +322,33 @@ tables_server <- function(input, output, session, data) {
     req(table_result(), input$table_type == "t_ae_soc_pt")
     print(table_result())
   })
+  
+  # Listing 渲染
+  output$listing_text <- renderText({
+    req(table_result(), input$table_type == "listing_general")
+    toString(table_result())
+  })
+  
+  # RTF 下载处理
+  output$listing_download_rtf <- downloadHandler(
+    filename = function() paste0("Listing_", Sys.Date(), ".rtf"),
+    content = function(file) {
+      req(data(), input$listing_disp_cols)
+      
+      tryCatch({
+        export_listing_general_rtf(
+          data = data(),
+          key_cols = input$listing_key_cols,
+          disp_cols = input$listing_disp_cols,
+          file = file,
+          landscape = input$listing_landscape,
+          font_size = input$listing_font_size
+        )
+      }, error = function(e) {
+        showNotification(paste("导出错误:", e$message), type = "error")
+      })
+    }
+  )
   
   # 渲染代码输出
   output$code_output <- renderText({
