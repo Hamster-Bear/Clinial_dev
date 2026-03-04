@@ -11,6 +11,8 @@ required_packages <- c(
   "shinyBS",
   "bslib",
   "shinyWidgets",
+  "waiter",
+  "shinyalert",
   
   # 数据处理
   "dplyr",
@@ -19,6 +21,8 @@ required_packages <- c(
   "haven",
   "purrr",
   "stringr",
+  "vroom",
+  "memoise",
   
   # 可视化
   "ggplot2",
@@ -27,6 +31,10 @@ required_packages <- c(
   "gt",
   "patchwork",
   "reactable",
+  "cowplot",
+  "gridExtra",
+  "scales",
+  "RColorBrewer",
   
   # 表格生成
   "cards",
@@ -34,6 +42,9 @@ required_packages <- c(
   "tfrmt",
   "forcats",
   "tidyr",
+  "rlang",
+  "rtables",
+  "tern",
   
   # 统计分析
   "survival",

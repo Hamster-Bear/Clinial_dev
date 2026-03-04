@@ -80,17 +80,18 @@ WORKDIR /app
 
 # 首先复制依赖管理文件以利用Docker缓存
 COPY install_dependencies.R /app/install_dependencies.R
-
+RUN apt-get update && apt-get install -y libv8-dev && rm -rf /var/lib/apt/lists/*
 # 安装 R 包，使用严格模式 - 包含所有必需的依赖包
 # 使用 R -e 命令并设置错误处理，确保任何一个包安装失败都会中断构建，使用清华源镜像
 RUN R -e "options(warn=2, timeout=600); install.packages(c( \
     'shiny', 'shinydashboard', 'shinyjs', 'shinyBS', 'bslib', \
-    'shinyWidgets', 'dplyr', 'readxl', 'haven', 'purrr', \
-    'stringr', 'ggplot2', 'plotly', 'DT', 'gt', 'patchwork', \
-    'reactable', 'survival', 'broom', 'survminer', 'corrplot', \
-    'ggsci', 'colourpicker', 'digest', 'scales', 'gridExtra', \
-    'cowplot', 'RColorBrewer', 'tidyr', 'vroom', 'memoise', \
-    'waiter', 'shinyalert' \
+    'shinyWidgets', 'waiter', 'shinyalert', \
+    'dplyr', 'readr', 'readxl', 'haven', 'purrr', 'stringr', \
+    'vroom', 'memoise', 'ggplot2', 'plotly', 'DT', 'gt', \
+    'patchwork', 'reactable', 'cowplot', 'gridExtra', 'scales', \
+    'RColorBrewer', 'cards', 'gtsummary', 'tfrmt', 'forcats', \
+    'tidyr', 'rlang', 'rtables', 'tern', 'survival', 'broom', \
+    'survminer', 'corrplot', 'ggsci', 'colourpicker', 'digest' \
     ), repos='https://mirrors.tuna.tsinghua.edu.cn/CRAN/', dependencies=TRUE)"
 
 # 现在复制应用的其余文件

@@ -13,6 +13,14 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# 检测是否在交互式终端中运行
+if [ -t 0 ]; then
+    INTERACTIVE=1
+else
+    INTERACTIVE=0
+    echo -e "${BLUE}[INFO]${NC} 非交互式模式，使用默认值"
+fi
+
 # 创建日志目录
 LOG_DIR="logs"
 mkdir -p "$LOG_DIR"
@@ -79,19 +87,41 @@ done
 print_info "所有必需文件都存在"
 
 # 设置镜像名称和标签
-IMAGE_NAME="autotfl-shiny-app"
-IMAGE_TAG="latest"
-FULL_IMAGE_NAME="$IMAGE_NAME:$IMAGE_TAG
+if [ $INTERACTIVE -eq 1 ]; then
+    print_info "请输入镜像名称和标签（默认：autotfl-shiny-app:latest）"
+    read -p "镜像名称 (默认为 autotfl-shiny-app): " IMAGE_NAME
+    IMAGE_NAME=${IMAGE_NAME:-autotfl-shiny-app}
+    read -p "镜像标签 (默认为 latest): " IMAGE_TAG
+    IMAGE_TAG=${IMAGE_TAG:-latest}
+else
+    IMAGE_NAME="autotfl-shiny-app"
+    IMAGE_TAG="latest"
+    print_info "非交互式模式，使用默认镜像名称: $IMAGE_NAME:$IMAGE_TAG"
+fi
+FULL_IMAGE_NAME="$IMAGE_NAME:$IMAGE_TAG"
 
+# 设置容器端口
+if [ $INTERACTIVE -eq 1 ]; then
+    read -p "请输入容器映射端口 (默认为 3838): " PORT
+    PORT=${PORT:-3838}
+else
+    PORT=3838
+    print_info "非交互式模式，使用默认端口: $PORT"
+fi
 # 提供构建选项
-print_info "可用的构建选项:"
-print_info "1) 构建新镜像 (默认)"
-print_info "2) 重新构建（不使用缓存）"
-print_info "3) 构建并推送镜像（如果需要）"
-print_info "4) 仅检查Dockerfile语法"
+if [ $INTERACTIVE -eq 1 ]; then
+    print_info "可用的构建选项:"
+    print_info "1) 构建新镜像 (默认)"
+    print_info "2) 重新构建（不使用缓存）"
+    print_info "3) 构建并推送镜像（如果需要）"
+    print_info "4) 仅检查Dockerfile语法"
 
-read -p "请选择构建选项 (1-4, 默认为1): " BUILD_OPTION
-BUILD_OPTION=${BUILD_OPTION:-1}
+    read -p "请选择构建选项 (1-4, 默认为1): " BUILD_OPTION
+    BUILD_OPTION=${BUILD_OPTION:-1}
+else
+    BUILD_OPTION=1
+    print_info "非交互式模式，使用默认构建选项: 1 (构建新镜像)"
+fi
 
 case $BUILD_OPTION in
     1)
@@ -146,16 +176,21 @@ else
 fi
 
 # 可选：运行容器测试
-print_info "是否要运行容器测试? (y/n)"
-read -p "选择 (默认为n): " RUN_TEST
-RUN_TEST=${RUN_TEST:-n}
+if [ $INTERACTIVE -eq 1 ]; then
+    print_info "是否要运行容器测试? (y/n)"
+    read -p "选择 (默认为n): " RUN_TEST
+    RUN_TEST=${RUN_TEST:-n}
+else
+    RUN_TEST=n
+    print_info "非交互式模式，跳过容器测试"
+fi
 
 if [ "$RUN_TEST" = "y" ] || [ "$RUN_TEST" = "Y" ]; then
     CONTAINER_NAME="test_${IMAGE_NAME}_${TIMESTAMP}"
     print_info "启动测试容器: $CONTAINER_NAME"
     
     # 运行容器并在后台运行
-    docker run -d --name "$CONTAINER_NAME" -p 3838:3838 "$FULL_IMAGE_NAME"
+    docker run -d --name "$CONTAINER_NAME" -p $PORT:3838 "$FULL_IMAGE_NAME"
     
     # 等待几秒让应用启动
     print_info "等待应用启动..."
@@ -165,7 +200,7 @@ if [ "$RUN_TEST" = "y" ] || [ "$RUN_TEST" = "Y" ]; then
     CONTAINER_STATUS=$(docker ps --filter "name=$CONTAINER_NAME" --format "{{.Status}}" 2>/dev/null)
     if [[ "$CONTAINER_STATUS" == *"Up"* ]]; then
         print_success "容器启动成功: $CONTAINER_STATUS"
-        print_info "应用可在 http://localhost:3838 访问"
+        print_info "应用可在 http://localhost:$PORT 访问"
         
         # 显示容器日志
         print_info "容器日志:"

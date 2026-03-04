@@ -42,6 +42,54 @@
    shiny::runApp("app.R")
    ```
 
+### 方法三：使用 Docker 容器部署
+
+本项目提供了 Docker 支持，可以快速构建和运行应用容器。
+
+#### 1. 构建 Docker 镜像
+
+使用提供的构建脚本，在项目根目录下执行：
+
+**Linux/macOS:**
+```bash
+./build_docker_image.sh
+```
+
+**Windows:**
+```bat
+build_docker_image.bat
+```
+
+如果 Windows 批处理脚本出现乱码或闪退，可以使用 PowerShell 脚本（推荐）：
+```powershell
+.\build_docker_image.ps1
+```
+
+脚本会提示您输入：
+- 镜像名称（默认为 `autotfl-shiny-app`）
+- 镜像标签（默认为 `latest`）
+- 容器映射端口（默认为 `3838`）
+
+构建完成后，镜像将保存在本地 Docker 环境中。
+
+#### 2. 运行容器
+
+使用以下命令运行容器（将 `PORT` 替换为之前设置的端口）：
+```bash
+docker run -p PORT:3838 autotfl-shiny-app:latest
+```
+
+应用将在容器内启动，并可通过浏览器访问 `http://localhost:PORT`。
+
+#### 3. 使用更新后的构建脚本
+
+构建脚本已更新，支持交互式输入镜像名和端口。您也可以直接使用 Docker 命令构建：
+```bash
+docker build -t your-image-name:your-tag .
+```
+
+更多详细信息请参考项目根目录下的 `Dockerfile` 和构建脚本。
+
 ## 依赖管理
 
 项目提供了专门的依赖管理脚本来简化安装过程：
