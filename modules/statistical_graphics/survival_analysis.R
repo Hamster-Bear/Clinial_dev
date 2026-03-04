@@ -12,212 +12,248 @@ survival_analysis_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
-    # 高级美学设置
+    # 参数配置区域 - 顶部（横向双卡片布局）
     fluidRow(
       box(
         width = 12,
-        title = "高级美学设置",
+        title = "生存分析参数配置",
         status = "primary",
+        solidHeader = TRUE,
         collapsible = TRUE,
-        collapsed = TRUE,
+        collapsed = FALSE,
         fluidRow(
-          column(12,
-                 fluidRow(
-                   column(9,
-                          textInput(ns("plot_title"), "主标题", value = "", width = "100%")
-                   ),
-                   column(3,
-                          numericInput(ns("title_size"), "主标题大小", value = 14, min = 8, max = 24, step = 1)
-                   )
-                 )
-          )
-        ),
-        fluidRow(
-          column(12,
-                 fluidRow(
-                   column(9,
-                          textInput(ns("plot_caption"), "脚注", value = "", width = "100%")
-                   ),
-                   column(3,
-                          numericInput(ns("caption_size"), "脚注大小", value = 10, min = 8, max = 20, step = 1)
-                   )
-                 )
-          )
-        ),
-        fluidRow(
+          # 左侧：数据与变量选择
           column(6,
-                 fluidRow(
-                   column(9,
-                          textInput(ns("plot_xlab"), "X轴标签", value = "", width = "100%")
-                   ),
-                   column(3,
-                          numericInput(ns("xlab_size"), "X轴标签大小", value = 12, min = 8, max = 20, step = 1)
-                   )
-                 )
-          ),
-          column(6,
-                 fluidRow(
-                   column(9,
-                          textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%")
-                   ),
-                   column(3,
-                          numericInput(ns("ylab_size"), "Y轴标签大小", value = 12, min = 8, max = 20, step = 1)
-                   )
-                 )
-          )
-        ),
-        fluidRow(
-          column(2,
-                 numericInput(ns("line_size"), "线条大小", value = 0.6, min = 0.1, max = 5, step = 0.1)
-          ),
-          column(2,
-                 selectInput(ns("line_type"), "线条类型",
-                           choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted",
-                                      "点虚线" = "dotdash", "长虚线" = "longdash"))
-          ),
-          column(2,
-                 checkboxInput(ns("km_show_censor"), "显示删失符号", value = TRUE)
-          ),
-          column(2,
-                 numericInput(ns("km_censor_size"), "删失点大小", value = 2, min = 1, max = 10, step = 0.5)
-          ),
-          column(2,
-                 selectInput(ns("km_censor_shape"), "删失点形状",
-                           choices = c("+" = 3, "I" = 124, "□" = 0, "○" = 1, "△" = 2, "◇" = 5, "☆" = 8),
-                           selected = 3)
-          ),
-          column(2,
-                 numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1)
-          ),
-          column(2,
-                 checkboxInput(ns("show_grid"), "显示网格线", value = FALSE)
-          )
-        ),
-        fluidRow(
-          column(4,
-                 checkboxInput(ns("show_median"), "显示中位生存时间", value = TRUE)
-          ),
-          column(4,
-                 checkboxInput(ns("show_stats"), "显示统计量(P值/HR)", value = TRUE)
-          ),
-          column(4,
-                 selectInput(ns("legend_position"), "图例位置",
-                             choices = c("top-right", "top", "top-left", "left", "right", "bottom-left", "bottom", "bottom-right", "none"),
-                             selected = "top-right")
-          )
-        ),
-        fluidRow(
-          column(12,
-                 textInput(ns("legend_title"), "图例标题", value = "", placeholder = "留空则使用变量名")
-          )
-        ),
-        conditionalPanel(
-          condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
-          fluidRow(
-            column(12,
-              box(
-                width = 12,
-                title = "分层变量标签映射",
-                status = "warning",
-                collapsible = TRUE,
-                collapsed = TRUE,
-                uiOutput(ns("strata_labels_ui"))
+            wellPanel(
+              style = "height: 700px; overflow-y: auto;",
+              h4("数据与变量选择", style = "color: #007bff; margin-top: 0;"),
+              
+              # 核心变量选择
+              tags$div(class = "panel panel-default",
+                tags$div(class = "panel-heading", "核心变量"),
+                tags$div(class = "panel-body",
+                  selectizeInput(ns("km_time"), "时间变量 (数值型)", choices = NULL, width = "100%"),
+                  selectizeInput(ns("km_status"), "状态变量 (数值型)", choices = NULL, width = "100%"),
+                  
+                  fluidRow(
+                    column(6, selectizeInput(ns("strata_var"), "分层变量 (分组)", choices = c("无" = "None"), width = "100%")),
+                    column(6, selectizeInput(ns("facet_var"), "分面变量 (分组)", choices = c("无" = "None"), width = "100%"))
+                  ),
+                  
+                  # 动态UI区域：参考组和分面值
+                  conditionalPanel(
+                    condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
+                    uiOutput(ns("hr_reference_ui"))
+                  ),
+                  conditionalPanel(
+                    condition = paste0("input['", ns("facet_var"), "'] != 'None'"),
+                    uiOutput(ns("facet_value_ui"))
+                  )
+                )
+              ),
+              
+              # 数据处理设置
+              tags$div(class = "panel panel-default",
+                tags$div(class = "panel-heading", "数据处理设置"),
+                tags$div(class = "panel-body",
+                  radioButtons(ns("km_censor_value"), "删失值定义",
+                             choices = c("0 = 删失, 1 = 事件" = "0", "1 = 删失, 0 = 事件" = "1"),
+                             selected = "0", inline = TRUE),
+                  hr(),
+                  uiOutput(ns("time_range_slider")),
+                  numericInput(ns("time_step"), "时间轴步长", value = NULL, min = 1, max = 1000, step = 1, width = "100%")
+                )
               )
             )
-          )
-        ),
-        fluidRow(
-          column(12,
-                 h5("文本位置设置"),
-                 selectInput(ns("text_position_preset"), "预设位置",
+          ),
+          
+          # 右侧：图形与样式设置
+          column(6,
+            wellPanel(
+              style = "height: 700px; overflow-y: auto;",
+              h4("图形与样式设置", style = "color: #007bff; margin-top: 0;"),
+              
+              tabsetPanel(
+                # Tab 1: 基本设置
+                tabPanel("基本设置",
+                   br(),
+                   actionButton(ns("render_km_plot"), "生成图形", icon = icon("chart-line"),
+                         class = "btn-primary btn-block", style = "font-weight: bold; margin-bottom: 15px;"),
+                   
+                   fluidRow(
+                     column(6, numericInput(ns("line_size"), "线条粗细", value = 0.6, min = 0.1, max = 5, step = 0.1, width = "100%")),
+                     column(6, selectInput(ns("line_type"), "线条类型",
+                           choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted",
+                                      "点虚线" = "dotdash", "长虚线" = "longdash"), width = "100%"))
+                   ),
+                   
+                   checkboxInput(ns("km_show_censor"), "显示删失符号", value = TRUE),
+                   conditionalPanel(
+                     condition = paste0("input['", ns("km_show_censor"), "'] == true"),
+                     fluidRow(
+                       column(6, numericInput(ns("km_censor_size"), "删失点大小", value = 2, min = 1, max = 10, step = 0.5, width = "100%")),
+                       column(6, selectInput(ns("km_censor_shape"), "删失点形状",
+                             choices = c("+" = 3, "I" = 124, "□" = 0, "○" = 1, "△" = 2, "◇" = 5, "☆" = 8),
+                             selected = 3, width = "100%"))
+                     )
+                   ),
+                   
+                   checkboxInput(ns("km_show_risktable"), "显示风险表", value = TRUE),
+                   checkboxInput(ns("show_grid"), "显示网格线", value = FALSE)
+                ),
+                
+                # Tab 2: 统计与标注
+                tabPanel("统计与标注",
+                   br(),
+                   checkboxInput(ns("show_median"), "显示中位生存时间", value = TRUE),
+                   checkboxInput(ns("show_stats"), "显示统计量(P值/HR)", value = TRUE),
+                   
+                   hr(),
+                   selectInput(ns("text_position_preset"), "统计文本位置预设",
                              choices = c("自动（默认）" = "auto",
                                          "左上" = "top-left",
                                          "右上" = "top-right",
                                          "左下" = "bottom-left",
                                          "右下" = "bottom-right",
                                          "自定义" = "custom"),
-                             selected = "auto")
+                             selected = "bottom-left", width = "100%"),
+                             
+                   conditionalPanel(
+                      condition = paste0("input['", ns("text_position_preset"), "'] == 'custom'"),
+                      h5("自定义坐标 (0-1相对位置)"),
+                      fluidRow(
+                        column(6, numericInput(ns("median_x"), "中位生存X", value = 0.98, min = 0, max = 1, step = 0.01, width = "100%")),
+                        column(6, numericInput(ns("median_y"), "中位生存Y", value = 0.95, min = 0, max = 1, step = 0.01, width = "100%"))
+                      ),
+                      fluidRow(
+                        column(6, numericInput(ns("stats_x"), "统计量X", value = 0.02, min = 0, max = 1, step = 0.01, width = "100%")),
+                        column(6, numericInput(ns("stats_y"), "统计量Y", value = 0.95, min = 0, max = 1, step = 0.01, width = "100%"))
+                      )
+                   )
+                ),
+                
+                # Tab 3: 文本与标签
+                tabPanel("文本与标签",
+                   br(),
+                   textInput(ns("plot_title"), "主标题", value = "", placeholder = "输入标题", width = "100%"),
+                   fluidRow(
+                     column(6, numericInput(ns("title_size"), "标题大小", value = 14, min = 8, max = 24, step = 1, width = "100%")),
+                     column(6, numericInput(ns("caption_size"), "脚注大小", value = 10, min = 8, max = 20, step = 1, width = "100%"))
+                   ),
+                   textInput(ns("plot_caption"), "脚注", value = "", placeholder = "输入脚注", width = "100%"),
+                   
+                   hr(),
+                   fluidRow(
+                     column(6, textInput(ns("plot_xlab"), "X轴标签", value = "", width = "100%")),
+                     column(6, numericInput(ns("xlab_size"), "X轴字号", value = 12, min = 8, max = 20, step = 1, width = "100%"))
+                   ),
+                   fluidRow(
+                     column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%")),
+                     column(6, numericInput(ns("ylab_size"), "Y轴字号", value = 12, min = 8, max = 20, step = 1, width = "100%"))
+                   ),
+                   fluidRow(
+                     column(4, numericInput(ns("axis_text_size"), "坐标刻度字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+                     column(4, numericInput(ns("legend_text_size"), "图例文本字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+                     column(4, numericInput(ns("stats_text_size"), "统计标注字号", value = 10, min = 6, max = 20, step = 1, width = "100%"))
+                   ),
+                   numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1, width = "100%"),
+                   
+                   hr(),
+                   fluidRow(
+                     column(6, selectInput(ns("legend_position"), "图例位置",
+                             choices = c("top-right", "top", "top-left", "left", "right", "bottom-left", "bottom", "bottom-right", "none"),
+                             selected = "top-right", width = "100%")),
+                     column(6, textInput(ns("legend_title"), "图例标题", value = "", placeholder = "默认", width = "100%"))
+                   )
+                ),
+                
+                # Tab 4: 分层标签
+                tabPanel("分层标签",
+                   br(),
+                   conditionalPanel(
+                      condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
+                      uiOutput(ns("strata_labels_ui"))
+                   ),
+                   conditionalPanel(
+                      condition = paste0("input['", ns("strata_var"), "'] == 'None'"),
+                      helpText("请先选择分层变量")
+                   )
+                )
+              )
+            )
           )
-        ),
-        conditionalPanel(
-          condition = paste0("input['", ns("text_position_preset"), "'] == 'custom'"),
-          fluidRow(
-            column(3, numericInput(ns("median_x"), "中位生存X坐标", value = 0.98, min = 0, max = 1, step = 0.01)),
-            column(3, numericInput(ns("median_y"), "中位生存Y坐标", value = 0.95, min = 0, max = 1, step = 0.01)),
-            column(3, numericInput(ns("stats_x"), "统计量X坐标", value = 0.02, min = 0, max = 1, step = 0.01)),
-            column(3, numericInput(ns("stats_y"), "统计量Y坐标", value = 0.95, min = 0, max = 1, step = 0.01))
-          )
-        ),
+        )
       )
     ),
     
-    
-    # 生存曲线输出
+    # 图形显示区域 - 底部
     fluidRow(
       box(
         width = 12,
         title = "生存曲线输出",
-        status = "info",
+        status = "success",
         solidHeader = TRUE,
+        
+        # 顶部工具栏
         fluidRow(
-          # 参数配置侧边栏
-          column(3,
-            wellPanel(
-              h4("参数配置", style = "margin-top: 0px;"),
-              selectizeInput(ns("km_time"), "时间变量 (数值型)", choices = NULL),
-              selectizeInput(ns("km_status"), "状态变量 (数值型)", choices = NULL),
-              selectizeInput(ns("strata_var"), "分层变量 (分组)", choices = c("无" = "None")),
-              conditionalPanel(
-                condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
-                uiOutput(ns("hr_reference_ui"))
-              ),
-              selectizeInput(ns("facet_var"), "分面变量 (分组)", choices = c("无" = "None")),
-              # 分面值选择器（仅当选择了分面变量时显示）
-              conditionalPanel(
-                condition = paste0("input['", ns("facet_var"), "'] != 'None'"),
-                uiOutput(ns("facet_value_ui"))
-              ),
-              radioButtons(ns("km_censor_value"), "删失值定义",
-                         choices = c("0 = 删失, 1 = 事件" = "0", "1 = 删失, 0 = 事件" = "1"),
-                         selected = "0"),
-              checkboxInput(ns("km_show_risktable"), "显示风险表", value = TRUE),
-              # 时间范围滑块
-              uiOutput(ns("time_range_slider")),
-              # 时间轴步长设置
-              numericInput(ns("time_step"), "时间轴步长", value = NULL, min = 1, max = 1000, step = 1),
-              br(),
-              actionButton(ns("render_km_plot"), "生成图形", icon = icon("chart-line"),
-                         class = "btn btn-primary"),
-              br(), br(),
-              # 导出格式选择
-              selectInput(ns("export_format"), "导出格式",
-                         choices = c("PDF" = "pdf", "PNG" = "png", "SVG" = "svg"),
-                         selected = "pdf"),
-              br(),
-              downloadButton(ns("download_plot"), "导出图形")
-            )
-          ),
-          # 主图显示区域
-          column(9,
-            tabsetPanel(
-              id = ns("km_output_tabs"),
-              tabPanel("静态图", plotOutput(ns("survPlot"), height = "600px")),
-              tabPanel("交互式图", plotly::plotlyOutput(ns("interactiveSurvPlot"), height = "600px")),
-              tabPanel("数据表", DTOutput(ns("km_data_table")))
+          column(12,
+            div(style = "display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;",
+               div(style = "margin-right: 10px; width: 150px;",
+                   selectInput(ns("export_format"), NULL, choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "pdf", width = "100%")
+               ),
+               downloadButton(ns("download_plot"), "下载图形", class = "btn-primary")
             )
           )
+        ),
+        
+        tabsetPanel(
+          id = ns("km_output_tabs"),
+          tabPanel("静态图", 
+            div(style = "height: 10px;"),
+            plotOutput(ns("survPlot"), height = "600px")
+          ),
+          tabPanel("交互式图", 
+            div(style = "height: 10px;"),
+            plotly::plotlyOutput(ns("interactiveSurvPlot"), height = "600px")
+          ),
+          tabPanel("数据表", 
+            div(style = "height: 10px;"),
+            DTOutput(ns("km_data_table"))
+          ),
+          tabPanel("统计报告",
+            div(style = "height: 10px;"),
+            uiOutput(ns("survival_report"))
+          )
         )
-      ),
-      tags$script(HTML('
-        $(document).ready(function() {
-          // 使用事件委托，禁用所有当前和未来出现的select和.selectize-input的鼠标滚轮事件
-          $(document).on("mousewheel DOMMouseScroll", "select, .selectize-input", function(e) {
+      )
+    ),
+    
+    # JavaScript 修复 - 增强版，防止滚轮意外修改输入值
+    tags$script(HTML('
+      $(document).ready(function() {
+        // 禁用 selectize 输入框的滚轮事件
+        $(document).on("mousewheel DOMMouseScroll", ".selectize-control .selectize-input", function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+        
+        // 禁用普通 select 输入框的滚轮事件
+        $(document).on("mousewheel DOMMouseScroll", "select", function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+        
+        // 禁用数字输入框的滚轮事件
+        $(document).on("mousewheel DOMMouseScroll", "input[type=number]", function(e) {
+          // 只有当输入框聚焦时才处理
+          if ($(this).is(":focus")) {
             e.preventDefault();
             e.stopPropagation();
-          });
+            $(this).blur(); // 移除焦点，这是最有效的方法
+          }
         });
-      '))
-    )
+      });
+    '))
   )
 }
 
@@ -242,13 +278,16 @@ survival_analysis_server <- function(input, output, session, data) {
     caption_size = 10,
     xlab_size = 12,
     ylab_size = 12,
+    axis_text_size = 10,
+    legend_text_size = 10,
+    stats_text_size = 10,
     show_grid = FALSE,
     time_step = NULL,
     show_median = TRUE,
     show_stats = TRUE,
     legend_position = "top-right",
     legend_title = "",
-    text_position_preset = "auto",
+    text_position_preset = "bottom-left",
     median_x = 0.98,
     median_y = 0.95,
     stats_x = 0.02,
@@ -475,6 +514,9 @@ survival_analysis_server <- function(input, output, session, data) {
     graphics_state$caption_size <- input$caption_size
     graphics_state$xlab_size <- input$xlab_size
     graphics_state$ylab_size <- input$ylab_size
+    graphics_state$axis_text_size <- input$axis_text_size
+    graphics_state$legend_text_size <- input$legend_text_size
+    graphics_state$stats_text_size <- input$stats_text_size
     graphics_state$show_grid <- input$show_grid
     graphics_state$time_step <- input$time_step
     graphics_state$show_median <- input$show_median
@@ -754,7 +796,7 @@ survival_analysis_server <- function(input, output, session, data) {
       break.time.by = time_step,  # 使用自定义时间步长
       ggtheme = theme_bw(),
       palette = "Set1",
-      surv.alpha = 1,  # 设置生存曲线透明度为1，避免alpha警告
+      # surv.alpha = 1,  # 移除：不再使用alpha参数，避免discrete alpha警告
       legend.title = legend_title_text,
       legend.labs = NULL  # 使用默认标签，避免产生未知标签
     ))
@@ -821,7 +863,7 @@ survival_analysis_server <- function(input, output, session, data) {
           geom_text(data = median_surv,
                     aes(x = x, y = y, label = label),
                     hjust = ifelse(preset %in% c("top-left", "bottom-left"), 0, 1),
-                    vjust = 0.5, size = 3.5,
+                    vjust = 0.5, size = input$stats_text_size / 3.2,
                     color = "black", fontface = "bold")
       }
     }
@@ -966,7 +1008,7 @@ survival_analysis_server <- function(input, output, session, data) {
       if (stats_text != "") {
         p$plot <- p$plot +
           annotate("text", x = stats_x, y = stats_y, label = stats_text,
-                   hjust = hjust_val, vjust = vjust_val, size = 3.5,
+                   hjust = hjust_val, vjust = vjust_val, size = input$stats_text_size / 3.2,
                    color = "black", fontface = "bold")
       }
     }
@@ -1026,6 +1068,15 @@ survival_analysis_server <- function(input, output, session, data) {
         theme(panel.grid.major = element_blank(),
               panel.grid.minor = element_blank())
     }
+    
+    # 移除上、右边框，并添加坐标轴箭头
+    p$plot <- p$plot +
+      theme(
+        panel.border = element_blank(),
+        axis.line = element_line(colour = "black", arrow = arrow(length = unit(0.2, "cm"), type = "closed")),
+        axis.text = element_text(size = input$axis_text_size),
+        legend.text = element_text(size = input$legend_text_size)
+      )
 
     # 设置图例位置
     if (input$legend_position == "none") {
@@ -1174,7 +1225,7 @@ survival_analysis_server <- function(input, output, session, data) {
       break.time.by = time_step,  # 使用自定义时间步长
       ggtheme = theme_bw(),
       palette = "Set1",
-      surv.alpha = 1,  # 设置生存曲线透明度为1，避免alpha警告
+      # surv.alpha = 1,  # 移除：不再使用alpha参数，避免discrete alpha警告
       legend.title = legend_title_text,
       legend.labs = NULL  # 使用默认标签，避免产生未知标签
     ))$plot
@@ -1263,7 +1314,7 @@ survival_analysis_server <- function(input, output, session, data) {
     return(p)
   }
   
-  # 交互式生存曲线图
+    # 交互式生存曲线图
   output$interactiveSurvPlot <- renderPlotly({
     input$render_km_plot
     req(fit(), filtered_data())
@@ -1271,9 +1322,14 @@ survival_analysis_server <- function(input, output, session, data) {
     # 创建专门的交互式图形
     interactive_plot <- create_interactive_surv_plot()
     
-    # 转换为plotly，指定高度避免弃用警告
-    plotly_obj <- ggplotly(interactive_plot, height = 600, tooltip = c("x", "y", "colour"))
+    # 转换为plotly，避免layout()的width/height弃用警告
+    # 移除height参数，因为Shiny的renderPlotly会自动处理容器大小
+    # 同时可以尝试手动调整布局以移除已有的width/height属性
+    plotly_obj <- ggplotly(interactive_plot, tooltip = c("x", "y", "colour"))
     
+    # 手动清理layout中的width和height (如果有)
+    plotly_obj$x$layout$width <- NULL
+    plotly_obj$x$layout$height <- NULL
     
     return(plotly_obj)
   })
@@ -1325,6 +1381,133 @@ survival_analysis_server <- function(input, output, session, data) {
       # 如果出现错误，返回错误信息
       data.frame(错误 = "生成数据表时出错", 信息 = e$message)
     })
+  })
+  
+  output$survival_report <- renderUI({
+    req(fit(), filtered_data(), input$km_time, input$km_status)
+    data_local <- filtered_data()
+    fit_local <- fit()
+    
+    method_desc <- paste0(
+      "当前采用 Kaplan-Meier 方法估计生存函数；删失定义为 ",
+      ifelse(input$km_censor_value == "0", "0=删失, 1=事件", "1=删失, 0=事件"),
+      "。"
+    )
+    
+    if (input$strata_var != "None") {
+      method_desc <- paste0(
+        method_desc,
+        " 分层变量为 ",
+        input$strata_var,
+        "，比较各组生存曲线差异。"
+      )
+    } else {
+      method_desc <- paste0(method_desc, " 未设置分层变量，输出总体生存曲线。")
+    }
+    
+    if (input$facet_var != "None" && !is.null(input$facet_value) && input$facet_value != "") {
+      method_desc <- paste0(
+        method_desc,
+        " 当前分面筛选：",
+        input$facet_var,
+        " = ",
+        input$facet_value,
+        "。"
+      )
+    }
+    
+    logrank_p <- NA
+    if (input$strata_var != "None" && input$strata_var %in% names(data_local)) {
+      logrank_p <- tryCatch({
+        sd <- survdiff(surv_obj() ~ data_local[[input$strata_var]], data = data_local)
+        pchisq(sd$chisq, length(sd$n) - 1, lower.tail = FALSE)
+      }, error = function(e) NA)
+    }
+    
+    med <- tryCatch(surv_median(fit_local), error = function(e) NULL)
+    median_lines <- character(0)
+    if (!is.null(med) && nrow(med) > 0) {
+      for (i in seq_len(nrow(med))) {
+        median_lines <- c(
+          median_lines,
+          paste0(
+            med$strata[i], "：中位生存时间 ", formatC(med$median[i], format = "f", digits = 2),
+            "（95%CI ", formatC(med$lower[i], format = "f", digits = 2), " - ",
+            formatC(med$upper[i], format = "f", digits = 2), "）"
+          )
+        )
+      }
+    }
+    
+    hr_lines <- character(0)
+    if (input$strata_var != "None" && input$strata_var %in% names(data_local)) {
+      cox_fit <- tryCatch({
+        strata_fac <- factor(data_local[[input$strata_var]])
+        coxph(surv_obj() ~ strata_fac, data = data_local)
+      }, error = function(e) NULL)
+      
+      if (!is.null(cox_fit)) {
+        csum <- summary(cox_fit)
+        if (!is.null(csum$coefficients) && nrow(csum$coefficients) > 0) {
+          for (i in seq_len(nrow(csum$coefficients))) {
+            hr <- exp(csum$coefficients[i, 1])
+            hr_low <- exp(csum$coefficients[i, 1] - 1.96 * csum$coefficients[i, 3])
+            hr_up <- exp(csum$coefficients[i, 1] + 1.96 * csum$coefficients[i, 3])
+            p_val <- csum$coefficients[i, 5]
+            hr_lines <- c(
+              hr_lines,
+              paste0(
+                rownames(csum$coefficients)[i], "：HR=", formatC(hr, format = "f", digits = 2),
+                "（95%CI ", formatC(hr_low, format = "f", digits = 2), " - ", formatC(hr_up, format = "f", digits = 2),
+                "，P=", formatC(p_val, format = "f", digits = 3), "）"
+              )
+            )
+          }
+        }
+      }
+    }
+    
+    interpretation <- character(0)
+    interpretation <- c(
+      interpretation,
+      paste0(
+        "纳入样本量：", nrow(data_local),
+        "；时间变量：", input$km_time,
+        "；状态变量：", input$km_status, "。"
+      )
+    )
+    
+    if (!is.na(logrank_p)) {
+      if (logrank_p < 0.05) {
+        interpretation <- c(interpretation, paste0("Log-rank 检验 P=", formatC(logrank_p, format = "f", digits = 3), "，提示组间生存曲线差异具有统计学意义。"))
+      } else {
+        interpretation <- c(interpretation, paste0("Log-rank 检验 P=", formatC(logrank_p, format = "f", digits = 3), "，未见组间生存曲线显著差异。"))
+      }
+    }
+    
+    if (length(hr_lines) > 0) {
+      interpretation <- c(interpretation, "Cox 回归结果显示不同分层水平相对风险的方向和强度可由 HR 与其95%CI 综合判断：95%CI 不跨 1 通常提示统计学差异。")
+    }
+    
+    tagList(
+      tags$div(
+        style = "padding: 16px; background: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 6px;",
+        tags$h4(style = "margin-top: 0;", "方法解释"),
+        tags$p(method_desc),
+        tags$hr(),
+        tags$h4("结果摘要"),
+        tags$ul(lapply(median_lines, tags$li)),
+        if (length(hr_lines) > 0) {
+          tagList(
+            tags$p(tags$b("Cox 风险比结果：")),
+            tags$ul(lapply(hr_lines, tags$li))
+          )
+        },
+        tags$hr(),
+        tags$h4("智能统计解释"),
+        tags$ul(lapply(interpretation, tags$li))
+      )
+    )
   })
   
   # 下载静态图

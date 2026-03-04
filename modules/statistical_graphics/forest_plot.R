@@ -15,6 +15,7 @@ library(scales)
 library(colourpicker)
 library(RColorBrewer)
 library(stringr)
+library(survival)
 
 forest_plot_ui <- function(id) {
   ns <- NS(id)
@@ -34,22 +35,68 @@ forest_plot_ui <- function(id) {
             wellPanel(
               style = "height: 700px; overflow-y: auto;",
               h4("数据列与表格设置", style = "color: #007bff; margin-top: 0;"),
-              # 数据列映射 - 横向排列
-              tags$div(class = "panel panel-default",
-                tags$div(class = "panel-heading", "数据列映射"),
-                tags$div(class = "panel-body",
-                  fluidRow(
-                    column(4, selectInput(ns("subgroup_col"), "亚组列", choices = NULL, width = "100%")),
-                    column(4, selectInput(ns("study_col"), "研究列", choices = NULL, width = "100%")),
-                    column(4, selectInput(ns("estimate_col"), "估计值列", choices = NULL, width = "100%"))
-                  ),
-                  fluidRow(
-                    column(4, selectInput(ns("lower_col"), "下限列", choices = NULL, width = "100%")),
-                    column(4, selectInput(ns("upper_col"), "上限列", choices = NULL, width = "100%")),
-                    column(4, br(), helpText("总计5个必需列"))
+              
+              # 数据源模式选择
+              radioButtons(ns("data_mode"), "数据模式",
+                           choices = c("预处理数据 (Pre-calculated)" = "precalculated", 
+                                       "原始数据分析 (Raw Data Analysis)" = "raw_data"),
+                           selected = "precalculated", inline = TRUE),
+              hr(),
+              
+              # 模式1: 预处理数据映射 (原有逻辑)
+              conditionalPanel(
+                condition = paste0("input['", ns("data_mode"), "'] == 'precalculated'"),
+                tags$div(class = "panel panel-default",
+                  tags$div(class = "panel-heading", "数据列映射"),
+                  tags$div(class = "panel-body",
+                    fluidRow(
+                      column(4, selectInput(ns("subgroup_col"), "变量名称列 (如: 性别)", choices = NULL, width = "100%")),
+                      column(4, selectInput(ns("study_col"), "分组值列 (如: 男/女)", choices = NULL, width = "100%")),
+                      column(4, selectInput(ns("estimate_col"), "估计值列 (HR/OR)", choices = NULL, width = "100%"))
+                    ),
+                    fluidRow(
+                      column(4, selectInput(ns("lower_col"), "下限列", choices = NULL, width = "100%")),
+                      column(4, selectInput(ns("upper_col"), "上限列", choices = NULL, width = "100%")),
+                      column(4, br(), helpText("总计5个必需列"))
+                    )
                   )
                 )
               ),
+              
+              # 模式2: 原始数据分析配置 (新增逻辑)
+              conditionalPanel(
+                condition = paste0("input['", ns("data_mode"), "'] == 'raw_data'"),
+                tags$div(class = "panel panel-primary",
+                  tags$div(class = "panel-heading", "回归分析配置 (Cox / Logistic)"),
+                  tags$div(class = "panel-body",
+                    radioButtons(ns("regression_type"), "回归模型类型",
+                                 choices = c("Cox 比例风险回归 (生存数据)" = "cox", 
+                                             "Logistic 回归 (二分类结局)" = "logistic"),
+                                 selected = "cox", inline = TRUE),
+                    hr(),
+                    fluidRow(
+                      # Cox 回归特定输入
+                      conditionalPanel(
+                        condition = paste0("input['", ns("regression_type"), "'] == 'cox'"),
+                        column(6, selectInput(ns("time_col"), "生存时间 (Time)", choices = NULL, width = "100%")),
+                        column(6, selectInput(ns("status_col"), "生存状态 (Status)", choices = NULL, width = "100%"))
+                      ),
+                      # Logistic 回归特定输入
+                      conditionalPanel(
+                        condition = paste0("input['", ns("regression_type"), "'] == 'logistic'"),
+                        column(12, selectInput(ns("outcome_col"), "结局变量 (Outcome, 0/1)", choices = NULL, width = "100%"))
+                      )
+                    ),
+                    selectizeInput(ns("covariates"), "分析变量 (Covariates)", choices = NULL, multiple = TRUE, width = "100%"),
+                    radioButtons(ns("analysis_method"), "分析方法",
+                                 choices = c("单因素分析 (Univariable)" = "univariate", 
+                                             "多因素分析 (Multivariable)" = "multivariate"),
+                                 selected = "univariate", inline = TRUE),
+                    actionButton(ns("run_analysis"), "运行分析", class = "btn-info btn-block", icon = icon("calculator"))
+                  )
+                )
+              ),
+              
               # 表格显示设置 - 多选变量形式
               tags$div(class = "panel panel-default",
                 tags$div(class = "panel-heading", "表格显示设置"),
@@ -183,6 +230,10 @@ forest_plot_ui <- function(id) {
           tabPanel("数据预览",
                    div(style = "height: 10px;"),
                    DTOutput(ns("data_preview"))
+          ),
+          tabPanel("统计报告",
+                   div(style = "height: 10px;"),
+                   uiOutput(ns("analysis_report_ui"))
           )
         )
       )
@@ -205,6 +256,36 @@ forest_plot_server <- function(input, output, session, data) {
     alignments = list()
   )
   
+  # 智能数值格式化函数
+  smart_format_number <- function(x, max_digits = 4) {
+    sapply(x, function(val) {
+      if (is.na(val)) return("")
+      
+      num_val <- suppressWarnings(as.numeric(val))
+      if (is.na(num_val)) return(val) # 非数值直接返回
+      
+      abs_val <- abs(num_val)
+      
+      if (abs_val == 0) return("0")
+      
+      if (abs_val < 0.0001) {
+        return(formatC(num_val, format = "e", digits = 2))
+      } else if (abs_val < 0.001) {
+        return(sprintf("%.4f", num_val))
+      } else if (abs_val < 0.01) {
+        return(sprintf("%.3f", num_val))
+      } else if (abs_val < 1) {
+        return(sprintf("%.2f", num_val)) # 或者 3 位
+      } else if (abs_val < 10) {
+        return(sprintf("%.2f", num_val))
+      } else if (abs_val < 100) {
+        return(sprintf("%.1f", num_val))
+      } else {
+        return(sprintf("%.0f", num_val))
+      }
+    })
+  }
+
   # 观察数据变化，更新列选择
   observe({
     req(data())
@@ -212,7 +293,7 @@ forest_plot_server <- function(input, output, session, data) {
     cols <- names(data())
     if (length(cols) == 0) return()
     
-    # 更新列映射选择框
+    # 更新列映射选择框 (预处理模式)
     updateSelectInput(session, "subgroup_col", choices = cols, 
                       selected = ifelse("subgroup" %in% cols, "subgroup", cols[1]))
     updateSelectInput(session, "study_col", choices = cols,
@@ -228,6 +309,20 @@ forest_plot_server <- function(input, output, session, data) {
                       selected = ifelse("upper" %in% cols, "upper",
                                        ifelse(length(cols) > 4, cols[5], cols[1])))
     
+    # 更新分析配置选项 (原始数据模式)
+    # 尝试智能识别 Time 和 Status
+    time_candidates <- cols[grep("time|dur|os|pfs|rfs", tolower(cols))]
+    status_candidates <- cols[grep("status|event|dead|death|censor", tolower(cols))]
+    outcome_candidates <- cols[grep("response|outcome|recurrence|disease|event|status", tolower(cols))]
+    
+    updateSelectInput(session, "time_col", choices = cols, 
+                      selected = if(length(time_candidates)>0) time_candidates[1] else cols[1])
+    updateSelectInput(session, "status_col", choices = cols, 
+                      selected = if(length(status_candidates)>0) status_candidates[1] else cols[2])
+    updateSelectInput(session, "outcome_col", choices = cols,
+                      selected = if(length(outcome_candidates)>0) outcome_candidates[1] else cols[1])
+    updateSelectizeInput(session, "covariates", choices = cols, server = TRUE)
+
     # 不预设任何列，用户需手动选择
     if (length(user_selections$selected_cols) == 0) {
       user_selections$selected_cols <- character(0)
@@ -478,43 +573,466 @@ forest_plot_server <- function(input, output, session, data) {
   
   # 数据预览
   output$data_preview <- renderDT({
-    req(data())
-    
-    datatable(data(), 
-              extensions = c('FixedColumns', 'FixedHeader'),
-              options = list(
-                pageLength = 10,
-                scrollX = TRUE,
-                fixedColumns = list(leftColumns = 1),
-                fixedHeader = TRUE,
-                language = list(
-                  url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Chinese.json'
-                )
-              ),
-              rownames = FALSE) %>%
-      formatStyle(1, className = 'fixed-first-col') %>%
-      formatStyle(0, target = 'row', fontSize = '12px')
+    # 根据模式显示不同的数据
+    if (input$data_mode == "raw_data") {
+      # 如果有分析结果，优先显示分析结果
+      if (input$run_analysis > 0) {
+         res <- analysis_results()
+         if (!is.null(res)) return(datatable(res, options = list(pageLength = 10, scrollX = TRUE)))
+      }
+      # 否则显示原始数据
+      req(data())
+      datatable(data(), options = list(pageLength = 10, scrollX = TRUE))
+    } else {
+      req(data())
+      datatable(data(), 
+                extensions = c('FixedColumns', 'FixedHeader'),
+                options = list(
+                  pageLength = 10,
+                  scrollX = TRUE,
+                  fixedColumns = list(leftColumns = 1),
+                  fixedHeader = TRUE,
+                  language = list(
+                    url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Chinese.json'
+                  )
+                ),
+                rownames = FALSE) %>%
+        formatStyle(1, className = 'fixed-first-col') %>%
+        formatStyle(0, target = 'row', fontSize = '12px')
+    }
   })
   
-  # 处理数据，准备森林图
-  processed_data <- reactive({
-    req(data(), input$subgroup_col, input$study_col, 
-        input$estimate_col, input$lower_col, input$upper_col)
+  # ---------------------------------------------------------
+  # 新增：统计报告生成逻辑
+  # ---------------------------------------------------------
+  output$analysis_report_ui <- renderUI({
+    if (input$data_mode != "raw_data") {
+      return(tags$div(
+        class = "alert alert-info",
+        "统计报告仅适用于'原始数据分析模式'。当前为'预处理数据模式'，无统计计算过程。"
+      ))
+    }
+    
+    if (input$run_analysis == 0 || is.null(analysis_results())) {
+      return(tags$div(
+        class = "alert alert-warning",
+        "请先在左侧配置并运行回归分析，以生成统计报告。"
+      ))
+    }
+    
+    res <- analysis_results()
+    reg_type <- input$regression_type
+    method <- input$analysis_method
+    
+    # 1. 方法描述
+    method_title <- ""
+    method_desc <- ""
+    
+    if (reg_type == "cox") {
+      method_title <- "Cox 比例风险回归模型 (Cox Proportional Hazards Model)"
+      if (method == "univariate") {
+        method_desc <- paste(
+          "本分析采用**单因素 Cox 比例风险回归模型**，旨在单独评估每个变量对生存时间的影响。",
+          "该方法假设变量的影响随时间保持恒定（比例风险假设）。",
+          "结果以风险比 (Hazard Ratio, HR) 及其 95% 置信区间 (95% CI) 表示。",
+          "HR > 1 表示该变量水平相对于参考水平增加了风险（如死亡风险），HR < 1 表示降低了风险。"
+        )
+      } else {
+        method_desc <- paste(
+          "本分析采用**多因素 Cox 比例风险回归模型**，旨在评估各变量在调整其他协变量影响后的独立预后价值。",
+          "该模型同时纳入多个变量，能够校正混杂因素的影响。",
+          "结果以调整后的风险比 (Adjusted Hazard Ratio, HR) 及其 95% 置信区间 (95% CI) 表示。",
+          "显著的 P 值 (< 0.05) 表明该变量是独立的预后因子。"
+        )
+      }
+    } else {
+      method_title <- "Logistic 回归模型 (Logistic Regression Model)"
+      if (method == "univariate") {
+        method_desc <- paste(
+          "本分析采用**单因素 Logistic 回归模型**，旨在单独评估每个变量对结局事件（二分类）发生概率的影响。",
+          "结果以比值比 (Odds Ratio, OR) 及其 95% 置信区间 (95% CI) 表示。",
+          "OR > 1 表示该变量水平相对于参考水平增加了事件发生的概率，OR < 1 表示降低了概率。"
+        )
+      } else {
+        method_desc <- paste(
+          "本分析采用**多因素 Logistic 回归模型**，旨在评估各变量在调整其他协变量影响后的独立预测价值。",
+          "该模型能够校正混杂因素，识别影响结局发生的独立危险因素或保护因素。",
+          "结果以调整后的比值比 (Adjusted Odds Ratio, OR) 及其 95% 置信区间 (95% CI) 表示。"
+        )
+      }
+    }
+    
+    # 2. 结果解释
+    interpretations <- list()
+    
+    # 筛选显著结果 (P < 0.05)
+    sig_res <- res[!is.na(res$P_Value) & res$P_Value < 0.05, ]
+    
+    if (nrow(sig_res) == 0) {
+      interpretations <- list("在当前的分析中，未发现 P 值小于 0.05 的显著变量。这可能意味着所选变量与结局之间没有强统计学关联，或者样本量不足以检测到这种关联。")
+    } else {
+      for (i in 1:nrow(sig_res)) {
+        row <- sig_res[i, ]
+        var_name <- row$Variable
+        level_name <- row$Level
+        est <- as.numeric(row$Estimate)
+        lower <- as.numeric(row$Lower)
+        upper <- as.numeric(row$Upper)
+        p_val <- row$P_Value_Str
+        
+        effect_direction <- ifelse(est > 1, "增加", "降低")
+        effect_metric <- ifelse(reg_type == "cox", "风险 (Hazard)", "发生概率 (Odds)")
+        
+        # 构建单条解释
+        if (level_name == "Continuous") {
+          interp <- sprintf(
+            "变量 **%s** 是显著的影响因素 (P = %s)。随着 %s 每增加一个单位，结局%s将%s %.2f 倍 (95%% CI: %.2f - %.2f)。",
+            var_name, p_val, var_name, effect_metric, effect_direction, est, lower, upper
+          )
+        } else {
+          interp <- sprintf(
+            "变量 **%s** 的 **%s** 水平相对于参考水平显示出统计学差异 (P = %s)。该组群的结局%s是参考组的 %.2f 倍 (95%% CI: %.2f - %.2f)，表现为显著%s。",
+            var_name, level_name, p_val, effect_metric, est, lower, upper, effect_direction
+          )
+        }
+        interpretations[[length(interpretations) + 1]] <- interp
+      }
+    }
+    
+    # 构建 HTML 输出
+    tagList(
+      tags$div(
+        style = "padding: 20px; background-color: #f8f9fa; border-radius: 5px; border: 1px solid #e9ecef;",
+        h3(icon("book"), "统计分析报告", style = "color: #2c3e50; margin-top: 0; border-bottom: 2px solid #3498db; padding-bottom: 10px;"),
+        
+        h4(icon("cogs"), "1. 分析方法描述", style = "color: #2980b9; margin-top: 20px;"),
+        tags$div(
+          style = "padding: 15px; background-color: white; border-left: 4px solid #3498db; box-shadow: 0 1px 3px rgba(0,0,0,0.1);",
+          strong(method_title),
+          p(style = "margin-top: 10px; line-height: 1.6; color: #555;", HTML(method_desc))
+        ),
+        
+        h4(icon("chart-line"), "2. 结果统计解释 (P < 0.05)", style = "color: #2980b9; margin-top: 25px;"),
+        tags$div(
+          style = "padding: 15px; background-color: white; border-left: 4px solid #27ae60; box-shadow: 0 1px 3px rgba(0,0,0,0.1);",
+          if (length(interpretations) > 0) {
+            tags$ul(
+              style = "padding-left: 20px; margin-bottom: 0;",
+              lapply(interpretations, function(txt) {
+                tags$li(style = "margin-bottom: 10px; line-height: 1.6; color: #333;", HTML(txt))
+              })
+            )
+          } else {
+            p("无显著结果。")
+          }
+        ),
+        
+        tags$div(
+          style = "margin-top: 30px; font-size: 0.9em; color: #7f8c8d; text-align: center; border-top: 1px solid #ddd; padding-top: 10px;",
+          "注：本报告由系统自动生成，仅供参考。临床决策请结合专业医学知识。"
+        )
+      )
+    )
+  })
+  
+  # ---------------------------------------------------------
+  # 新增：回归分析逻辑 (Cox & Logistic)
+  # ---------------------------------------------------------
+  analysis_results <- eventReactive(input$run_analysis, {
+    req(data(), input$covariates)
     
     df <- data()
+    reg_type <- input$regression_type
+    method <- input$analysis_method
+    covariates <- input$covariates
+    
+    if (reg_type == "cox") {
+      req(input$time_col, input$status_col)
+      time_var <- input$time_col
+      status_var <- input$status_col
+      
+      # 确保时间数值化
+      df[[time_var]] <- as.numeric(df[[time_var]])
+      # 确保状态数值化 (0/1)
+      if (is.character(df[[status_var]]) || is.factor(df[[status_var]])) {
+        lvls <- levels(as.factor(df[[status_var]]))
+        if (length(lvls) == 2) {
+          df[[status_var]] <- as.numeric(as.factor(df[[status_var]])) - 1
+        }
+      }
+      df[[status_var]] <- as.numeric(df[[status_var]])
+      
+    } else {
+      # Logistic Regression
+      req(input$outcome_col)
+      outcome_var <- input$outcome_col
+      
+      # 确保结局变量数值化 (0/1)
+      if (is.character(df[[outcome_var]]) || is.factor(df[[outcome_var]])) {
+        lvls <- levels(as.factor(df[[outcome_var]]))
+        if (length(lvls) == 2) {
+          df[[outcome_var]] <- as.numeric(as.factor(df[[outcome_var]])) - 1
+        }
+      }
+      df[[outcome_var]] <- as.numeric(df[[outcome_var]])
+    }
+
+    # 定义通用的提取函数
+    extract_model_res <- function(model, var, data, type = "cox") {
+      if (inherits(model, "try-error")) return(NULL)
+      
+      summ <- summary(model)
+      coefs <- summ$coefficients
+      
+      if (type == "cox") {
+        conf <- summ$conf.int
+        p_idx <- "Pr(>|z|)"
+        est_col <- "exp(coef)"
+        low_col <- "lower .95"
+        upp_col <- "upper .95"
+      } else {
+        # Logistic (glm)
+        # summary(glm) does not have conf.int directly
+        # Need to calculate
+        est <- coef(model)
+        se <- coefs[, "Std. Error"]
+        z_val <- coefs[, "z value"]
+        p_val <- coefs[, "Pr(>|z|)"]
+        
+        # Calculate OR and CI
+        or <- exp(est)
+        ci_low <- exp(est - 1.96 * se)
+        ci_high <- exp(est + 1.96 * se)
+        
+        # Construct a conf matrix like structure for easier indexing
+        conf <- cbind(or, ci_low, ci_high)
+        colnames(conf) <- c("OR", "2.5 %", "97.5 %")
+        
+        p_idx <- "Pr(>|z|)"
+      }
+      
+      is_cat <- is.factor(data[[var]]) || is.character(data[[var]])
+      
+      if (is_cat) {
+        lvls <- levels(as.factor(data[[var]]))
+        n_lvls <- length(lvls)
+        
+        res <- data.frame(
+          Variable = rep(var, n_lvls),
+          Level = lvls,
+          Estimate = NA,
+          Lower = NA,
+          Upper = NA,
+          P_Value = NA,
+          N = NA,
+          Events = NA,
+          stringsAsFactors = FALSE
+        )
+        
+        # Reference level
+        res$Estimate[1] <- 1.0
+        
+        # Other levels
+        for (i in 2:n_lvls) {
+          lvl <- lvls[i]
+          term_pattern <- paste0(var, lvl) 
+          
+          if (type == "cox") {
+             idx <- which(rownames(coefs) == term_pattern)
+             if (length(idx) == 0) idx <- grep(paste0(var, ".*", lvl), rownames(coefs))
+             
+             if (length(idx) > 0) {
+               idx <- idx[1]
+               res$Estimate[i] <- conf[idx, est_col]
+               res$Lower[i] <- conf[idx, low_col]
+               res$Upper[i] <- conf[idx, upp_col]
+               res$P_Value[i] <- coefs[idx, p_idx]
+             }
+          } else {
+             # Logistic
+             idx <- which(names(est) == term_pattern)
+             if (length(idx) == 0) idx <- grep(paste0(var, ".*", lvl), names(est))
+             
+             if (length(idx) > 0) {
+               idx <- idx[1]
+               res$Estimate[i] <- or[idx]
+               res$Lower[i] <- ci_low[idx]
+               res$Upper[i] <- ci_high[idx]
+               res$P_Value[i] <- p_val[idx]
+             }
+          }
+        }
+        
+        # N & Events
+        for (i in 1:n_lvls) {
+          sub <- data[data[[var]] == lvls[i], ]
+          res$N[i] <- nrow(sub)
+          if (type == "cox") {
+            res$Events[i] <- sum(sub[[status_var]] == 1, na.rm = TRUE)
+          } else {
+            res$Events[i] <- sum(sub[[outcome_var]] == 1, na.rm = TRUE)
+          }
+        }
+        
+      } else {
+        # Continuous
+        res <- data.frame(
+          Variable = var,
+          Level = "Continuous",
+          Estimate = NA, Lower = NA, Upper = NA, P_Value = NA, N = NA, Events = NA,
+          stringsAsFactors = FALSE
+        )
+        
+        if (type == "cox") {
+          idx <- which(rownames(coefs) == var)
+          if (length(idx) > 0) {
+            res$Estimate <- conf[idx, est_col]
+            res$Lower <- conf[idx, low_col]
+            res$Upper <- conf[idx, upp_col]
+            res$P_Value <- coefs[idx, p_idx]
+          }
+          res$N <- nrow(data[!is.na(data[[var]]), ])
+          res$Events <- sum(data[!is.na(data[[var]]), ][[status_var]] == 1, na.rm = TRUE)
+        } else {
+          idx <- which(names(est) == var)
+          if (length(idx) > 0) {
+            res$Estimate <- or[idx]
+            res$Lower <- ci_low[idx]
+            res$Upper <- ci_high[idx]
+            res$P_Value <- p_val[idx]
+          }
+          res$N <- nrow(data[!is.na(data[[var]]), ])
+          res$Events <- sum(data[!is.na(data[[var]]), ][[outcome_var]] == 1, na.rm = TRUE)
+        }
+      }
+      return(res)
+    }
+    
+    final_list <- list()
+    
+    if (method == "univariate") {
+      for (cov in covariates) {
+        if (reg_type == "cox") {
+          f <- as.formula(paste("Surv(", time_var, ",", status_var, ") ~", cov))
+          fit <- try(coxph(f, data = df), silent = TRUE)
+          res <- extract_model_res(fit, cov, df, type = "cox")
+        } else {
+          f <- as.formula(paste(outcome_var, "~", cov))
+          fit <- try(glm(f, data = df, family = binomial), silent = TRUE)
+          res <- extract_model_res(fit, cov, df, type = "logistic")
+        }
+        if (!is.null(res)) final_list[[cov]] <- res
+      }
+    } else {
+      # Multivariate
+      if (reg_type == "cox") {
+        f <- as.formula(paste("Surv(", time_var, ",", status_var, ") ~", paste(covariates, collapse = "+")))
+        fit <- try(coxph(f, data = df), silent = TRUE)
+        for (cov in covariates) {
+          res <- extract_model_res(fit, cov, df, type = "cox")
+          if (!is.null(res)) final_list[[cov]] <- res
+        }
+      } else {
+        f <- as.formula(paste(outcome_var, "~", paste(covariates, collapse = "+")))
+        fit <- try(glm(f, data = df, family = binomial), silent = TRUE)
+        for (cov in covariates) {
+          res <- extract_model_res(fit, cov, df, type = "logistic")
+          if (!is.null(res)) final_list[[cov]] <- res
+        }
+      }
+    }
+    
+    if (length(final_list) > 0) {
+      out <- do.call(rbind, final_list)
+      # 格式化 P 值 (保留用于显示，但保留原始值用于排序/逻辑)
+      out$P_Value_Raw <- out$P_Value
+      out$P_Value_Str <- ifelse(is.na(out$P_Value), "", 
+                                ifelse(out$P_Value < 0.001, "<0.001", sprintf("%.3f", out$P_Value)))
+      return(out)
+    } else {
+      showNotification("分析未产生有效结果，请检查数据", type = "warning")
+      return(NULL)
+    }
+  })
+  
+  # 分析完成后，自动更新表格显示的列
+  observeEvent(analysis_results(), {
+    res <- analysis_results()
+    if (!is.null(res)) {
+       new_cols <- c("Variable", "Level", "N", "Events", "P_Value_Str", "Estimate", "Lower", "Upper")
+       valid_cols <- intersect(new_cols, names(res))
+       
+       user_selections$selected_cols <- valid_cols
+       updateSelectizeInput(session, "selected_table_cols", choices = names(res), selected = valid_cols)
+       
+       user_selections$alignments[["Variable"]] <- "left"
+       user_selections$alignments[["Level"]] <- "center"
+       user_selections$alignments[["Estimate"]] <- "center"
+       
+       # 自动调整 X 轴范围
+       valid_est <- res[!is.na(res$Estimate) & !is.na(res$Lower) & !is.na(res$Upper), ]
+       if (nrow(valid_est) > 0) {
+         # 排除极值
+         min_val <- min(valid_est$Lower[valid_est$Lower > 0.01], na.rm = TRUE)
+         max_val <- max(valid_est$Upper[valid_est$Upper < 100], na.rm = TRUE)
+         
+         # 稍微放宽一点
+         min_val <- floor(min_val * 0.9)
+         max_val <- ceiling(max_val * 1.1)
+         
+         updateNumericInput(session, "x_min", value = min_val)
+         updateNumericInput(session, "x_max", value = max_val)
+       }
+    }
+  })
+
+  # 处理数据，准备森林图
+  processed_data <- reactive({
+    
+    if (input$data_mode == "precalculated") {
+      # 原有逻辑：预处理数据
+      req(data(), input$subgroup_col, input$study_col, 
+          input$estimate_col, input$lower_col, input$upper_col)
+      
+      df <- data()
+      
+      # 映射列名
+      cols_map <- list(
+        subgroup = input$subgroup_col,
+        study = input$study_col,
+        estimate = input$estimate_col,
+        lower = input$lower_col,
+        upper = input$upper_col
+      )
+      
+    } else {
+      # 新逻辑：原始数据分析
+      req(analysis_results())
+      df <- analysis_results()
+      
+      # 硬编码映射列名 (分析结果的固定列名)
+      cols_map <- list(
+        subgroup = "Variable",
+        study = "Level",
+        estimate = "Estimate",
+        lower = "Lower",
+        upper = "Upper"
+      )
+    }
     
     # 检查必要列是否存在
-    required_cols <- c(input$subgroup_col, input$study_col, 
-                      input$estimate_col, input$lower_col, input$upper_col)
+    required_cols <- unlist(cols_map)
     missing_cols <- required_cols[!required_cols %in% names(df)]
     if (length(missing_cols) > 0) {
-      showNotification(paste("缺少必要列:", paste(missing_cols, collapse = ", ")), 
-                      type = "error")
+      # 仅在预处理模式下报错，因为分析模式下如果列不对是代码逻辑问题
+      if (input$data_mode == "precalculated") {
+         showNotification(paste("缺少必要列:", paste(missing_cols, collapse = ", ")), type = "error")
+      }
       return(NULL)
     }
     
     # 转换数值列
-    num_cols <- c(input$estimate_col, input$lower_col, input$upper_col)
+    num_cols <- c(cols_map$estimate, cols_map$lower, cols_map$upper)
     for (col in num_cols) {
       if (col %in% names(df)) {
         df[[col]] <- suppressWarnings(as.numeric(df[[col]]))
@@ -529,15 +1047,15 @@ forest_plot_server <- function(input, output, session, data) {
     df$y_pos <- 1:nrow(df)
     
     # 处理亚组
-    df$subgroup_mapped <- as.character(df[[input$subgroup_col]])
+    df$subgroup_mapped <- as.character(df[[cols_map$subgroup]])
     
     # 处理超出范围的值
     x_min_val <- ifelse(is.numeric(input$x_min), input$x_min, 0)
     x_max_val <- ifelse(is.numeric(input$x_max), input$x_max, 100)
     
-    df$estimate_adj <- df[[input$estimate_col]]
-    df$lower_adj <- df[[input$lower_col]]
-    df$upper_adj <- df[[input$upper_col]]
+    df$estimate_adj <- df[[cols_map$estimate]]
+    df$lower_adj <- df[[cols_map$lower]]
+    df$upper_adj <- df[[cols_map$upper]]
     
     df$out_of_range_low <- df$lower_adj < x_min_val & !is.na(df$lower_adj)
     df$out_of_range_high <- df$upper_adj > x_max_val & !is.na(df$upper_adj)
@@ -550,18 +1068,13 @@ forest_plot_server <- function(input, output, session, data) {
     
     # 设置背景颜色
     if (input$color_mode == "alternating") {
-      # 按亚组交替颜色（而不是按行）
-      # 获取唯一的亚组并保持顺序
       unique_subgroups <- unique(df$subgroup_mapped)
-      # 创建亚组到颜色的映射：奇数亚组使用选定颜色，偶数亚组使用白色
       subgroup_colors <- setNames(
         ifelse(seq_along(unique_subgroups) %% 2 == 1, input$color_picker, "white"),
         unique_subgroups
       )
-      # 将颜色映射到每一行
       df$bg_color <- subgroup_colors[df$subgroup_mapped]
     } else {
-      # 随机亚组颜色
       subgroups <- unique(df$subgroup_mapped)
       colors <- brewer.pal(max(3, length(subgroups)), input$color_palette)
       subgroup_colors <- setNames(colors[1:length(subgroups)], subgroups)
@@ -570,6 +1083,7 @@ forest_plot_server <- function(input, output, session, data) {
     
     return(df)
   })
+
   
   # 动态设置图形高度
   output$plot_ui <- renderUI({
@@ -618,11 +1132,17 @@ forest_plot_server <- function(input, output, session, data) {
     y_upper_limit <- ifelse(n_rows > 15, 1.8, 1.5)
     
     if (input$percentage_format) {
-      x_breaks <- seq(x_min, x_max, length.out = 11)
+      x_breaks <- pretty(c(x_min, x_max), n = 10)
+      x_breaks <- x_breaks[x_breaks >= x_min & x_breaks <= x_max]
+      if(length(x_breaks) < 2) x_breaks <- seq(x_min, x_max, length.out = 5)
+      
       x_labels <- sprintf("%.0f%%", x_breaks * 100)
     } else {
-      x_breaks <- seq(x_min, x_max, length.out = 11)
-      x_labels <- sprintf("%.0f", x_breaks)
+      x_breaks <- pretty(c(x_min, x_max), n = 10)
+      x_breaks <- x_breaks[x_breaks >= x_min & x_breaks <= x_max]
+      if(length(x_breaks) < 2) x_breaks <- seq(x_min, x_max, length.out = 5)
+      
+      x_labels <- smart_format_number(x_breaks)
     }
     
     # 1. 创建森林图形部分
@@ -757,6 +1277,39 @@ forest_plot_server <- function(input, output, session, data) {
             col_values[!subgroup_first] <- ""
           }
           
+          # 对数值列应用智能格式化
+          # 检查是否为数值列 (Estimate, Lower, Upper, P_Value等)
+          # 注意：在 raw_data 模式下，P_Value_Str 已经是格式化好的字符串，不需要再次格式化
+          # 这里主要针对 Estimate, Lower, Upper 或者用户传入的原始数值
+          
+          is_numeric_col <- FALSE
+          if (input$data_mode == "raw_data") {
+             if (col_name %in% c("Estimate", "Lower", "Upper", "HR", "OR")) is_numeric_col <- TRUE
+          } else {
+             if (col_name %in% c(input$estimate_col, input$lower_col, input$upper_col)) is_numeric_col <- TRUE
+          }
+          
+          if (is_numeric_col) {
+             # 尝试转换为数值并格式化
+             # 先暂时保留 NA/空值处理逻辑
+             col_values_formatted <- sapply(col_values, function(v) {
+                if (is.na(v) || v == "" || v == "NA") return(v)
+                # 尝试转数字
+                num <- suppressWarnings(as.numeric(v))
+                if (!is.na(num)) {
+                   # 应用智能格式化
+                   if (abs(num) < 0.0001 && abs(num) > 0) return(formatC(num, format = "e", digits = 2))
+                   if (abs(num) >= 100) return(sprintf("%.1f", num))
+                   if (abs(num) >= 10) return(sprintf("%.2f", num))
+                   if (abs(num) >= 1) return(sprintf("%.2f", num))
+                   if (abs(num) >= 0.001) return(sprintf("%.3f", num))
+                   return(sprintf("%.4f", num))
+                }
+                return(v)
+             })
+             col_values <- col_values_formatted
+          }
+
           # 第一列应用文本换行
           if (i == 1) {
             col_values <- smart_wrap_text(col_values, max_chars_per_line)
