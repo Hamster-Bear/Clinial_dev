@@ -18,12 +18,29 @@ source("modules/statistical_analysis/linear.R")
 source("modules/statistical_analysis/anova.R")
 source("modules/statistical_analysis/chisq.R")
 source("modules/statistical_analysis/desc.R")
+source("modules/common/data_filter.R") # 加载通用筛选模块
 
 # 统计方法选择UI
 statistical_analysis_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
+    fluidRow(
+      # 顶部：数据筛选（新增）
+      column(
+        width = 12,
+        box(
+          width = NULL,
+          title = "全局数据筛选",
+          status = "info",
+          solidHeader = TRUE,
+          collapsible = TRUE,
+          collapsed = TRUE, # 默认折叠
+          # 调用筛选模块 UI
+          data_filter_ui(ns("global_filter"))
+        )
+      )
+    ),
     fluidRow(
       # 左侧：方法选择和变量选择
       column(
@@ -110,10 +127,13 @@ statistical_analysis_ui <- function(id) {
 statistical_analysis_server <- function(input, output, session, data) {
   ns <- session$ns
   
+  # 调用筛选模块，获取筛选后的数据
+  filtered_data <- data_filter_server("global_filter", data)
+  
   # 获取列分组变量的水平（用于描述性统计）
   desc_group_levels <- reactive({
-    req(data(), input$desc_col_group_var != "无")
-    unique(data()[[input$desc_col_group_var]])
+    req(filtered_data(), input$desc_col_group_var != "无")
+    unique(filtered_data()[[input$desc_col_group_var]])
   })
   
   # 动态生成描述性统计的总计列设置UI
@@ -159,24 +179,24 @@ statistical_analysis_server <- function(input, output, session, data) {
   
   # 动态参数UI
   output$stat_params_ui <- renderUI({
-    req(input$stat_method, data())
+    req(input$stat_method, filtered_data())
     
     switch(input$stat_method,
-           "cox" = cox_params_ui(ns, data()),
-           "logistic" = logistic_params_ui(ns, data()),
-           "linear" = linear_params_ui(ns, data()),
-           "anova" = anova_params_ui(ns, data()),
-           "chi-sq" = chisq_params_ui(ns, data()),
-           "desc" = desc_params_ui(ns, data()),
+           "cox" = cox_params_ui(ns, filtered_data()),
+           "logistic" = logistic_params_ui(ns, filtered_data()),
+           "linear" = linear_params_ui(ns, filtered_data()),
+           "anova" = anova_params_ui(ns, filtered_data()),
+           "chi-sq" = chisq_params_ui(ns, filtered_data()),
+           "desc" = desc_params_ui(ns, filtered_data()),
            NULL
     )
   })
   
   # 更新变量选择
   observe({
-    req(data())
+    req(filtered_data())
     
-    df <- data()
+    df <- filtered_data()
     numeric_vars <- names(df)[sapply(df, is.numeric)]
     factor_vars <- names(df)[sapply(df, is.factor)]
     all_vars <- names(df)
@@ -211,16 +231,16 @@ statistical_analysis_server <- function(input, output, session, data) {
   
   # 执行分析
   analysis_results <- eventReactive(input$run_analysis, {
-    req(data(), input$stat_method)
+    req(filtered_data(), input$stat_method)
     
     tryCatch({
       switch(input$stat_method,
-             "cox" = perform_cox_analysis(data(), input$cox_time, input$cox_status, input$cox_covariates, input$cox_strata),
-             "logistic" = perform_logistic_analysis(data(), input$logistic_response, input$logistic_predictors),
-             "linear" = perform_linear_analysis(data(), input$linear_response, input$linear_predictors),
-             "anova" = perform_anova_analysis(data(), input$anova_response, input$anova_factors),
-             "chi-sq" = perform_chisq_analysis(data(), input$chisq_var1, input$chisq_var2),
-             "desc" = perform_desc_analysis(data(), input$desc_variables, input$desc_col_group_var, input$desc_row_group_var,
+             "cox" = perform_cox_analysis(filtered_data(), input$cox_time, input$cox_status, input$cox_covariates, input$cox_strata),
+             "logistic" = perform_logistic_analysis(filtered_data(), input$logistic_response, input$logistic_predictors),
+             "linear" = perform_linear_analysis(filtered_data(), input$linear_response, input$linear_predictors),
+             "anova" = perform_anova_analysis(filtered_data(), input$anova_response, input$anova_factors),
+             "chi-sq" = perform_chisq_analysis(filtered_data(), input$chisq_var1, input$chisq_var2),
+             "desc" = perform_desc_analysis(filtered_data(), input$desc_variables, input$desc_col_group_var, input$desc_row_group_var,
                                             input$desc_total_cols_count, desc_total_cols_settings(),
                                             input$desc_decimals, input$desc_auto_decimals),
              NULL

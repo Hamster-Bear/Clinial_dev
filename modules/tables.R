@@ -11,6 +11,7 @@ library(shinyjs)
 source("modules/tables/t_dm.R")
 source("modules/tables/t_ae_soc_pt.R")
 source("modules/tables/listing_general.R")
+source("modules/common/data_filter.R") # 加载通用筛选模块
 
 # Tables模块UI
 tables_ui <- function(id) {
@@ -18,6 +19,22 @@ tables_ui <- function(id) {
   
   tagList(
     useShinyjs(),
+    fluidRow(
+      # 顶部：数据筛选（新增）
+      column(
+        width = 12,
+        box(
+          width = NULL,
+          title = "全局数据筛选",
+          status = "info",
+          solidHeader = TRUE,
+          collapsible = TRUE,
+          collapsed = TRUE, # 默认折叠
+          # 调用筛选模块 UI
+          data_filter_ui(ns("global_filter"))
+        )
+      )
+    ),
     fluidRow(
       # 左侧：参数设置
       column(
@@ -81,10 +98,13 @@ tables_server <- function(input, output, session, data) {
   # 存储生成的代码
   code_result <- reactiveVal("# 请先上传数据并选择变量，然后点击'生成表格'")
   
+  # 调用筛选模块，获取筛选后的数据
+  filtered_data <- data_filter_server("global_filter", data)
+  
   # 渲染动态参数UI（根据表格类型）
   output$dm_params_ui <- renderUI({
-    req(data(), input$table_type)
-    df <- data()
+    req(filtered_data(), input$table_type)
+    df <- filtered_data()
     if (input$table_type == "t_dm") {
       t_dm_params_ui(ns, df)
     } else if (input$table_type == "t_ae_soc_pt") {
@@ -98,8 +118,8 @@ tables_server <- function(input, output, session, data) {
   
   # 获取分组变量的水平（用于总计列设置）
   dm_group_levels <- reactive({
-    req(data(), input$dm_by_var, input$dm_by_var != "无")
-    unique(data()[[input$dm_by_var]])
+    req(filtered_data(), input$dm_by_var, input$dm_by_var != "无")
+    unique(filtered_data()[[input$dm_by_var]])
   })
   
   # 动态生成总计列设置UI
@@ -146,7 +166,7 @@ tables_server <- function(input, output, session, data) {
   # 访问锁：控制生成按钮状态（根据表格类型）
   observe({
     req(input$table_type)
-    if (is.null(data())) {
+    if (is.null(filtered_data())) {
       shinyjs::disable("generate")
       return()
     }
@@ -181,7 +201,7 @@ tables_server <- function(input, output, session, data) {
   
   # 生成表格
   observeEvent(input$generate, {
-    req(data(), input$table_type)
+    req(filtered_data(), input$table_type)
     if (input$table_type == "t_dm") {
       req(input$dm_variables)
     } else if (input$table_type == "t_ae_soc_pt") {
@@ -195,7 +215,7 @@ tables_server <- function(input, output, session, data) {
     # on.exit(shinyjs::enable("generate")) # 移至末尾，确保在异步或错误时也能恢复
     
     tryCatch({
-      df <- data()
+      df <- filtered_data()
       
       # 调试信息
       print(paste("Generating table type:", input$table_type))
@@ -333,11 +353,11 @@ tables_server <- function(input, output, session, data) {
   output$listing_download_rtf <- downloadHandler(
     filename = function() paste0("Listing_", Sys.Date(), ".rtf"),
     content = function(file) {
-      req(data(), input$listing_disp_cols)
+      req(filtered_data(), input$listing_disp_cols)
       
       tryCatch({
         export_listing_general_rtf(
-          data = data(),
+          data = filtered_data(),
           key_cols = input$listing_key_cols,
           disp_cols = input$listing_disp_cols,
           file = file,

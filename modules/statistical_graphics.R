@@ -11,11 +11,28 @@ source("modules/statistical_graphics/forest_plot.R")
 source("modules/statistical_graphics/heatmap.R")
 source("modules/statistical_graphics/correlation_matrix.R")
 source("modules/statistical_graphics/combo_plot.R")
+source("modules/common/data_filter.R") # 加载通用筛选模块
 
 statistical_graphics_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
+    fluidRow(
+      # 顶部：数据筛选（新增）
+      column(
+        width = 12,
+        box(
+          width = NULL,
+          title = "全局数据筛选",
+          status = "info",
+          solidHeader = TRUE,
+          collapsible = TRUE,
+          collapsed = TRUE, # 默认折叠
+          # 调用筛选模块 UI
+          data_filter_ui(ns("global_filter"))
+        )
+      )
+    ),
     fluidRow(
       box(
         width = 12,
@@ -45,6 +62,9 @@ statistical_graphics_ui <- function(id) {
 statistical_graphics_server <- function(input, output, session, data) {
   ns <- session$ns
   
+  # 调用筛选模块，获取筛选后的数据
+  filtered_data <- data_filter_server("global_filter", data)
+  
   # 存储各子模块的状态
   module_states <- reactiveValues(
     survival = NULL,
@@ -71,38 +91,38 @@ statistical_graphics_server <- function(input, output, session, data) {
   
   # 调用相应的子模块服务器函数
   observe({
-    req(input$fig_type, data())
+    req(input$fig_type, filtered_data())
     
     # 根据选择的图形类型调用相应的子模块
     switch(input$fig_type,
            "km" = {
              if (is.null(module_states$survival)) {
-               module_states$survival <- callModule(survival_analysis_server, "survival", data)
+               module_states$survival <- callModule(survival_analysis_server, "survival", filtered_data)
              }
            },
            "boxplot" = {
              if (is.null(module_states$boxplot)) {
-               module_states$boxplot <- callModule(boxplot_server, "boxplot", data)
+               module_states$boxplot <- callModule(boxplot_server, "boxplot", filtered_data)
              }
            },
            "forest" = {
              if (is.null(module_states$forest)) {
-               module_states$forest <- callModule(forest_plot_server, "forest", data)
+               module_states$forest <- callModule(forest_plot_server, "forest", filtered_data)
              }
            },
            "heatmap" = {
              if (is.null(module_states$heatmap)) {
-               module_states$heatmap <- callModule(heatmap_server, "heatmap", data)
+               module_states$heatmap <- callModule(heatmap_server, "heatmap", filtered_data)
              }
            },
            "correlation" = {
              if (is.null(module_states$correlation)) {
-               module_states$correlation <- callModule(correlation_matrix_server, "correlation", data)
+               module_states$correlation <- callModule(correlation_matrix_server, "correlation", filtered_data)
              }
            },
            "combo" = {
              if (is.null(module_states$combo)) {
-               module_states$combo <- callModule(combo_plot_server, "combo", data)
+               module_states$combo <- callModule(combo_plot_server, "combo", filtered_data)
              }
            }
     )

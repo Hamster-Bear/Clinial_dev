@@ -149,6 +149,7 @@ export_listing_general_rtf <- function(data, key_cols, disp_cols, file, landscap
     rtf_colheader(
       colheader = paste(final_cols, collapse = "|"),
       col_rel_width = rel_widths,
+      col_justification = aligns, # 表头也应用左对齐
       text_font_size = f_size,
       text_format = "b",
       border_top = "double",   
