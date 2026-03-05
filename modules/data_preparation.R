@@ -99,8 +99,8 @@ data_preparation_ui <- function(id) {
               choices = NULL,
               multiple = TRUE,
               options = list(
-                placeholder = '选择要显示的列...',
-                onInitialize = I('function() { this.setValue(""); }')
+                placeholder = '搜索变量名或Label后选择显示列...',
+                plugins = list('remove_button')
               )
             )
           )
@@ -159,6 +159,51 @@ data_preparation_ui <- function(id) {
               condition = "output.renderingTable == true",
               ns = ns,
               div("正在渲染数据表格...", style = "text-align: center; padding: 20px; color: #666;")
+            )
+          )
+        )
+      ),
+      
+      fluidRow(
+        column(
+          width = 12,
+          box(
+            width = NULL,
+            title = "变量信息卡片",
+            status = "primary",
+            solidHeader = TRUE,
+            reactable::reactableOutput(ns("variable_info_table")),
+            br(),
+            selectizeInput(
+              ns("meta_vars"),
+              "选择需要调整的变量:",
+              choices = NULL,
+              multiple = TRUE,
+              options = list(
+                placeholder = "选择变量后可修改类型与Label...",
+                plugins = list("remove_button")
+              )
+            ),
+            uiOutput(ns("variable_meta_controls")),
+            fluidRow(
+              column(
+                width = 6,
+                actionButton(
+                  ns("apply_var_meta"),
+                  "应用变量设置",
+                  class = "btn-primary",
+                  width = "100%"
+                )
+              ),
+              column(
+                width = 6,
+                actionButton(
+                  ns("reset_var_type_overrides"),
+                  "恢复自动识别",
+                  class = "btn-default",
+                  width = "100%"
+                )
+              )
             )
           )
         )
@@ -221,6 +266,27 @@ determine_var_type <- function(x) {
   }
 }
 
+valid_var_types <- c("numeric", "factor", "date", "text")
+
+coerce_var_data <- function(x, var_type) {
+  if (var_type == "numeric") {
+    return(suppressWarnings(as.numeric(x)))
+  }
+  if (var_type == "date") {
+    if (inherits(x, "Date")) {
+      return(x)
+    }
+    if (inherits(x, "POSIXct") || inherits(x, "POSIXlt")) {
+      return(as.Date(x))
+    }
+    return(suppressWarnings(as.Date(x)))
+  }
+  if (var_type == "factor") {
+    return(as.character(x))
+  }
+  as.character(x)
+}
+
 # 安全计算数值范围 - 处理全空值的情况
 safe_numeric_range <- function(var_data) {
   # 过滤出非空值
@@ -277,6 +343,8 @@ data_preparation_server <- function(input, output, session) {
   
   # 数据存储
   data_store <- reactiveVal()
+  var_type_overrides <- reactiveVal(setNames(character(0), character(0)))
+  var_label_overrides <- reactiveVal(setNames(character(0), character(0)))
   
   # 渲染状态
   rendering_table <- reactiveVal(FALSE)
@@ -287,6 +355,101 @@ data_preparation_server <- function(input, output, session) {
     filter_time = NULL,
     render_time = NULL
   )
+  
+  get_var_label <- function(var_name, var_data) {
+    label_overrides <- var_label_overrides()
+    if (var_name %in% names(label_overrides) && nzchar(trimws(label_overrides[[var_name]]))) {
+      return(trimws(label_overrides[[var_name]]))
+    }
+    var_label <- attr(var_data, "label")
+    if (!is.null(var_label) && nzchar(trimws(as.character(var_label)))) {
+      return(trimws(as.character(var_label)))
+    }
+    var_name
+  }
+  
+  get_effective_var_type <- function(var_name, var_data) {
+    type_overrides <- var_type_overrides()
+    if (var_name %in% names(type_overrides) && type_overrides[[var_name]] %in% valid_var_types) {
+      return(type_overrides[[var_name]])
+    }
+    determine_var_type(var_data)
+  }
+  
+  build_column_choices <- function(data) {
+    vars <- names(data)
+    labels <- vapply(vars, function(var_name) {
+      var_label <- get_var_label(var_name, data[[var_name]])
+      if (!identical(var_label, var_name)) {
+        paste0(var_name, " | ", var_label)
+      } else {
+        var_name
+      }
+    }, character(1))
+    setNames(vars, labels)
+  }
+  
+  remove_named_value <- function(x, key) {
+    if (length(x) == 0 || is.null(names(x))) {
+      return(x)
+    }
+    x[names(x) != key]
+  }
+  
+  format_filter_conditions <- function(data, selected_vars) {
+    if (is.null(selected_vars) || length(selected_vars) == 0) {
+      return("无")
+    }
+    condition_text <- character(0)
+    for (var_name in selected_vars) {
+      if (!(var_name %in% names(data))) {
+        next
+      }
+      var_type <- get_effective_var_type(var_name, data[[var_name]])
+      item <- NULL
+      if (var_type == "numeric") {
+        min_val <- input[[paste0("num_min_", var_name)]]
+        max_val <- input[[paste0("num_max_", var_name)]]
+        if (!is.null(min_val) && !is.null(max_val)) {
+          item <- paste0(var_name, " 数值[", min_val, ", ", max_val, "]")
+        }
+      } else if (var_type == "factor") {
+        vals <- input[[paste0("cat_values_", var_name)]]
+        if (!is.null(vals) && length(vals) > 0) {
+          item <- paste0(var_name, " 分类{", paste(vals, collapse = ", "), "}")
+        }
+      } else if (var_type == "date") {
+        start_date <- input[[paste0("date_start_", var_name)]]
+        end_date <- input[[paste0("date_end_", var_name)]]
+        if (!is.null(start_date) && !is.null(end_date)) {
+          item <- paste0(var_name, " 日期[", as.character(start_date), ", ", as.character(end_date), "]")
+        }
+      } else {
+        search_text <- input[[paste0("text_search_", var_name)]]
+        if (!is.null(search_text) && nzchar(trimws(search_text))) {
+          item <- paste0(var_name, " 文本包含\"", search_text, "\"")
+        }
+      }
+      if (var_type != "factor") {
+        na_filter_val <- input[[paste0("na_filter_", var_name)]]
+        if (!is.null(na_filter_val) && na_filter_val != "all") {
+          na_text <- if (na_filter_val == "exclude") "排除空值" else "仅空值"
+          if (is.null(item)) {
+            item <- paste0(var_name, " ", na_text)
+          } else {
+            item <- paste0(item, " + ", na_text)
+          }
+        }
+      }
+      if (!is.null(item)) {
+        condition_text <- c(condition_text, item)
+      }
+    }
+    if (length(condition_text) == 0) {
+      return("无")
+    }
+    paste(condition_text, collapse = "；")
+  }
   
   # 文件上传处理
   observeEvent(input$file, {
@@ -328,22 +491,32 @@ data_preparation_server <- function(input, output, session) {
       gc()
       
       data_store(data)
+      var_type_overrides(setNames(character(0), character(0)))
+      var_label_overrides(setNames(character(0), character(0)))
       
       # 记录加载时间
       load_time <- Sys.time() - start_time
       performance_metrics$load_time <- load_time
       
+      all_choices <- build_column_choices(data)
+      
       # 更新变量选择
       updateSelectizeInput(session, "selected_var",
-                           choices = names(data),
+                           choices = all_choices,
                            server = TRUE)
       
       # 更新列选择 - 限制默认显示列数以提高性能
       max_default_cols <- min(25, length(names(data)))  # 最多显示25列
       default_display_cols <- head(names(data), max_default_cols)
-      updateSelectInput(session, "selected_columns",
-                       choices = names(data),
-                       selected = default_display_cols)
+      updateSelectizeInput(session, "selected_columns",
+                           choices = all_choices,
+                           selected = default_display_cols,
+                           server = TRUE)
+      
+      updateSelectizeInput(session, "meta_vars",
+                           choices = all_choices,
+                           selected = character(0),
+                           server = TRUE)
       
       # 显示成功提示
       showNotification(paste("数据加载完成！耗时:", round(load_time, 2), "秒，共", nrow(data), "行 x", ncol(data), "列"),
@@ -387,8 +560,11 @@ data_preparation_server <- function(input, output, session) {
     
     # 使用更高效的控件生成方式
     controls <- lapply(selected_vars, function(var_name) {
-      var_data <- data[[var_name]]
-      var_type <- determine_var_type(var_data)
+      raw_var_data <- data[[var_name]]
+      var_data <- raw_var_data
+      var_label <- get_var_label(var_name, raw_var_data)
+      var_type <- get_effective_var_type(var_name, raw_var_data)
+      var_data <- coerce_var_data(var_data, var_type)
       
       # 创建控件组
       div(
@@ -396,7 +572,14 @@ data_preparation_server <- function(input, output, session) {
         style = "border: 1px solid #ddd; padding: 8px; margin: 3px; border-radius: 4px; background-color: #f8f9fa; display: inline-block; vertical-align: top; width: 280px; margin-right: 8px; word-wrap: break-word;",
         
         # 变量名和类型显示
-        h5(paste(var_name, "(", var_type, ")"), style = "margin-top: 0; color: #3; font-size: 13px; word-break: break-all;"),
+        h5(
+          if (!identical(var_label, var_name)) {
+            paste0(var_name, " [", var_label, "] (", var_type, ")")
+          } else {
+            paste0(var_name, " (", var_type, ")")
+          },
+          style = "margin-top: 0; color: #3; font-size: 13px; word-break: break-all;"
+        ),
         
         # 空值筛选选项 - 只对非分类变量显示
         if (var_type != "factor") {
@@ -585,6 +768,178 @@ data_preparation_server <- function(input, output, session) {
     )
   })
   
+  variable_info_data <- reactive({
+    req(data_store())
+    data <- data_store()
+    vars <- names(data)
+    
+    if (length(vars) == 0) {
+      return(data.frame())
+    }
+    
+    info <- lapply(vars, function(var_name) {
+      raw_var_data <- data[[var_name]]
+      auto_type <- determine_var_type(raw_var_data)
+      current_type <- get_effective_var_type(var_name, raw_var_data)
+      current_label <- get_var_label(var_name, raw_var_data)
+      typed_data <- coerce_var_data(raw_var_data, current_type)
+      na_rate <- if (length(typed_data) == 0) 0 else round(mean(is.na(typed_data)) * 100, 2)
+      unique_count <- length(unique(typed_data[!is.na(typed_data)]))
+      sample_values <- unique(as.character(typed_data[!is.na(typed_data)]))
+      sample_preview <- if (length(sample_values) == 0) {
+        ""
+      } else {
+        paste(head(sample_values, 3), collapse = ", ")
+      }
+      
+      data.frame(
+        变量名 = var_name,
+        Label = current_label,
+        自动类型 = auto_type,
+        当前类型 = current_type,
+        缺失率 = paste0(na_rate, "%"),
+        唯一值数 = unique_count,
+        示例值 = sample_preview,
+        stringsAsFactors = FALSE
+      )
+    })
+    
+    do.call(rbind, info)
+  })
+  
+  output$variable_info_table <- reactable::renderReactable({
+    req(variable_info_data())
+    reactable::reactable(
+      variable_info_data(),
+      searchable = TRUE,
+      filterable = FALSE,
+      striped = TRUE,
+      compact = TRUE,
+      bordered = TRUE,
+      defaultPageSize = 8,
+      showPageSizeOptions = TRUE,
+      pageSizeOptions = c(8, 15, 30),
+      resizable = TRUE,
+      highlight = TRUE,
+      fullWidth = TRUE
+    )
+  })
+  
+  output$variable_meta_controls <- renderUI({
+    req(data_store(), input$meta_vars)
+    selected_vars <- input$meta_vars
+    data <- data_store()
+    
+    if (length(selected_vars) == 0) {
+      return(NULL)
+    }
+    
+    controls <- lapply(selected_vars, function(var_name) {
+      raw_var_data <- data[[var_name]]
+      auto_type <- determine_var_type(raw_var_data)
+      current_type <- get_effective_var_type(var_name, raw_var_data)
+      current_label <- get_var_label(var_name, raw_var_data)
+      var_title <- if (!identical(current_label, var_name)) {
+        paste0(var_name, " [", current_label, "]")
+      } else {
+        var_name
+      }
+      
+      div(
+        style = "border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; border-radius: 4px; background-color: #f8f9fa;",
+        h5(var_title, style = "margin-top: 0; font-size: 13px;"),
+        div(paste0("自动类型: ", auto_type), style = "font-size: 12px; color: #666; margin-bottom: 8px;"),
+        textInput(
+          ns(paste0("meta_label_", var_name)),
+          "Label:",
+          value = current_label,
+          width = "100%"
+        ),
+        selectInput(
+          ns(paste0("meta_type_", var_name)),
+          "变量类型:",
+          choices = c("numeric", "factor", "date", "text"),
+          selected = current_type,
+          width = "100%"
+        )
+      )
+    })
+    
+    tagList(controls)
+  })
+  
+  observeEvent(input$apply_var_meta, {
+    req(data_store())
+    selected_vars <- input$meta_vars
+    if (is.null(selected_vars) || length(selected_vars) == 0) {
+      showNotification("请先选择要调整的变量", type = "warning")
+      return()
+    }
+    
+    data <- data_store()
+    type_values <- var_type_overrides()
+    label_values <- var_label_overrides()
+    
+    for (var_name in selected_vars) {
+      input_type <- input[[paste0("meta_type_", var_name)]]
+      input_label <- input[[paste0("meta_label_", var_name)]]
+      auto_type <- determine_var_type(data[[var_name]])
+      
+      if (!is.null(input_type) && input_type %in% valid_var_types) {
+        if (identical(input_type, auto_type)) {
+          type_values <- remove_named_value(type_values, var_name)
+        } else {
+          type_values[[var_name]] <- input_type
+        }
+      }
+      
+      if (!is.null(input_label)) {
+        trimmed_label <- trimws(input_label)
+        if (nzchar(trimmed_label)) {
+          label_values[[var_name]] <- trimmed_label
+        } else {
+          label_values <- remove_named_value(label_values, var_name)
+        }
+      }
+    }
+    
+    var_type_overrides(type_values)
+    var_label_overrides(label_values)
+    
+    all_choices <- build_column_choices(data)
+    max_default_cols <- min(25, length(names(data)))
+    default_display_cols <- head(names(data), max_default_cols)
+    selected_display_cols <- input$selected_columns
+    if (is.null(selected_display_cols) || length(selected_display_cols) == 0) {
+      selected_display_cols <- default_display_cols
+    } else {
+      selected_display_cols <- intersect(selected_display_cols, names(data))
+      if (length(selected_display_cols) == 0) {
+        selected_display_cols <- default_display_cols
+      }
+    }
+    
+    updateSelectizeInput(session, "selected_var",
+                         choices = all_choices,
+                         selected = intersect(input$selected_var, names(data)),
+                         server = TRUE)
+    updateSelectizeInput(session, "selected_columns",
+                         choices = all_choices,
+                         selected = selected_display_cols,
+                         server = TRUE)
+    updateSelectizeInput(session, "meta_vars",
+                         choices = all_choices,
+                         selected = intersect(selected_vars, names(data)),
+                         server = TRUE)
+    
+    showNotification("变量类型与Label设置已应用", type = "message")
+  })
+  
+  observeEvent(input$reset_var_type_overrides, {
+    var_type_overrides(setNames(character(0), character(0)))
+    showNotification("已恢复自动类型识别", type = "message")
+  })
+  
   # 应用筛选
   filtered_data <- reactive({
     req(data_store())
@@ -615,21 +970,23 @@ data_preparation_server <- function(input, output, session) {
     
     # 逐个应用筛选
     for (var_name in selected_vars) {
-      var_data <- data[[var_name]]
-      var_type <- determine_var_type(var_data)
+      raw_var_data <- data[[var_name]]
+      var_type <- get_effective_var_type(var_name, raw_var_data)
+      var_data <- coerce_var_data(raw_var_data, var_type)
       
       # 空值筛选 - 只对非分类变量应用
       if (var_type != "factor") {
         na_filter_val <- input[[paste0("na_filter_", var_name)]]
         
         if (!is.null(na_filter_val) && na_filter_val == "only") {
-          # 仅显示空值：只保留该变量为空的行，忽略其他筛选条件
-          data <- data %>% filter(is.na(data[[var_name]]))
+          data <- data[is.na(var_data), , drop = FALSE]
+          if (nrow(data) == 0) break
+          var_data <- coerce_var_data(data[[var_name]], var_type)
         } else if (!is.null(na_filter_val) && na_filter_val == "exclude") {
-          # 排除空值：只保留该变量非空的行
-          data <- data %>% filter(!is.na(data[[var_name]]))
+          data <- data[!is.na(var_data), , drop = FALSE]
+          if (nrow(data) == 0) break
+          var_data <- coerce_var_data(data[[var_name]], var_type)
         }
-        # "全部"模式不需要特殊处理，保留所有值
       }
       
       # 根据变量类型应用筛选条件
@@ -639,83 +996,55 @@ data_preparation_server <- function(input, output, session) {
         
         if (!is.null(min_val) && !is.null(max_val) &&
             is.numeric(min_val) && is.numeric(max_val)) {
-          # 对于数值变量，根据空值筛选模式决定是否包含空值
-          if (var_type != "factor") {
-            na_filter_val <- input[[paste0("na_filter_", var_name)]]
-            if (!is.null(na_filter_val) && na_filter_val == "exclude") {
-              # 排除空值模式下，只筛选非空值
-              data <- data %>% filter(data[[var_name]] >= min_val & data[[var_name]] <= max_val)
-            } else {
-              # 其他模式下，包含空值
-              data <- data %>% filter(data[[var_name]] >= min_val & data[[var_name]] <= max_val | is.na(data[[var_name]]))
-            }
+          na_filter_val <- input[[paste0("na_filter_", var_name)]]
+          keep_idx <- if (!is.null(na_filter_val) && na_filter_val == "exclude") {
+            !is.na(var_data) & var_data >= min_val & var_data <= max_val
+          } else {
+            is.na(var_data) | (var_data >= min_val & var_data <= max_val)
           }
+          data <- data[keep_idx, , drop = FALSE]
         }
       } else if (var_type == "factor") {
-        # 对于分类变量，直接根据选项列表筛选，不受空值筛选模式影响
         selected_values <- input[[paste0("cat_values_", var_name)]]
         if (!is.null(selected_values) && length(selected_values) > 0) {
-          # 检查是否选择了"NA"值
           if ("NA" %in% selected_values) {
-            # 如果选择了"NA"，则保留选中的非NA值和空值（包括NA和空字符串）
             non_na_selected <- setdiff(selected_values, "NA")
             if (length(non_na_selected) > 0) {
-              # 对于字符型变量，空值包括NA和空字符串；对于其他类型，只包括NA
-              if (is.character(var_data)) {
-                data <- data %>% filter(data[[var_name]] %in% non_na_selected |
-                                       is.na(data[[var_name]]) |
-                                       data[[var_name]] == "")
-              } else {
-                data <- data %>% filter(data[[var_name]] %in% non_na_selected |
-                                       is.na(data[[var_name]]))
-              }
+              keep_idx <- var_data %in% non_na_selected | is.na(var_data) | var_data == ""
             } else {
-              # 只保留空值（包括NA和空字符串）
-              if (is.character(var_data)) {
-                data <- data %>% filter(is.na(data[[var_name]]) | data[[var_name]] == "")
-              } else {
-                data <- data %>% filter(is.na(data[[var_name]]))
-              }
+              keep_idx <- is.na(var_data) | var_data == ""
             }
+            data <- data[keep_idx, , drop = FALSE]
           } else {
-            # 没有选择"NA"，只保留选中的非NA值
-            data <- data %>% filter(data[[var_name]] %in% selected_values)
+            data <- data[var_data %in% selected_values, , drop = FALSE]
           }
         }
-        # 如果没有选择分类值，保留所有值
       } else if (var_type == "date") {
         start_date <- input[[paste0("date_start_", var_name)]]
         end_date <- input[[paste0("date_end_", var_name)]]
         
         if (!is.null(start_date) && !is.null(end_date) &&
             inherits(start_date, "Date") && inherits(end_date, "Date")) {
-          # 对于日期变量，根据空值筛选模式决定是否包含空值
-          if (var_type != "factor") {
-            na_filter_val <- input[[paste0("na_filter_", var_name)]]
-            if (!is.null(na_filter_val) && na_filter_val == "exclude") {
-              # 排除空值模式下，只筛选非空值
-              data <- data %>% filter(data[[var_name]] >= start_date & data[[var_name]] <= end_date)
-            } else {
-              # 其他模式下，包含空值
-              data <- data %>% filter(data[[var_name]] >= start_date & data[[var_name]] <= end_date | is.na(data[[var_name]]))
-            }
+          na_filter_val <- input[[paste0("na_filter_", var_name)]]
+          keep_idx <- if (!is.null(na_filter_val) && na_filter_val == "exclude") {
+            !is.na(var_data) & var_data >= start_date & var_data <= end_date
+          } else {
+            is.na(var_data) | (var_data >= start_date & var_data <= end_date)
           }
+          data <- data[keep_idx, , drop = FALSE]
         }
       } else { # text
         search_text <- input[[paste0("text_search_", var_name)]]
         if (!is.null(search_text) && search_text != "") {
           pattern <- paste0(".*", search_text, ".*", sep = "")
-          # 对于文本变量，根据空值筛选模式决定是否包含空值
-          if (var_type != "factor") {
-            na_filter_val <- input[[paste0("na_filter_", var_name)]]
-            if (!is.null(na_filter_val) && na_filter_val == "exclude") {
-              # 排除空值模式下，只筛选非空值
-              data <- data %>% filter(grepl(pattern, data[[var_name]], ignore.case = TRUE))
-            } else {
-              # 其他模式下，包含空值
-              data <- data %>% filter(grepl(pattern, data[[var_name]], ignore.case = TRUE) | is.na(data[[var_name]]))
-            }
+          match_idx <- grepl(pattern, var_data, ignore.case = TRUE)
+          na_filter_val <- input[[paste0("na_filter_", var_name)]]
+          keep_idx <- if (!is.null(na_filter_val) && na_filter_val == "exclude") {
+            !is.na(var_data) & match_idx
+          } else {
+            is.na(var_data) | match_idx
           }
+          data <- data[keep_idx, , drop = FALSE]
         }
       }
     }
@@ -845,10 +1174,12 @@ data_preparation_server <- function(input, output, session) {
     original_rows <- nrow(data_store())
     filtered_rows <- nrow(filtered_data())
     
+    condition_text <- format_filter_conditions(data_store(), input$selected_var)
     paste(
       "原始数据行数:", original_rows, "\n",
       "筛选后行数:", filtered_rows, "\n",
-      "筛选比例:", round(filtered_rows/original_rows * 100, 2), "%"
+      "筛选比例:", round(filtered_rows/original_rows * 100, 2), "%", "\n",
+      "当前筛选条件:", condition_text
     )
   })
   
@@ -858,8 +1189,9 @@ data_preparation_server <- function(input, output, session) {
     selected_vars <- input$selected_var
     if (!is.null(selected_vars)) {
       for (var_name in selected_vars) {
-        var_data <- data_store()[[var_name]]
-        var_type <- determine_var_type(var_data)
+        raw_var_data <- data_store()[[var_name]]
+        var_type <- get_effective_var_type(var_name, raw_var_data)
+        var_data <- coerce_var_data(raw_var_data, var_type)
         
         if (var_type == "numeric") {
           # 使用安全函数计算数值范围
@@ -968,16 +1300,23 @@ data_preparation_server <- function(input, output, session) {
   
   # 监听数据变化，重置筛选变量选择和列选择
   observeEvent(data_store(), {
+    all_choices <- build_column_choices(data_store())
     updateSelectizeInput(session, "selected_var",
-                         choices = names(data_store()),
+                         choices = all_choices,
                          server = TRUE)
     
     # 更新列选择 - 保持合理的默认显示列数
     max_default_cols <- min(25, length(names(data_store())))
     default_display_cols <- head(names(data_store()), max_default_cols)
-    updateSelectInput(session, "selected_columns",
-                     choices = names(data_store()),
-                     selected = default_display_cols)
+    updateSelectizeInput(session, "selected_columns",
+                         choices = all_choices,
+                         selected = default_display_cols,
+                         server = TRUE)
+    
+    updateSelectizeInput(session, "meta_vars",
+                         choices = all_choices,
+                         selected = character(0),
+                         server = TRUE)
   })
   
   # 返回供分析模块使用的数据（已去除行号）
