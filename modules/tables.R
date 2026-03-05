@@ -11,6 +11,7 @@ library(shinyjs)
 source("modules/tables/t_dm.R")
 source("modules/tables/t_ae_soc_pt.R")
 source("modules/tables/listing_general.R")
+source("modules/tables/ae_sidebyside.R") # 加载并列对比图模块
 source("modules/common/data_filter.R") # 加载通用筛选模块
 
 # Tables模块UI
@@ -41,7 +42,7 @@ tables_ui <- function(id) {
         width = 3,
         box(
           width = NULL,
-          title = "表格参数设置",
+          title = "预设图表参数设置",
           status = "primary",
           solidHeader = TRUE,
           collapsible = TRUE,
@@ -49,11 +50,12 @@ tables_ui <- function(id) {
           # 表格类型选择
           selectizeInput(
             ns("table_type"),
-            "选择表格类型",
+            "选择图表类型",
             choices = c(
               "人口统计表格 (t_dm)" = "t_dm",
               "分级统计表 (t_ae_soc_pt)" = "t_ae_soc_pt",
-              "一般列表 (listing_general)" = "listing_general"
+              "一般列表 (listing_general)" = "listing_general",
+              "不良事件并列对比图 (ae_sidebyside)" = "ae_sidebyside"
             ),
             selected = "t_dm"
           ),
@@ -101,6 +103,9 @@ tables_server <- function(input, output, session, data) {
   # 调用筛选模块，获取筛选后的数据
   filtered_data <- data_filter_server("global_filter", data)
   
+  # 动态生成参数 UI
+  ae_sidebyside_params_server("ae_sidebyside_params", filtered_data)
+  
   # 渲染动态参数UI（根据表格类型）
   output$dm_params_ui <- renderUI({
     req(filtered_data(), input$table_type)
@@ -111,6 +116,8 @@ tables_server <- function(input, output, session, data) {
       t_ae_soc_pt_params_ui(ns, df)
     } else if (input$table_type == "listing_general") {
       listing_general_params_ui(ns, df)
+    } else if (input$table_type == "ae_sidebyside") {
+      ae_sidebyside_params_ui(ns("ae_sidebyside_params"), df)
     } else {
       NULL
     }
@@ -188,7 +195,22 @@ tables_server <- function(input, output, session, data) {
        } else {
           shinyjs::enable("generate")
        }
-    } else {
+    } else if (input$table_type == "ae_sidebyside") {
+         # 这里的输入在子模块 ns("ae_sidebyside_params") 下，需要通过 input 访问
+         # 但由于 UI 是动态渲染的，input 可能需要通过 session$input 访问，或者直接假设它们在顶层 input 中（如果使用 ns）
+         # 修正：ae_sidebyside_params_ui 使用了 ns，所以 input ID 会带有前缀
+         # 但在这里访问时，input 对象已经包含了当前模块的 namespace
+         # 所以 input[["ae_sidebyside_params-ae_term_col"]]
+         
+         term_col <- input[["ae_sidebyside_params-ae_term_col"]]
+         sev_col <- input[["ae_sidebyside_params-ae_sev_col"]]
+         
+         if (is.null(term_col) || is.null(sev_col)) {
+            shinyjs::disable("generate")
+         } else {
+            shinyjs::enable("generate")
+         }
+      } else {
       shinyjs::disable("generate")
     }
   })
@@ -208,6 +230,9 @@ tables_server <- function(input, output, session, data) {
         req(input$ae_trt_var, input$ae_soc_var, input$ae_pt_var)
       } else if (input$table_type == "listing_general") {
         req(input$listing_disp_cols)
+      } else if (input$table_type == "ae_sidebyside") {
+        # 注意：ae_sidebyside_params_ui 生成的输入带有 ae_sidebyside_params- 前缀
+        req(input[["ae_sidebyside_params-ae_term_col"]], input[["ae_sidebyside_params-ae_sev_col"]])
       }
     
       # 禁用按钮，防止重复点击
@@ -289,6 +314,25 @@ tables_server <- function(input, output, session, data) {
           landscape = input$listing_landscape,
           font_size = input$listing_font_size
         )
+      } else if (input$table_type == "ae_sidebyside") {
+        # 不良事件并列对比图
+        # 需要手动提取带命名空间的输入
+        prefix <- "ae_sidebyside_params-"
+        result <- perform_ae_sidebyside_analysis(
+          data = df,
+          term_col = input[[paste0(prefix, "ae_term_col")]],
+          sev_col = input[[paste0(prefix, "ae_sev_col")]],
+          subj_col = input[[paste0(prefix, "ae_subj_col")]],
+          group_col = input[[paste0(prefix, "ae_group_col")]],
+          flag_col = input[[paste0(prefix, "ae_flag_col")]],
+          flag_val = input[[paste0(prefix, "ae_flag_val")]],
+          rel_col = input[[paste0(prefix, "ae_rel_col")]],
+          rel_val = input[[paste0(prefix, "ae_rel_val")]],
+          count_mode = input[[paste0(prefix, "ae_count_mode")]],
+          min_pct = input[[paste0(prefix, "ae_min_pct")]]
+        )
+        
+        code <- generate_ae_sidebyside_code()
       } else {
         showNotification(paste("未知的表格类型:", input$table_type), type = "error")
         result <- NULL
@@ -322,6 +366,8 @@ tables_server <- function(input, output, session, data) {
       verbatimTextOutput(ns("table_text"), placeholder = TRUE)
     } else if (input$table_type == "listing_general") {
       verbatimTextOutput(ns("listing_text"), placeholder = TRUE)
+    } else if (input$table_type == "ae_sidebyside") {
+      plotOutput(ns("ae_plot"), height = "800px")
     } else {
       NULL
     }
@@ -347,6 +393,12 @@ tables_server <- function(input, output, session, data) {
   output$listing_text <- renderText({
     req(table_result(), input$table_type == "listing_general")
     toString(table_result())
+  })
+  
+  # AE Side-by-Side Plot 渲染
+  output$ae_plot <- renderPlot({
+    req(table_result(), input$table_type == "ae_sidebyside")
+    table_result()
   })
   
   # RTF 下载处理
