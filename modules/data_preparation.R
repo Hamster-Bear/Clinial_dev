@@ -1078,6 +1078,17 @@ data_preparation_server <- function(input, output, session) {
     if ("行号" %in% names(data)) {
       data <- data %>% select(-`行号`)
     }
+    label_values <- var_label_overrides()
+    if (length(label_values) > 0) {
+      for (var_name in names(label_values)) {
+        if (var_name %in% names(data)) {
+          label_text <- trimws(as.character(label_values[[var_name]]))
+          if (nzchar(label_text)) {
+            attr(data[[var_name]], "label") <- label_text
+          }
+        }
+      }
+    }
     data
   })
   

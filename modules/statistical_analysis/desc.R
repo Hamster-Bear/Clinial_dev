@@ -11,11 +11,13 @@ library(stringr)
 # 描述性统计参数UI
 desc_params_ui <- function(ns, data) {
   var_names <- names(data)
+  default_id_var <- if ("subject" %in% var_names) "subject" else if (length(var_names) > 0) var_names[1] else NULL
   
   tagList(
     selectizeInput(ns("desc_variables"), "选择分析变量", choices = var_names, multiple = TRUE),
     selectInput(ns("desc_col_group_var"), "列分组变量 (可选)", choices = c("无", var_names)),
     selectInput(ns("desc_row_group_var"), "行分组变量 (可选)", choices = c("无", var_names)),
+    selectInput(ns("desc_id_var"), "唯一标识符变量", choices = var_names, selected = default_id_var),
     
     # 自定义总计列设置
     conditionalPanel(
@@ -69,521 +71,338 @@ calculate_original_decimals <- function(data, variables) {
 }
 
 # 描述性统计分析
-perform_desc_analysis <- function(data, variables, col_group_var, row_group_var, total_cols_count, total_cols_settings, decimals, auto_decimals = TRUE) {
-  req(data, variables)
-  
+perform_desc_analysis <- function(data, variables, col_group_var, row_group_var, total_cols_count, total_cols_settings, decimals, auto_decimals = TRUE, id_var = NULL) {
+  if (is.null(data) || !is.data.frame(data)) {
+    stop("数据不能为空，且必须为数据框")
+  }
+  if (is.null(variables) || length(variables) == 0) {
+    stop("请至少选择一个分析变量")
+  }
+  if (!all(variables %in% names(data))) {
+    stop("存在未在数据中找到的分析变量")
+  }
+  if (!is.null(id_var) && !id_var %in% names(data)) {
+    stop("唯一标识符变量不存在于数据中")
+  }
+
   df <- data
   vars <- variables
-  col_group_var <- if(col_group_var != "无") col_group_var else NULL
-  row_group_var <- if(row_group_var != "无") row_group_var else NULL
-  
-  # 识别变量类型
+  col_group_var <- if (col_group_var != "无") col_group_var else NULL
+  row_group_var <- if (row_group_var != "无") row_group_var else NULL
+  is_categorical_group_var <- function(x) {
+    is.factor(x) || is.character(x) || is.logical(x)
+  }
+  if (!is.null(col_group_var) && !col_group_var %in% names(df)) {
+    stop("列分组变量不存在于数据中")
+  }
+  if (!is.null(row_group_var) && !row_group_var %in% names(df)) {
+    stop("行分组变量不存在于数据中")
+  }
+  if (!is.null(col_group_var) && !is_categorical_group_var(df[[col_group_var]])) {
+    stop("列分组变量仅支持分类型变量")
+  }
+  if (!is.null(row_group_var) && !is_categorical_group_var(df[[row_group_var]])) {
+    stop("行分组变量仅支持分类型变量")
+  }
+  if (!is.null(col_group_var) && !is.null(row_group_var) && identical(col_group_var, row_group_var)) {
+    stop("行分组变量与列分组变量不能相同")
+  }
+  overlap_vars <- intersect(vars, c(col_group_var, row_group_var))
+  if (length(overlap_vars) > 0) {
+    stop(paste0("分析变量不能与分组变量重复: ", paste(overlap_vars, collapse = ", ")))
+  }
+
   numeric_vars <- vars[sapply(df[, vars, drop = FALSE], is.numeric)]
   factor_vars <- setdiff(vars, numeric_vars)
-  
-  # 获取总计列设置
-  total_settings <- if(!is.null(col_group_var)) total_cols_settings else list()
-  
-  # 计算自动小数位数
-  auto_decimals_info <- if(auto_decimals && length(numeric_vars) > 0) {
-    calculate_original_decimals(df, numeric_vars)
-  } else {
-    list()
+  auto_decimals_info <- if (auto_decimals && length(numeric_vars) > 0) calculate_original_decimals(df, numeric_vars) else list()
+  stat_levels <- c("N", "Mean (SD)", "Median", "Q1, Q3", "Min, Max")
+
+  format_num <- function(x, digits) {
+    if (is.na(x) || !is.finite(x)) return("NA")
+    sprintf(paste0("%.", digits, "f"), x)
   }
-  
-  # 自定义函数生成统计表格
-  generate_stats_table <- function(data, numeric_vars, factor_vars, col_group_var = NULL, row_group_var = NULL, total_settings = list(), decimals = 2, auto_decimals = TRUE, auto_decimals_info = list()) {
-    result_list <- list()
-    
-    # 处理分类变量
-    if(length(factor_vars) > 0) {
-      for(var in factor_vars) {
-        # 存在行分组变量
-        if(!is.null(row_group_var)) {
-          # 存在列分组变量
-          if(!is.null(col_group_var)) {
-            group_counts <- data %>%
-              group_by(!!sym(row_group_var), !!sym(col_group_var)) %>%
-              count(!!sym(var)) %>%
-              mutate(percent = n / sum(n) * 100) %>%
-              mutate(stat = sprintf(paste0("%d (%.", decimals, "f%%)"), n, percent)) %>%
-              select(!!sym(row_group_var), !!sym(col_group_var), !!sym(var), stat) %>%
-              tidyr::pivot_wider(names_from = !!sym(col_group_var), values_from = "stat",
-                                 values_fill = paste0("0 (0.", paste0(rep("0", decimals), collapse = ""), "%)"))
-            
-            # 添加变量名和统计类型
-            group_counts$Variable <- var
-            group_counts$Statistics <- group_counts[[var]]
-            group_counts <- group_counts %>%
-              select(Variable, RowGroup = !!sym(row_group_var), Statistics, everything(), -!!sym(var))
-            
-            result_list[[var]] <- group_counts
-          } else {
-            # 无列分组变量
-            total_counts <- data %>%
-              group_by(!!sym(row_group_var)) %>%
-              count(!!sym(var)) %>%
-              mutate(percent = n / sum(n) * 100) %>%
-              mutate(Statistics = !!sym(var),
-                     Total = sprintf(paste0("%d (%.", decimals, "f%%)"), n, percent)) %>%
-              select(RowGroup = !!sym(row_group_var), Variable = !!sym(var), Statistics, Total)
-            
-            total_counts$Variable <- var
-            total_counts <- total_counts %>%
-              select(Variable, RowGroup, Statistics, Total)
-            
-            result_list[[var]] <- total_counts
-          }
-        } else {
-          # 无行分组变量，沿用原有逻辑
-          if(!is.null(col_group_var)) {
-            group_counts <- data %>%
-              group_by(!!sym(col_group_var)) %>%
-              count(!!sym(var)) %>%
-              mutate(percent = n / sum(n) * 100) %>%
-              mutate(stat = sprintf(paste0("%d (%.", decimals, "f%%)"), n, percent)) %>%
-              select(!!sym(col_group_var), !!sym(var), stat) %>%
-              tidyr::pivot_wider(names_from = !!sym(col_group_var), values_from = "stat",
-                                 values_fill = paste0("0 (0.", paste0(rep("0", decimals), collapse = ""), "%)"))
-            
-            # 添加变量名和统计类型
-            group_counts$Variable <- var
-            group_counts$Statistics <- group_counts[[var]]
-            group_counts <- group_counts %>%
-              select(Variable, Statistics, everything(), -!!sym(var))
-            
-            result_list[[var]] <- group_counts
-          } else {
-            # 无分组统计
-            total_counts <- data %>%
-              count(!!sym(var)) %>%
-              mutate(percent = n / sum(n) * 100) %>%
-              mutate(Statistics = !!sym(var),
-                     Total = sprintf(paste0("%d (%.", decimals, "f%%)"), n, percent)) %>%
-              select(Variable = !!sym(var), Statistics, Total)
-            
-            total_counts$Variable <- var
-            total_counts <- total_counts %>%
-              select(Variable, Statistics, Total)
-            
-            result_list[[var]] <- total_counts
-          }
-        }
-      }
-    }
-    
-    # 处理连续变量
-    if(length(numeric_vars) > 0) {
-      for(var in numeric_vars) {
-        # 确定小数位数
-        if(auto_decimals && var %in% names(auto_decimals_info)) {
-          base_decimals <- auto_decimals_info[[var]]
-          sd_decimals <- base_decimals + 2
-          min_max_decimals <- base_decimals
-          q1_q3_decimals <- base_decimals + 1
-          median_mean_decimals <- base_decimals + 1
-        } else {
-          sd_decimals <- decimals
-          min_max_decimals <- decimals
-          q1_q3_decimals <- decimals
-          median_mean_decimals <- decimals
-        }
 
-        # 存在行分组变量
-        if(!is.null(row_group_var)) {
-          # 存在列分组变量
-          if(!is.null(col_group_var)) {
-            # 分组统计 - 均值(标准差)
-            mean_sd <- data %>%
-              group_by(!!sym(row_group_var), !!sym(col_group_var)) %>%
-              summarise(
-                mean_val = mean(!!sym(var), na.rm = TRUE),
-                sd_val = sd(!!sym(var), na.rm = TRUE)
-              ) %>%
-              mutate(stat = sprintf(paste0("%.", median_mean_decimals, "f (%.", sd_decimals, "f)"), mean_val, sd_val)) %>%
-              select(!!sym(row_group_var), !!sym(col_group_var), stat) %>%
-              tidyr::pivot_wider(names_from = !!sym(col_group_var), values_from = "stat")
-
-            # 分组统计 - 中位数
-            median_val <- data %>%
-              group_by(!!sym(row_group_var), !!sym(col_group_var)) %>%
-              summarise(stat = sprintf(paste0("%.", median_mean_decimals, "f"), median(!!sym(var), na.rm = TRUE))) %>%
-              select(!!sym(row_group_var), !!sym(col_group_var), stat) %>%
-              tidyr::pivot_wider(names_from = !!sym(col_group_var), values_from = "stat")
-
-            # 分组统计 - 最小值,最大值
-            min_max <- data %>%
-              group_by(!!sym(row_group_var), !!sym(col_group_var)) %>%
-              summarise(stat = sprintf(paste0("%.", min_max_decimals, "f, %.", min_max_decimals, "f"),
-                                       min(!!sym(var), na.rm = TRUE),
-                                       max(!!sym(var), na.rm = TRUE))) %>%
-              select(!!sym(row_group_var), !!sym(col_group_var), stat) %>%
-              tidyr::pivot_wider(names_from = !!sym(col_group_var), values_from = "stat")
-
-            # 分组统计 - 四分位数
-            quartiles <- data %>%
-              group_by(!!sym(row_group_var), !!sym(col_group_var)) %>%
-              summarise(
-                q1 = quantile(!!sym(var), 0.25, na.rm = TRUE),
-                q3 = quantile(!!sym(var), 0.75, na.rm = TRUE)
-              ) %>%
-              mutate(stat = sprintf(paste0("%.", q1_q3_decimals, "f, %.", q1_q3_decimals, "f"), q1, q3)) %>%
-              select(!!sym(row_group_var), !!sym(col_group_var), stat) %>%
-              tidyr::pivot_wider(names_from = !!sym(col_group_var), values_from = "stat")
-
-            # 合并所有统计量
-            stats_df <- bind_rows(
-              data.frame(Statistics = "Mean (SD)", mean_sd, stringsAsFactors = FALSE),
-              data.frame(Statistics = "Median", median_val, stringsAsFactors = FALSE),
-              data.frame(Statistics = "Min, Max", min_max, stringsAsFactors = FALSE),
-              data.frame(Statistics = "Q1, Q3", quartiles, stringsAsFactors = FALSE)
-            )
-
-            # 添加变量名和行分组列
-            stats_df$Variable <- var
-            stats_df <- stats_df %>%
-              select(Variable, RowGroup = !!sym(row_group_var), Statistics, everything())
-
-            result_list[[var]] <- stats_df
-          } else {
-            # 无列分组变量
-            # 总计 - 均值(标准差)
-            total_mean_sd <- data %>%
-              group_by(!!sym(row_group_var)) %>%
-              summarise(
-                mean_val = mean(!!sym(var), na.rm = TRUE),
-                sd_val = sd(!!sym(var), na.rm = TRUE)
-              ) %>%
-              mutate(Statistics = "Mean (SD)",
-                     Total = sprintf(paste0("%.", median_mean_decimals, "f (%.", sd_decimals, "f)"), mean_val, sd_val)) %>%
-              select(RowGroup = !!sym(row_group_var), Statistics, Total)
-
-            # 总计 - 中位数
-            total_median <- data %>%
-              group_by(!!sym(row_group_var)) %>%
-              summarise(
-                Statistics = "Median",
-                Total = sprintf(paste0("%.", median_mean_decimals, "f"), median(!!sym(var), na.rm = TRUE))
-              ) %>%
-              select(RowGroup = !!sym(row_group_var), Statistics, Total)
-
-            # 总计 - 最小值,最大值
-            total_min_max <- data %>%
-              group_by(!!sym(row_group_var)) %>%
-              summarise(
-                Statistics = "Min, Max",
-                Total = sprintf(paste0("%.", min_max_decimals, "f, %.", min_max_decimals, "f"),
-                                min(!!sym(var), na.rm = TRUE),
-                                max(!!sym(var), na.rm = TRUE))
-              ) %>%
-              select(RowGroup = !!sym(row_group_var), Statistics, Total)
-
-            # 总计 - 四分位数
-            total_quartiles <- data %>%
-              group_by(!!sym(row_group_var)) %>%
-              summarise(
-                q1 = quantile(!!sym(var), 0.25, na.rm = TRUE),
-                q3 = quantile(!!sym(var), 0.75, na.rm = TRUE)
-              ) %>%
-              mutate(
-                Statistics = "Q1, Q3",
-                Total = sprintf(paste0("%.", q1_q3_decimals, "f, %.", q1_q3_decimals, "f"), q1, q3)
-              ) %>%
-              select(RowGroup = !!sym(row_group_var), Statistics, Total)
-
-            # 合并所有统计量
-            stats_df <- bind_rows(
-              total_mean_sd,
-              total_median,
-              total_min_max,
-              total_quartiles
-            )
-
-            # 添加变量名
-            stats_df$Variable <- var
-            stats_df <- stats_df %>%
-              select(Variable, RowGroup, Statistics, Total)
-
-            result_list[[var]] <- stats_df
-          }
-        } else {
-          # 无行分组变量，沿用原有逻辑
-          if(!is.null(col_group_var)) {
-            # 分组统计 - 均值(标准差)
-            mean_sd <- data %>%
-              group_by(!!sym(col_group_var)) %>%
-              summarise(
-                mean_val = mean(!!sym(var), na.rm = TRUE),
-                sd_val = sd(!!sym(var), na.rm = TRUE)
-              ) %>%
-              mutate(stat = sprintf(paste0("%.", median_mean_decimals, "f (%.", sd_decimals, "f)"), mean_val, sd_val)) %>%
-              select(!!sym(col_group_var), stat) %>%
-              tidyr::pivot_wider(names_from = !!sym(col_group_var), values_from = "stat")
-
-            # 分组统计 - 中位数
-            median_val <- data %>%
-              group_by(!!sym(col_group_var)) %>%
-              summarise(stat = sprintf(paste0("%.", median_mean_decimals, "f"), median(!!sym(var), na.rm = TRUE))) %>%
-              select(!!sym(col_group_var), stat) %>%
-              tidyr::pivot_wider(names_from = !!sym(col_group_var), values_from = "stat")
-
-            # 分组统计 - 最小值,最大值
-            min_max <- data %>%
-              group_by(!!sym(col_group_var)) %>%
-              summarise(stat = sprintf(paste0("%.", min_max_decimals, "f, %.", min_max_decimals, "f"),
-                                       min(!!sym(var), na.rm = TRUE),
-                                       max(!!sym(var), na.rm = TRUE))) %>%
-              select(!!sym(col_group_var), stat) %>%
-              tidyr::pivot_wider(names_from = !!sym(col_group_var), values_from = "stat")
-
-            # 分组统计 - 四分位数
-            quartiles <- data %>%
-              group_by(!!sym(col_group_var)) %>%
-              summarise(
-                q1 = quantile(!!sym(var), 0.25, na.rm = TRUE),
-                q3 = quantile(!!sym(var), 0.75, na.rm = TRUE)
-              ) %>%
-              mutate(stat = sprintf(paste0("%.", q1_q3_decimals, "f, %.", q1_q3_decimals, "f"), q1, q3)) %>%
-              select(!!sym(col_group_var), stat) %>%
-              tidyr::pivot_wider(names_from = !!sym(col_group_var), values_from = "stat")
-
-            # 合并所有统计量
-            stats_df <- bind_rows(
-              data.frame(Statistics = "Mean (SD)", mean_sd, stringsAsFactors = FALSE),
-              data.frame(Statistics = "Median", median_val, stringsAsFactors = FALSE),
-              data.frame(Statistics = "Min, Max", min_max, stringsAsFactors = FALSE),
-              data.frame(Statistics = "Q1, Q3", quartiles, stringsAsFactors = FALSE)
-            )
-
-            # 添加变量名
-            stats_df$Variable <- var
-            stats_df <- stats_df %>%
-              select(Variable, Statistics, everything())
-
-            result_list[[var]] <- stats_df
-          } else {
-            # 无分组统计
-            # 总计 - 均值(标准差)
-            total_mean_sd <- data %>%
-              summarise(
-                mean_val = mean(!!sym(var), na.rm = TRUE),
-                sd_val = sd(!!sym(var), na.rm = TRUE)
-              ) %>%
-              mutate(Statistics = "Mean (SD)",
-                     Total = sprintf(paste0("%.", median_mean_decimals, "f (%.", sd_decimals, "f)"), mean_val, sd_val)) %>%
-              select(Statistics, Total)
-
-            # 总计 - 中位数
-            total_median <- data %>%
-              summarise(
-                Statistics = "Median",
-                Total = sprintf(paste0("%.", median_mean_decimals, "f"), median(!!sym(var), na.rm = TRUE))
-              ) %>%
-              select(Statistics, Total)
-
-            # 总计 - 最小值,最大值
-            total_min_max <- data %>%
-              summarise(
-                Statistics = "Min, Max",
-                Total = sprintf(paste0("%.", min_max_decimals, "f, %.", min_max_decimals, "f"),
-                                min(!!sym(var), na.rm = TRUE),
-                                max(!!sym(var), na.rm = TRUE))
-              ) %>%
-              select(Statistics, Total)
-
-            # 总计 - 四分位数
-            total_quartiles <- data %>%
-              summarise(
-                q1 = quantile(!!sym(var), 0.25, na.rm = TRUE),
-                q3 = quantile(!!sym(var), 0.75, na.rm = TRUE)
-              ) %>%
-              mutate(
-                Statistics = "Q1, Q3",
-                Total = sprintf(paste0("%.", q1_q3_decimals, "f, %.", q1_q3_decimals, "f"), q1, q3)
-              ) %>%
-              select(Statistics, Total)
-
-            # 合并所有统计量
-            stats_df <- bind_rows(
-              total_mean_sd,
-              total_median,
-              total_min_max,
-              total_quartiles
-            )
-
-            # 添加变量名
-            stats_df$Variable <- var
-            stats_df <- stats_df %>%
-              select(Variable, Statistics, Total)
-
-            result_list[[var]] <- stats_df
-          }
-        }
-      }
-    }
-    
-    # 合并所有结果
-    if(length(result_list) > 0) {
-      final_result <- bind_rows(result_list)
-      
-      # 统一添加总计列（在合并后统一处理，避免重复）
-      if(!is.null(col_group_var) && length(total_settings) > 0) {
-        # 获取所有分组列名
-        group_cols <- setdiff(names(final_result), c("Variable", "Statistics"))
-        
-        for(i in seq_along(total_settings)) {
-          setting <- total_settings[[i]]
-          col_name <- setting$name
-          groups <- setting$groups
-          
-          if(length(groups) > 0) {
-            # 为每个变量计算总计列
-            total_col_data <- data.frame(Variable = character(), Statistics = character(), TotalCol = character(), stringsAsFactors = FALSE)
-            
-            # 处理分类变量
-            for(var in factor_vars) {
-              total_counts <- data %>%
-                filter(!!sym(col_group_var) %in% groups) %>%
-                count(!!sym(var)) %>%
-                mutate(percent = n / sum(n) * 100) %>%
-                mutate(Statistics = !!sym(var),
-                       TotalCol = sprintf(paste0("%d (%.", decimals, "f%%)"), n, percent)) %>%
-                select(Variable = !!sym(var), Statistics, TotalCol)
-              
-              total_counts$Variable <- var
-              total_col_data <- bind_rows(total_col_data, total_counts)
-            }
-            
-            # 处理连续变量
-            for(var in numeric_vars) {
-              # 确定小数位数
-              if(auto_decimals && var %in% names(auto_decimals_info)) {
-                base_decimals <- auto_decimals_info[[var]]
-                sd_decimals <- base_decimals + 2
-                min_max_decimals <- base_decimals
-                q1_q3_decimals <- base_decimals + 1
-                median_mean_decimals <- base_decimals + 1
-              } else {
-                sd_decimals <- decimals
-                min_max_decimals <- decimals
-                q1_q3_decimals <- decimals
-                median_mean_decimals <- decimals
-              }
-              
-              # 均值(标准差)
-              mean_sd_total <- data %>%
-                filter(!!sym(col_group_var) %in% groups) %>%
-                summarise(
-                  mean_val = mean(!!sym(var), na.rm = TRUE),
-                  sd_val = sd(!!sym(var), na.rm = TRUE)
-                ) %>%
-                mutate(Statistics = "Mean (SD)",
-                       TotalCol = sprintf(paste0("%.", median_mean_decimals, "f (%.", sd_decimals, "f)"), mean_val, sd_val)) %>%
-                select(Statistics, TotalCol)
-              mean_sd_total$Variable <- var
-              
-              # 中位数
-              median_total <- data %>%
-                filter(!!sym(col_group_var) %in% groups) %>%
-                summarise(
-                  Statistics = "Median",
-                  TotalCol = sprintf(paste0("%.", median_mean_decimals, "f"), median(!!sym(var), na.rm = TRUE))
-                ) %>%
-                select(Statistics, TotalCol)
-              median_total$Variable <- var
-              
-              # 最小值,最大值
-              min_max_total <- data %>%
-                filter(!!sym(col_group_var) %in% groups) %>%
-                summarise(
-                  Statistics = "Min, Max",
-                  TotalCol = sprintf(paste0("%.", min_max_decimals, "f, %.", min_max_decimals, "f"),
-                                    min(!!sym(var), na.rm = TRUE),
-                                    max(!!sym(var), na.rm = TRUE))
-                ) %>%
-                select(Statistics, TotalCol)
-              min_max_total$Variable <- var
-              
-              # 四分位数
-              quartiles_total <- data %>%
-                filter(!!sym(col_group_var) %in% groups) %>%
-                summarise(
-                  q1 = quantile(!!sym(var), 0.25, na.rm = TRUE),
-                  q3 = quantile(!!sym(var), 0.75, na.rm = TRUE)
-                ) %>%
-                mutate(
-                  Statistics = "Q1, Q3",
-                  TotalCol = sprintf(paste0("%.", q1_q3_decimals, "f, %.", q1_q3_decimals, "f"), q1, q3)
-                ) %>%
-                select(Statistics, TotalCol)
-              quartiles_total$Variable <- var
-              
-              total_col_data <- bind_rows(total_col_data, mean_sd_total, median_total, min_max_total, quartiles_total)
-            }
-            
-            # 合并总计列到最终结果
-            final_result <- final_result %>%
-              left_join(total_col_data %>% select(Variable, Statistics, !!col_name := TotalCol),
-                        by = c("Variable", "Statistics"))
-          }
-        }
-      }
-      
-      return(final_result)
+  stat_digits <- function(var) {
+    if (auto_decimals && var %in% names(auto_decimals_info)) {
+      base_decimals <- auto_decimals_info[[var]]
+      list(mean = base_decimals + 1, sd = base_decimals + 2, minmax = base_decimals, q = base_decimals + 1)
     } else {
-      return(NULL)
+      list(mean = decimals, sd = decimals, minmax = decimals, q = decimals)
     }
   }
-  
-  # 生成统计表格
-  result_table <- generate_stats_table(df, numeric_vars, factor_vars, col_group_var, row_group_var, total_settings, decimals, auto_decimals, auto_decimals_info)
-  
-  # 转换为gt表格
-  if (!is.null(result_table)) {
-    # 检查是否存在RowGroup列
-    if ("RowGroup" %in% names(result_table)) {
-      # 按Variable和RowGroup排序
-      result_table <- result_table %>%
-        arrange(Variable, RowGroup)
-      
-      # 添加行号
-      result_table <- result_table %>%
-        mutate(row_idx = row_number())
-      
-      # 计算每个Variable组内每个RowGroup子组的行范围
-      group_ranges <- result_table %>%
-        group_by(Variable, RowGroup) %>%
-        summarise(start = min(row_idx), end = max(row_idx), .groups = 'drop')
-      
-      # 移除临时列
-      result_table <- result_table %>% select(-row_idx)
-      
-      # 创建基础gt表格，按Variable分组，隐藏RowGroup列
-      gt_table <- gt::gt(result_table, groupname_col = "Variable") %>%
-        gt::cols_hide(columns = "RowGroup")
-      
-      # 添加二级分组（RowGroup）使用tab_row_group，并确保唯一ID
-      for(i in seq_len(nrow(group_ranges))) {
-        unique_id <- paste0(group_ranges$Variable[i], "_", group_ranges$RowGroup[i])
-        gt_table <- gt_table %>%
-          gt::tab_row_group(
-            label = group_ranges$RowGroup[i],
-            rows = group_ranges$start[i]:group_ranges$end[i],
-            id = unique_id
+
+  calc_cont_stats <- function(x, digits_cfg) {
+    x <- x[!is.na(x)]
+    n <- length(x)
+    if (n == 0) {
+      return(c("N" = "0", "Mean (SD)" = "NA", "Median" = "NA", "Q1, Q3" = "NA", "Min, Max" = "NA"))
+    }
+    mean_txt <- format_num(mean(x), digits_cfg$mean)
+    sd_val <- sd(x)
+    sd_txt <- format_num(sd_val, digits_cfg$sd)
+    median_txt <- format_num(median(x), digits_cfg$mean)
+    q1_txt <- format_num(quantile(x, 0.25, na.rm = TRUE), digits_cfg$q)
+    q3_txt <- format_num(quantile(x, 0.75, na.rm = TRUE), digits_cfg$q)
+    min_txt <- format_num(min(x), digits_cfg$minmax)
+    max_txt <- format_num(max(x), digits_cfg$minmax)
+    c(
+      "N" = as.character(n),
+      "Mean (SD)" = paste0(mean_txt, " (", sd_txt, ")"),
+      "Median" = median_txt,
+      "Q1, Q3" = paste0(q1_txt, ", ", q3_txt),
+      "Min, Max" = paste0(min_txt, ", ", max_txt)
+    )
+  }
+
+  normalize_group_var <- function(df_in, group_var) {
+    if (is.null(group_var)) return(df_in)
+    df_in[[group_var]] <- ifelse(is.na(df_in[[group_var]]), "缺失", as.character(df_in[[group_var]]))
+    df_in
+  }
+
+  build_factor_summary <- function(df_in, var, col_group_var = NULL, row_group_var = NULL, decimals = 2) {
+    all_levels <- unique(as.character(df_in[[var]]))
+    all_levels <- all_levels[!is.na(all_levels)]
+    if (length(all_levels) == 0) {
+      all_levels <- "缺失"
+    }
+    row_values <- if (is.null(row_group_var)) ".__ALL_ROW__" else unique(as.character(df_in[[row_group_var]]))
+    col_values <- if (is.null(col_group_var)) ".__ALL_COL__" else unique(as.character(df_in[[col_group_var]]))
+    if (length(row_values) == 0) row_values <- ".__ALL_ROW__"
+    if (length(col_values) == 0) col_values <- ".__ALL_COL__"
+
+    base_df <- df_in %>%
+      mutate(
+        .row = if (is.null(row_group_var)) ".__ALL_ROW__" else as.character(.data[[row_group_var]]),
+        .col = if (is.null(col_group_var)) ".__ALL_COL__" else as.character(.data[[col_group_var]]),
+        .level = ifelse(is.na(.data[[var]]), "缺失", as.character(.data[[var]]))
+      )
+
+    counts <- base_df %>%
+      count(.row, .col, .level, name = "n") %>%
+      complete(.row = row_values, .col = col_values, .level = all_levels, fill = list(n = 0)) %>%
+      group_by(.row, .col) %>%
+      mutate(
+        den = sum(n),
+        percent = ifelse(den > 0, n / den * 100, 0),
+        stat = sprintf(paste0("%d (%.", decimals, "f%%)"), n, percent)
+      ) %>%
+      ungroup()
+
+    if (!is.null(col_group_var)) {
+      out <- counts %>%
+        select(.row, .col, .level, stat) %>%
+        pivot_wider(names_from = .col, values_from = stat, values_fill = sprintf(paste0("%d (%.", decimals, "f%%)"), 0, 0))
+    } else {
+      out <- counts %>%
+        mutate(Total = stat) %>%
+        select(.row, .level, Total) %>%
+        distinct()
+    }
+
+    out$Variable <- var
+    out$Statistics <- out$.level
+    if (!is.null(row_group_var)) {
+      out$RowGroup <- out$.row
+      out <- out %>% select(Variable, RowGroup, Statistics, everything(), -.row, -.level)
+    } else {
+      out <- out %>% select(Variable, Statistics, everything(), -.row, -.level)
+    }
+    out
+  }
+
+  build_numeric_summary <- function(df_in, var, col_group_var = NULL, row_group_var = NULL, digits_cfg) {
+    group_vars <- c(row_group_var, col_group_var)
+    group_vars <- group_vars[!is.null(group_vars)]
+
+    if (length(group_vars) == 0) {
+      stats <- calc_cont_stats(df_in[[var]], digits_cfg)
+      out <- data.frame(
+        Variable = var,
+        Statistics = names(stats),
+        Total = as.character(stats),
+        stringsAsFactors = FALSE
+      )
+      return(out)
+    }
+
+    long_df <- df_in %>%
+      group_by(across(all_of(group_vars))) %>%
+      summarise(stats = list(calc_cont_stats(.data[[var]], digits_cfg)), .groups = "drop") %>%
+      unnest_wider(stats) %>%
+      pivot_longer(cols = all_of(stat_levels), names_to = "Statistics", values_to = "stat")
+
+    if (!is.null(col_group_var)) {
+      wide_df <- long_df %>%
+        pivot_wider(names_from = all_of(col_group_var), values_from = stat, values_fill = "NA")
+    } else {
+      wide_df <- long_df %>%
+        mutate(Total = stat) %>%
+        select(-stat)
+    }
+
+    wide_df$Variable <- var
+    if (!is.null(row_group_var)) {
+      wide_df <- wide_df %>% rename(RowGroup = all_of(row_group_var))
+      wide_df <- wide_df %>% select(Variable, RowGroup, Statistics, everything())
+    } else {
+      wide_df <- wide_df %>% select(Variable, Statistics, everything())
+    }
+    wide_df
+  }
+
+  normalize_total_settings <- function(total_settings, df_in, col_group_var) {
+    if (is.null(col_group_var) || length(total_settings) == 0) return(list())
+    valid_settings <- list()
+    group_levels <- unique(as.character(df_in[[col_group_var]]))
+    for (i in seq_along(total_settings)) {
+      setting <- total_settings[[i]]
+      col_name <- if (!is.null(setting$name)) trimws(as.character(setting$name)) else ""
+      if (nchar(col_name) == 0) col_name <- paste0("总计", i)
+      groups <- if (!is.null(setting$groups)) intersect(as.character(setting$groups), group_levels) else character(0)
+      if (length(groups) > 0) {
+        valid_settings[[length(valid_settings) + 1]] <- list(name = col_name, groups = groups)
+      }
+    }
+    if (length(valid_settings) > 0) {
+      name_vec <- vapply(valid_settings, function(x) x$name, character(1))
+      name_vec <- make.unique(name_vec, sep = "_")
+      for (i in seq_along(valid_settings)) valid_settings[[i]]$name <- name_vec[i]
+    }
+    valid_settings
+  }
+
+  df_work <- normalize_group_var(df, row_group_var)
+  df_work <- normalize_group_var(df_work, col_group_var)
+  total_settings <- normalize_total_settings(total_cols_settings, df_work, col_group_var)
+
+  result_list <- list()
+  if (length(factor_vars) > 0) {
+    factor_res <- lapply(factor_vars, function(var) build_factor_summary(df_work, var, col_group_var, row_group_var, decimals))
+    result_list <- c(result_list, factor_res)
+  }
+  if (length(numeric_vars) > 0) {
+    numeric_res <- lapply(numeric_vars, function(var) build_numeric_summary(df_work, var, col_group_var, row_group_var, stat_digits(var)))
+    result_list <- c(result_list, numeric_res)
+  }
+  if (length(result_list) == 0) return(NULL)
+
+  final_result <- bind_rows(result_list)
+
+  if (!is.null(col_group_var) && length(total_settings) > 0) {
+    for (i in seq_along(total_settings)) {
+      setting <- total_settings[[i]]
+      setting_data <- df_work %>% filter(.data[[col_group_var]] %in% setting$groups)
+
+      total_list <- list()
+      if (length(factor_vars) > 0) {
+        total_factor <- lapply(factor_vars, function(var) build_factor_summary(setting_data, var, NULL, row_group_var, decimals))
+        total_list <- c(total_list, total_factor)
+      }
+      if (length(numeric_vars) > 0) {
+        total_numeric <- lapply(numeric_vars, function(var) build_numeric_summary(setting_data, var, NULL, row_group_var, stat_digits(var)))
+        total_list <- c(total_list, total_numeric)
+      }
+
+      if (length(total_list) > 0) {
+        total_col_data <- bind_rows(total_list)
+        join_cols <- c("Variable", "Statistics")
+        if ("RowGroup" %in% names(final_result) && "RowGroup" %in% names(total_col_data)) {
+          join_cols <- c("Variable", "RowGroup", "Statistics")
+        }
+        final_result <- final_result %>%
+          left_join(
+            total_col_data %>% select(all_of(join_cols), !!setting$name := Total),
+            by = join_cols
           )
       }
-      
-    } else {
-      # 无RowGroup列，仅按Variable分组
-      gt_table <- gt::gt(result_table, groupname_col = "Variable")
     }
-    
-    # 应用基本格式化
-    gt_table <- gt_table %>%
-      gt::fmt_number(columns = where(is.numeric), decimals = decimals) %>%
-      gt::tab_options(table.font.size = "small")
-    return(gt_table)
-  } else {
-    return(NULL)
   }
+
+  final_result <- final_result %>%
+    mutate(
+      Variable = factor(Variable, levels = vars),
+      stat_order = ifelse(Statistics %in% stat_levels, match(Statistics, stat_levels), 1000 + as.integer(factor(Statistics)))
+    )
+  if ("RowGroup" %in% names(final_result)) {
+    final_result <- final_result %>% arrange(Variable, RowGroup, stat_order, Statistics)
+  } else {
+    final_result <- final_result %>% arrange(Variable, stat_order, Statistics)
+  }
+  final_result <- final_result %>% mutate(Variable = as.character(Variable)) %>% select(-stat_order)
+  var_label_map <- sapply(vars, function(v) {
+    v_label <- attr(df[[v]], "label", exact = TRUE)
+    if (is.null(v_label)) return(v)
+    v_label <- trimws(as.character(v_label)[1])
+    if (nchar(v_label) == 0) return(v)
+    v_label
+  }, USE.NAMES = TRUE)
+  final_result <- final_result %>%
+    mutate(VariableDisplay = unname(var_label_map[Variable]))
+  count_subject_n <- function(df_in) {
+    if (!is.null(id_var) && id_var %in% names(df_in)) {
+      id_vals <- as.character(df_in[[id_var]])
+      id_vals <- id_vals[!is.na(id_vals) & nzchar(trimws(id_vals))]
+      return(length(unique(id_vals)))
+    }
+    nrow(df_in)
+  }
+  build_n_label <- function(col_name) {
+    if (is.null(col_group_var)) {
+      n_val <- count_subject_n(df_work)
+      return(gt::md(paste0(col_name, "<br><span style='font-weight:normal'>(N = ", n_val, ")</span>")))
+    }
+    col_levels <- unique(as.character(df_work[[col_group_var]]))
+    if (col_name %in% col_levels) {
+      n_val <- count_subject_n(df_work %>% filter(.data[[col_group_var]] == col_name))
+      return(gt::md(paste0(col_name, "<br><span style='font-weight:normal'>(N = ", n_val, ")</span>")))
+    }
+    setting_idx <- which(vapply(total_settings, function(x) identical(x$name, col_name), logical(1)))
+    if (length(setting_idx) > 0) {
+      groups <- total_settings[[setting_idx[1]]]$groups
+      n_val <- count_subject_n(df_work %>% filter(.data[[col_group_var]] %in% groups))
+      return(gt::md(paste0(col_name, "<br><span style='font-weight:normal'>(N = ", n_val, ")</span>")))
+    }
+    n_val <- count_subject_n(df_work)
+    gt::md(paste0(col_name, "<br><span style='font-weight:normal'>(N = ", n_val, ")</span>"))
+  }
+
+  if ("RowGroup" %in% names(final_result)) {
+    final_result <- final_result %>%
+      group_by(Variable, RowGroup) %>%
+      mutate(
+        RowGroup = ifelse(row_number() == 1, paste0("\u00A0\u00A0\u00A0\u00A0", RowGroup), ""),
+        Statistics = ifelse(Statistics %in% stat_levels, paste0("\u00A0\u00A0\u00A0\u00A0", Statistics), paste0("\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0", Statistics))
+      ) %>%
+      ungroup()
+    gt_table <- gt::gt(final_result, groupname_col = "VariableDisplay")
+  } else {
+    gt_table <- gt::gt(final_result, groupname_col = "VariableDisplay")
+  }
+
+  label_map <- list(Statistics = "统计项")
+  if ("RowGroup" %in% names(final_result)) {
+    label_map$RowGroup <- ""
+  }
+  display_cols <- setdiff(names(final_result), c("Variable", "VariableDisplay", "Statistics", "RowGroup"))
+  if (length(display_cols) > 0) {
+    for (col_name in display_cols) {
+      label_map[[col_name]] <- build_n_label(col_name)
+    }
+  }
+  gt_table <- do.call(gt::cols_label, c(list(.data = gt_table), label_map))
+  gt_table <- gt_table %>%
+    gt::cols_hide(columns = c("Variable", "VariableDisplay")) %>%
+    gt::tab_style(
+      style = gt::cell_text(indent = gt::px(4)),
+      locations = gt::cells_body(columns = "Statistics")
+    ) %>%
+    gt::tab_source_note(gt::md("注：分类变量显示 n (%)，百分比分母为当前分组内非缺失样本数；连续变量全缺失或无法估计时显示 NA。")) %>%
+    gt::tab_options(
+      table.font.size = "small",
+      row_group.font.weight = "bold",
+      source_notes.font.size = "small"
+    )
+
+  gt_table
 }

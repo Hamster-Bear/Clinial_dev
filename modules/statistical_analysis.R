@@ -107,11 +107,10 @@ statistical_analysis_ui <- function(id) {
                      br(),
                      h4("输出说明:"),
                      tags$ul(
-                       tags$li("分类变量: n (n/N%)"),
-                       tags$li("连续变量: mean (sd)"),
-                       tags$li("中位数: median"),
-                       tags$li("最小值/最大值: min, max"),
-                       tags$li("四分位数: q1, q3")
+                       tags$li("分类变量: n (%)，百分比分母为当前分组内非缺失样本数"),
+                       tags$li("连续变量: N, Mean (SD), Median, Q1/Q3, Min/Max"),
+                       tags$li("全缺失、空分组或无法估计时统一显示 NA"),
+                       tags$li("行分组作为亚组展示，统计项以缩进方式层级呈现")
                      )
             )
           ),
@@ -198,7 +197,7 @@ statistical_analysis_server <- function(input, output, session, data) {
     
     df <- filtered_data()
     numeric_vars <- names(df)[sapply(df, is.numeric)]
-    factor_vars <- names(df)[sapply(df, is.factor)]
+    factor_vars <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x) || is.logical(x))]
     all_vars <- names(df)
     
     # 更新Cox回归变量选择
@@ -222,12 +221,37 @@ statistical_analysis_server <- function(input, output, session, data) {
     # 更新卡方检验变量选择
     updateSelectInput(session, "chisq_var1", choices = factor_vars)
     updateSelectInput(session, "chisq_var2", choices = factor_vars)
-    
-    # 更新描述性统计变量选择
-    updateSelectizeInput(session, "desc_variables", choices = all_vars)
-    updateSelectInput(session, "desc_col_group_var", choices = c("无", factor_vars))
-    updateSelectInput(session, "desc_row_group_var", choices = c("无", factor_vars))
+
+    current_col_group <- isolate(input$desc_col_group_var)
+    current_row_group <- isolate(input$desc_row_group_var)
+    current_col_group <- if (is.null(current_col_group)) "无" else current_col_group
+    current_row_group <- if (is.null(current_row_group)) "无" else current_row_group
+    col_selected <- if (current_col_group %in% c("无", factor_vars)) current_col_group else "无"
+    row_selected <- if (current_row_group %in% c("无", factor_vars)) current_row_group else "无"
+    current_id_var <- isolate(input$desc_id_var)
+    if (is.null(current_id_var) || !current_id_var %in% all_vars) {
+      current_id_var <- if ("subject" %in% all_vars) "subject" else if (length(all_vars) > 0) all_vars[1] else NULL
+    }
+    updateSelectInput(session, "desc_col_group_var", choices = c("无", factor_vars), selected = col_selected)
+    updateSelectInput(session, "desc_row_group_var", choices = c("无", factor_vars), selected = row_selected)
+    updateSelectInput(session, "desc_id_var", choices = all_vars, selected = current_id_var)
   })
+
+  observeEvent(list(filtered_data(), input$desc_col_group_var, input$desc_row_group_var), {
+    req(filtered_data())
+
+    all_vars <- names(filtered_data())
+    selected_col_group <- if (is.null(input$desc_col_group_var)) "无" else input$desc_col_group_var
+    selected_row_group <- if (is.null(input$desc_row_group_var)) "无" else input$desc_row_group_var
+    desc_group_vars <- setdiff(c(selected_col_group, selected_row_group), "无")
+    desc_candidate_vars <- setdiff(all_vars, desc_group_vars)
+    current_desc_vars <- isolate(input$desc_variables)
+    if (is.null(current_desc_vars)) {
+      current_desc_vars <- character(0)
+    }
+    selected_desc_vars <- intersect(current_desc_vars, desc_candidate_vars)
+    updateSelectizeInput(session, "desc_variables", choices = desc_candidate_vars, selected = selected_desc_vars, server = TRUE)
+  }, ignoreInit = FALSE)
   
   # 执行分析
   analysis_results <- eventReactive(input$run_analysis, {
@@ -240,9 +264,25 @@ statistical_analysis_server <- function(input, output, session, data) {
              "linear" = perform_linear_analysis(filtered_data(), input$linear_response, input$linear_predictors),
              "anova" = perform_anova_analysis(filtered_data(), input$anova_response, input$anova_factors),
              "chi-sq" = perform_chisq_analysis(filtered_data(), input$chisq_var1, input$chisq_var2),
-             "desc" = perform_desc_analysis(filtered_data(), input$desc_variables, input$desc_col_group_var, input$desc_row_group_var,
-                                            input$desc_total_cols_count, desc_total_cols_settings(),
-                                            input$desc_decimals, input$desc_auto_decimals),
+             "desc" = {
+               desc_vars <- if (is.null(input$desc_variables)) character(0) else input$desc_variables
+               col_group_var <- if (is.null(input$desc_col_group_var)) "无" else input$desc_col_group_var
+               row_group_var <- if (is.null(input$desc_row_group_var)) "无" else input$desc_row_group_var
+               id_var <- if (is.null(input$desc_id_var) || input$desc_id_var == "") NULL else input$desc_id_var
+               if (length(desc_vars) == 0) {
+                 stop("请至少选择一个分析变量")
+               }
+               if (col_group_var != "无" && row_group_var != "无" && identical(col_group_var, row_group_var)) {
+                 stop("行分组变量与列分组变量不能相同")
+               }
+               overlap_vars <- intersect(desc_vars, setdiff(c(col_group_var, row_group_var), "无"))
+               if (length(overlap_vars) > 0) {
+                 stop(paste0("分析变量不能与分组变量重复: ", paste(overlap_vars, collapse = ", ")))
+               }
+               perform_desc_analysis(filtered_data(), desc_vars, col_group_var, row_group_var,
+                                     input$desc_total_cols_count, desc_total_cols_settings(),
+                                     input$desc_decimals, input$desc_auto_decimals, id_var)
+             },
              NULL
       )
     }, error = function(e) {
