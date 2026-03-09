@@ -18,6 +18,7 @@ for (pkg in required_packages) {
 
 # 加载所有模块
 source("modules/data_preparation.R")
+source("modules/database_manager.R")
 source("modules/exploratory_analysis.R")
 source("modules/statistical_analysis.R")
 source("modules/statistical_graphics.R")
@@ -46,31 +47,37 @@ ui <- dashboardPage(
     width = 300,
     sidebarMenu(
       id = "tabs",
-      menuItem("1. 数据准备",
-               tabName = "data_prep",
+      menuItem("1. 数据库管理",
+               tabName = "db_manage",
                icon = icon("database"),
                badgeLabel = "第一步",
                badgeColor = "blue"),
       
-      menuItem("2. 探索与可视化",
+      menuItem("2. 数据准备",
+               tabName = "data_prep",
+               icon = icon("upload"),
+               badgeLabel = "第二步",
+               badgeColor = "blue"),
+      
+      menuItem("3. 探索与可视化",
                tabName = "explore",
                icon = icon("bar-chart"),
                badgeLabel = "可访问",
                badgeColor = "green"),
       
-      menuItem("3. 统计分析",
+      menuItem("4. 统计分析",
                tabName = "stats",
                icon = icon("table"),
                badgeLabel = "可访问",
                badgeColor = "green"),
       
-      menuItem("4. 统计图形",
+      menuItem("5. 统计图形",
                tabName = "plots",
                icon = icon("line-chart"),
                badgeLabel = "可访问",
                badgeColor = "green"),
       
-      menuItem("5. 专业表格",
+      menuItem("6. 专业表格",
                tabName = "tables",
                icon = icon("table"),
                badgeLabel = "可访问",
@@ -91,6 +98,11 @@ ui <- dashboardPage(
     ),
     
     tabItems(
+      tabItem(
+        tabName = "db_manage",
+        database_manager_ui("db_manage")
+      ),
+      
       # 数据准备标签页
       tabItem(
         tabName = "data_prep",
@@ -133,6 +145,8 @@ server <- function(input, output, session) {
   # 反应式数据存储 - 在模块间共享（简化）
   raw_data <- reactiveVal(NULL)
   filtered_data <- reactiveVal(NULL)  # 所有模块使用筛选后的数据
+  
+  callModule(database_manager_server, "db_manage")
   
   # 调用数据准备模块
   data_prep_module <- callModule(data_preparation_server, "data_prep")

@@ -110,6 +110,7 @@ combo_plot_ui <- function(id) {
         fluidRow(
           column(12,
             div(style = "display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;",
+               actionButton(ns("generate_plot"), "生成图形", class = "btn-success", style = "margin-right: 10px;"),
                div(style = "margin-right: 10px; width: 150px;",
                    selectInput(ns("export_format"), NULL, choices = c("导出PNG" = "png", "导出PDF" = "pdf", "导出SVG" = "svg"), selected = "png", width = "100%")
                ),
@@ -310,17 +311,11 @@ combo_plot_server <- function(input, output, session, data) {
     return(p)
   }
   
-  # 创建组合图形对象 (返回 list 或 ggplot)
-  create_combo_plot_obj <- reactive({
-    req(input$plot_types, data(), input$combo_method)
-    
-    data <- data()
-    method <- input$combo_method
-    types <- input$plot_types
+  create_combo_plot_obj <- function(data_input, method, types) {
     
     if (method == "overlay") {
       # 叠加模式：在同一个 ggplot 对象上添加多个图层
-      p <- ggplot(data)
+      p <- ggplot(data_input)
       
       # 通用映射
       x_var <- if(input$main_x_var != "none") input$main_x_var else NULL
@@ -372,16 +367,35 @@ combo_plot_server <- function(input, output, session, data) {
     } else {
       # 并排或上下模式：创建多个独立的 ggplot 对象列表
       plot_list <- lapply(types, function(type) {
-        create_ggplot_object(type, data)
+        create_ggplot_object(type, data_input)
       })
       return(plot_list)
     }
+  }
+  
+  generated_plot_obj <- eventReactive(input$generate_plot, {
+    req(input$plot_types, data(), input$combo_method)
+    shinyjs::disable(selector = paste0("#", ns("generate_plot")))
+    on.exit(shinyjs::enable(selector = paste0("#", ns("generate_plot"))), add = TRUE)
+    withProgress(message = "正在生成组合图形...", value = 0, {
+      incProgress(0.3, detail = "准备参数")
+      method <- input$combo_method
+      types <- input$plot_types
+      df <- data()
+      incProgress(0.6, detail = "构建图形对象")
+      obj <- create_combo_plot_obj(df, method, types)
+      incProgress(0.1, detail = "完成")
+      list(
+        method = method,
+        obj = obj
+      )
+    })
   })
   
   # 图形输出区域 UI
   output$plot_output_area <- renderUI({
-    req(input$combo_method)
-    if (input$combo_method == "overlay") {
+    req(generated_plot_obj())
+    if (generated_plot_obj()$method == "overlay") {
       plotlyOutput(ns("overlay_plot"), height = "600px")
     } else {
       # 对于多个子图，使用 plotOutput (静态) 或 plotlyOutput (动态)
@@ -392,21 +406,23 @@ combo_plot_server <- function(input, output, session, data) {
   
   # 叠加图形渲染
   output$overlay_plot <- renderPlotly({
-    req(input$combo_method == "overlay")
-    p <- create_combo_plot_obj()
+    req(generated_plot_obj())
+    req(generated_plot_obj()$method == "overlay")
+    p <- generated_plot_obj()$obj
     ggplotly(p)
   })
   
   # 网格图形渲染 (并排/上下)
   output$grid_plot <- renderPlotly({
-    req(input$combo_method != "overlay")
-    plot_list <- create_combo_plot_obj()
+    req(generated_plot_obj())
+    req(generated_plot_obj()$method != "overlay")
+    plot_list <- generated_plot_obj()$obj
     
     # 转换为 plotly 对象
     plotly_list <- lapply(plot_list, ggplotly)
     
     # 确定行数
-    nrows <- if(input$combo_method == "side_by_side") 1 else length(plotly_list)
+    nrows <- if(generated_plot_obj()$method == "side_by_side") 1 else length(plotly_list)
     
     subplot(plotly_list, nrows = nrows, shareX = FALSE, shareY = FALSE, titleX = TRUE, titleY = TRUE)
   })
@@ -417,7 +433,8 @@ combo_plot_server <- function(input, output, session, data) {
       paste("combo_plot_", Sys.Date(), ".", input$export_format, sep = "")
     },
     content = function(file) {
-      obj <- create_combo_plot_obj()
+      req(generated_plot_obj())
+      obj <- generated_plot_obj()$obj
       format <- input$export_format
       
       # 准备用于保存的静态图形对象
@@ -426,7 +443,7 @@ combo_plot_server <- function(input, output, session, data) {
         final_plot <- obj
       } else if (is.list(obj)) {
         # 列表模式：使用 cowplot 或 gridExtra 组合
-        nrows <- if(input$combo_method == "side_by_side") 1 else length(obj)
+        nrows <- if(generated_plot_obj()$method == "side_by_side") 1 else length(obj)
         final_plot <- plot_grid(plotlist = obj, nrow = nrows)
       }
       

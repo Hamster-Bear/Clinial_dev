@@ -66,6 +66,32 @@ data_preparation_ui <- function(id) {
         )
       )
     ),
+    fluidRow(
+      box(
+        width = 12,
+        title = "数据库数据集加载",
+        status = "info",
+        solidHeader = TRUE,
+        fluidRow(
+          column(
+            width = 4,
+            selectInput(ns("db_workspace_select"), "选择数据空间", choices = character(0))
+          ),
+          column(
+            width = 4,
+            selectInput(ns("db_folder_select"), "选择文件夹", choices = c("根目录" = "__ROOT__"))
+          ),
+          column(
+            width = 4,
+            selectInput(ns("db_dataset_select"), "选择数据集", choices = character(0))
+          )
+        ),
+        fluidRow(
+          column(6, actionButton(ns("db_refresh"), "刷新数据库列表", class = "btn-default", width = "100%")),
+          column(6, actionButton(ns("db_load_dataset"), "加载所选数据集", class = "btn-primary", width = "100%"))
+        )
+      )
+    ),
     
     # 变量选择和筛选区域（条件显示）
     conditionalPanel(
@@ -115,12 +141,27 @@ data_preparation_ui <- function(id) {
             status = "warning",
             solidHeader = TRUE,
             # 重置按钮
-            actionButton(
-              ns("reset_filters"),
-              "重置所有筛选",
-              class = "btn-warning",
-              width = "100%",
-              icon = icon("refresh")
+            fluidRow(
+              column(
+                width = 6,
+                actionButton(
+                  ns("apply_filters"),
+                  "应用筛选",
+                  class = "btn-primary",
+                  width = "100%",
+                  icon = icon("play")
+                )
+              ),
+              column(
+                width = 6,
+                actionButton(
+                  ns("reset_filters"),
+                  "重置所有筛选",
+                  class = "btn-warning",
+                  width = "100%",
+                  icon = icon("refresh")
+                )
+              )
             ),
             
             # 筛选结果统计
@@ -141,6 +182,12 @@ data_preparation_ui <- function(id) {
             # 动态筛选控件容器
             uiOutput(ns("filter_controls"))
           )
+        )
+      ),
+      fluidRow(
+        column(
+          width = 12,
+          uiOutput(ns("data_overview_cards"))
         )
       ),
       
@@ -279,7 +326,19 @@ coerce_var_data <- function(x, var_type) {
     if (inherits(x, "POSIXct") || inherits(x, "POSIXlt")) {
       return(as.Date(x))
     }
-    return(suppressWarnings(as.Date(x)))
+    x_chr <- as.character(x)
+    parsed <- tryCatch(
+      suppressWarnings(as.Date(
+        x_chr,
+        tryFormats = c(
+          "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d",
+          "%Y%m%d", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S",
+          "%d/%m/%Y", "%m/%d/%Y"
+        )
+      )),
+      error = function(e) as.Date(rep(NA_character_, length(x_chr)))
+    )
+    return(parsed)
   }
   if (var_type == "factor") {
     return(as.character(x))
@@ -355,7 +414,104 @@ data_preparation_server <- function(input, output, session) {
     filter_time = NULL,
     render_time = NULL
   )
+  filter_apply_tick <- reactiveVal(0)
+  filter_profile_cache <- reactiveVal(list())
+  base_var_info_cache <- reactiveVal(data.frame())
+  root_folder_token <- "__ROOT__"
+  registry_path <- file.path(normalizePath("data_storage", winslash = "/", mustWork = FALSE), "registry.rds")
   
+  empty_registry <- function() {
+    list(
+      workspaces = data.frame(id = character(0), name = character(0), created_at = as.POSIXct(character(0)), stringsAsFactors = FALSE),
+      folders = data.frame(id = character(0), workspace_id = character(0), name = character(0), created_at = as.POSIXct(character(0)), stringsAsFactors = FALSE),
+      datasets = data.frame(
+        id = character(0), workspace_id = character(0), folder_id = character(0), name = character(0),
+        file_name = character(0), data_path = character(0), nrow = numeric(0), ncol = numeric(0),
+        created_at = as.POSIXct(character(0)), stringsAsFactors = FALSE
+      )
+    )
+  }
+  
+  load_registry <- function() {
+    if (!file.exists(registry_path)) {
+      return(empty_registry())
+    }
+    reg <- tryCatch(readRDS(registry_path), error = function(e) empty_registry())
+    if (is.null(reg$workspaces) || !is.data.frame(reg$workspaces)) reg$workspaces <- empty_registry()$workspaces
+    if (is.null(reg$folders) || !is.data.frame(reg$folders)) reg$folders <- empty_registry()$folders
+    if (is.null(reg$datasets) || !is.data.frame(reg$datasets)) reg$datasets <- empty_registry()$datasets
+    reg
+  }
+  
+  refresh_db_workspace_choices <- function() {
+    reg <- load_registry()
+    ws <- reg$workspaces
+    ws_choices <- if (nrow(ws) == 0) character(0) else setNames(ws$id, ws$name)
+    updateSelectInput(session, "db_workspace_select", choices = ws_choices)
+  }
+  
+  refresh_db_folder_choices <- function(workspace_id = "") {
+    reg <- load_registry()
+    fd <- reg$folders
+    if (is.null(workspace_id) || workspace_id == "") {
+      fd_choices <- c("根目录" = root_folder_token)
+    } else {
+      fd_current <- fd[fd$workspace_id == workspace_id, , drop = FALSE]
+      fd_choices <- c("根目录" = root_folder_token)
+      if (nrow(fd_current) > 0) {
+        fd_choices <- c(fd_choices, setNames(fd_current$id, fd_current$name))
+      }
+    }
+    updateSelectInput(session, "db_folder_select", choices = fd_choices, selected = root_folder_token)
+  }
+  
+  refresh_db_dataset_choices <- function(workspace_id = "", folder_id = root_folder_token) {
+    reg <- load_registry()
+    ds <- reg$datasets
+    ds_choices <- character(0)
+    if (!is.null(workspace_id) && workspace_id != "") {
+      ds_current <- ds[ds$workspace_id == workspace_id, , drop = FALSE]
+      if (!is.null(folder_id) && folder_id == root_folder_token) {
+        ds_current <- ds_current[is.na(ds_current$folder_id) | ds_current$folder_id == "", , drop = FALSE]
+      } else if (!is.null(folder_id) && folder_id != "") {
+        ds_current <- ds_current[ds_current$folder_id == folder_id, , drop = FALSE]
+      }
+      if (nrow(ds_current) > 0) {
+        labels <- paste0(ds_current$name, " (", ds_current$nrow, "x", ds_current$ncol, ")")
+        ds_choices <- setNames(ds_current$id, labels)
+      }
+    }
+    updateSelectInput(session, "db_dataset_select", choices = ds_choices)
+  }
+  
+  apply_loaded_data <- function(data) {
+    withProgress(message = "正在准备数据...", value = 0, {
+      data_store(data)
+      var_type_overrides(setNames(character(0), character(0)))
+      var_label_overrides(setNames(character(0), character(0)))
+      incProgress(0.2, detail = "构建变量缓存")
+      build_data_caches(data)
+      incProgress(0.4, detail = "更新变量选择器")
+      all_choices <- build_column_choices(data)
+      updateSelectizeInput(session, "selected_var", choices = all_choices, server = TRUE)
+      max_default_cols <- min(25, length(names(data)))
+      default_display_cols <- head(names(data), max_default_cols)
+      updateSelectizeInput(session, "selected_columns",
+                           choices = all_choices,
+                           selected = default_display_cols,
+                           server = TRUE)
+      updateSelectizeInput(session, "meta_vars",
+                           choices = all_choices,
+                           selected = character(0),
+                           server = TRUE)
+      incProgress(0.4, detail = "完成")
+      filter_apply_tick(filter_apply_tick() + 1)
+    })
+  }
+  
+  refresh_db_workspace_choices()
+  refresh_db_folder_choices("")
+  refresh_db_dataset_choices("", root_folder_token)
   get_var_label <- function(var_name, var_data) {
     label_overrides <- var_label_overrides()
     if (var_name %in% names(label_overrides) && nzchar(trimws(label_overrides[[var_name]]))) {
@@ -395,6 +551,61 @@ data_preparation_server <- function(input, output, session) {
     }
     x[names(x) != key]
   }
+  
+  build_data_caches <- function(data) {
+    vars <- names(data)
+    if (length(vars) == 0) {
+      filter_profile_cache(list())
+      base_var_info_cache(data.frame())
+      return(invisible(NULL))
+    }
+    profiles <- vector("list", length(vars))
+    names(profiles) <- vars
+    info_rows <- vector("list", length(vars))
+    for (idx in seq_along(vars)) {
+      var_name <- vars[[idx]]
+      raw_var_data <- data[[var_name]]
+      auto_type <- determine_var_type(raw_var_data)
+      typed_data <- coerce_var_data(raw_var_data, auto_type)
+      na_rate <- if (length(typed_data) == 0) 0 else round(mean(is.na(typed_data)) * 100, 2)
+      unique_count <- length(unique(typed_data[!is.na(typed_data)]))
+      sample_values <- unique(as.character(typed_data[!is.na(typed_data)]))
+      sample_preview <- if (length(sample_values) == 0) "" else paste(head(sample_values, 3), collapse = ", ")
+      if (is.character(raw_var_data)) {
+        non_empty_values <- raw_var_data[!is.na(raw_var_data) & raw_var_data != ""]
+      } else {
+        non_empty_values <- raw_var_data[!is.na(raw_var_data)]
+      }
+      unique_non_empty <- unique(non_empty_values)
+      has_na_values <- any(is.na(raw_var_data)) || (is.character(raw_var_data) && any(raw_var_data == "", na.rm = TRUE))
+      numeric_data <- coerce_var_data(raw_var_data, "numeric")
+      numeric_range <- safe_numeric_range(numeric_data)
+      date_data <- coerce_var_data(raw_var_data, "date")
+      valid_dates <- date_data[!is.na(date_data)]
+      date_start <- if (length(valid_dates) > 0) min(valid_dates) else Sys.Date()
+      date_end <- if (length(valid_dates) > 0) max(valid_dates) else Sys.Date()
+      profiles[[var_name]] <- list(
+        factor_values = head(unique_non_empty, 100),
+        factor_total_unique = length(unique_non_empty),
+        factor_has_na = has_na_values,
+        numeric_range = numeric_range,
+        date_start = date_start,
+        date_end = date_end
+      )
+      info_rows[[idx]] <- data.frame(
+        变量名 = var_name,
+        自动类型 = auto_type,
+        缺失率值 = na_rate,
+        唯一值数 = unique_count,
+        示例值 = sample_preview,
+        stringsAsFactors = FALSE
+      )
+    }
+    filter_profile_cache(profiles)
+    base_var_info_cache(do.call(rbind, info_rows))
+  }
+  
+  selected_var_debounced <- debounce(reactive(input$selected_var), 500)
   
   format_filter_conditions <- function(data, selected_vars) {
     if (is.null(selected_vars) || length(selected_vars) == 0) {
@@ -451,6 +662,25 @@ data_preparation_server <- function(input, output, session) {
     paste(condition_text, collapse = "；")
   }
   
+  read_data_by_ext <- function(file_path) {
+    ext <- tolower(tools::file_ext(file_path))
+    if (ext %in% c("xlsx", "xls")) {
+      data <- readxl::read_excel(file_path, guess_max = 1000)
+    } else if (ext == "csv") {
+      data <- vroom::vroom(file_path, progress = FALSE)
+    } else if (ext == "sas7bdat") {
+      data <- haven::read_sas(file_path, encoding = "UTF-8")
+    } else if (ext %in% c("sav", "por")) {
+      data <- haven::read_spss(file_path, encoding = "UTF-8")
+    } else if (ext == "dta") {
+      data <- haven::read_dta(file_path, encoding = "UTF-8")
+    } else {
+      stop("不支持的文件格式")
+    }
+    data %>%
+      mutate(across(where(haven::is.labelled), ~ haven::as_factor(.x, levels = "labels")))
+  }
+  
   # 文件上传处理
   observeEvent(input$file, {
     req(input$file)
@@ -461,62 +691,17 @@ data_preparation_server <- function(input, output, session) {
     # 记录开始时间
     start_time <- Sys.time()
     
-    ext <- tools::file_ext(input$file$datapath)
-    
     tryCatch({
-      data <- NULL
-      
-      # 根据文件类型使用不同的读取策略
-      if (ext %in% c("xlsx", "xls")) {
-        # 对于Excel文件，使用最优参数
-        data <- readxl::read_excel(input$file$datapath, guess_max = 1000)
-      } else if (ext == "csv") {
-        # 使用vroom提高CSV读取性能
-        data <- vroom::vroom(input$file$datapath, progress = FALSE)
-      } else if (ext == "sas7bdat") {
-        data <- haven::read_sas(input$file$datapath, encoding = "UTF-8")
-      } else if (ext %in% c("sav", "por")) {
-        data <- haven::read_spss(input$file$datapath, encoding = "UTF-8")
-      } else if (ext == "dta") {
-        data <- haven::read_dta(input$file$datapath, encoding = "UTF-8")
-      } else {
-        stop("不支持的文件格式")
-      }
-      
-      # 优化数据类型转换 - 只转换有意义的labelled变量
-      data <- data %>%
-        mutate(across(where(haven::is.labelled), ~ haven::as_factor(.x, levels = "labels")))
+      data <- read_data_by_ext(input$file$datapath)
       
       # 强制垃圾回收以释放内存
       gc()
       
-      data_store(data)
-      var_type_overrides(setNames(character(0), character(0)))
-      var_label_overrides(setNames(character(0), character(0)))
+      apply_loaded_data(data)
       
       # 记录加载时间
       load_time <- Sys.time() - start_time
       performance_metrics$load_time <- load_time
-      
-      all_choices <- build_column_choices(data)
-      
-      # 更新变量选择
-      updateSelectizeInput(session, "selected_var",
-                           choices = all_choices,
-                           server = TRUE)
-      
-      # 更新列选择 - 限制默认显示列数以提高性能
-      max_default_cols <- min(25, length(names(data)))  # 最多显示25列
-      default_display_cols <- head(names(data), max_default_cols)
-      updateSelectizeInput(session, "selected_columns",
-                           choices = all_choices,
-                           selected = default_display_cols,
-                           server = TRUE)
-      
-      updateSelectizeInput(session, "meta_vars",
-                           choices = all_choices,
-                           selected = character(0),
-                           server = TRUE)
       
       # 显示成功提示
       showNotification(paste("数据加载完成！耗时:", round(load_time, 2), "秒，共", nrow(data), "行 x", ncol(data), "列"),
@@ -528,6 +713,70 @@ data_preparation_server <- function(input, output, session) {
       removeNotification(id = notification_id)
       showNotification(paste("文件读取错误:", e$message), type = "error")
     })
+  })
+  
+  observeEvent(input$db_refresh, {
+    workspace_id <- ifelse(is.null(input$db_workspace_select), "", input$db_workspace_select)
+    folder_id <- ifelse(is.null(input$db_folder_select), root_folder_token, input$db_folder_select)
+    refresh_db_workspace_choices()
+    refresh_db_folder_choices(workspace_id)
+    refresh_db_dataset_choices(workspace_id, folder_id)
+    showNotification("数据库列表已刷新", type = "message")
+  })
+  
+  observeEvent(input$db_workspace_select, {
+    workspace_id <- input$db_workspace_select
+    refresh_db_folder_choices(workspace_id)
+    refresh_db_dataset_choices(workspace_id, root_folder_token)
+  }, ignoreNULL = FALSE)
+  
+  observeEvent(input$db_folder_select, {
+    workspace_id <- input$db_workspace_select
+    folder_id <- ifelse(is.null(input$db_folder_select), root_folder_token, input$db_folder_select)
+    if (is.null(workspace_id) || workspace_id == "") {
+      refresh_db_dataset_choices("", root_folder_token)
+      return()
+    }
+    refresh_db_dataset_choices(workspace_id, folder_id)
+  }, ignoreNULL = FALSE)
+  
+  observeEvent(input$db_load_dataset, {
+    dataset_id <- input$db_dataset_select
+    if (is.null(dataset_id) || dataset_id == "") {
+      showNotification("请先选择数据库数据集", type = "warning")
+      return()
+    }
+    reg <- load_registry()
+    ds <- reg$datasets[reg$datasets$id == dataset_id, , drop = FALSE]
+    if (nrow(ds) == 0) {
+      showNotification("未找到数据集记录", type = "error")
+      return()
+    }
+    data_path <- ds$data_path[[1]]
+    if (!file.exists(data_path)) {
+      showNotification("数据文件不存在，请检查数据仓库", type = "error")
+      return()
+    }
+    data <- withProgress(message = "正在加载数据库数据集...", value = 0, {
+      incProgress(0.4, detail = "读取数据文件")
+      tmp <- tryCatch(readRDS(data_path), error = function(e) NULL)
+      if (!is.null(tmp) && is.data.frame(tmp)) {
+        incProgress(0.6, detail = "初始化筛选与缓存")
+      }
+      tmp
+    })
+    if (is.null(data) || !is.data.frame(data)) {
+      showNotification("加载失败，数据文件格式异常", type = "error")
+      return()
+    }
+    apply_loaded_data(data)
+    showNotification(paste0("已加载数据库数据集：", ds$name[[1]]), type = "message")
+  })
+  
+  observeEvent(input$apply_filters, {
+    req(data_store())
+    filter_apply_tick(filter_apply_tick() + 1)
+    showNotification("筛选条件已应用", type = "message", duration = 1.5)
   })
   
   
@@ -543,14 +792,35 @@ data_preparation_server <- function(input, output, session) {
   })
   outputOptions(output, "renderingTable", suspendWhenHidden = FALSE)
   
+  output$data_overview_cards <- renderUI({
+    req(data_store())
+    data <- data_store()
+    total_rows <- nrow(data)
+    total_cols <- ncol(data)
+    total_na <- sum(is.na(data))
+    na_ratio <- if (total_rows * total_cols == 0) 0 else round(total_na / (total_rows * total_cols) * 100, 2)
+    var_info <- variable_info_data()
+    numeric_count <- sum(var_info$当前类型 == "numeric")
+    factor_count <- sum(var_info$当前类型 == "factor")
+    date_count <- sum(var_info$当前类型 == "date")
+    text_count <- sum(var_info$当前类型 == "text")
+    fluidRow(
+      valueBox(width = 3, value = total_rows, subtitle = "总行数", icon = icon("list-ol"), color = "aqua"),
+      valueBox(width = 3, value = total_cols, subtitle = "总列数", icon = icon("columns"), color = "blue"),
+      valueBox(width = 3, value = paste0(na_ratio, "%"), subtitle = "整体缺失率", icon = icon("exclamation-circle"), color = if (na_ratio > 30) "red" else "green"),
+      valueBox(width = 3, value = paste0("数值:", numeric_count, " / 分类:", factor_count, " / 日期:", date_count, " / 文本:", text_count), subtitle = "字段类型分布", icon = icon("pie-chart"), color = "purple")
+    )
+  })
+  
   # 动态生成筛选控件
   output$filter_controls <- renderUI({
-    req(data_store(), input$selected_var)
+    req(data_store())
     
     data <- data_store()
-    selected_vars <- input$selected_var
+    selected_vars <- selected_var_debounced()
+    profile_map <- filter_profile_cache()
     
-    if (length(selected_vars) == 0) return(NULL)
+    if (is.null(selected_vars) || length(selected_vars) == 0) return(NULL)
     
     # 限制最多显示20个筛选控件以提高性能
     if (length(selected_vars) > 20) {
@@ -565,6 +835,7 @@ data_preparation_server <- function(input, output, session) {
       var_label <- get_var_label(var_name, raw_var_data)
       var_type <- get_effective_var_type(var_name, raw_var_data)
       var_data <- coerce_var_data(var_data, var_type)
+      profile <- profile_map[[var_name]]
       
       # 创建控件组
       div(
@@ -595,8 +866,7 @@ data_preparation_server <- function(input, output, session) {
         
         # 根据变量类型生成不同控件
         if (var_type == "numeric") {
-          # 使用安全函数计算数值范围
-          range_vals <- safe_numeric_range(var_data)
+          range_vals <- if (!is.null(profile) && !is.null(profile$numeric_range)) profile$numeric_range else safe_numeric_range(var_data)
           
           # 强制转换为标量并确保有效性
           safe_min <- as.numeric(range_vals$min)[1]
@@ -657,23 +927,11 @@ data_preparation_server <- function(input, output, session) {
             )
           )
         } else if (var_type == "factor") {
-          # 获取所有非空唯一值，排除NA和空字符串
-          # 首先确保处理字符型变量中的空字符串
-          if (is.character(var_data)) {
-            # 对于字符型变量，将空字符串视为空值
-            non_empty_values <- var_data[!is.na(var_data) & var_data != ""]
-          } else {
-            # 对于其他类型，只排除NA
-            non_empty_values <- var_data[!is.na(var_data)]
-          }
-          unique_values <- unique(non_empty_values)
-          
-          # 检查是否存在空值（包括NA和空字符串）
-          has_na_values <- any(is.na(var_data)) ||
-                          (is.character(var_data) && any(var_data == "", na.rm = TRUE))
+          unique_values <- if (!is.null(profile) && !is.null(profile$factor_values)) profile$factor_values else unique(var_data[!is.na(var_data)])
+          has_na_values <- if (!is.null(profile) && !is.null(profile$factor_has_na)) isTRUE(profile$factor_has_na) else any(is.na(var_data))
           
           # 统一处理逻辑：当存在空值时，在选项列表中添加"NA"选项
-          if (length(unique_values) > 100) {
+          if (!is.null(profile) && !is.null(profile$factor_total_unique) && profile$factor_total_unique > 100) {
             # 如果唯一值超过100个，限制显示数量
             # 显示前99个非空值 + "NA"选项 = 100个选项
             unique_non_na_values <- head(unique_values, 99)
@@ -723,21 +981,8 @@ data_preparation_server <- function(input, output, session) {
             )
           }
         } else if (var_type == "date") {
-          # 预先计算日期范围以避免在UI函数中出现长度为零的向量
-          valid_data <- var_data[!is.na(var_data)]
-          has_valid_data <- length(valid_data) > 0
-          
-          min_val <- if(has_valid_data) {
-            tryCatch(min(valid_data), error = function(e) NA)
-          } else NA
-          
-          max_val <- if(has_valid_data) {
-            tryCatch(max(valid_data), error = function(e) NA)
-          } else NA
-          
-          # 确保日期是有效的，否则使用默认值
-          final_start <- if(!is.na(min_val) && inherits(min_val, "Date")) min_val else Sys.Date()
-          final_end <- if(!is.na(max_val) && inherits(max_val, "Date")) max_val else Sys.Date()
+          final_start <- if (!is.null(profile) && !is.null(profile$date_start)) profile$date_start else Sys.Date()
+          final_end <- if (!is.null(profile) && !is.null(profile$date_end)) profile$date_end else Sys.Date()
           
           tagList(
             h6("日期范围:", style = "margin: 5px 0; font-size: 11px; color: #666;"),
@@ -770,41 +1015,27 @@ data_preparation_server <- function(input, output, session) {
   
   variable_info_data <- reactive({
     req(data_store())
-    data <- data_store()
-    vars <- names(data)
-    
-    if (length(vars) == 0) {
+    base_info <- base_var_info_cache()
+    if (nrow(base_info) == 0) {
       return(data.frame())
     }
-    
-    info <- lapply(vars, function(var_name) {
-      raw_var_data <- data[[var_name]]
-      auto_type <- determine_var_type(raw_var_data)
-      current_type <- get_effective_var_type(var_name, raw_var_data)
-      current_label <- get_var_label(var_name, raw_var_data)
-      typed_data <- coerce_var_data(raw_var_data, current_type)
-      na_rate <- if (length(typed_data) == 0) 0 else round(mean(is.na(typed_data)) * 100, 2)
-      unique_count <- length(unique(typed_data[!is.na(typed_data)]))
-      sample_values <- unique(as.character(typed_data[!is.na(typed_data)]))
-      sample_preview <- if (length(sample_values) == 0) {
-        ""
-      } else {
-        paste(head(sample_values, 3), collapse = ", ")
-      }
-      
-      data.frame(
-        变量名 = var_name,
-        Label = current_label,
-        自动类型 = auto_type,
-        当前类型 = current_type,
-        缺失率 = paste0(na_rate, "%"),
-        唯一值数 = unique_count,
-        示例值 = sample_preview,
-        stringsAsFactors = FALSE
-      )
-    })
-    
-    do.call(rbind, info)
+    data <- data_store()
+    label_col <- vapply(base_info$变量名, function(var_name) {
+      get_var_label(var_name, data[[var_name]])
+    }, character(1))
+    current_type_col <- vapply(base_info$变量名, function(var_name) {
+      get_effective_var_type(var_name, data[[var_name]])
+    }, character(1))
+    data.frame(
+      变量名 = base_info$变量名,
+      Label = label_col,
+      自动类型 = base_info$自动类型,
+      当前类型 = current_type_col,
+      缺失率 = paste0(base_info$缺失率值, "%"),
+      唯一值数 = base_info$唯一值数,
+      示例值 = base_info$示例值,
+      stringsAsFactors = FALSE
+    )
   })
   
   output$variable_info_table <- reactable::renderReactable({
@@ -941,38 +1172,36 @@ data_preparation_server <- function(input, output, session) {
   })
   
   # 应用筛选
-  filtered_data <- reactive({
+  filtered_data <- eventReactive(filter_apply_tick(), {
     req(data_store())
     
-    data <- data_store()
-    
-    # 如果没有选择筛选变量，返回原始数据
-    if (is.null(input$selected_var) || length(input$selected_var) == 0) {
-      # 应用列选择
-      if (!is.null(input$selected_columns) && length(input$selected_columns) > 0) {
-        # 确保选择的列在数据中存在
-        existing_cols <- intersect(input$selected_columns, names(data))
-        if (length(existing_cols) > 0) {
-          data <- data %>% select(all_of(existing_cols))
+    withProgress(message = "正在执行数据筛选...", value = 0, {
+      data <- data_store()
+      selected_vars <- input$selected_var
+      filter_start_time <- Sys.time()
+      
+      # 如果没有选择筛选变量，返回原始数据
+      if (is.null(selected_vars) || length(selected_vars) == 0) {
+        if (!is.null(input$selected_columns) && length(input$selected_columns) > 0) {
+          existing_cols <- intersect(input$selected_columns, names(data))
+          if (length(existing_cols) > 0) {
+            data <- data %>% select(all_of(existing_cols))
+          }
         }
+        data <- data %>%
+          mutate(行号 = row_number()) %>%
+          select(行号, everything())
+        incProgress(1, detail = "完成")
+        return(data)
       }
-      # 添加行号列
-      data <- data %>%
-        mutate(行号 = row_number()) %>%
-        select(行号, everything())
-      return(data)
-    }
-    
-    selected_vars <- input$selected_var
-    
-    # 使用dplyr管道提高筛选效率
-    filter_start_time <- Sys.time()
-    
-    # 逐个应用筛选
-    for (var_name in selected_vars) {
-      raw_var_data <- data[[var_name]]
-      var_type <- get_effective_var_type(var_name, raw_var_data)
-      var_data <- coerce_var_data(raw_var_data, var_type)
+      
+      step <- 0.8 / max(1, length(selected_vars))
+      
+      # 逐个应用筛选
+      for (var_name in selected_vars) {
+        raw_var_data <- data[[var_name]]
+        var_type <- get_effective_var_type(var_name, raw_var_data)
+        var_data <- coerce_var_data(raw_var_data, var_type)
       
       # 空值筛选 - 只对非分类变量应用
       if (var_type != "factor") {
@@ -1047,27 +1276,26 @@ data_preparation_server <- function(input, output, session) {
           data <- data[keep_idx, , drop = FALSE]
         }
       }
+      incProgress(step, detail = paste0("变量: ", var_name))
     }
-    
+      
     # 应用列选择
     if (!is.null(input$selected_columns) && length(input$selected_columns) > 0) {
-      # 确保选择的列在数据中存在
       existing_cols <- intersect(input$selected_columns, names(data))
       if (length(existing_cols) > 0) {
         data <- data %>% select(all_of(existing_cols))
       }
     }
     
-    # 添加行号列
     data <- data %>%
       mutate(行号 = row_number()) %>%
       select(行号, everything())
     
-    # 记录筛选时间
     filter_time <- Sys.time() - filter_start_time
     performance_metrics$filter_time <- filter_time
-    
-    return(data)
+    incProgress(0.2, detail = "完成")
+    data
+    })
   })
   
   # 为分析模块准备的数据（去除行号列）
@@ -1198,15 +1426,16 @@ data_preparation_server <- function(input, output, session) {
   observeEvent(input$reset_filters, {
     # 重置所有输入控件
     selected_vars <- input$selected_var
+    profile_map <- filter_profile_cache()
     if (!is.null(selected_vars)) {
       for (var_name in selected_vars) {
         raw_var_data <- data_store()[[var_name]]
         var_type <- get_effective_var_type(var_name, raw_var_data)
         var_data <- coerce_var_data(raw_var_data, var_type)
+        profile <- profile_map[[var_name]]
         
         if (var_type == "numeric") {
-          # 使用安全函数计算数值范围
-          range_vals <- safe_numeric_range(var_data)
+          range_vals <- if (!is.null(profile) && !is.null(profile$numeric_range)) profile$numeric_range else safe_numeric_range(var_data)
           
           # 强制转换为标量并确保有效性
           safe_min <- as.numeric(range_vals$min)[1]
@@ -1238,23 +1467,11 @@ data_preparation_server <- function(input, output, session) {
           updateNumericInput(session, paste0("num_max_", var_name),
                              value = final_max_val)
         } else if (var_type == "factor") {
-          # 获取所有非空唯一值，排除NA和空字符串
-          # 首先确保处理字符型变量中的空字符串
-          if (is.character(var_data)) {
-            # 对于字符型变量，将空字符串视为空值
-            non_empty_values <- var_data[!is.na(var_data) & var_data != ""]
-          } else {
-            # 对于其他类型，只排除NA
-            non_empty_values <- var_data[!is.na(var_data)]
-          }
-          unique_values <- unique(non_empty_values)
-          
-          # 检查是否存在空值（包括NA和空字符串）
-          has_na_values <- any(is.na(var_data)) ||
-                          (is.character(var_data) && any(var_data == "", na.rm = TRUE))
+          unique_values <- if (!is.null(profile) && !is.null(profile$factor_values)) profile$factor_values else unique(var_data[!is.na(var_data)])
+          has_na_values <- if (!is.null(profile) && !is.null(profile$factor_has_na)) isTRUE(profile$factor_has_na) else any(is.na(var_data))
           
           # 使用与选项生成相同的逻辑
-          if (length(unique_values) > 100) {
+          if (!is.null(profile) && !is.null(profile$factor_total_unique) && profile$factor_total_unique > 100) {
             # 如果唯一值超过100个，限制显示数量
             unique_non_na_values <- head(unique_values, 99)
             choices_with_na <- if (has_na_values) {
@@ -1277,21 +1494,8 @@ data_preparation_server <- function(input, output, session) {
                                choices = choices_with_na,
                                selected = selected_with_na)
         } else if (var_type == "date") {
-          # 预先计算日期范围以避免在更新函数中出现长度为零的向量
-          valid_data <- var_data[!is.na(var_data)]
-          has_valid_data <- length(valid_data) > 0
-          
-          min_val <- if(has_valid_data) {
-            tryCatch(min(valid_data), error = function(e) NA)
-          } else NA
-          
-          max_val <- if(has_valid_data) {
-            tryCatch(max(valid_data), error = function(e) NA)
-          } else NA
-          
-          # 确保日期是有效的，否则使用默认值
-          final_start <- if(!is.na(min_val) && inherits(min_val, "Date")) min_val else Sys.Date()
-          final_end <- if(!is.na(max_val) && inherits(max_val, "Date")) max_val else Sys.Date()
+          final_start <- if (!is.null(profile) && !is.null(profile$date_start)) profile$date_start else Sys.Date()
+          final_end <- if (!is.null(profile) && !is.null(profile$date_end)) profile$date_end else Sys.Date()
           
           updateDateInput(session, paste0("date_start_", var_name),
                           value = final_start)
@@ -1307,6 +1511,7 @@ data_preparation_server <- function(input, output, session) {
         }
       }
     }
+    filter_apply_tick(filter_apply_tick() + 1)
   })
   
   # 监听数据变化，重置筛选变量选择和列选择
