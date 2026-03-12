@@ -363,6 +363,11 @@ statistical_analysis_server <- function(id, data) {
     if (length(key_findings) == 0) {
       key_findings <- c("当前结果以统计表格为主，请结合研究目的重点关注主终点对应统计量。")
     }
+    model_notes <- character(0)
+    if (is.list(result) && !is.null(result$model_notes)) {
+      model_notes <- unique(trimws(as.character(result$model_notes)))
+      model_notes <- model_notes[nzchar(model_notes)]
+    }
 
     predictors_n <- if (!is.null(analysis_ctx$predictors)) length(analysis_ctx$predictors) else 0
     response_var <- if (!is.null(analysis_ctx$response)) analysis_ctx$response else "未设置"
@@ -395,9 +400,9 @@ statistical_analysis_server <- function(id, data) {
     )
     field_dict <- switch(
       method_code,
-      "logistic" = c("统计值列：OR (95% CI)", "OR>1：结局发生几率增加", "OR<1：结局发生几率降低", "P值：显著性检验结果"),
-      "linear" = c("统计值列：Beta (95% CI)", "Beta>0：正向关联", "Beta<0：负向关联", "P值：显著性检验结果"),
-      "cox" = c("统计值列：HR (95% CI)", "HR>1：事件风险升高", "HR<1：事件风险降低", "P值：显著性检验结果"),
+      "logistic" = c("统计值列：OR (95% CI)", "OR>1：结局发生几率增加", "OR<1：结局发生几率降低", "P值：显著性检验结果", "分层差异P值：检验该分析变量的效应是否在不同分层间存在显著差异（交互检验）"),
+      "linear" = c("统计值列：Beta (95% CI)", "Beta>0：正向关联", "Beta<0：负向关联", "P值：显著性检验结果", "分层差异P值：检验该分析变量的效应是否在不同分层间存在显著差异（交互检验）"),
+      "cox" = c("统计值列：HR (95% CI)", "HR>1：事件风险升高", "HR<1：事件风险降低", "P值：显著性检验结果", "分层差异P值：检验该分析变量的效应是否在不同分层间存在显著差异（交互检验）"),
       c("请结合统计结果表中的列名和脚注解释字段含义")
     )
 
@@ -424,6 +429,8 @@ statistical_analysis_server <- function(id, data) {
       make_ul(metric_explain),
       h5("表格字段说明"),
       make_ul(field_dict),
+      h5("模型运行提示"),
+      make_ul(if (length(model_notes) > 0) model_notes else c("未发现模型级警告或错误提示。")),
       h5("主要结果解读"),
       make_ul(key_findings)
     )
@@ -451,6 +458,9 @@ statistical_analysis_server <- function(id, data) {
       "",
       "### 表格字段说明",
       to_md_list(field_dict),
+      "",
+      "### 模型运行提示",
+      to_md_list(if (length(model_notes) > 0) model_notes else c("未发现模型级警告或错误提示。")),
       "",
       "### 主要结果解读",
       to_md_list(key_findings),
@@ -514,13 +524,13 @@ statistical_analysis_server <- function(id, data) {
     
     # 更新Cox回归变量选择
     updateSelectInput(session, "cox_time", choices = numeric_vars)
-    updateSelectInput(session, "cox_status", choices = numeric_vars)
+    updateSelectInput(session, "cox_status", choices = all_vars)
     updateSelectizeInput(session, "cox_covariates", choices = all_vars)
     updateSelectInput(session, "cox_strata", choices = c("None", factor_vars))
     updateSelectInput(session, "cox_facet", choices = c("None", factor_vars))
     
     # 更新逻辑回归变量选择
-    updateSelectInput(session, "logistic_response", choices = numeric_vars)
+    updateSelectInput(session, "logistic_response", choices = all_vars)
     updateSelectizeInput(session, "logistic_predictors", choices = all_vars)
     updateSelectInput(session, "logistic_strata", choices = c("None", factor_vars))
     updateSelectInput(session, "logistic_facet", choices = c("None", factor_vars))
@@ -554,6 +564,42 @@ statistical_analysis_server <- function(id, data) {
     updateSelectInput(session, "desc_id_var", choices = all_vars, selected = current_id_var)
   })
 
+  output$logistic_event_mapping_ui <- renderUI({
+    req(filtered_data(), input$logistic_response)
+    if (!input$logistic_response %in% names(filtered_data())) return(NULL)
+    vals <- unique(as.character(filtered_data()[[input$logistic_response]][!is.na(filtered_data()[[input$logistic_response]])]))
+    vals <- vals[nzchar(vals)]
+    if (length(vals) == 0) return(NULL)
+    event_sel <- if ("1" %in% vals) "1" else vals[1]
+    tagList(
+      fluidRow(
+        column(
+          12,
+          selectInput(ns("logistic_event_value"), "事件值 (Event)", choices = vals, selected = event_sel),
+          bsTooltip(ns("logistic_event_value"), "选择一个取值作为事件，其他非缺失取值自动视为非事件", placement = "top", trigger = "hover")
+        )
+      )
+    )
+  })
+
+  output$cox_status_mapping_ui <- renderUI({
+    req(filtered_data(), input$cox_status)
+    if (!input$cox_status %in% names(filtered_data())) return(NULL)
+    vals <- unique(as.character(filtered_data()[[input$cox_status]][!is.na(filtered_data()[[input$cox_status]])]))
+    vals <- vals[nzchar(vals)]
+    if (length(vals) == 0) return(NULL)
+    event_sel <- if ("1" %in% vals) "1" else vals[1]
+    tagList(
+      fluidRow(
+        column(
+          12,
+          selectInput(ns("cox_event_value"), "事件值 (Event)", choices = vals, selected = event_sel),
+          bsTooltip(ns("cox_event_value"), "选择一个取值作为事件，其他非缺失取值自动视为删失", placement = "top", trigger = "hover")
+        )
+      )
+    )
+  })
+
   observeEvent(list(filtered_data(), input$desc_col_group_var, input$desc_row_group_var), {
     req(filtered_data())
 
@@ -580,11 +626,21 @@ statistical_analysis_server <- function(id, data) {
         result_obj <- switch(input$stat_method,
           "cox" = {
             incProgress(0.3, detail = "运行Cox回归")
-            perform_cox_analysis(filtered_data(), input$cox_time, input$cox_status, input$cox_covariates, input$cox_strata, input$cox_facet)
+            status_vals <- unique(as.character(filtered_data()[[input$cox_status]][!is.na(filtered_data()[[input$cox_status]])]))
+            if (length(status_vals) < 2) stop("Cox状态变量至少需要两个非缺失取值。")
+            if (is.null(input$cox_event_value) || !as.character(input$cox_event_value) %in% status_vals) {
+              stop("请先为Cox状态变量选择事件值。")
+            }
+            perform_cox_analysis(filtered_data(), input$cox_time, input$cox_status, input$cox_covariates, input$cox_strata, input$cox_facet, input$cox_event_value)
           },
           "logistic" = {
             incProgress(0.3, detail = "运行逻辑回归")
-            perform_logistic_analysis(filtered_data(), input$logistic_response, input$logistic_predictors, input$logistic_strata, input$logistic_facet)
+            resp_vals <- unique(as.character(filtered_data()[[input$logistic_response]][!is.na(filtered_data()[[input$logistic_response]])]))
+            if (length(resp_vals) < 2) stop("逻辑回归响应变量至少需要两个非缺失取值。")
+            if (is.null(input$logistic_event_value) || !as.character(input$logistic_event_value) %in% resp_vals) {
+              stop("请先为逻辑回归响应变量选择事件值。")
+            }
+            perform_logistic_analysis(filtered_data(), input$logistic_response, input$logistic_predictors, input$logistic_strata, input$logistic_facet, input$logistic_event_value)
           },
           "linear" = {
             incProgress(0.3, detail = "运行线性回归")
