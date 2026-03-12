@@ -46,7 +46,7 @@ required_packages <- c(
   "DT", "gt", "purrr", "stringr", "survival", "broom", "survminer",
   "corrplot", "ggsci", "patchwork", "digest", "colourpicker", "reactable",
   "waiter", "shinyalert", "scales", "gridExtra", "cowplot", "RColorBrewer",
-  "tidyr", "vroom", "memoise", "shinyWidgets"
+  "tidyr", "vroom", "memoise", "shinyWidgets", "gtsummary"
 )
 
 successful_loads <- 0

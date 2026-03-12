@@ -1,0 +1,17 @@
+# local runtime data
+data_storage/**
+!data_storage/.gitkeep
+
+# keep only test scripts, ignore generated artifacts
+test/**/*.html
+test/**/*.docx
+test/**/*.rtf
+test/**/*.pdf
+test/**/*.rds
+test/**/*.RData
+test/**/*.Rhistory
+
+# common local files
+.Rhistory
+.RData
+.Rproj.user/

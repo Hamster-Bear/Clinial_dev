@@ -123,7 +123,8 @@ database_manager_ui <- function(id) {
   )
 }
 
-database_manager_server <- function(input, output, session) {
+database_manager_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
   storage_root <- normalizePath("data_storage", winslash = "/", mustWork = FALSE)
   dir.create(storage_root, recursive = TRUE, showWarnings = FALSE)
   registry_path <- file.path(storage_root, "registry.rds")
@@ -766,4 +767,5 @@ database_manager_server <- function(input, output, session) {
   list(
     registry_updated = reactive(registry_version())
   )
+  })
 }

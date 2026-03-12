@@ -397,7 +397,8 @@ safe_numeric_range <- function(var_data) {
 }
 
 # 数据准备服务器逻辑
-data_preparation_server <- function(input, output, session) {
+data_preparation_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
   ns <- session$ns
   
   # 数据存储
@@ -1537,4 +1538,5 @@ data_preparation_server <- function(input, output, session) {
   
   # 返回供分析模块使用的数据（已去除行号）
   return(analysis_data)
+  })
 }

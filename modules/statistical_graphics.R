@@ -59,7 +59,8 @@ statistical_graphics_ui <- function(id) {
   )
 }
 
-statistical_graphics_server <- function(input, output, session, data) {
+statistical_graphics_server <- function(id, data) {
+  moduleServer(id, function(input, output, session) {
   ns <- session$ns
   
   # 调用筛选模块，获取筛选后的数据
@@ -140,4 +141,5 @@ statistical_graphics_server <- function(input, output, session, data) {
            NULL
     )
   }))
+  })
 }

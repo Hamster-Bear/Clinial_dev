@@ -92,7 +92,8 @@ tables_ui <- function(id) {
 }
 
 # Tables模块服务器逻辑
-tables_server <- function(input, output, session, data) {
+tables_server <- function(id, data) {
+  moduleServer(id, function(input, output, session) {
   ns <- session$ns
   
   # 反应式值：存储生成的表格
@@ -429,4 +430,5 @@ tables_server <- function(input, output, session, data) {
   
   # 返回表格结果
   return(table_result)
+  })
 }

@@ -5,7 +5,7 @@ required_packages <- c(
   "DT", "gt", "purrr", "stringr", "survival", "broom", "survminer",
   "corrplot", "ggsci", "patchwork", "digest", "colourpicker", "reactable",
   "waiter", "shinyalert", "scales", "gridExtra", "cowplot", "RColorBrewer",
-  "tidyr", "vroom", "memoise", "shinyWidgets"
+  "tidyr", "vroom", "memoise", "shinyWidgets", "gtsummary"
 )
 
 # 安装缺失的包
@@ -146,10 +146,35 @@ server <- function(input, output, session) {
   raw_data <- reactiveVal(NULL)
   filtered_data <- reactiveVal(NULL)  # 所有模块使用筛选后的数据
   
-  callModule(database_manager_server, "db_manage")
+  # 状态更新辅助函数
+  update_step_status <- function(step, status) {
+    # status: "need_data" (需数据) or "accessible" (可访问)
+    
+    selector <- paste0('[data-value="', step, '"]')
+    
+    if (status == "accessible") {
+      shinyjs::enable(selector = selector)
+      shinyjs::runjs(paste0('
+        $("', selector, '").find(".badge")
+          .removeClass("bg-black")
+          .addClass("bg-blue")
+          .text("可访问");
+      '))
+    } else {
+      shinyjs::disable(selector = selector)
+      shinyjs::runjs(paste0('
+        $("', selector, '").find(".badge")
+          .removeClass("bg-blue")
+          .addClass("bg-black")
+          .text("需数据");
+      '))
+    }
+  }
+  
+  database_manager_server("db_manage")
   
   # 调用数据准备模块
-  data_prep_module <- callModule(data_preparation_server, "data_prep")
+  data_prep_module <- data_preparation_server("data_prep")
   
   # 观察数据准备模块返回的数据（筛选后的数据）
   observe({
@@ -158,44 +183,30 @@ server <- function(input, output, session) {
   })
   
   # 调用探索性分析模块 - 使用筛选后的数据
-  explore_module <- callModule(exploratory_analysis_server, "explore", data = filtered_data)
+  explore_module <- exploratory_analysis_server("explore", data = filtered_data)
   
   # 调用统计分析模块 - 使用筛选后的数据
-  stats_module <- callModule(statistical_analysis_server, "stats", data = filtered_data)
+  stats_module <- statistical_analysis_server("stats", data = filtered_data)
   
   # 调用统计图形模块 - 使用筛选后的数据
-  plots_module <- callModule(statistical_graphics_server, "plots", data = filtered_data)
+  plots_module <- statistical_graphics_server("plots", data = filtered_data)
   
   # 调用专业表格模块 - 使用筛选后的数据
-  tables_module <- callModule(tables_server, "tables", data = filtered_data)
+  tables_module <- tables_server("tables", data = filtered_data)
   
   # 观察数据状态变化并更新侧边栏状态
   observe({
     data_available <- !is.null(filtered_data())
     
+    steps <- c("explore", "stats", "plots", "tables")
+    
     if (data_available) {
-      # 启用所有分析步骤
-      lapply(c("explore", "stats", "plots"), function(tab) {
-        shinyjs::enable(selector = paste0('[data-value="', tab, '"]'))
-        # 更新徽章状态
-        runjs(paste0('
-          $(\'[data-value="', tab, '"]\').find(".badge")
-            .removeClass("bg-black")
-            .addClass("bg-blue")
-            .text("可访问");
-        '))
+      lapply(steps, function(step) {
+        update_step_status(step, "accessible")
       })
     } else {
-      # 禁用分析步骤
-      lapply(c("explore", "stats", "plots"), function(tab) {
-        shinyjs::disable(selector = paste0('[data-value="', tab, '"]'))
-        # 更新徽章状态
-        runjs(paste0('
-          $(\'[data-value="', tab, '"]\').find(".badge")
-            .removeClass("bg-blue")
-            .addClass("bg-black")
-            .text("需数据");
-        '))
+      lapply(steps, function(step) {
+        update_step_status(step, "need_data")
       })
     }
   })

@@ -77,7 +77,8 @@ exploratory_analysis_ui <- function(id) {
   )
 }
 
-exploratory_analysis_server <- function(input, output, session, data) {
+exploratory_analysis_server <- function(id, data) {
+  moduleServer(id, function(input, output, session) {
   ns <- session$ns
   
   # 探索分析变量托盘
@@ -371,4 +372,5 @@ exploratory_analysis_server <- function(input, output, session, data) {
       plot_type = input$plot_type_exp
     )
   }))
+  })
 }
