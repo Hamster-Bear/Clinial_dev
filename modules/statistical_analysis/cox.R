@@ -384,6 +384,69 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
   return(list(
     table = gt_table,
     interpretation = HTML(interpretation),
-    model_notes = model_notes
+    model_notes = model_notes,
+    code = generate_cox_code("data", cox_time, cox_status, cox_covariates, strata_var, facet_var)
   ))
+}
+
+# 生成可复现R代码
+generate_cox_code <- function(data_name = "data", cox_time, cox_status, cox_covariates, cox_strata, cox_facet = NULL) {
+  lines <- c()
+  lines <- c(lines, "# -------------------------------------------------------------------")
+  lines <- c(lines, "# AutoTFL Reproducible Analysis Code: Cox Proportional Hazards Model")
+  lines <- c(lines, "# -------------------------------------------------------------------")
+  lines <- c(lines, "")
+  lines <- c(lines, "# Load necessary libraries")
+  lines <- c(lines, "library(survival)")
+  lines <- c(lines, "library(gtsummary)")
+  lines <- c(lines, "library(dplyr)")
+  lines <- c(lines, "library(gt)")
+  lines <- c(lines, "")
+  
+  lines <- c(lines, "# 1. Prepare Data")
+  lines <- c(lines, paste0("# Assuming your dataset is loaded in variable '", data_name, "'"))
+  lines <- c(lines, paste0("# Time variable: ", cox_time))
+  lines <- c(lines, paste0("# Status variable: ", cox_status, " (Ensure 1=Event, 0=Censored)"))
+  lines <- c(lines, "")
+  
+  lines <- c(lines, "# 2. Define Model Formula")
+  if (length(cox_covariates) > 0) {
+    formula_str <- paste("survival::Surv(", cox_time, ",", cox_status, ") ~", paste(cox_covariates, collapse = " + "))
+  } else {
+    formula_str <- paste("survival::Surv(", cox_time, ",", cox_status, ") ~ 1")
+  }
+  lines <- c(lines, paste0("formula_obj <- as.formula(\"", formula_str, "\")"))
+  lines <- c(lines, "")
+  
+  lines <- c(lines, "# 3. Fit Model and Generate Table")
+  
+  if (is.null(cox_strata) && is.null(cox_facet)) {
+    lines <- c(lines, paste0("cox_model <- coxph(formula_obj, data = ", data_name, ")"))
+    lines <- c(lines, "")
+    lines <- c(lines, "tbl <- tbl_regression(cox_model, exponentiate = TRUE) %>%")
+    lines <- c(lines, "  add_global_p() %>%")
+    lines <- c(lines, "  bold_p(t = 0.05) %>%")
+    lines <- c(lines, "  bold_labels() %>%")
+    lines <- c(lines, "  italicize_levels() %>%")
+    lines <- c(lines, "  modify_header(label = '**Predictors**', p.value = '**P-value**')")
+    lines <- c(lines, "")
+    lines <- c(lines, "# Convert to GT table for display")
+    lines <- c(lines, "gt_table <- as_gt(tbl)")
+    lines <- c(lines, "print(gt_table)")
+  } else {
+     if (!is.null(cox_strata)) {
+        lines <- c(lines, paste0("# Stratified by: ", cox_strata))
+     }
+     if (!is.null(cox_facet)) {
+        lines <- c(lines, paste0("# Faceted by: ", cox_facet))
+     }
+     lines <- c(lines, "# Complex stratified/faceted analysis logic involves iterating over groups.")
+     lines <- c(lines, "# Below is a simplified example for the first group:")
+     lines <- c(lines, "")
+     lines <- c(lines, paste0("# Example: Fit model for whole dataset (ignoring strata/facet for simplicity)"))
+     lines <- c(lines, paste0("cox_model <- coxph(formula_obj, data = ", data_name, ")"))
+     lines <- c(lines, "summary(cox_model)")
+  }
+  
+  paste(lines, collapse = "\n")
 }

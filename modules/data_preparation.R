@@ -11,6 +11,9 @@ library(readxl)
 library(haven)  # 支持SAS、SPSS、Stata文件
 library(vroom)  # 高性能CSV读取
 library(memoise) # 函数缓存
+library(DBI)
+library(RPostgres)
+library(pool)
 
 # 数据准备UI
 data_preparation_ui <- function(id) {
@@ -419,7 +422,22 @@ data_preparation_server <- function(id) {
   filter_profile_cache <- reactiveVal(list())
   base_var_info_cache <- reactiveVal(data.frame())
   root_folder_token <- "__ROOT__"
-  registry_path <- file.path(normalizePath("data_storage", winslash = "/", mustWork = FALSE), "registry.rds")
+  pg_pool <- tryCatch(
+    dbPool(
+      drv = RPostgres::Postgres(),
+      dbname = Sys.getenv("POSTGRES_DB", "autotfl"),
+      host = Sys.getenv("POSTGRES_HOST", "localhost"),
+      port = as.integer(Sys.getenv("POSTGRES_PORT", "5432")),
+      user = Sys.getenv("POSTGRES_USER", "autotfl_user"),
+      password = Sys.getenv("POSTGRES_PASSWORD", "ChangeMe123!")
+    ),
+    error = function(e) NULL
+  )
+  onStop(function() {
+    if (!is.null(pg_pool)) {
+      poolClose(pg_pool)
+    }
+  })
   
   empty_registry <- function() {
     list(
@@ -434,14 +452,22 @@ data_preparation_server <- function(id) {
   }
   
   load_registry <- function() {
-    if (!file.exists(registry_path)) {
+    if (is.null(pg_pool)) {
       return(empty_registry())
     }
-    reg <- tryCatch(readRDS(registry_path), error = function(e) empty_registry())
-    if (is.null(reg$workspaces) || !is.data.frame(reg$workspaces)) reg$workspaces <- empty_registry()$workspaces
-    if (is.null(reg$folders) || !is.data.frame(reg$folders)) reg$folders <- empty_registry()$folders
-    if (is.null(reg$datasets) || !is.data.frame(reg$datasets)) reg$datasets <- empty_registry()$datasets
-    reg
+    tryCatch({
+      reg <- list(
+        workspaces = dbGetQuery(pg_pool, "SELECT * FROM workspaces ORDER BY created_at DESC"),
+        folders = dbGetQuery(pg_pool, "SELECT * FROM folders ORDER BY created_at DESC"),
+        datasets = dbGetQuery(pg_pool, "SELECT * FROM datasets ORDER BY created_at DESC")
+      )
+      if (is.null(reg$workspaces) || !is.data.frame(reg$workspaces)) reg$workspaces <- empty_registry()$workspaces
+      if (is.null(reg$folders) || !is.data.frame(reg$folders)) reg$folders <- empty_registry()$folders
+      if (is.null(reg$datasets) || !is.data.frame(reg$datasets)) reg$datasets <- empty_registry()$datasets
+      reg
+    }, error = function(e) {
+      empty_registry()
+    })
   }
   
   refresh_db_workspace_choices <- function() {
@@ -760,7 +786,7 @@ data_preparation_server <- function(id) {
     }
     data <- withProgress(message = "正在加载数据库数据集...", value = 0, {
       incProgress(0.4, detail = "读取数据文件")
-      tmp <- tryCatch(readRDS(data_path), error = function(e) NULL)
+      tmp <- tryCatch(storage_load_dataset(data_path), error = function(e) NULL)
       if (!is.null(tmp) && is.data.frame(tmp)) {
         incProgress(0.6, detail = "初始化筛选与缓存")
       }

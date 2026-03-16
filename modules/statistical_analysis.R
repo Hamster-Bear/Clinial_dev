@@ -110,6 +110,10 @@ statistical_analysis_ui <- function(id) {
             tabPanel("统计报告",
                      br(),
                      uiOutput(ns("analysis_interpretation"))
+            ),
+            tabPanel("可复现代码",
+                     br(),
+                     verbatimTextOutput(ns("repro_code_out"))
             )
           ),
           br(),
@@ -720,6 +724,16 @@ statistical_analysis_server <- function(id, data) {
     result <- analysis_results()
     report <- build_stat_report(result, input$stat_method, get_analysis_context())
     report$ui
+  })
+
+  output$repro_code_out <- renderText({
+    req(analysis_results())
+    result <- analysis_results()
+    if (is.list(result) && !is.null(result$code)) {
+      result$code
+    } else {
+      "当前分析方法暂未支持代码生成。"
+    }
   })
 
   output$dl_table <- downloadHandler(

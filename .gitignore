@@ -18,3 +18,5 @@ test/**/*.Rhistory
 
 # local package cache for offline deployment
 package/
+
+商业化/

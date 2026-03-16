@@ -52,6 +52,11 @@ required_packages <- c(
   "survminer",
   "corrplot",
   
+  # 数据库连接
+  "DBI",
+  "RPostgres",
+  "pool",
+  
   # 颜色主题支持
   "ggsci",
   "colourpicker",

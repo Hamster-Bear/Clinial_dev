@@ -5,7 +5,8 @@ required_packages <- c(
   "DT", "gt", "purrr", "stringr", "survival", "broom", "survminer",
   "corrplot", "ggsci", "patchwork", "digest", "colourpicker", "reactable",
   "waiter", "shinyalert", "scales", "gridExtra", "cowplot", "RColorBrewer",
-  "tidyr", "vroom", "memoise", "shinyWidgets", "gtsummary"
+  "tidyr", "vroom", "memoise", "shinyWidgets", "gtsummary",
+  "DBI", "RPostgres", "pool"
 )
 
 # 校验依赖包，不在 app.R 内执行安装
@@ -25,6 +26,7 @@ invisible(lapply(required_packages, function(pkg) {
 }))
 
 # 加载所有模块
+source("modules/common/storage_backend.R")
 source("modules/data_preparation.R")
 source("modules/database_manager.R")
 source("modules/exploratory_analysis.R")

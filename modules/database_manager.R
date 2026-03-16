@@ -5,6 +5,9 @@ library(dplyr)
 library(readxl)
 library(haven)
 library(vroom)
+library(DBI)
+library(RPostgres)
+library(pool)
 
 database_manager_ui <- function(id) {
   ns <- NS(id)
@@ -39,7 +42,7 @@ database_manager_ui <- function(id) {
     fluidRow(
       box(
         width = 12,
-        title = "数据库管理",
+        title = "数据库管理 (PostgreSQL Powered)",
         status = "primary",
         solidHeader = TRUE,
         fluidRow(
@@ -125,9 +128,26 @@ database_manager_ui <- function(id) {
 
 database_manager_server <- function(id) {
   moduleServer(id, function(input, output, session) {
+  
+  # 数据库连接池
+  # 优先使用环境变量，默认连接到本地 Docker 容器
+  pool <- dbPool(
+    drv = RPostgres::Postgres(),
+    dbname = Sys.getenv("POSTGRES_DB", "autotfl"),
+    host = Sys.getenv("POSTGRES_HOST", "localhost"), # 默认localhost方便调试，生产环境应为 'postgres'
+    port = as.integer(Sys.getenv("POSTGRES_PORT", "5432")),
+    user = Sys.getenv("POSTGRES_USER", "autotfl_user"),
+    password = Sys.getenv("POSTGRES_PASSWORD", "ChangeMe123!")
+  )
+  
+  onStop(function() {
+    poolClose(pool)
+  })
+
   storage_root <- normalizePath("data_storage", winslash = "/", mustWork = FALSE)
   dir.create(storage_root, recursive = TRUE, showWarnings = FALSE)
-  registry_path <- file.path(storage_root, "registry.rds")
+  
+  # 不再使用 registry.rds
   registry_version <- reactiveVal(as.numeric(Sys.time()))
   root_folder_token <- "__ROOT__"
   supported_ext <- c("csv", "xlsx", "xls", "sas7bdat", "sav", "dta", "por")
@@ -139,55 +159,23 @@ database_manager_server <- function(id) {
     folder_id
   }
   
-  empty_registry <- function() {
-    list(
-      workspaces = data.frame(
-        id = character(0),
-        name = character(0),
-        created_at = as.POSIXct(character(0)),
-        stringsAsFactors = FALSE
-      ),
-      folders = data.frame(
-        id = character(0),
-        workspace_id = character(0),
-        name = character(0),
-        created_at = as.POSIXct(character(0)),
-        stringsAsFactors = FALSE
-      ),
-      datasets = data.frame(
-        id = character(0),
-        workspace_id = character(0),
-        folder_id = character(0),
-        name = character(0),
-        file_name = character(0),
-        data_path = character(0),
-        nrow = numeric(0),
-        ncol = numeric(0),
-        created_at = as.POSIXct(character(0)),
-        stringsAsFactors = FALSE
-      )
-    )
-  }
-  
+  # 从数据库加载注册表信息
   load_registry <- function() {
-    if (!file.exists(registry_path)) {
-      reg <- empty_registry()
-      saveRDS(reg, registry_path)
-      return(reg)
-    }
-    reg <- tryCatch(readRDS(registry_path), error = function(e) empty_registry())
-    required_tables <- c("workspaces", "folders", "datasets")
-    for (tbl in required_tables) {
-      if (is.null(reg[[tbl]]) || !is.data.frame(reg[[tbl]])) {
-        reg[[tbl]] <- empty_registry()[[tbl]]
-      }
-    }
-    reg
-  }
-  
-  save_registry <- function(registry_obj) {
-    saveRDS(registry_obj, registry_path)
-    registry_version(as.numeric(Sys.time()))
+    tryCatch({
+      list(
+        workspaces = dbGetQuery(pool, "SELECT * FROM workspaces"),
+        folders = dbGetQuery(pool, "SELECT * FROM folders"),
+        datasets = dbGetQuery(pool, "SELECT * FROM datasets")
+      )
+    }, error = function(e) {
+      # 如果表不存在或连接失败，返回空结构防止报错
+      warning(paste("Database load failed:", e$message))
+      list(
+        workspaces = data.frame(id=character(), name=character(), created_at=as.POSIXct(character())),
+        folders = data.frame(id=character(), workspace_id=character(), name=character(), created_at=as.POSIXct(character())),
+        datasets = data.frame(id=character(), workspace_id=character(), folder_id=character(), name=character(), file_name=character(), data_path=character(), nrow=numeric(), ncol=numeric(), created_at=as.POSIXct(character()))
+      )
+    })
   }
   
   remove_dataset_files <- function(ds_rows) {
@@ -197,9 +185,7 @@ database_manager_server <- function(id) {
     paths <- unique(ds_rows$data_path)
     paths <- paths[nzchar(paths)]
     for (p in paths) {
-      if (file.exists(p)) {
-        file.remove(p)
-      }
+      tryCatch(storage_delete_dataset(p), error = function(e) NULL)
     }
   }
   
@@ -222,42 +208,55 @@ database_manager_server <- function(id) {
       mutate(across(where(haven::is.labelled), ~ haven::as_factor(.x, levels = "labels")))
   }
   
-  save_dataset_to_registry <- function(reg, workspace_id, folder_id, dataset_name, source_file_name, source_file_path) {
+  save_dataset_to_db <- function(workspace_id, folder_id, dataset_name, source_file_name, source_file_path) {
     folder_id_store <- normalize_store_folder_id(folder_id)
-    ds_current <- reg$datasets[reg$datasets$workspace_id == workspace_id, , drop = FALSE]
-    same_name <- ds_current$name == dataset_name
-    same_folder <- ds_current$folder_id == folder_id_store
-    if (any(same_name & same_folder)) {
-      return(list(success = FALSE, message = "同一目录下数据集名称已存在", reg = reg, dataset_id = NULL))
+    
+    # 检查重名
+    # SQL parameterized query to prevent injection
+    check_sql <- "SELECT id FROM datasets WHERE workspace_id = $1 AND (folder_id = $2 OR ($2 = '' AND folder_id IS NULL) OR ($2 = '' AND folder_id = '')) AND name = $3"
+    existing <- dbGetQuery(pool, check_sql, params = list(workspace_id, folder_id_store, dataset_name))
+    
+    if (nrow(existing) > 0) {
+      return(list(success = FALSE, message = "同一目录下数据集名称已存在", dataset_id = NULL))
     }
+    
     data <- tryCatch(read_data_by_ext(source_file_path), error = function(e) NULL)
     if (is.null(data) || !is.data.frame(data)) {
-      return(list(success = FALSE, message = paste0("读取失败: ", source_file_name), reg = reg, dataset_id = NULL))
+      return(list(success = FALSE, message = paste0("读取失败: ", source_file_name), dataset_id = NULL))
     }
+    
     dataset_id <- paste0("ds_", as.integer(as.numeric(Sys.time())), "_", sample(1000:9999, 1))
-    workspace_dir <- file.path(storage_root, workspace_id)
-    if (folder_id_store != "") {
-      workspace_dir <- file.path(workspace_dir, folder_id_store)
-    }
-    dir.create(workspace_dir, recursive = TRUE, showWarnings = FALSE)
-    data_file <- file.path(workspace_dir, paste0(dataset_id, ".rds"))
-    saveRDS(as.data.frame(data), data_file)
-    reg$datasets <- rbind(
-      reg$datasets,
-      data.frame(
-        id = dataset_id,
+    data_file <- tryCatch(
+      storage_save_dataset(
+        data = data,
         workspace_id = workspace_id,
         folder_id = folder_id_store,
-        name = dataset_name,
-        file_name = source_file_name,
-        data_path = data_file,
-        nrow = nrow(data),
-        ncol = ncol(data),
-        created_at = Sys.time(),
-        stringsAsFactors = FALSE
-      )
+        dataset_id = dataset_id,
+        storage_root = storage_root
+      ),
+      error = function(e) NULL
     )
-    list(success = TRUE, message = "ok", reg = reg, dataset_id = dataset_id)
+    if (is.null(data_file) || !nzchar(data_file)) {
+      return(list(success = FALSE, message = "数据保存失败", dataset_id = NULL))
+    }
+    
+    # 插入数据库
+    insert_sql <- "INSERT INTO datasets (id, workspace_id, folder_id, name, file_name, data_path, nrow, ncol, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())"
+    tryCatch({
+      dbExecute(pool, insert_sql, params = list(
+        dataset_id, 
+        workspace_id, 
+        if(folder_id_store == "") NA else folder_id_store, 
+        dataset_name, 
+        source_file_name, 
+        data_file, 
+        nrow(data), 
+        ncol(data)
+      ))
+      list(success = TRUE, message = "ok", dataset_id = dataset_id)
+    }, error = function(e) {
+      list(success = FALSE, message = paste("DB Insert Error:", e$message), dataset_id = NULL)
+    })
   }
   
   refresh_workspace_choices <- function() {
@@ -306,7 +305,7 @@ database_manager_server <- function(id) {
   refresh_dataset_choices("", root_folder_token)
   
   output$db_overview_cards <- renderUI({
-    registry_version()
+    registry_version() # Trigger update
     reg <- load_registry()
     ws_count <- nrow(reg$workspaces)
     fd_count <- nrow(reg$folders)
@@ -329,24 +328,31 @@ database_manager_server <- function(id) {
     if (nrow(ws) == 0) {
       return(div(class = "db-tree", span("暂无结构数据，请先创建数据空间与数据集。")))
     }
+    
+    # 辅助函数：处理NULL/NA值
+    safe_get <- function(x, default = "") if(is.na(x) || is.null(x)) default else x
+    
     workspace_nodes <- lapply(seq_len(nrow(ws)), function(i) {
       ws_row <- ws[i, , drop = FALSE]
-      ws_id <- ws_row$id[[1]]
-      ws_name <- ws_row$name[[1]]
+      ws_id <- ws_row$id
+      ws_name <- ws_row$name
+      
       fd_current <- fd[fd$workspace_id == ws_id, , drop = FALSE]
       ds_current <- ds[ds$workspace_id == ws_id, , drop = FALSE]
       root_ds <- ds_current[is.na(ds_current$folder_id) | ds_current$folder_id == "", , drop = FALSE]
+      
       folder_nodes <- lapply(seq_len(nrow(fd_current)), function(j) {
         fd_row <- fd_current[j, , drop = FALSE]
-        fd_id <- fd_row$id[[1]]
-        fd_name <- fd_row$name[[1]]
-        ds_folder <- ds_current[ds_current$folder_id == fd_id, , drop = FALSE]
+        fd_id <- fd_row$id
+        fd_name <- fd_row$name
+        ds_folder <- ds_current[safe_get(ds_current$folder_id) == fd_id, , drop = FALSE]
+        
         ds_nodes <- lapply(seq_len(nrow(ds_folder)), function(k) {
           ds_row <- ds_folder[k, , drop = FALSE]
           tags$li(
             span(class = "node-label",
                  icon("table"), " ",
-                 ds_row$name[[1]], " (", ds_row$nrow[[1]], "x", ds_row$ncol[[1]], ")")
+                 ds_row$name, " (", ds_row$nrow, "x", ds_row$ncol, ")")
           )
         })
         tags$li(
@@ -361,14 +367,16 @@ database_manager_server <- function(id) {
           )
         )
       })
+      
       root_nodes <- lapply(seq_len(nrow(root_ds)), function(k) {
         ds_row <- root_ds[k, , drop = FALSE]
         tags$li(
           span(class = "node-label",
                icon("table"), " ",
-               ds_row$name[[1]], " (", ds_row$nrow[[1]], "x", ds_row$ncol[[1]], ")")
+               ds_row$name, " (", ds_row$nrow, "x", ds_row$ncol, ")")
         )
       })
+      
       tags$li(
         tags$details(
           open = "open",
@@ -404,26 +412,26 @@ database_manager_server <- function(id) {
       showNotification("请输入数据空间名称", type = "warning")
       return()
     }
-    reg <- load_registry()
-    if (workspace_name %in% reg$workspaces$name) {
+    
+    existing <- dbGetQuery(pool, "SELECT id FROM workspaces WHERE name = $1", params = list(workspace_name))
+    if (nrow(existing) > 0) {
       showNotification("数据空间名称已存在", type = "warning")
       return()
     }
+    
     workspace_id <- paste0("ws_", as.integer(as.numeric(Sys.time())), "_", sample(1000:9999, 1))
-    reg$workspaces <- rbind(
-      reg$workspaces,
-      data.frame(
-        id = workspace_id,
-        name = workspace_name,
-        created_at = Sys.time(),
-        stringsAsFactors = FALSE
-      )
-    )
-    save_registry(reg)
-    refresh_workspace_choices()
-    updateSelectInput(session, "workspace_select", selected = workspace_id)
-    updateTextInput(session, "workspace_name", value = "")
-    showNotification("数据空间创建成功", type = "message")
+    
+    tryCatch({
+      dbExecute(pool, "INSERT INTO workspaces (id, name, created_at) VALUES ($1, $2, NOW())", 
+                params = list(workspace_id, workspace_name))
+      registry_version(as.numeric(Sys.time()))
+      refresh_workspace_choices()
+      updateSelectInput(session, "workspace_select", selected = workspace_id)
+      updateTextInput(session, "workspace_name", value = "")
+      showNotification("数据空间创建成功", type = "message")
+    }, error = function(e) {
+      showNotification(paste("创建失败:", e$message), type = "error")
+    })
   })
   
   observeEvent(input$workspace_select, {
@@ -438,27 +446,29 @@ database_manager_server <- function(id) {
       showNotification("请先选择要删除的数据空间", type = "warning")
       return()
     }
-    reg <- load_registry()
-    ws <- reg$workspaces[reg$workspaces$id == workspace_id, , drop = FALSE]
-    if (nrow(ws) == 0) {
-      showNotification("数据空间不存在", type = "warning")
-      return()
-    }
-    ds_to_remove <- reg$datasets[reg$datasets$workspace_id == workspace_id, , drop = FALSE]
+    
+    # 获取需要删除的文件路径
+    ds_to_remove <- dbGetQuery(pool, "SELECT data_path FROM datasets WHERE workspace_id = $1", params = list(workspace_id))
     remove_dataset_files(ds_to_remove)
-    reg$datasets <- reg$datasets[reg$datasets$workspace_id != workspace_id, , drop = FALSE]
-    reg$folders <- reg$folders[reg$folders$workspace_id != workspace_id, , drop = FALSE]
-    reg$workspaces <- reg$workspaces[reg$workspaces$id != workspace_id, , drop = FALSE]
-    ws_dir <- file.path(storage_root, workspace_id)
-    if (dir.exists(ws_dir)) {
-      unlink(ws_dir, recursive = TRUE, force = TRUE)
-    }
-    save_registry(reg)
-    updateSelectInput(session, "workspace_select", selected = "")
-    refresh_workspace_choices()
-    refresh_folder_choices("")
-    refresh_dataset_choices("", root_folder_token)
-    showNotification("数据空间已删除（含文件夹与数据集）", type = "message")
+    
+    tryCatch({
+      # Cascade delete handles datasets and folders if set up in DB, but let's be safe
+      dbExecute(pool, "DELETE FROM workspaces WHERE id = $1", params = list(workspace_id))
+      
+      ws_dir <- file.path(storage_root, workspace_id)
+      if (dir.exists(ws_dir)) {
+        unlink(ws_dir, recursive = TRUE, force = TRUE)
+      }
+      
+      registry_version(as.numeric(Sys.time()))
+      updateSelectInput(session, "workspace_select", selected = "")
+      refresh_workspace_choices()
+      refresh_folder_choices("")
+      refresh_dataset_choices("", root_folder_token)
+      showNotification("数据空间已删除（含文件夹与数据集）", type = "message")
+    }, error = function(e) {
+      showNotification(paste("删除失败:", e$message), type = "error")
+    })
   })
   
   observeEvent(input$create_folder, {
@@ -472,28 +482,26 @@ database_manager_server <- function(id) {
       showNotification("请输入文件夹名称", type = "warning")
       return()
     }
-    reg <- load_registry()
-    fd_current <- reg$folders[reg$folders$workspace_id == workspace_id, , drop = FALSE]
-    if (folder_name %in% fd_current$name) {
+    
+    existing <- dbGetQuery(pool, "SELECT id FROM folders WHERE workspace_id = $1 AND name = $2", params = list(workspace_id, folder_name))
+    if (nrow(existing) > 0) {
       showNotification("文件夹名称已存在", type = "warning")
       return()
     }
+    
     folder_id <- paste0("fd_", as.integer(as.numeric(Sys.time())), "_", sample(1000:9999, 1))
-    reg$folders <- rbind(
-      reg$folders,
-      data.frame(
-        id = folder_id,
-        workspace_id = workspace_id,
-        name = folder_name,
-        created_at = Sys.time(),
-        stringsAsFactors = FALSE
-      )
-    )
-    save_registry(reg)
-    refresh_folder_choices(workspace_id)
-    updateSelectInput(session, "folder_select", selected = folder_id)
-    updateTextInput(session, "folder_name", value = "")
-    showNotification("文件夹创建成功", type = "message")
+    
+    tryCatch({
+      dbExecute(pool, "INSERT INTO folders (id, workspace_id, name, created_at) VALUES ($1, $2, $3, NOW())",
+                params = list(folder_id, workspace_id, folder_name))
+      registry_version(as.numeric(Sys.time()))
+      refresh_folder_choices(workspace_id)
+      updateSelectInput(session, "folder_select", selected = folder_id)
+      updateTextInput(session, "folder_name", value = "")
+      showNotification("文件夹创建成功", type = "message")
+    }, error = function(e) {
+      showNotification(paste("创建失败:", e$message), type = "error")
+    })
   })
   
   observeEvent(input$folder_select, {
@@ -517,25 +525,26 @@ database_manager_server <- function(id) {
       showNotification("根目录不能删除，请选择具体文件夹", type = "warning")
       return()
     }
-    reg <- load_registry()
-    fd <- reg$folders[reg$folders$id == folder_id & reg$folders$workspace_id == workspace_id, , drop = FALSE]
-    if (nrow(fd) == 0) {
-      showNotification("文件夹不存在", type = "warning")
-      return()
-    }
-    ds_to_remove <- reg$datasets[reg$datasets$workspace_id == workspace_id & reg$datasets$folder_id == folder_id, , drop = FALSE]
+    
+    ds_to_remove <- dbGetQuery(pool, "SELECT data_path FROM datasets WHERE workspace_id = $1 AND folder_id = $2", params = list(workspace_id, folder_id))
     remove_dataset_files(ds_to_remove)
-    reg$datasets <- reg$datasets[!(reg$datasets$workspace_id == workspace_id & reg$datasets$folder_id == folder_id), , drop = FALSE]
-    reg$folders <- reg$folders[reg$folders$id != folder_id, , drop = FALSE]
-    fd_dir <- file.path(storage_root, workspace_id, folder_id)
-    if (dir.exists(fd_dir)) {
-      unlink(fd_dir, recursive = TRUE, force = TRUE)
-    }
-    save_registry(reg)
-    updateSelectInput(session, "folder_select", selected = root_folder_token)
-    refresh_folder_choices(workspace_id)
-    refresh_dataset_choices(workspace_id, root_folder_token)
-    showNotification("文件夹已删除（含该文件夹下数据集）", type = "message")
+    
+    tryCatch({
+      dbExecute(pool, "DELETE FROM folders WHERE id = $1 AND workspace_id = $2", params = list(folder_id, workspace_id))
+      
+      fd_dir <- file.path(storage_root, workspace_id, folder_id)
+      if (dir.exists(fd_dir)) {
+        unlink(fd_dir, recursive = TRUE, force = TRUE)
+      }
+      
+      registry_version(as.numeric(Sys.time()))
+      updateSelectInput(session, "folder_select", selected = root_folder_token)
+      refresh_folder_choices(workspace_id)
+      refresh_dataset_choices(workspace_id, root_folder_token)
+      showNotification("文件夹已删除（含该文件夹下数据集）", type = "message")
+    }, error = function(e) {
+      showNotification(paste("删除失败:", e$message), type = "error")
+    })
   })
   
   observeEvent(input$file, {
@@ -556,23 +565,24 @@ database_manager_server <- function(id) {
     if (!nzchar(ds_name)) {
       ds_name <- tools::file_path_sans_ext(input$file$name)
     }
-    reg <- load_registry()
-    result <- save_dataset_to_registry(
-      reg = reg,
+    
+    result <- save_dataset_to_db(
       workspace_id = workspace_id,
       folder_id = folder_id,
       dataset_name = ds_name,
       source_file_name = input$file$name,
       source_file_path = input$file$datapath
     )
+    
     if (!isTRUE(result$success)) {
       showNotification(result$message, type = "warning")
       return()
     }
-    save_registry(result$reg)
+    
+    registry_version(as.numeric(Sys.time()))
     refresh_dataset_choices(workspace_id, folder_id)
     updateSelectInput(session, "dataset_select", selected = result$dataset_id)
-    showNotification("数据集已保存到本地数据仓库", type = "message")
+    showNotification("数据集已保存到PostgreSQL元数据库", type = "message")
   })
   
   observeEvent(input$save_batch_datasets, {
@@ -589,10 +599,11 @@ database_manager_server <- function(id) {
       showNotification("未检测到可上传文件", type = "warning")
       return()
     }
-    reg <- load_registry()
+    
     success_count <- 0
     fail_count <- 0
     last_dataset_id <- NULL
+    
     withProgress(message = "正在批量上传数据集...", value = 0, {
       step <- 1 / max(1, total_count)
       for (i in seq_len(total_count)) {
@@ -605,16 +616,16 @@ database_manager_server <- function(id) {
           next
         }
         ds_name <- tools::file_path_sans_ext(src_name)
-        result <- save_dataset_to_registry(
-          reg = reg,
+        
+        result <- save_dataset_to_db(
           workspace_id = workspace_id,
           folder_id = folder_id,
           dataset_name = ds_name,
           source_file_name = src_name,
           source_file_path = src_path
         )
+        
         if (isTRUE(result$success)) {
-          reg <- result$reg
           success_count <- success_count + 1
           last_dataset_id <- result$dataset_id
         } else {
@@ -623,7 +634,8 @@ database_manager_server <- function(id) {
         incProgress(step, detail = paste0("处理: ", src_name))
       }
     })
-    save_registry(reg)
+    
+    registry_version(as.numeric(Sys.time()))
     refresh_dataset_choices(workspace_id, folder_id)
     if (!is.null(last_dataset_id)) {
       updateSelectInput(session, "dataset_select", selected = last_dataset_id)
@@ -645,27 +657,24 @@ database_manager_server <- function(id) {
     if (!nzchar(workspace_name)) {
       workspace_name <- basename(normalizePath(path_input, winslash = "/", mustWork = TRUE))
     }
-    reg <- load_registry()
-    if (workspace_name %in% reg$workspaces$name) {
+    
+    existing <- dbGetQuery(pool, "SELECT id FROM workspaces WHERE name = $1", params = list(workspace_name))
+    if (nrow(existing) > 0) {
       showNotification("数据空间名称已存在，请修改名称后再导入", type = "warning")
       return()
     }
+    
     workspace_id <- paste0("ws_", as.integer(as.numeric(Sys.time())), "_", sample(1000:9999, 1))
-    reg$workspaces <- rbind(
-      reg$workspaces,
-      data.frame(
-        id = workspace_id,
-        name = workspace_name,
-        created_at = Sys.time(),
-        stringsAsFactors = FALSE
-      )
-    )
+    dbExecute(pool, "INSERT INTO workspaces (id, name, created_at) VALUES ($1, $2, NOW())", params = list(workspace_id, workspace_name))
+    
     abs_root <- normalizePath(path_input, winslash = "/", mustWork = TRUE)
     all_files <- list.files(abs_root, recursive = TRUE, full.names = TRUE, include.dirs = FALSE)
+    
     if (length(all_files) > 0) {
       all_files <- all_files[file.exists(all_files)]
       all_ext <- tolower(tools::file_ext(all_files))
       data_files <- all_files[all_ext %in% supported_ext]
+      
       if (length(data_files) > 0) {
         rel_paths <- substring(
           normalizePath(data_files, winslash = "/", mustWork = TRUE),
@@ -675,25 +684,19 @@ database_manager_server <- function(id) {
         rel_dirs[rel_dirs == "."] <- ""
         unique_dirs <- unique(rel_dirs[rel_dirs != ""])
         dir_map <- list()
+        
         if (length(unique_dirs) > 0) {
           for (rel_dir in unique_dirs) {
             folder_id <- paste0("fd_", as.integer(as.numeric(Sys.time())), "_", sample(1000:9999, 1))
-            folder_name <- rel_dir
-            reg$folders <- rbind(
-              reg$folders,
-              data.frame(
-                id = folder_id,
-                workspace_id = workspace_id,
-                name = folder_name,
-                created_at = Sys.time(),
-                stringsAsFactors = FALSE
-              )
-            )
+            dbExecute(pool, "INSERT INTO folders (id, workspace_id, name, created_at) VALUES ($1, $2, $3, NOW())", 
+                      params = list(folder_id, workspace_id, rel_dir))
             dir_map[[rel_dir]] <- folder_id
           }
         }
+        
         import_success <- 0
         import_fail <- 0
+        
         withProgress(message = "正在导入数据空间结构...", value = 0, {
           step <- 1 / max(1, length(data_files))
           for (i in seq_along(data_files)) {
@@ -702,16 +705,16 @@ database_manager_server <- function(id) {
             rel_dir <- rel_dirs[[i]]
             target_folder_id <- if (rel_dir == "") root_folder_token else dir_map[[rel_dir]]
             ds_name <- tools::file_path_sans_ext(file_name)
-            result <- save_dataset_to_registry(
-              reg = reg,
+            
+            result <- save_dataset_to_db(
               workspace_id = workspace_id,
               folder_id = target_folder_id,
               dataset_name = ds_name,
               source_file_name = file_name,
               source_file_path = file_path
             )
+            
             if (isTRUE(result$success)) {
-              reg <- result$reg
               import_success <- import_success + 1
             } else {
               import_fail <- import_fail + 1
@@ -719,7 +722,8 @@ database_manager_server <- function(id) {
             incProgress(step, detail = paste0("导入: ", file_name))
           }
         })
-        save_registry(reg)
+        
+        registry_version(as.numeric(Sys.time()))
         refresh_workspace_choices()
         updateSelectInput(session, "workspace_select", selected = workspace_id)
         refresh_folder_choices(workspace_id)
@@ -729,7 +733,8 @@ database_manager_server <- function(id) {
         return()
       }
     }
-    save_registry(reg)
+    
+    registry_version(as.numeric(Sys.time()))
     refresh_workspace_choices()
     updateSelectInput(session, "workspace_select", selected = workspace_id)
     refresh_folder_choices(workspace_id)
@@ -744,18 +749,20 @@ database_manager_server <- function(id) {
       showNotification("请先选择数据集", type = "warning")
       return()
     }
-    reg <- load_registry()
-    ds <- reg$datasets[reg$datasets$id == dataset_id, , drop = FALSE]
+    
+    ds <- dbGetQuery(pool, "SELECT data_path FROM datasets WHERE id = $1", params = list(dataset_id))
+    
     if (nrow(ds) == 0) {
       showNotification("数据集不存在", type = "warning")
       return()
     }
+    
     data_path <- ds$data_path[[1]]
-    if (file.exists(data_path)) {
-      file.remove(data_path)
-    }
-    reg$datasets <- reg$datasets[reg$datasets$id != dataset_id, , drop = FALSE]
-    save_registry(reg)
+    tryCatch(storage_delete_dataset(data_path), error = function(e) NULL)
+    
+    dbExecute(pool, "DELETE FROM datasets WHERE id = $1", params = list(dataset_id))
+    
+    registry_version(as.numeric(Sys.time()))
     workspace_id <- input$workspace_select
     folder_id <- input$folder_select
     refresh_dataset_choices(ifelse(is.null(workspace_id), "", workspace_id),
