@@ -15,3 +15,6 @@ test/**/*.Rhistory
 .Rhistory
 .RData
 .Rproj.user/
+
+# local package cache for offline deployment
+package/

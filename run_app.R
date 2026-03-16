@@ -31,51 +31,18 @@ if (!file.exists("install_dependencies.R")) {
 # 使用 tryCatch 来处理源文件加载错误
 tryCatch({
   source("install_dependencies.R", local = TRUE)
+  if (exists("main", mode = "function")) {
+    main()
+  } else {
+    stop("install_dependencies.R 中未找到 main 函数")
+  }
   cat("✅ 依赖检查完成\n\n")
 }, error = function(e) {
   cat("错误: 无法加载 install_dependencies.R\n")
   cat("错误信息:", e$message, "\n")
   stop("依赖检查失败")
 })
-
-cat("3. 加载必需的包...\n")
-# 加载所有必需的包
-required_packages <- c(
-  "shiny", "shinydashboard", "shinyjs", "shinyBS", "bslib",
-  "dplyr", "readr", "readxl", "haven", "ggplot2", "plotly",
-  "DT", "gt", "purrr", "stringr", "survival", "broom", "survminer",
-  "corrplot", "ggsci", "patchwork", "digest", "colourpicker", "reactable",
-  "waiter", "shinyalert", "scales", "gridExtra", "cowplot", "RColorBrewer",
-  "tidyr", "vroom", "memoise", "shinyWidgets", "gtsummary"
-)
-
-successful_loads <- 0
-for (pkg in required_packages) {
-  # 首先检查包是否已安装
-  if (!requireNamespace(pkg, quietly = TRUE)) {
-    cat("警告: 包 '", pkg, "' 未安装\n")
-    cat("尝试安装包 '", pkg, "'...\n")
-    install.packages(pkg, repos = "https://cloud.r-project.org/")
-  }
-  
-  # 尝试加载包
-  if (requireNamespace(pkg, quietly = TRUE)) {
-    if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
-      cat("错误: 无法加载包 '", pkg, "' 到搜索路径\n")
-    } else {
-      cat("✅ 已加载:", pkg, "\n")
-      successful_loads <- successful_loads + 1
-    }
-  } else { 
-    cat("错误: 无法安装包 '", pkg, "'\n")
-  }
-}
-
-if (successful_loads < length(required_packages)) {
-  cat("警告: 部分包加载失败，应用可能无法正常工作\n")
-}
-
-cat("\n4. 启动Shiny应用...\n")
+cat("3. 启动Shiny应用...\n")
 cat("应用将在浏览器中打开，请稍候...\n")
 cat("按 Ctrl+C 停止应用\n\n")
 

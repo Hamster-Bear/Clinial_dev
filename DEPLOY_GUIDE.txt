@@ -1,0 +1,60 @@
+# AutoTFL 部署指南
+
+本指南介绍如何使用新的 Python 部署脚本来解决 R 包安装慢的问题。
+
+## 方案简介
+
+我们引入了“离线仓库”模式：
+1. **开发阶段（有网）**：提前下载所有依赖包到 `vendor/cran/src`。
+2. **部署阶段（无网/慢网）**：直接从本地 `vendor` 目录安装，无需连接外网 CRAN。
+
+## 文件说明
+
+- `deploy_packages.py`: 核心管理脚本，负责下载依赖和安装依赖。
+- `deploy_menu.bat`: Windows 下的快捷启动入口。
+
+## 使用步骤
+
+### 1. 准备离线仓库（在有网的机器上执行）
+
+如果你是第一次使用，或者新增了 R 包依赖，需要执行此步：
+
+1. 双击运行 `deploy_menu.bat`
+2. 输入 `3` 选择 **Download/Update Offline Repo**
+3. 脚本会自动扫描项目中的依赖（`install_dependencies.R`, `run_app.R`, `app.R`），并从清华镜像下载所有包到 `vendor/cran/src`。
+
+### 2. 部署项目（在目标机器上执行）
+
+将整个项目（包含 `vendor` 目录）复制到部署机器，然后：
+
+1. 双击运行 `deploy_menu.bat`
+2. 输入 `1` 选择 **Install Dependencies (Offline)**（这是默认推荐方案）
+3. 脚本会从本地 `vendor` 目录安装所有依赖，速度极快且不需要外网。
+
+### 3. 备用方案（在线安装）
+
+如果离线仓库损坏或未准备，可以选择：
+
+1. 双击运行 `deploy_menu.bat`
+2. 输入 `2` 选择 **Install Dependencies (Online)**
+3. 脚本将使用清华镜像在线安装依赖。
+
+## 注意事项
+
+- **Windows vs Docker**: 
+  - 本方案默认下载 **源码包 (Source)**，非常适合 Docker 部署（Linux环境）。
+  - 如果在 Windows 上直接部署且没有安装 Rtools，源码包编译可能会失败。建议在 Windows 上开发时，依然使用常规的 `install.packages()` 或方案 2（在线安装）。
+  - 如果主要目的是加速 Docker 构建，请确保在构建镜像前执行“准备离线仓库”步骤，并将 `vendor` 目录 COPY 进镜像。
+
+## Docker 集成（高级）
+
+在 `Dockerfile` 中，你可以利用这个离线仓库：
+
+```dockerfile
+# 复制离线仓库
+COPY vendor/ /app/vendor/
+
+# 使用离线仓库安装
+RUN R -e "install.packages(list.files('/app/vendor/cran/src', full.names=TRUE), repos=NULL, type='source')"
+```
+或者继续使用 `deploy_packages.py` 在 Docker 构建过程中运行（需要安装 Python）。

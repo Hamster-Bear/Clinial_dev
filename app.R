@@ -8,13 +8,21 @@ required_packages <- c(
   "tidyr", "vroom", "memoise", "shinyWidgets", "gtsummary"
 )
 
-# 安装缺失的包
-for (pkg in required_packages) {
-  if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
-    install.packages(pkg, dependencies = TRUE)
-    library(pkg, character.only = TRUE)
-  }
+# 校验依赖包，不在 app.R 内执行安装
+missing_packages <- required_packages[!vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)]
+if (length(missing_packages) > 0) {
+  stop(
+    paste0(
+      "检测到缺失依赖包：",
+      paste(missing_packages, collapse = ", "),
+      "。请先运行 run_app.R 或 install_dependencies.R 完成安装。"
+    )
+  )
 }
+
+invisible(lapply(required_packages, function(pkg) {
+  library(pkg, character.only = TRUE, quietly = TRUE, warn.conflicts = FALSE)
+}))
 
 # 加载所有模块
 source("modules/data_preparation.R")

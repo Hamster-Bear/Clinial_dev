@@ -68,6 +68,7 @@ RUN apt-get update && \
         libxt-dev \
         libmagick++-dev \
         libarchive-dev \
+        libv8-dev \
     && ldconfig \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -78,23 +79,15 @@ RUN mkdir -p /app
 # 设置工作目录
 WORKDIR /app
 
-# 首先复制依赖管理文件以利用Docker缓存
+# 1. 优先复制本地包目录和依赖脚本，利用 Docker 缓存层
+COPY package /app/package
 COPY install_dependencies.R /app/install_dependencies.R
-RUN apt-get update && apt-get install -y libv8-dev && rm -rf /var/lib/apt/lists/*
-# 安装 R 包，使用严格模式 - 包含所有必需的依赖包
-# 使用 R -e 命令并设置错误处理，确保任何一个包安装失败都会中断构建，使用清华源镜像
-RUN R -e "options(warn=2, timeout=600); install.packages(c( \
-    'shiny', 'shinydashboard', 'shinyjs', 'shinyBS', 'bslib', \
-    'shinyWidgets', 'waiter', 'shinyalert', \
-    'dplyr', 'readr', 'readxl', 'haven', 'purrr', 'stringr', \
-    'vroom', 'memoise', 'ggplot2', 'plotly', 'DT', 'gt', \
-    'patchwork', 'reactable', 'cowplot', 'gridExtra', 'scales', \
-    'RColorBrewer', 'cards', 'gtsummary', 'tfrmt', 'forcats', \
-    'tidyr', 'rlang', 'rtables', 'tern', 'survival', 'broom', \
-    'survminer', 'corrplot', 'ggsci', 'colourpicker', 'digest' \
-    ), repos='https://mirrors.tuna.tsinghua.edu.cn/CRAN/', dependencies=TRUE)"
 
-# 现在复制应用的其余文件
+# 2. 执行依赖安装：优先本地 package 目录，缺失则从在线源拉取
+# install_dependencies.R 内部已实现该逻辑
+RUN Rscript /app/install_dependencies.R
+
+# 3. 复制剩余应用文件
 COPY . /app/
 
 # 设置权限
