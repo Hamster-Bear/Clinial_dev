@@ -278,7 +278,7 @@ perform_desc_analysis <- function(data, variables, col_group_var, row_group_var,
 
   result_list <- list()
   if (length(factor_vars) > 0) {
-    factor_res <- lapply(factor_vars, function(var) build_factor_summary(df_work, var, col_group_var, row_group_var, decimals))
+    factor_res <- lapply(factor_vars, function(var) build_factor_summary(df_work, var, col_group_var, row_group_var, 1))
     result_list <- c(result_list, factor_res)
   }
   if (length(numeric_vars) > 0) {
@@ -403,6 +403,20 @@ perform_desc_analysis <- function(data, variables, col_group_var, row_group_var,
       row_group.font.weight = "bold",
       source_notes.font.size = "small"
     )
-
-  gt_table
+  gt_table <- apply_sci_gt_style(
+    gt_table,
+    title = "Table 1. Descriptive Statistics",
+    footnotes = c(
+      "Data are presented as n (%) for categorical variables and summary statistics for continuous variables.",
+      "P values are not applicable in the descriptive summary table.",
+      "Missing values were retained and reported as available in source data."
+    )
+  )
+  interpretation <- HTML("<h4><b>结果解读 (Result Interpretation):</b></h4><ul><li>分类变量按 n (%) 展示，百分比保留1位小数。</li><li>连续变量展示 N、Mean (SD)、Median、Q1/Q3、Min/Max。</li><li>缺失值按可用数据保留并在统计项中体现。</li></ul>")
+  list(
+    table = gt_table,
+    interpretation = interpretation,
+    model_notes = c("描述性统计不输出P值，重点用于样本结构与分布描述。"),
+    code = "perform_desc_analysis(data, variables, col_group_var, row_group_var, total_cols_count, total_cols_settings, decimals, auto_decimals, id_var)"
+  )
 }

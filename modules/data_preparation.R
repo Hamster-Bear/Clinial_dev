@@ -510,6 +510,80 @@ data_preparation_server <- function(id) {
     }
     updateSelectInput(session, "db_dataset_select", choices = ds_choices)
   }
+
+  map_data_path_to_storage_root <- function(raw_path, storage_root) {
+    if (is.null(raw_path) || !nzchar(raw_path)) {
+      return(raw_path)
+    }
+    normalized_raw <- gsub("\\\\", "/", raw_path)
+    if (startsWith(normalized_raw, "s3://")) {
+      return(raw_path)
+    }
+    if (startsWith(normalized_raw, "/app/data_storage/")) {
+      relative_seg <- sub("^/app/data_storage/?", "", normalized_raw)
+      return(file.path(storage_root, relative_seg))
+    }
+    marker <- "/data_storage/"
+    marker_pos <- regexpr(marker, normalized_raw, fixed = TRUE)[1]
+    if (!is.na(marker_pos) && marker_pos > 0) {
+      relative_seg <- substr(normalized_raw, marker_pos + nchar(marker), nchar(normalized_raw))
+      return(file.path(storage_root, relative_seg))
+    }
+    raw_path
+  }
+
+  resolve_dataset_data_path <- function(ds_row) {
+    raw_path <- ds_row$data_path[[1]]
+    if (is.null(raw_path) || !nzchar(raw_path)) {
+      return("")
+    }
+    if (grepl("^s3://", raw_path)) {
+      return(raw_path)
+    }
+    if (file.exists(raw_path)) {
+      return(raw_path)
+    }
+    storage_root <- normalizePath(
+      Sys.getenv("STORAGE_ROOT", "data_storage"),
+      winslash = "/",
+      mustWork = FALSE
+    )
+    mapped_path <- map_data_path_to_storage_root(raw_path, storage_root)
+    if (!identical(mapped_path, raw_path) && file.exists(mapped_path)) {
+      tryCatch({
+        if (!is.null(pg_pool)) {
+          dbExecute(pg_pool, "UPDATE datasets SET data_path = $1 WHERE id = $2", params = list(mapped_path, ds_row$id[[1]]))
+        }
+      }, error = function(e) NULL)
+      return(mapped_path)
+    }
+    folder_id <- if (is.na(ds_row$folder_id[[1]]) || !nzchar(ds_row$folder_id[[1]])) NULL else ds_row$folder_id[[1]]
+    fallback_path <- file.path(storage_root, ds_row$workspace_id[[1]], folder_id, paste0(ds_row$id[[1]], ".rds"))
+    if (file.exists(fallback_path)) {
+      tryCatch({
+        if (!is.null(pg_pool) && !identical(fallback_path, raw_path)) {
+          dbExecute(pg_pool, "UPDATE datasets SET data_path = $1 WHERE id = $2", params = list(fallback_path, ds_row$id[[1]]))
+        }
+      }, error = function(e) NULL)
+      return(fallback_path)
+    }
+    matched_paths <- list.files(
+      path = storage_root,
+      pattern = paste0("^", ds_row$id[[1]], "\\.rds$"),
+      recursive = TRUE,
+      full.names = TRUE
+    )
+    if (length(matched_paths) > 0 && file.exists(matched_paths[[1]])) {
+      resolved_path <- matched_paths[[1]]
+      tryCatch({
+        if (!is.null(pg_pool) && !identical(resolved_path, raw_path)) {
+          dbExecute(pg_pool, "UPDATE datasets SET data_path = $1 WHERE id = $2", params = list(resolved_path, ds_row$id[[1]]))
+        }
+      }, error = function(e) NULL)
+      return(resolved_path)
+    }
+    raw_path
+  }
   
   apply_loaded_data <- function(data) {
     withProgress(message = "正在准备数据...", value = 0, {
@@ -779,19 +853,24 @@ data_preparation_server <- function(id) {
       showNotification("未找到数据集记录", type = "error")
       return()
     }
-    data_path <- ds$data_path[[1]]
-    if (!file.exists(data_path)) {
-      showNotification("数据文件不存在，请检查数据仓库", type = "error")
-      return()
-    }
+    data_path <- resolve_dataset_data_path(ds)
     data <- withProgress(message = "正在加载数据库数据集...", value = 0, {
       incProgress(0.4, detail = "读取数据文件")
-      tmp <- tryCatch(storage_load_dataset(data_path), error = function(e) NULL)
+      tmp <- tryCatch(storage_load_dataset(data_path), error = function(e) e)
       if (!is.null(tmp) && is.data.frame(tmp)) {
         incProgress(0.6, detail = "初始化筛选与缓存")
       }
       tmp
     })
+    if (inherits(data, "error")) {
+      err_msg <- conditionMessage(data)
+      if (grepl("No such file or directory|cannot open the connection|无法打开压缩文件", err_msg, ignore.case = TRUE)) {
+        showNotification("加载失败：数据文件缺失。该记录仍在数据库中，但物理文件不存在，请重新上传该数据集。", type = "error", duration = NULL)
+      } else {
+        showNotification(paste0("加载失败：", err_msg), type = "error")
+      }
+      return()
+    }
     if (is.null(data) || !is.data.frame(data)) {
       showNotification("加载失败，数据文件格式异常", type = "error")
       return()

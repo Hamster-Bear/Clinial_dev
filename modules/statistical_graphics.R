@@ -3,6 +3,7 @@
 
 # 加载必要的包
 library(shiny)
+source("modules/common/plot_export.R")
 
 # 加载子模块
 source("modules/statistical_graphics/survival_analysis.R")

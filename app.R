@@ -6,7 +6,7 @@ required_packages <- c(
   "corrplot", "ggsci", "patchwork", "digest", "colourpicker", "reactable",
   "waiter", "shinyalert", "scales", "gridExtra", "cowplot", "RColorBrewer",
   "tidyr", "vroom", "memoise", "shinyWidgets", "gtsummary",
-  "DBI", "RPostgres", "pool"
+  "DBI", "RPostgres", "pool", "rmarkdown", "knitr", "flextable", "officer"
 )
 
 # 校验依赖包，不在 app.R 内执行安装

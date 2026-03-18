@@ -90,6 +90,31 @@ docker build -t your-image-name:your-tag .
 
 更多详细信息请参考项目根目录下的 `Dockerfile` 和构建脚本。
 
+### 方法四：使用 Docker Compose 一键部署（Nginx + Shiny + PostgreSQL）
+
+1. 在项目根目录设置数据库密码环境变量（可选，未设置时使用默认值）：
+```powershell
+$env:DB_PASSWORD="YourStrongPassword"
+```
+
+2. 构建并启动全部服务：
+```bash
+docker compose up -d --build
+```
+
+3. 访问应用：
+- 浏览器打开 `http://localhost`
+
+4. 查看服务状态：
+```bash
+docker compose ps
+```
+
+5. 停止服务：
+```bash
+docker compose down
+```
+
 ## 依赖管理
 
 项目提供了专门的依赖管理脚本来简化安装过程：

@@ -15,6 +15,13 @@ test/**/*.Rhistory
 .Rhistory
 .RData
 .Rproj.user/
+__pycache__/
+\!LOG_FILE!
+AI prompt
+.roo/
+.vscode/
+plans/
+test/tmp_*.R
 
 # local package cache for offline deployment
 package/

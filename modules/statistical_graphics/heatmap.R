@@ -225,18 +225,17 @@ heatmap_server <- function(input, output, session, data) {
   # 图形导出
   output$dl_plot <- downloadHandler(
     filename = function() {
-      paste("heatmap_", Sys.Date(), ".", input$export_format, sep = "")
+      build_plot_export_filename("heatmap", input$export_format)
     },
     content = function(file) {
-      req(final_plot())
-      plot_format <- input$export_format
-      if (plot_format == "pdf") {
-        ggsave(file, plot = final_plot(), width = 10, height = 8, device = "pdf")
-      } else if (plot_format == "svg") {
-        ggsave(file, plot = final_plot(), width = 10, height = 8, device = "svg")
-      } else { # png
-        ggsave(file, plot = final_plot(), width = 10, height = 8, dpi = 300)
-      }
+      save_plot_export(
+        file = file,
+        plot_obj = final_plot(),
+        format = input$export_format,
+        width = 10,
+        height = 8,
+        dpi = 300
+      )
     }
   )
   

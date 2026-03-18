@@ -1,0 +1,50 @@
+version: '3.8'
+name: autotfl-temp
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:14-alpine
+    container_name: autotfl-temp-postgres
+    environment:
+      POSTGRES_DB: autotfl
+      POSTGRES_USER: autotfl_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ChangeMe123!}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data_temp:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+    ports:
+      - "55432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autotfl_user -d autotfl"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - autotfl-network-temp
+
+  # Redis cache (reserved for future use)
+  redis:
+    image: redis:7-alpine
+    container_name: autotfl-temp-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data_temp:/data
+    ports:
+      - "56379:6379"
+    restart: unless-stopped
+    networks:
+      - autotfl-network-temp
+
+networks:
+  autotfl-network-temp:
+    driver: bridge
+
+volumes:
+  postgres_data_temp:
+    driver: local
+  redis_data_temp:
+    driver: local

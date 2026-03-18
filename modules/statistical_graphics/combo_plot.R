@@ -430,31 +430,27 @@ combo_plot_server <- function(input, output, session, data) {
   # 下载处理
   output$download_plot <- downloadHandler(
     filename = function() {
-      paste("combo_plot_", Sys.Date(), ".", input$export_format, sep = "")
+      build_plot_export_filename("combo_plot", input$export_format)
     },
     content = function(file) {
       req(generated_plot_obj())
       obj <- generated_plot_obj()$obj
-      format <- input$export_format
       
-      # 准备用于保存的静态图形对象
       if (inherits(obj, "ggplot")) {
-        # 叠加模式：直接是 ggplot 对象
         final_plot <- obj
       } else if (is.list(obj)) {
-        # 列表模式：使用 cowplot 或 gridExtra 组合
         nrows <- if(generated_plot_obj()$method == "side_by_side") 1 else length(obj)
         final_plot <- plot_grid(plotlist = obj, nrow = nrows)
       }
       
-      # 保存
-      if (format == "pdf") {
-        ggsave(file, plot = final_plot, width = 12, height = 8, device = "pdf")
-      } else if (format == "svg") {
-        ggsave(file, plot = final_plot, width = 12, height = 8, device = "svg")
-      } else { # png
-        ggsave(file, plot = final_plot, width = 12, height = 8, dpi = 300)
-      }
+      save_plot_export(
+        file = file,
+        plot_obj = final_plot,
+        format = input$export_format,
+        width = 12,
+        height = 8,
+        dpi = 300
+      )
     }
   )
   

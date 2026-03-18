@@ -13,6 +13,7 @@ source("modules/tables/t_ae_soc_pt.R")
 source("modules/tables/listing_general.R")
 source("modules/tables/ae_sidebyside.R") # 加载并列对比图模块
 source("modules/common/data_filter.R") # 加载通用筛选模块
+source("modules/common/table_export.R")
 
 # Tables模块UI
 tables_ui <- function(id) {
@@ -84,6 +85,27 @@ tables_ui <- function(id) {
           tabsetPanel(
             tabPanel("表格结果", uiOutput(ns("table_output"))),
             tabPanel("R代码", verbatimTextOutput(ns("code_output"), placeholder = TRUE))
+          ),
+          br(),
+          fluidRow(
+            column(
+              width = 4,
+              selectInput(
+                ns("table_export_format"),
+                "导出格式",
+                choices = c("Word (.docx)" = "docx", "PNG (.png)" = "png"),
+                selected = "docx"
+              )
+            ),
+            column(
+              width = 4,
+              textInput(ns("table_export_name"), "文件名前缀", value = "table_result")
+            ),
+            column(
+              width = 4,
+              br(),
+              downloadButton(ns("table_download"), "导出结果", class = "btn-primary")
+            )
           )
         )
       )
@@ -420,6 +442,33 @@ tables_server <- function(id, data) {
       }, error = function(e) {
         showNotification(paste("导出错误:", e$message), type = "error")
       })
+    }
+  )
+
+  output$table_download <- downloadHandler(
+    filename = function() {
+      req(table_result())
+      build_table_export_filename(
+        prefix = ifelse(nzchar(input$table_export_name), input$table_export_name, "table_result"),
+        format = input$table_export_format
+      )
+    },
+    content = function(file) {
+      req(table_result())
+      obj <- table_result()
+      if (identical(input$table_export_format, "png")) {
+        save_table_png(file = file, table_obj = obj, width = 12, height = 8, dpi = 300)
+      } else {
+        export_title <- switch(
+          input$table_type,
+          "t_dm" = "人口统计表格 (t_dm)",
+          "t_ae_soc_pt" = "分级统计表 (t_ae_soc_pt)",
+          "listing_general" = "一般列表 (listing_general)",
+          "ae_sidebyside" = "不良事件并列对比图 (ae_sidebyside)",
+          "导出结果"
+        )
+        save_table_docx(file = file, table_obj = obj, title = export_title)
+      }
     }
   )
   

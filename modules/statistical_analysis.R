@@ -23,6 +23,7 @@ source("modules/statistical_analysis/anova.R")
 source("modules/statistical_analysis/chisq.R")
 source("modules/statistical_analysis/desc.R")
 source("modules/common/data_filter.R") # 加载通用筛选模块
+source("modules/common/table_export.R")
 
 # 统计方法选择UI
 statistical_analysis_ui <- function(id) {
@@ -119,7 +120,7 @@ statistical_analysis_ui <- function(id) {
           br(),
           fluidRow(
             column(
-              width = 5,
+              width = 4,
               selectInput(
                 ns("dl_format"),
                 "导出格式",
@@ -128,8 +129,23 @@ statistical_analysis_ui <- function(id) {
               )
             ),
             column(
-              width = 7,
+              width = 4,
+              textInput(ns("export_title"), "导出标题", value = "Table 1. Statistical Analysis Results")
+            ),
+            column(
+              width = 4,
               div(style = "padding-top: 25px;", downloadButton(ns("dl_table"), "导出报告", class = "btn-primary"))
+            )
+          ),
+          fluidRow(
+            column(
+              width = 12,
+              textAreaInput(
+                ns("export_footnotes"),
+                "导出脚注（每行一条）",
+                value = "Data are presented as n (%) for categorical variables and summary statistics for continuous variables.\nP values were calculated using method-specific tests.\nMissing values were retained and reported as available in source data.",
+                rows = 4
+              )
             )
           )
         )
@@ -492,6 +508,37 @@ statistical_analysis_server <- function(id, data) {
     data.frame(提示 = "当前结果无法转换为结构化表格", stringsAsFactors = FALSE)
   }
 
+  extract_table_object <- function(result) {
+    if (is.list(result) && !is.null(result$table)) {
+      return(result$table)
+    }
+    result
+  }
+
+  build_export_footnotes <- function(method_code, custom_footnote = NULL) {
+    method_note <- switch(
+      method_code,
+      "desc" = "P values are not applicable in the descriptive summary table.",
+      "cox" = "P values were calculated using Cox proportional hazards regression.",
+      "logistic" = "P values were calculated using logistic regression.",
+      "linear" = "P values were calculated using linear regression.",
+      "anova" = "P values were calculated using ANOVA.",
+      "chi-sq" = "P values were calculated using Chi-square test.",
+      "P values were calculated using method-specific tests."
+    )
+    base_notes <- c(
+      "Data are presented as n (%) for categorical variables and summary statistics for continuous variables.",
+      method_note,
+      "Missing values were retained and reported as available in source data."
+    )
+    custom_lines <- character(0)
+    if (!is.null(custom_footnote) && nzchar(trimws(custom_footnote))) {
+      custom_lines <- trimws(unlist(strsplit(custom_footnote, "\\r?\\n")))
+      custom_lines <- custom_lines[nzchar(custom_lines)]
+    }
+    unique(c(custom_lines, base_notes))
+  }
+
   get_analysis_context <- reactive({
     method <- input$stat_method
     switch(method,
@@ -700,22 +747,21 @@ statistical_analysis_server <- function(id, data) {
     req(analysis_results())
     
     result <- analysis_results()
+    export_title <- if (!is.null(input$export_title) && nzchar(trimws(input$export_title))) trimws(input$export_title) else "Statistical Analysis Results"
+    footnotes <- build_export_footnotes(input$stat_method, input$export_footnotes)
     
     if (inherits(result, "gt_tbl")) {
-      return(result)
+      return(apply_sci_gt_style(result, title = export_title, footnotes = footnotes))
     } else if (is.data.frame(result)) {
-      # 简单转换为gt表格
-      gt::gt(result) %>% gt::tab_options(table.width = gt::pct(100))
+      return(apply_sci_gt_style(gt::gt(result), title = export_title, footnotes = footnotes))
     } else if (is.list(result) && !is.null(result$table)) {
-      # 处理包含解释的新结构
       if (inherits(result$table, "gt_tbl")) {
-        result$table %>% gt::tab_options(table.width = gt::pct(100))
+        return(apply_sci_gt_style(result$table, title = export_title, footnotes = footnotes))
       } else {
-        gt::gt(result$table) %>% gt::tab_options(table.width = gt::pct(100))
+        return(apply_sci_gt_style(gt::gt(result$table), title = export_title, footnotes = footnotes))
       }
     } else {
-      # 默认显示空表格
-      gt::gt(data.frame(Result = "无可用结果"))
+      apply_sci_gt_style(gt::gt(data.frame(Result = "无可用结果")), title = export_title, footnotes = footnotes)
     }
   })
   
@@ -749,59 +795,17 @@ statistical_analysis_server <- function(id, data) {
       report <- build_stat_report(result, input$stat_method, get_analysis_context())
       method_profile <- get_method_profile(input$stat_method)
       fmt <- if (is.null(input$dl_format)) "word" else input$dl_format
-      output_format <- switch(fmt, word = "word_document", html = "html_document", rtf = "rtf_document", "word_document")
-      tmp_rds <- tempfile(fileext = ".rds")
-      saveRDS(result, tmp_rds)
-      tmp_rds <- normalizePath(tmp_rds, winslash = "/", mustWork = FALSE)
-      rmd_content <- paste0(
-        "---\n",
-        "title: \"统计分析报告\"\n",
-        "params:\n",
-        "  report_md: \"\"\n",
-        "  method_name: \"\"\n",
-        "  result_rds: \"\"\n",
-        "---\n\n",
-        "## 分析方法\n\n",
-        "方法：`r params$method_name`\n\n",
-        "## 统计报告\n\n",
-        "```{r, echo=FALSE, results='asis'}\n",
-        "cat(params$report_md)\n",
-        "```\n\n",
-        "## 统计结果表\n\n",
-        "```{r, echo=FALSE, results='asis'}\n",
-        "result <- readRDS(params$result_rds)\n",
-        "if (inherits(result, 'gt_tbl')) {\n",
-        "  result\n",
-        "} else if (is.list(result) && !is.null(result$table)) {\n",
-        "  if (inherits(result$table, 'gt_tbl')) {\n",
-        "    result$table\n",
-        "  } else {\n",
-        "    knitr::kable(result$table, format = 'pipe')\n",
-        "  }\n",
-        "} else if (is.data.frame(result)) {\n",
-        "  knitr::kable(result, format = 'pipe')\n",
-        "} else {\n",
-        "  knitr::kable(data.frame(Result='无可用结果'), format='pipe')\n",
-        "}\n",
-        "```\n"
-      )
-
-      tmp_rmd <- tempfile(fileext = ".Rmd")
-      writeLines(rmd_content, tmp_rmd)
-
+      export_title <- if (!is.null(input$export_title) && nzchar(trimws(input$export_title))) trimws(input$export_title) else paste0("Table. ", method_profile$name, " Analysis Results")
+      export_footnotes <- build_export_footnotes(input$stat_method, input$export_footnotes)
       tryCatch({
-        rmarkdown::render(
-          input = tmp_rmd,
-          output_format = output_format,
-          output_file = basename(file),
-          output_dir = dirname(file),
-          params = list(
-            report_md = report$markdown,
-            method_name = method_profile$name,
-            result_rds = tmp_rds
-          ),
-          envir = new.env(parent = globalenv()),
-          quiet = TRUE
+        save_table_export(
+          file = file,
+          result_obj = result,
+          format = fmt,
+          title = export_title,
+          footnotes = export_footnotes,
+          report_md = report$markdown,
+          method_name = method_profile$name
         )
       }, error = function(e) {
         msg <- to_user_guidance(conditionMessage(e))

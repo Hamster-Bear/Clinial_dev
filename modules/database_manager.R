@@ -144,7 +144,11 @@ database_manager_server <- function(id) {
     poolClose(pool)
   })
 
-  storage_root <- normalizePath("data_storage", winslash = "/", mustWork = FALSE)
+  storage_root <- normalizePath(
+    Sys.getenv("STORAGE_ROOT", "data_storage"),
+    winslash = "/",
+    mustWork = FALSE
+  )
   dir.create(storage_root, recursive = TRUE, showWarnings = FALSE)
   
   # 不再使用 registry.rds

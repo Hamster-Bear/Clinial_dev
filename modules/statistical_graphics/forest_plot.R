@@ -1480,16 +1480,18 @@ forest_plot_server <- function(input, output, session, data) {
   # 下载图形
   output$download_plot <- downloadHandler(
     filename = function() {
-      paste("forest_plot_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".png", sep = "")
+      build_plot_export_filename("forest_plot", "png", include_time = TRUE)
     },
     content = function(file) {
-      plot_obj <- forest_plot_reactive()
-      if (!is.null(plot_obj)) {
-        ggsave(file, plot_obj,
-               width = input$plot_width,
-               height = input$plot_height,
-               dpi = 300, bg = "white")
-      }
+      save_plot_export(
+        file = file,
+        plot_obj = forest_plot_reactive(),
+        format = "png",
+        width = input$plot_width,
+        height = input$plot_height,
+        dpi = 300,
+        bg = "white"
+      )
     }
   )
   

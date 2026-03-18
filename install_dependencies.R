@@ -67,6 +67,10 @@ required_packages <- c(
   # 列表处理与测试
   "rlistings",
   "r2rtf",
+  "rmarkdown",
+  "knitr",
+  "flextable",
+  "officer",
   "testthat"
 )
 

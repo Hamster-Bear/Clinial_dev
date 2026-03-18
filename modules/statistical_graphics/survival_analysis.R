@@ -1513,20 +1513,18 @@ survival_analysis_server <- function(input, output, session, data) {
   # 下载静态图
   output$download_plot <- downloadHandler(
     filename = function() {
-      paste("survival_plot_", Sys.Date(), ".", input$export_format, sep = "")
+      build_plot_export_filename("survival_plot", input$export_format)
     },
     content = function(file) {
-      plot_format <- input$export_format
-      if (plot_format == "pdf") {
-        ggsave(file, plot = create_surv_plot(), width = 10, height = 8, device = "pdf",
-               bg = "white", dpi = 300)
-      } else if (plot_format == "svg") {
-        ggsave(file, plot = create_surv_plot(), width = 10, height = 8, device = "svg",
-               bg = "white")
-      } else {  # png
-        ggsave(file, plot = create_surv_plot(), width = 10, height = 8, device = "png",
-               bg = "white", dpi = 300)
-      }
+      save_plot_export(
+        file = file,
+        plot_obj = create_surv_plot(),
+        format = input$export_format,
+        width = 10,
+        height = 8,
+        dpi = 300,
+        bg = "white"
+      )
     }
   )
   

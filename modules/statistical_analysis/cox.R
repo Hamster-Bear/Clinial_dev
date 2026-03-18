@@ -155,9 +155,7 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
   }
 
   format_p <- function(p) {
-    if (is.na(p)) return("NA")
-    if (p < 0.0001) return("<0.0001")
-    sub("\\.?0+$", "", sprintf("%.4f", p))
+    format_p_value_ama(p)
   }
 
   format_hr_ci <- function(est, low, high) {
@@ -175,17 +173,15 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
 
   apply_clinical_style <- function(gt_tbl) {
     col_names <- tryCatch(names(gt_tbl[["_data"]]), error = function(e) character(0))
-    styled <- gt_tbl %>%
-      gt::tab_options(
-        table.width = gt::pct(100),
-        table.font.size = "small",
-        row_group.font.weight = "bold",
-        column_labels.font.weight = "bold",
-        table_body.hlines.color = "#D9D9D9",
-        table_body.border.top.color = "#333333",
-        table_body.border.bottom.color = "#333333",
-        heading.border.bottom.color = "#333333"
+    styled <- apply_sci_gt_style(
+      gt_tbl,
+      title = "Table 2. Cox Proportional Hazards Regression",
+      footnotes = c(
+        "Data are presented as HR (95% CI).",
+        "P values were calculated using Cox proportional hazards regression.",
+        "P values are reported to 3 decimals, with <0.001 and >0.99 thresholds."
       )
+    )
     if ("分层" %in% col_names) {
       styled <- styled %>%
         gt::cols_align(align = "left", columns = c("分层")) %>%
@@ -194,7 +190,7 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
           locations = gt::cells_body(columns = "分层")
         )
     }
-    styled %>% gt::tab_source_note(gt::md("注：HR(95%CI)为风险比及区间估计，P值用于显著性判断。"))
+    styled
   }
 
   build_strata_first_gt <- function(df_in, strata_var = NULL, facet_var = NULL) {
