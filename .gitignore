@@ -20,6 +20,7 @@ __pycache__/
 AI prompt
 .roo/
 .vscode/
+.env.test
 plans/
 test/tmp_*.R
 
