@@ -115,7 +115,7 @@ perform_desc_analysis <- function(data, variables, col_group_var, row_group_var,
   numeric_vars <- vars[sapply(df[, vars, drop = FALSE], is.numeric)]
   factor_vars <- setdiff(vars, numeric_vars)
   auto_decimals_info <- if (auto_decimals && length(numeric_vars) > 0) calculate_original_decimals(df, numeric_vars) else list()
-  stat_levels <- c("N", "Mean (SD)", "Median", "Q1, Q3", "Min, Max")
+  stat_levels <- c("n", "Mean (SD)", "Median", "Q1, Q3", "Min, Max")
 
   format_num <- function(x, digits) {
     if (is.na(x) || !is.finite(x)) return("NA")
@@ -135,7 +135,7 @@ perform_desc_analysis <- function(data, variables, col_group_var, row_group_var,
     x <- x[!is.na(x)]
     n <- length(x)
     if (n == 0) {
-      return(c("N" = "0", "Mean (SD)" = "NA", "Median" = "NA", "Q1, Q3" = "NA", "Min, Max" = "NA"))
+      return(c("n" = "0", "Mean (SD)" = "NA", "Median" = "NA", "Q1, Q3" = "NA", "Min, Max" = "NA"))
     }
     mean_txt <- format_num(mean(x), digits_cfg$mean)
     sd_val <- sd(x)
@@ -146,7 +146,7 @@ perform_desc_analysis <- function(data, variables, col_group_var, row_group_var,
     min_txt <- format_num(min(x), digits_cfg$minmax)
     max_txt <- format_num(max(x), digits_cfg$minmax)
     c(
-      "N" = as.character(n),
+      "n" = as.character(n),
       "Mean (SD)" = paste0(mean_txt, " (", sd_txt, ")"),
       "Median" = median_txt,
       "Q1, Q3" = paste0(q1_txt, ", ", q3_txt),
@@ -367,52 +367,80 @@ perform_desc_analysis <- function(data, variables, col_group_var, row_group_var,
     gt::md(paste0(col_name, "<br><span style='font-weight:normal'>(N = ", n_val, ")</span>"))
   }
 
-  if ("RowGroup" %in% names(final_result)) {
+  has_row_group <- "RowGroup" %in% names(final_result)
+  if (has_row_group) {
     final_result <- final_result %>%
       group_by(Variable, RowGroup) %>%
       mutate(
-        RowGroup = ifelse(row_number() == 1, paste0("\u00A0\u00A0\u00A0\u00A0", RowGroup), ""),
-        Statistics = ifelse(Statistics %in% stat_levels, paste0("\u00A0\u00A0\u00A0\u00A0", Statistics), paste0("\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0", Statistics))
+        RowGroup = ifelse(row_number() == 1, as.character(RowGroup), "")
       ) %>%
       ungroup()
-    gt_table <- gt::gt(final_result, groupname_col = "VariableDisplay")
+  }
+  final_result <- final_result %>%
+    group_by(Variable) %>%
+    mutate(VariableDisplay = ifelse(row_number() == 1, VariableDisplay, "")) %>%
+    ungroup()
+  value_cols <- setdiff(names(final_result), c("Variable", "VariableDisplay", "RowGroup", "Statistics"))
+  final_result <- final_result %>%
+    mutate(
+      Statistics = gsub("^\u00A0+", "", as.character(Statistics))
+    )
+  if (has_row_group) {
+    final_result <- final_result %>%
+      mutate(RowGroup = gsub("^\u00A0+", "", as.character(RowGroup)))
+    var_blocks <- lapply(vars, function(v) {
+      block <- final_result[final_result$Variable == v, , drop = FALSE]
+      if (nrow(block) == 0) {
+        return(NULL)
+      }
+      header_row <- block[1, , drop = FALSE]
+      header_row$VariableDisplay <- unname(var_label_map[[v]])
+      header_row$RowGroup <- ""
+      header_row$Statistics <- ""
+      if (length(value_cols) > 0) {
+        for (col_name in value_cols) {
+          header_row[[col_name]] <- ""
+        }
+      }
+      block$VariableDisplay <- ""
+      rbind(header_row, block)
+    })
+    final_result <- dplyr::bind_rows(var_blocks)
+    ordered_cols <- c("Variable", "VariableDisplay", "RowGroup", "Statistics", value_cols)
   } else {
-    gt_table <- gt::gt(final_result, groupname_col = "VariableDisplay")
+    ordered_cols <- c("Variable", "VariableDisplay", "Statistics", value_cols)
   }
+  final_result <- final_result[, ordered_cols, drop = FALSE]
+  gt_table <- gt::gt(final_result)
 
-  label_map <- list(Statistics = "统计项")
-  if ("RowGroup" %in% names(final_result)) {
-    label_map$RowGroup <- ""
+  label_map <- list(VariableDisplay = "分析变量", Statistics = "统计项")
+  if (has_row_group) {
+    label_map$RowGroup <- "亚组"
   }
-  display_cols <- setdiff(names(final_result), c("Variable", "VariableDisplay", "Statistics", "RowGroup"))
+  display_cols <- setdiff(names(final_result), c("Variable", "VariableDisplay", "RowGroup", "Statistics"))
   if (length(display_cols) > 0) {
     for (col_name in display_cols) {
       label_map[[col_name]] <- build_n_label(col_name)
     }
   }
   gt_table <- do.call(gt::cols_label, c(list(.data = gt_table), label_map))
+  align_cols <- c("VariableDisplay", "Statistics")
+  if (has_row_group) {
+    align_cols <- c("VariableDisplay", "RowGroup", "Statistics")
+  }
   gt_table <- gt_table %>%
-    gt::cols_hide(columns = c("Variable", "VariableDisplay")) %>%
-    gt::tab_style(
-      style = gt::cell_text(indent = gt::px(4)),
-      locations = gt::cells_body(columns = "Statistics")
-    ) %>%
-    gt::tab_source_note(gt::md("注：分类变量显示 n (%)，百分比分母为当前分组内非缺失样本数；连续变量全缺失或无法估计时显示 NA。")) %>%
+    gt::cols_hide(columns = c("Variable")) %>%
+    gt::cols_align(align = "left", columns = align_cols) %>%
     gt::tab_options(
-      table.font.size = "small",
-      row_group.font.weight = "bold",
-      source_notes.font.size = "small"
+      table.font.size = "small"
     )
   gt_table <- apply_sci_gt_style(
     gt_table,
-    title = "Table 1. Descriptive Statistics",
-    footnotes = c(
-      "Data are presented as n (%) for categorical variables and summary statistics for continuous variables.",
-      "P values are not applicable in the descriptive summary table.",
-      "Missing values were retained and reported as available in source data."
-    )
+    title = NULL,
+    footnotes = NULL,
+    left_columns = align_cols
   )
-  interpretation <- HTML("<h4><b>结果解读 (Result Interpretation):</b></h4><ul><li>分类变量按 n (%) 展示，百分比保留1位小数。</li><li>连续变量展示 N、Mean (SD)、Median、Q1/Q3、Min/Max。</li><li>缺失值按可用数据保留并在统计项中体现。</li></ul>")
+  interpretation <- HTML("<h4><b>结果解读 (Result Interpretation):</b></h4><ul><li>分类变量按 n (%) 展示，百分比保留1位小数。</li><li>连续变量展示 n、Mean (SD)、Median、Q1/Q3、Min/Max。</li><li>缺失值按可用数据保留并在统计项中体现。</li></ul>")
   list(
     table = gt_table,
     interpretation = interpretation,

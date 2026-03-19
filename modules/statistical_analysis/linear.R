@@ -117,7 +117,7 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
       gtsummary::bold_p(t = 0.05) %>%
       gtsummary::bold_labels() %>%
       gtsummary::italicize_levels() %>%
-      gtsummary::modify_header(label = "**预测变量**", p.value = "**P值**")
+      gtsummary::modify_header(label = "预测变量", p.value = "P值")
   }
 
   format_p <- function(p) {
@@ -141,17 +141,16 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
 
   apply_clinical_style <- function(gt_tbl) {
     col_names <- tryCatch(names(gt_tbl[["_data"]]), error = function(e) character(0))
-    styled <- gt_tbl %>%
-      gt::tab_options(
-        table.width = gt::pct(100),
-        table.font.size = "small",
-        row_group.font.weight = "bold",
-        column_labels.font.weight = "bold",
-        table_body.hlines.color = "#D9D9D9",
-        table_body.border.top.color = "#333333",
-        table_body.border.bottom.color = "#333333",
-        heading.border.bottom.color = "#333333"
-      )
+    left_cols <- intersect(c("预测变量", "label", "分层"), col_names)
+    if (length(left_cols) == 0) {
+      left_cols <- 1
+    }
+    styled <- apply_sci_gt_style(
+      gt_tbl,
+      title = NULL,
+      footnotes = NULL,
+      left_columns = left_cols
+    )
     if ("分层" %in% col_names) {
       styled <- styled %>%
         gt::cols_align(align = "left", columns = c("分层")) %>%
@@ -160,7 +159,7 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
           locations = gt::cells_body(columns = "分层")
         )
     }
-    styled %>% gt::tab_source_note(gt::md("注：Beta(95%CI)为回归系数及区间估计，P值用于显著性判断。"))
+    styled
   }
 
   build_strata_first_gt <- function(df_in, strata_var = NULL, facet_var = NULL) {
@@ -329,7 +328,7 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
       gtsummary::bold_p(t = 0.05) %>%
       gtsummary::bold_labels() %>%
       gtsummary::italicize_levels() %>%
-      gtsummary::modify_header(label = "**预测变量**", p.value = "**P值**")
+      gtsummary::modify_header(label = "预测变量", p.value = "P值")
     gt_table <- gtsummary::as_gt(tbl) %>% apply_clinical_style()
   } else if (is.null(strata_var) && !is.null(facet_var)) {
     facet_vals <- unique(data[[facet_var]])
@@ -344,7 +343,7 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
           n_val <- nrow(sub_data)
           val_text <- as.character(val)
           if (!grepl("组$", val_text)) val_text <- paste0(val_text, "组")
-          facet_headers <- c(facet_headers, paste0("**", val_text, " (N=", n_val, ")**"))
+          facet_headers <- c(facet_headers, paste0(val_text, " (N=", n_val, ")"))
         }, error = function(e) warning(paste("分组", val, "建模失败:", e$message)))
       }
     }

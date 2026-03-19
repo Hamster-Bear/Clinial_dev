@@ -107,7 +107,7 @@ statistical_analysis_ui <- function(id) {
           status = "success",
           solidHeader = TRUE,
           tabsetPanel(
-            tabPanel("统计表格", gt::gt_output(ns("result_table"))),
+            tabPanel("统计表格", div(style = "width: 90%; margin: 18px auto 24px auto; padding: 8px 0 12px 0; overflow-x: auto;", gt::gt_output(ns("result_table")))),
             tabPanel("统计报告",
                      br(),
                      uiOutput(ns("analysis_interpretation"))
@@ -516,27 +516,12 @@ statistical_analysis_server <- function(id, data) {
   }
 
   build_export_footnotes <- function(method_code, custom_footnote = NULL) {
-    method_note <- switch(
-      method_code,
-      "desc" = "P values are not applicable in the descriptive summary table.",
-      "cox" = "P values were calculated using Cox proportional hazards regression.",
-      "logistic" = "P values were calculated using logistic regression.",
-      "linear" = "P values were calculated using linear regression.",
-      "anova" = "P values were calculated using ANOVA.",
-      "chi-sq" = "P values were calculated using Chi-square test.",
-      "P values were calculated using method-specific tests."
-    )
-    base_notes <- c(
-      "Data are presented as n (%) for categorical variables and summary statistics for continuous variables.",
-      method_note,
-      "Missing values were retained and reported as available in source data."
-    )
     custom_lines <- character(0)
     if (!is.null(custom_footnote) && nzchar(trimws(custom_footnote))) {
       custom_lines <- trimws(unlist(strsplit(custom_footnote, "\\r?\\n")))
       custom_lines <- custom_lines[nzchar(custom_lines)]
     }
-    unique(c(custom_lines, base_notes))
+    unique(custom_lines)
   }
 
   get_analysis_context <- reactive({

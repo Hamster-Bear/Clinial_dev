@@ -151,7 +151,7 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
       gtsummary::bold_p(t = 0.05) %>%
       gtsummary::bold_labels() %>%
       gtsummary::italicize_levels() %>%
-      gtsummary::modify_header(label = "**预测变量**", p.value = "**P值**")
+      gtsummary::modify_header(label = "预测变量", p.value = "P值")
   }
 
   format_p <- function(p) {
@@ -173,14 +173,15 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
 
   apply_clinical_style <- function(gt_tbl) {
     col_names <- tryCatch(names(gt_tbl[["_data"]]), error = function(e) character(0))
+    left_cols <- intersect(c("预测变量", "label", "分层"), col_names)
+    if (length(left_cols) == 0) {
+      left_cols <- 1
+    }
     styled <- apply_sci_gt_style(
       gt_tbl,
-      title = "Table 2. Cox Proportional Hazards Regression",
-      footnotes = c(
-        "Data are presented as HR (95% CI).",
-        "P values were calculated using Cox proportional hazards regression.",
-        "P values are reported to 3 decimals, with <0.001 and >0.99 thresholds."
-      )
+      title = NULL,
+      footnotes = NULL,
+      left_columns = left_cols
     )
     if ("分层" %in% col_names) {
       styled <- styled %>%
@@ -360,7 +361,7 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
       gtsummary::bold_p(t = 0.05) %>%
       gtsummary::bold_labels() %>%
       gtsummary::italicize_levels() %>%
-      gtsummary::modify_header(label = "**预测变量**", p.value = "**P值**")
+      gtsummary::modify_header(label = "预测变量", p.value = "P值")
     gt_table <- gtsummary::as_gt(tbl) %>% apply_clinical_style()
   } else {
     gt_table <- build_strata_first_gt(data, strata_var, facet_var)
