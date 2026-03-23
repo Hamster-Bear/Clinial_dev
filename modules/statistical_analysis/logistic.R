@@ -15,12 +15,18 @@ logistic_params_ui <- function(ns, data) {
     ),
     fluidRow(
       column(6,
-             selectInput(ns("logistic_strata"), "分层变量 (Strata, 行分组) - 可选", choices = c("None", factor_vars)),
-             bsTooltip(ns("logistic_strata"), "按该变量分层后，以行分组方式展示各层回归结果", placement = "top", trigger = "hover")
+             selectInput(ns("logistic_strata"), "亚组变量 (Split, 行分组) - 可选", choices = c("None", factor_vars)),
+             bsTooltip(ns("logistic_strata"), "按该变量分组后，分别拟合并以行分组方式展示结果（split）", placement = "top", trigger = "hover")
       ),
       column(6,
              selectInput(ns("logistic_facet"), "分组变量 (Facet, 列分组) - 可选", choices = c("None", factor_vars)),
              bsTooltip(ns("logistic_facet"), "按该变量分组后，以列分组方式并排展示回归结果", placement = "top", trigger = "hover")
+      )
+    ),
+    fluidRow(
+      column(12,
+             selectInput(ns("logistic_model_strata"), "分层变量 (控制项) - 可选", choices = c("None", factor_vars)),
+             bsTooltip(ns("logistic_model_strata"), "该变量作为模型控制项进入回归，用于分层变量控制", placement = "top", trigger = "hover")
       )
     ),
     uiOutput(ns("logistic_event_mapping_ui")),
@@ -31,7 +37,7 @@ logistic_params_ui <- function(ns, data) {
 }
 
 # 逻辑回归分析
-perform_logistic_analysis <- function(data, logistic_response, logistic_predictors, logistic_strata = NULL, logistic_facet = NULL, logistic_event_value = NULL) {
+perform_logistic_analysis <- function(data, logistic_response, logistic_predictors, logistic_strata = NULL, logistic_facet = NULL, logistic_event_value = NULL, logistic_model_strata = NULL) {
   req(logistic_response, logistic_predictors)
   
   # 验证变量
@@ -41,6 +47,7 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
 
   strata_var <- if (!is.null(logistic_strata) && logistic_strata != "None") logistic_strata else NULL
   facet_var <- if (!is.null(logistic_facet) && logistic_facet != "None") logistic_facet else NULL
+  model_strata_var <- if (!is.null(logistic_model_strata) && logistic_model_strata != "None") logistic_model_strata else NULL
   model_notes <- character(0)
   add_note <- function(msg) {
     txt <- trimws(as.character(msg))
@@ -90,6 +97,14 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
       ux[!is.na(ux)]
     }
   }
+  normalize_subgroup_levels <- function(v) {
+    lv <- as.character(v)
+    if (all(c("男", "女") %in% lv)) return(c("男", "女"))
+    if (all(c("M", "F") %in% lv)) return(c("M", "F"))
+    if (all(c("Male", "Female") %in% lv)) return(c("Male", "Female"))
+    lv
+  }
+  split_levels <- if (!is.null(strata_var)) normalize_subgroup_levels(get_levels_all(data[[strata_var]])) else character(0)
 
   count_effective_n <- function(df_sub) {
     vars <- unique(c(logistic_response, logistic_predictors))
@@ -105,36 +120,48 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
     hit[1]
   }
 
-  interaction_p_map <- function(df_in, strata_nm) {
-    if (is.null(strata_nm)) return(setNames(character(0), character(0)))
-    out <- setNames(rep("NA", length(logistic_predictors)), logistic_predictors)
+  interaction_p_map <- function(df_in, strata_nm, strata_levels) {
+    if (is.null(strata_nm) || length(strata_levels) <= 1) return(setNames(character(0), character(0)))
+    out <- character(0)
+    ref_level <- strata_levels[1]
+    ctrl_terms <- if (!is.null(model_strata_var) && !identical(model_strata_var, strata_nm)) model_strata_var else NULL
     for (pred in logistic_predictors) {
       base_terms <- setdiff(logistic_predictors, pred)
-      f0 <- stats::reformulate(c(base_terms, pred, strata_nm), response = logistic_response)
-      f1 <- stats::reformulate(c(base_terms, pred, strata_nm, paste0(pred, ":", strata_nm)), response = logistic_response)
-      pval <- tryCatch({
-        m0 <- stats::glm(f0, data = df_in, family = binomial())
+      f1 <- stats::reformulate(c(base_terms, pred, strata_nm, ctrl_terms, paste0(pred, ":", strata_nm)), response = logistic_response)
+      tid <- tryCatch({
         m1 <- stats::glm(f1, data = df_in, family = binomial())
-        a <- stats::anova(m0, m1, test = "LRT")
-        as.numeric(a[2, ncol(a)])
+        broom::tidy(m1)
       }, warning = function(w) {
-        add_note(paste0("分层交互检验提示(", pred, "): ", conditionMessage(w)))
-        NA_real_
+        add_note(paste0("亚组交互检验提示(", pred, "): ", conditionMessage(w)))
+        NULL
       }, error = function(e) {
-        add_note(paste0("分层交互检验失败(", pred, "): ", conditionMessage(e)))
-        NA_real_
+        add_note(paste0("亚组交互检验失败(", pred, "): ", conditionMessage(e)))
+        NULL
       })
-      out[[pred]] <- format_p(pval)
+      for (lv in strata_levels[strata_levels != ref_level]) {
+        p_fmt <- "NA"
+        if (!is.null(tid) && nrow(tid) > 0 && "p.value" %in% names(tid)) {
+          idx <- which(grepl(":", tid$term, fixed = TRUE) & grepl(pred, tid$term, fixed = TRUE) & grepl(strata_nm, tid$term, fixed = TRUE) & grepl(lv, tid$term, fixed = TRUE))
+          if (length(idx) > 0) p_fmt <- format_p(tid$p.value[idx[1]])
+        }
+        out[[paste0(pred, "||", lv)]] <- p_fmt
+      }
     }
     out
   }
-  if (!is.null(strata_var) && !strata_var %in% names(data)) stop(paste("分层变量", strata_var, "不存在"))
+  get_int_p <- function(int_map, pred_key, sval, facet_tag = "__ALL__") {
+    key <- paste0(pred_key, "||", as.character(sval), "||", facet_tag)
+    if (key %in% names(int_map)) unname(int_map[[key]]) else "NA"
+  }
+  if (!is.null(strata_var) && !strata_var %in% names(data)) stop(paste("亚组变量", strata_var, "不存在"))
   if (!is.null(facet_var) && !facet_var %in% names(data)) stop(paste("分组变量", facet_var, "不存在"))
+  if (!is.null(model_strata_var) && !model_strata_var %in% names(data)) stop(paste("分层变量", model_strata_var, "不存在"))
   if (!is.null(strata_var) && !is.null(facet_var) && identical(strata_var, facet_var)) {
     stop("分层变量与分组变量不能相同")
   }
 
-  formula_str <- paste(logistic_response, "~", paste(logistic_predictors, collapse = "+"))
+  model_terms <- unique(c(logistic_predictors, model_strata_var))
+  formula_str <- paste(logistic_response, "~", paste(model_terms, collapse = "+"))
   formula <- as.formula(formula_str)
 
   build_tbl <- function(df_sub) {
@@ -194,11 +221,33 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
     if (is.null(strata_var)) {
       strata_vals <- "总体"
     } else {
-      strata_vals <- get_levels_all(df_in[[strata_var]])
+      strata_vals <- normalize_subgroup_levels(get_levels_all(df_in[[strata_var]]))
     }
     out_list <- list()
     skipped_models <- 0
-    int_p <- interaction_p_map(df_in, strata_var)
+    int_p <- if (!is.null(strata_var)) {
+      if (is.null(facet_var)) {
+        m <- interaction_p_map(df_in, strata_var, strata_vals)
+        if (length(m) > 0) names(m) <- vapply(names(m), function(nm) {
+          parts <- strsplit(nm, "||", fixed = TRUE)[[1]]
+          paste0(parts[1], "||", parts[2], "||__ALL__")
+        }, character(1))
+        m
+      } else {
+        facet_levels_for_p <- get_levels_all(df_in[[facet_var]])
+        mm <- lapply(facet_levels_for_p, function(fv) {
+          sub <- df_in[df_in[[facet_var]] == fv, , drop = FALSE]
+          m <- interaction_p_map(sub, strata_var, strata_vals)
+          if (length(m) == 0) return(character(0))
+          names(m) <- vapply(names(m), function(nm) {
+            parts <- strsplit(nm, "||", fixed = TRUE)[[1]]
+            paste0(parts[1], "||", parts[2], "||", as.character(fv))
+          }, character(1))
+          m
+        })
+        unlist(mm, use.names = TRUE)
+      }
+    } else character(0)
     facet_levels_all <- if (!is.null(facet_var)) get_levels_all(df_in[[facet_var]]) else character(0)
 
     for (sval in strata_vals) {
@@ -240,7 +289,7 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
         tid$N <- as.character(count_effective_n(strata_data))
         tid$统计值 <- vapply(seq_len(nrow(tid)), function(i) format_or_ci(est[i], low[i], high[i]), character(1))
         tid$P值 <- vapply(pvals, format_p, character(1))
-        tid$分层差异P值 <- if (!is.null(strata_var)) int_p[tid$预测变量原始] else ""
+        tid$分层差异P值 <- if (!is.null(strata_var) && as.character(sval) != strata_vals[1]) vapply(tid$预测变量原始, function(pk) get_int_p(int_p, pk, as.character(sval), "__ALL__"), character(1)) else ""
         out_list[[length(out_list) + 1]] <- tid[, c("预测变量", "预测变量原始", "分层", "N", "统计值", "P值", "分层差异P值"), drop = FALSE]
       } else {
         facet_vals <- facet_levels_all
@@ -280,7 +329,7 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
           tid$N <- as.character(count_effective_n(sub_data))
           tid$统计值 <- vapply(seq_len(nrow(tid)), function(i) format_or_ci(est[i], low[i], high[i]), character(1))
           tid$P值 <- vapply(pvals, format_p, character(1))
-          tid$分层差异P值 <- if (!is.null(strata_var)) int_p[tid$预测变量原始] else ""
+          tid$分层差异P值 <- if (!is.null(strata_var) && as.character(sval) != strata_vals[1]) vapply(tid$预测变量原始, function(pk) get_int_p(int_p, pk, as.character(sval), as.character(fval)), character(1)) else ""
           out_list[[length(out_list) + 1]] <- tid[, c("预测变量", "预测变量原始", "分层", "列分组", "N", "统计值", "P值", "分层差异P值"), drop = FALSE]
         }
       }
@@ -301,7 +350,7 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
         N = "0",
         统计值 = "NA",
         P值 = "NA",
-        分层差异P值 = if (!is.null(strata_var)) int_p[logistic_predictors] else "",
+        分层差异P值 = "",
         stringsAsFactors = FALSE
       )
     }
@@ -315,16 +364,21 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
           N = ifelse(is.na(N), "0", N),
           统计值 = ifelse(is.na(统计值), "NA", 统计值),
           P值 = ifelse(is.na(P值), "NA", P值),
-          分层差异P值 = ifelse(is.na(分层差异P值), "", 分层差异P值)
+          分层差异P值 = ifelse(
+            as.character(分层) == strata_vals[1] | !nzchar(预测变量原始),
+            "",
+            vapply(seq_along(预测变量原始), function(i) get_int_p(int_p, 预测变量原始[i], as.character(分层[i]), "__ALL__"), character(1))
+          )
         )
     }
     if ("列分组" %in% names(final_df)) {
       facet_n_map <- sapply(facet_levels_all, function(x) {
         sum(as.character(df_in[[facet_var]]) == x, na.rm = TRUE)
       }, USE.NAMES = TRUE)
+      vals_from <- if (!is.null(strata_var)) c("N", "统计值", "P值", "分层差异P值") else c("N", "统计值", "P值")
       final_df <- final_df %>%
-        tidyr::pivot_wider(names_from = 列分组, values_from = c(N, 统计值, P值), names_glue = "{列分组}__{.value}", values_fill = "NA")
-      expected_cols <- as.vector(rbind(paste0(facet_levels_all, "__N"), paste0(facet_levels_all, "__统计值"), paste0(facet_levels_all, "__P值")))
+        tidyr::pivot_wider(names_from = 列分组, values_from = dplyr::all_of(vals_from), names_glue = "{列分组}__{.value}", values_fill = "NA")
+      expected_cols <- if (!is.null(strata_var)) as.vector(rbind(paste0(facet_levels_all, "__N"), paste0(facet_levels_all, "__统计值"), paste0(facet_levels_all, "__P值"), paste0(facet_levels_all, "__分层差异P值"))) else as.vector(rbind(paste0(facet_levels_all, "__N"), paste0(facet_levels_all, "__统计值"), paste0(facet_levels_all, "__P值")))
       missing_cols <- setdiff(expected_cols, names(final_df))
       if (length(missing_cols) == length(expected_cols)) {
         stop("列分组结果展开失败：未生成任何预期列，请检查分组变量取值与模型输出。")
@@ -332,30 +386,35 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
       if (length(missing_cols) > 0) {
         for (mc in missing_cols) final_df[[mc]] <- if (grepl("__N$", mc)) "0" else "NA"
       }
-      final_df <- final_df %>% dplyr::select(预测变量, 分层, dplyr::all_of(expected_cols), 分层差异P值)
+      final_df <- final_df %>% dplyr::select(预测变量, 分层, dplyr::all_of(expected_cols))
       label_map <- list(分层 = "")
       spanner_map <- list()
       for (lv in facet_levels_all) {
         n_col <- paste0(lv, "__N")
         stat_col <- paste0(lv, "__统计值")
         p_col <- paste0(lv, "__P值")
+        pd_col <- paste0(lv, "__分层差异P值")
         label_map[[n_col]] <- "N"
         label_map[[stat_col]] <- "OR (95% CI)"
         label_map[[p_col]] <- "P值"
+        if (!is.null(strata_var)) label_map[[pd_col]] <- "亚组差异P值"
         lv_text <- if (grepl("组$", lv)) lv else paste0(lv, "组")
         spanner_map[[lv]] <- list(
           label = gt::md(paste0(lv_text, "<br><span style='font-weight:normal'>(N = ", facet_n_map[[lv]], ")</span>")),
-          columns = c(n_col, stat_col, p_col)
+          columns = if (!is.null(strata_var)) c(n_col, stat_col, p_col, pd_col) else c(n_col, stat_col, p_col)
         )
       }
     } else {
-      final_df <- final_df %>% dplyr::select(预测变量, 分层, N, 统计值, P值, 分层差异P值)
-      label_map <- list(分层 = "", N = "N", 统计值 = "OR (95% CI)", P值 = "P值")
+      if (!is.null(strata_var)) {
+        final_df <- final_df %>% dplyr::select(预测变量, 分层, N, 统计值, P值, 分层差异P值)
+        label_map <- list(分层 = "", N = "N", 统计值 = "OR (95% CI)", P值 = "P值", 分层差异P值 = "亚组差异P值")
+      } else {
+        final_df <- final_df %>% dplyr::select(预测变量, 分层, N, 统计值, P值)
+        label_map <- list(分层 = "", N = "N", 统计值 = "OR (95% CI)", P值 = "P值")
+      }
       spanner_map <- list()
     }
-    if (!is.null(strata_var)) {
-      label_map[["分层差异P值"]] <- "分层差异P值"
-    }
+    if (!is.null(strata_var)) final_df$分层 <- factor(as.character(final_df$分层), levels = strata_vals)
     final_df <- final_df %>%
       dplyr::arrange(预测变量, 分层) %>%
       dplyr::group_by(预测变量, 分层) %>%
@@ -406,8 +465,11 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
   }
 
   interpretation <- "<h4><b>结果解读 (Result Interpretation):</b></h4><ul>"
-  if (!is.null(strata_var)) interpretation <- paste0(interpretation, "<li><b>行分组(分层):</b> ", strata_var, "</li>")
+  if (!is.null(strata_var)) interpretation <- paste0(interpretation, "<li><b>亚组(split):</b> ", strata_var, "（按变量分组独立拟合）</li>")
+  if (!is.null(strata_var) && length(split_levels) > 0) interpretation <- paste0(interpretation, "<li><b>亚组差异P值定义:</b> 以", split_levels[1], "为参考，基于“预测变量×亚组”交互项检验得到；值显示在对应比较亚组行。</li>")
+  if (!is.null(strata_var) && !is.null(facet_var)) interpretation <- paste0(interpretation, "<li><b>列分组下亚组差异P值:</b> 每个列分组在其子数据内独立计算并展示。</li>")
   if (!is.null(facet_var)) interpretation <- paste0(interpretation, "<li><b>列分组(分组):</b> ", facet_var, "</li>")
+  if (!is.null(model_strata_var)) interpretation <- paste0(interpretation, "<li><b>分层变量控制:</b> 模型中纳入", model_strata_var, "作为控制项。</li>")
   if (is.null(strata_var) && is.null(facet_var)) interpretation <- paste0(interpretation, "<li>未设置分层/分组，展示总体模型结果。</li>")
   skipped_n <- if (exists("gt_table")) attr(gt_table, "skipped_models", exact = TRUE) else NULL
   if (!is.null(skipped_n) && is.numeric(skipped_n) && skipped_n > 0) {
@@ -419,6 +481,80 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
   return(list(
     table = gt_table,
     interpretation = HTML(interpretation),
-    model_notes = model_notes
+    model_notes = model_notes,
+    code = generate_logistic_code("data", logistic_response, logistic_predictors, strata_var, facet_var, event_val, model_strata_var)
   ))
+}
+
+generate_logistic_code <- function(data_name = "data", logistic_response, logistic_predictors, logistic_strata = NULL, logistic_facet = NULL, logistic_event_value = "1", logistic_model_strata = NULL) {
+  preds_txt <- if (length(logistic_predictors) > 0) paste0("c(", paste(sprintf("\"%s\"", logistic_predictors), collapse = ", "), ")") else "character(0)"
+  strata_txt <- if (is.null(logistic_strata)) "NULL" else paste0("\"", logistic_strata, "\"")
+  facet_txt <- if (is.null(logistic_facet)) "NULL" else paste0("\"", logistic_facet, "\"")
+  model_strata_txt <- if (is.null(logistic_model_strata)) "NULL" else paste0("\"", logistic_model_strata, "\"")
+  lines <- c(
+    "# 1) Load packages",
+    "library(stats)",
+    "library(dplyr)",
+    "library(broom)",
+    "library(tidyr)",
+    "library(gt)",
+    "",
+    "# 2) Set analysis parameters",
+    paste0("data <- ", data_name),
+    paste0("response <- \"", logistic_response, "\""),
+    paste0("predictors <- ", preds_txt),
+    paste0("split_var <- ", strata_txt),
+    paste0("facet_var <- ", facet_txt),
+    paste0("model_strata_var <- ", model_strata_txt),
+    paste0("event_value <- \"", logistic_event_value, "\""),
+    "",
+    "# 3) Map response to binary outcome (1=event, 0=non-event)",
+    "resp_vals <- unique(as.character(data[[response]][!is.na(data[[response]])]))",
+    "ev <- as.character(event_value)",
+    "if (is.null(event_value) || !ev %in% resp_vals) ev <- if (\"1\" %in% resp_vals) \"1\" else resp_vals[1]",
+    "data[[response]] <- ifelse(as.character(data[[response]]) == ev, 1, ifelse(!is.na(data[[response]]), 0, NA_real_))",
+    "",
+    "# 4) Build model formula with optional stratification-control covariate",
+    "model_terms <- unique(c(predictors, model_strata_var))",
+    "formula_obj <- as.formula(paste(response, \"~\", paste(model_terms, collapse = \"+\")))",
+    "",
+    "# 5) Fit overall logistic regression",
+    "fit <- glm(formula_obj, data = data, family = binomial())",
+    "overall_tbl <- broom::tidy(fit, conf.int = TRUE, exponentiate = TRUE)",
+    "",
+    "# 6) If split_var is provided, compute interaction-based subgroup-difference P-values",
+    "if (!is.null(split_var) && split_var != \"None\") {",
+    "  lv <- if (is.factor(data[[split_var]])) levels(data[[split_var]]) else unique(as.character(data[[split_var]]))",
+    "  lv <- lv[!is.na(lv)]",
+    "  ref <- lv[1]",
+    "  int_map <- character(0)",
+    "  if (is.null(facet_var) || facet_var == \"None\") {",
+    "    src <- list(`__ALL__` = data)",
+    "  } else {",
+    "    fvals <- if (is.factor(data[[facet_var]])) levels(data[[facet_var]]) else unique(as.character(data[[facet_var]]))",
+    "    fvals <- fvals[!is.na(fvals)]",
+    "    src <- lapply(fvals, function(v) data[data[[facet_var]] == v, , drop = FALSE])",
+    "    names(src) <- as.character(fvals)",
+    "  }",
+    "  for (tg in names(src)) {",
+    "    dsub <- src[[tg]]",
+    "    for (pred in predictors) {",
+    "      f_int <- reformulate(c(setdiff(predictors, pred), pred, split_var, model_strata_var, paste0(pred, \":\", split_var)), response = response)",
+    "      td <- tryCatch(broom::tidy(glm(f_int, data = dsub, family = binomial())), error = function(e) NULL)",
+    "      for (g in lv[lv != ref]) {",
+    "        p <- \"NA\"",
+    "        if (!is.null(td) && \"p.value\" %in% names(td)) {",
+    "          idx <- which(grepl(\":\", td$term, fixed = TRUE) & grepl(pred, td$term, fixed = TRUE) & grepl(split_var, td$term, fixed = TRUE) & grepl(g, td$term, fixed = TRUE))",
+    "          if (length(idx) > 0) p <- format(td$p.value[idx[1]], scientific = FALSE, digits = 4)",
+    "        }",
+    "        int_map[[paste0(pred, \"||\", g, \"||\", tg)]] <- p",
+    "      }",
+    "    }",
+    "  }",
+    "}",
+    "",
+    "# 7) Print main model result",
+    "print(overall_tbl)"
+  )
+  paste(lines, collapse = "\n")
 }

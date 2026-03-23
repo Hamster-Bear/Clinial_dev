@@ -564,18 +564,21 @@ statistical_analysis_server <- function(id, data) {
     updateSelectizeInput(session, "cox_covariates", choices = all_vars)
     updateSelectInput(session, "cox_strata", choices = c("None", factor_vars))
     updateSelectInput(session, "cox_facet", choices = c("None", factor_vars))
+    updateSelectInput(session, "cox_model_strata", choices = c("None", factor_vars))
     
     # 更新逻辑回归变量选择
     updateSelectInput(session, "logistic_response", choices = all_vars)
     updateSelectizeInput(session, "logistic_predictors", choices = all_vars)
     updateSelectInput(session, "logistic_strata", choices = c("None", factor_vars))
     updateSelectInput(session, "logistic_facet", choices = c("None", factor_vars))
+    updateSelectInput(session, "logistic_model_strata", choices = c("None", factor_vars))
     
     # 更新线性回归变量选择
     updateSelectInput(session, "linear_response", choices = numeric_vars)
     updateSelectizeInput(session, "linear_predictors", choices = all_vars)
     updateSelectInput(session, "linear_strata", choices = c("None", factor_vars))
     updateSelectInput(session, "linear_facet", choices = c("None", factor_vars))
+    updateSelectInput(session, "linear_model_strata", choices = c("None", factor_vars))
     
     # 更新方差分析变量选择
     updateSelectInput(session, "anova_response", choices = numeric_vars)
@@ -667,7 +670,7 @@ statistical_analysis_server <- function(id, data) {
             if (is.null(input$cox_event_value) || !as.character(input$cox_event_value) %in% status_vals) {
               stop("请先为Cox状态变量选择事件值。")
             }
-            perform_cox_analysis(filtered_data(), input$cox_time, input$cox_status, input$cox_covariates, input$cox_strata, input$cox_facet, input$cox_event_value)
+            perform_cox_analysis(filtered_data(), input$cox_time, input$cox_status, input$cox_covariates, input$cox_strata, input$cox_facet, input$cox_event_value, input$cox_model_strata)
           },
           "logistic" = {
             incProgress(0.3, detail = "运行逻辑回归")
@@ -676,11 +679,11 @@ statistical_analysis_server <- function(id, data) {
             if (is.null(input$logistic_event_value) || !as.character(input$logistic_event_value) %in% resp_vals) {
               stop("请先为逻辑回归响应变量选择事件值。")
             }
-            perform_logistic_analysis(filtered_data(), input$logistic_response, input$logistic_predictors, input$logistic_strata, input$logistic_facet, input$logistic_event_value)
+            perform_logistic_analysis(filtered_data(), input$logistic_response, input$logistic_predictors, input$logistic_strata, input$logistic_facet, input$logistic_event_value, input$logistic_model_strata)
           },
           "linear" = {
             incProgress(0.3, detail = "运行线性回归")
-            perform_linear_analysis(filtered_data(), input$linear_response, input$linear_predictors, input$linear_strata, input$linear_facet)
+            perform_linear_analysis(filtered_data(), input$linear_response, input$linear_predictors, input$linear_strata, input$linear_facet, input$linear_model_strata)
           },
           "anova" = {
             incProgress(0.3, detail = "运行方差分析")
