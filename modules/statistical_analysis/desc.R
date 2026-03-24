@@ -19,13 +19,8 @@ desc_params_ui <- function(ns, data) {
     selectInput(ns("desc_row_group_var"), "行分组变量 (可选)", choices = c("无", var_names)),
     selectInput(ns("desc_id_var"), "唯一标识符变量", choices = var_names, selected = default_id_var),
     
-    # 自定义总计列设置
-    conditionalPanel(
-      condition = paste0("input['", ns("desc_col_group_var"), "'] != '无'"),
-      h4("总计列设置"),
-      numericInput(ns("desc_total_cols_count"), "总计列数量", value = 1, min = 1, max = 5),
-      uiOutput(ns("desc_total_cols_ui"))
-    ),
+    # 使用与回归一致的公共 UI 渲染函数
+    uiOutput(ns("desc_total_cols_ui")),
     
     numericInput(ns("desc_decimals"), "小数位数", value = 2, min = 0, max = 5),
     checkboxInput(ns("desc_auto_decimals"), "使用自动小数位数", value = TRUE)

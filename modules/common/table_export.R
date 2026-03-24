@@ -5,9 +5,14 @@ build_table_export_filename <- function(prefix, format, include_time = FALSE) {
 }
 
 format_p_value_ama <- function(x) {
+  # 处理已经是字符串且可能是占位符的情况
+  if (is.character(x) && length(x) == 1 && (x == "NA" || x == "—" || x == "")) {
+    return("—")
+  }
+  
   val <- suppressWarnings(as.numeric(x))
   if (is.na(val)) {
-    return("NA")
+    return("—")
   }
   if (val < 0.001) {
     return("<0.001")

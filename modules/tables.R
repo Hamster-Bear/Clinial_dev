@@ -14,6 +14,7 @@ source("modules/tables/listing_general.R")
 source("modules/tables/ae_sidebyside.R") # 加载并列对比图模块
 source("modules/common/data_filter.R") # 加载通用筛选模块
 source("modules/common/table_export.R")
+source("modules/common/plot_export.R")
 
 # Tables模块UI
 tables_ui <- function(id) {
@@ -77,7 +78,7 @@ tables_ui <- function(id) {
         width = 9,
         box(
           width = NULL,
-          title = "统计表格结果",
+          title = "预设图表结果",
           status = "success",
           solidHeader = TRUE,
           collapsible = TRUE,
@@ -243,6 +244,17 @@ tables_server <- function(id, data) {
     table_result(NULL)
     code_result("# 请先上传数据并选择变量，然后点击'生成表格'")
   })
+
+  observeEvent(input$table_type, {
+    req(input$table_type)
+    export_choices <- switch(
+      input$table_type,
+      "ae_sidebyside" = c("PNG (.png)" = "png", "PDF (.pdf)" = "pdf", "SVG (.svg)" = "svg"),
+      c("Word (.docx)" = "docx", "PNG (.png)" = "png", "PDF (.pdf)" = "pdf", "HTML (.html)" = "html", "RTF (.rtf)" = "rtf")
+    )
+    selected_format <- if ("docx" %in% unname(export_choices)) "docx" else unname(export_choices)[1]
+    updateSelectInput(session, "table_export_format", choices = export_choices, selected = selected_format)
+  }, ignoreInit = FALSE)
   
   # 生成表格
   observeEvent(input$generate, {
@@ -448,16 +460,25 @@ tables_server <- function(id, data) {
   output$table_download <- downloadHandler(
     filename = function() {
       req(table_result())
-      build_table_export_filename(
-        prefix = ifelse(nzchar(input$table_export_name), input$table_export_name, "table_result"),
-        format = input$table_export_format
-      )
+      prefix <- ifelse(nzchar(input$table_export_name), input$table_export_name, "table_result")
+      if (identical(input$table_type, "ae_sidebyside")) {
+        build_plot_export_filename(prefix = prefix, format = input$table_export_format)
+      } else {
+        build_table_export_filename(prefix = prefix, format = input$table_export_format)
+      }
     },
     content = function(file) {
       req(table_result())
       obj <- table_result()
-      if (identical(input$table_export_format, "png")) {
-        save_table_png(file = file, table_obj = obj, width = 12, height = 8, dpi = 300)
+      if (identical(input$table_type, "ae_sidebyside")) {
+        save_plot_export(
+          file = file,
+          plot_obj = obj,
+          format = input$table_export_format,
+          width = 12,
+          height = 8,
+          dpi = 300
+        )
       } else {
         export_title <- switch(
           input$table_type,
@@ -467,7 +488,17 @@ tables_server <- function(id, data) {
           "ae_sidebyside" = "不良事件并列对比图 (ae_sidebyside)",
           "导出结果"
         )
-        save_table_docx(file = file, table_obj = obj, title = export_title)
+        if (identical(input$table_export_format, "png")) {
+          save_table_png(file = file, table_obj = obj, width = 12, height = 8, dpi = 300)
+        } else {
+          save_table_export(
+            file = file,
+            result_obj = list(table = obj),
+            format = input$table_export_format,
+            title = export_title,
+            include_report = FALSE
+          )
+        }
       }
     }
   )

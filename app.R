@@ -87,7 +87,7 @@ ui <- dashboardPage(
                badgeLabel = "可访问",
                badgeColor = "green"),
       
-      menuItem("6. 专业表格",
+      menuItem("6. 预设图表",
                tabName = "tables",
                icon = icon("table"),
                badgeLabel = "可访问",
@@ -137,7 +137,7 @@ ui <- dashboardPage(
         statistical_graphics_ui("plots")
       ),
       
-      # 专业表格标签页
+      # 预设图表标签页
       tabItem(
         tabName = "tables",
         tables_ui("tables")
@@ -201,7 +201,7 @@ server <- function(input, output, session) {
   # 调用统计图形模块 - 使用筛选后的数据
   plots_module <- statistical_graphics_server("plots", data = filtered_data)
   
-  # 调用专业表格模块 - 使用筛选后的数据
+  # 调用预设图表模块 - 使用筛选后的数据
   tables_module <- tables_server("tables", data = filtered_data)
   
   # 观察数据状态变化并更新侧边栏状态

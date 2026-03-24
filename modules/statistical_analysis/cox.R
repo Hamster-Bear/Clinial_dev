@@ -25,29 +25,32 @@ cox_params_ui <- function(ns, data) {
     
     fluidRow(
       column(6,
-    selectInput(ns("cox_strata"), "亚组变量 (Split, 行分组) - 可选", choices = c("None", factor_vars)),
-            bsTooltip(ns("cox_strata"), "按该变量分组后，分别拟合并以行分组方式展示结果（split）", placement = "top", trigger = "hover")
+    selectInput(ns("cox_strata"), "亚组变量 (Subgroup) - 可选", choices = c("None", factor_vars)),
+            bsTooltip(ns("cox_strata"), "按该变量分组后，分别拟合并以堆叠方式展示结果", placement = "top", trigger = "hover")
       ),
       column(6,
-             selectInput(ns("cox_facet"), "分组变量 (Facet, 列分组) - 可选", choices = c("None", factor_vars)),
+             selectInput(ns("cox_facet"), "队列/分组变量 (Cohort/Arm) - 可选", choices = c("None", factor_vars)),
              bsTooltip(ns("cox_facet"), "按该变量分组后，以列分组方式并排展示Cox回归结果", placement = "top", trigger = "hover")
       )
     ),
     fluidRow(
       column(12,
-             selectInput(ns("cox_model_strata"), "分层变量 (strata) - 可选", choices = c("None", factor_vars)),
+             selectInput(ns("cox_model_strata"), "模型分层因素 (Stratification Factor) - 可选", choices = c("None", factor_vars)),
              bsTooltip(ns("cox_model_strata"), "该变量将以strata()形式进入Cox模型进行基线风险分层控制", placement = "top", trigger = "hover")
       )
     ),
+    
+    uiOutput(ns("cox_total_cols_ui")),
     uiOutput(ns("cox_status_mapping_ui")),
     
     selectizeInput(ns("cox_covariates"), "协变量 (Covariates)", choices = names(data), multiple = TRUE),
-    bsTooltip(ns("cox_covariates"), "纳入模型的自变量，可多选", placement = "top", trigger = "hover")
+    bsTooltip(ns("cox_covariates"), "纳入 Cox 模型的协变量", placement = "top", trigger = "hover"),
+    uiOutput(ns("cox_reference_ui"))
   )
 }
 
 # Cox回归分析
-perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox_strata, cox_facet = NULL, cox_event_value = NULL, cox_model_strata = NULL) {
+perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox_strata, cox_facet = NULL, cox_event_value = NULL, cox_model_strata = NULL, cox_reference_map = NULL, total_cols_settings = list()) {
   shiny::req(cox_time, cox_status)
   
   # 验证变量是否存在
@@ -72,10 +75,26 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
     if (nzchar(txt) && !(txt %in% model_notes)) model_notes <<- c(model_notes, txt)
   }
 
+  ref_pack <- prepare_predictor_reference_levels(data, cox_covariates, cox_reference_map)
+  data <- ref_pack$data
+
   var_labels <- sapply(cox_covariates, function(v) {
     lv <- attr(data[[v]], "label", exact = TRUE)
     if (is.null(lv) || !nzchar(trimws(as.character(lv)[1]))) v else trimws(as.character(lv)[1])
   }, USE.NAMES = TRUE)
+  pred_is_cat <- ref_pack$pred_is_cat
+  pred_ref_level <- ref_pack$pred_ref_level
+  cat_preds <- names(pred_ref_level)[!is.na(pred_ref_level)]
+  if (length(cat_preds) > 0) {
+    add_note(paste0(
+      "分类变量参考组：",
+      paste(
+        sprintf("%s=%s", unname(var_labels[cat_preds]), unname(pred_ref_level[cat_preds])),
+        collapse = "；"
+      ),
+      "。"
+    ))
+  }
   for (v in names(var_labels)) {
     attr(data[[v]], "label") <- unname(var_labels[[v]])
   }
@@ -100,7 +119,10 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
     if (length(hit) == 0) return(t)
     v <- hit[1]
     suffix <- substring(t, nchar(v) + 1)
-    paste0(unname(var_labels[[v]]), suffix)
+    if (isTRUE(pred_is_cat[[v]]) && nzchar(suffix)) {
+      return(suffix)
+    }
+    unname(var_labels[[v]])
   }
   get_levels_all <- function(x) {
     if (is.factor(x)) levels(x) else {u <- unique(as.character(x)); u[!is.na(u)]}
@@ -175,9 +197,9 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
       gtsummary::modify_header(label = "预测变量", p.value = "P值")
   }
 
-  format_p <- function(p) {
-    format_p_value_regression(p)
-  }
+  # format_p <- function(p) {
+  #   format_p_value_regression(p)
+  # }
   if (!is.null(strata_ctrl_formula)) {
     strata_ctrl_ok <- tryCatch({
       suppressWarnings(survival::coxph(strata_ctrl_formula, data = data))
@@ -197,24 +219,24 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
     if ("GLOBAL" %in% rownames(ph_tbl)) as.numeric(ph_tbl["GLOBAL", ncol(ph_tbl)]) else as.numeric(ph_tbl[nrow(ph_tbl), ncol(ph_tbl)])
   }, error = function(e) NA_real_)
   if (!is.na(ph_global_p)) {
-    add_note(paste0("比例风险假设检验（Schoenfeld，全局）P=", format_p(ph_global_p), "。"))
+    add_note(paste0("比例风险假设检验（Schoenfeld，全局）P=", format_p_value_regression(ph_global_p), "。"))
     if (is.finite(ph_global_p) && ph_global_p < 0.05) {
       add_note("比例风险假设可能不满足（全局P<0.05），建议结合临床背景与诊断图进一步评估。")
     }
   }
 
-  format_hr_ci <- function(est, low, high) {
-    est <- suppressWarnings(as.numeric(est))
-    low <- suppressWarnings(as.numeric(low))
-    high <- suppressWarnings(as.numeric(high))
-    if (is.na(est)) return("NA")
-    if (any(is.na(c(low, high)))) return(sub("\\.?0+$", "", sprintf("%.4f", est)))
-    paste0(
-      sub("\\.?0+$", "", sprintf("%.4f", est)),
-      " (", sub("\\.?0+$", "", sprintf("%.4f", low)), ", ",
-      sub("\\.?0+$", "", sprintf("%.4f", high)), ")"
-    )
-  }
+  # format_hr_ci <- function(est, low, high) {
+  #   est <- suppressWarnings(as.numeric(est))
+  #   low <- suppressWarnings(as.numeric(low))
+  #   high <- suppressWarnings(as.numeric(high))
+  #   if (is.na(est)) return("NA")
+  #   if (any(is.na(c(low, high)))) return(sub("\\.?0+$", "", sprintf("%.4f", est)))
+  #   paste0(
+  #     sub("\\.?0+$", "", sprintf("%.4f", est)),
+  #     " (", sub("\\.?0+$", "", sprintf("%.4f", low)), ", ",
+  #     sub("\\.?0+$", "", sprintf("%.4f", high)), ")"
+  #   )
+  # }
 
   apply_clinical_style <- function(gt_tbl) {
     col_names <- tryCatch(names(gt_tbl[["_data"]]), error = function(e) character(0))
@@ -274,7 +296,7 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
       tid
     }
 
-    build_regression_split_facet_gt(
+    build_unified_regression_table(
       df_in = df_in,
       predictors = cox_covariates,
       strata_var = strata_var,
@@ -285,36 +307,26 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
       term_to_display_fn = term_to_display,
       predictor_key_fn = predictor_key,
       count_effective_n_fn = count_effective_n,
-      format_estimate_fn = format_hr_ci,
-      format_p_fn = format_p,
+      format_estimate_fn = format_regression_stat,
+      format_p_fn = format_p_value_regression,
       apply_style_fn = apply_clinical_style,
       add_note_fn = add_note,
       int_p_map = int_p,
-      get_int_p_fn = get_interaction_p_value
+      get_int_p_fn = get_interaction_p_value,
+      categorical_ref_map = pred_ref_level[!is.na(pred_ref_level)],
+      total_cols_settings = total_cols_settings
     )
   }
 
-  if (is.null(strata_var) && is.null(facet_var)) {
-    model <- survival::coxph(analysis_formula, data = data)
-    tbl <- gtsummary::tbl_regression(model, exponentiate = TRUE)
-    tbl <- tryCatch(gtsummary::add_global_p(tbl), error = function(e) tbl)
-    tbl <- tbl %>%
-      gtsummary::bold_p(t = 0.05) %>%
-      gtsummary::bold_labels() %>%
-      gtsummary::italicize_levels() %>%
-      gtsummary::modify_header(label = "预测变量", p.value = "P值")
-    gt_table <- gtsummary::as_gt(tbl) %>% apply_clinical_style()
-  } else {
-    gt_table <- build_strata_first_gt(data, strata_var, facet_var)
-  }
+  # 统一使用 build_strata_first_gt (底层已替换为 build_unified_regression_table)
+  gt_table <- build_strata_first_gt(data, strata_var, facet_var)
 
   interpretation <- "<h4><b>结果解读 (Result Interpretation):</b></h4><ul>"
-  if (!is.null(strata_var)) interpretation <- paste0(interpretation, "<li><b>亚组(split):</b> ", strata_var, "（按变量分组独立拟合）</li>")
-  if (!is.null(strata_var) && length(split_levels) > 0) interpretation <- paste0(interpretation, "<li><b>亚组差异P值定义:</b> 以", split_levels[1], "为参考，基于“协变量×亚组”交互项检验得到；值显示在对应比较亚组行。</li>")
-  if (!is.null(strata_var) && !is.null(facet_var)) interpretation <- paste0(interpretation, "<li><b>列分组下亚组差异P值:</b> 每个列分组在其子数据内独立计算并单独展示。</li>")
-  if (!is.null(model_strata_var)) interpretation <- paste0(interpretation, "<li><b>模型strata控制变量:</b> 模型中加入 strata(", model_strata_var, ") 进行基线风险控制。</li>")
-  if (!is.null(facet_var)) interpretation <- paste0(interpretation, "<li><b>列分组(分组):</b> ", facet_var, "</li>")
-  if (is.null(strata_var) && is.null(facet_var)) interpretation <- paste0(interpretation, "<li>未设置亚组/分组，展示总体模型结果。</li>")
+  if (!is.null(strata_var)) interpretation <- paste0(interpretation, "<li><b>亚组(Subgroup):</b> ", strata_var, "（按变量分组独立拟合）</li>")
+  if (!is.null(strata_var) && length(split_levels) > 0) interpretation <- paste0(interpretation, "<li><b>交互作用 P 值 (P for interaction):</b> 基于“协变量×亚组”交互项检验得到。</li>")
+  if (!is.null(model_strata_var)) interpretation <- paste0(interpretation, "<li><b>模型分层因素 (Stratification Factor):</b> 模型中加入 strata(", model_strata_var, ") 进行基线风险控制。</li>")
+  if (!is.null(facet_var)) interpretation <- paste0(interpretation, "<li><b>队列分组(Cohort/Arm):</b> ", facet_var, "</li>")
+  if (is.null(strata_var) && is.null(facet_var)) interpretation <- paste0(interpretation, "<li>展示总体模型结果。</li>")
   skipped_n <- if (exists("gt_table")) attr(gt_table, "skipped_models", exact = TRUE) else NULL
   if (!is.null(skipped_n) && is.numeric(skipped_n) && skipped_n > 0) {
     interpretation <- paste0(interpretation, "<li><b>稳定性提示:</b> 有 ", skipped_n, " 个子模型因样本不足或无法估计被自动跳过，表格以可稳定估计结果展示。</li>")

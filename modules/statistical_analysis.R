@@ -168,51 +168,47 @@ statistical_analysis_server <- function(id, data) {
   # 调用筛选模块，获取筛选后的数据
   filtered_data <- data_filter_server("global_filter", data)
   
-  # 获取列分组变量的水平（用于描述性统计）
-  desc_group_levels <- reactive({
-    req(filtered_data(), input$desc_col_group_var != "无")
-    unique(filtered_data()[[input$desc_col_group_var]])
-  })
+  # -------------------------------------------------------------------------
+  # 描述性统计参数更新与渲染
+  # -------------------------------------------------------------------------
   
-  # 动态生成描述性统计的总计列设置UI
+  total_cols_count_desc <- reactiveVal(0)
+  observeEvent(input$add_total_col_desc, { total_cols_count_desc(total_cols_count_desc() + 1) })
+  observeEvent(input$remove_total_col_desc, { if (total_cols_count_desc() > 0) total_cols_count_desc(total_cols_count_desc() - 1) })
+  
   output$desc_total_cols_ui <- renderUI({
-    req(input$desc_total_cols_count >= 1, desc_group_levels())
-    
-    total_cols <- lapply(1:input$desc_total_cols_count, function(i) {
-      wellPanel(
-        textInput(ns(paste0("desc_total_col_name_", i)),
-                  paste("总计列", i, "名称"),
-                  value = paste("总计", i)),
-        selectizeInput(
-          inputId = ns(paste0("desc_total_col_groups_", i)),
-          label = paste("选择总计列", i, "包含的组"),
-          choices = desc_group_levels(),
-          multiple = TRUE
-        )
-      )
-    })
-    
-    do.call(tagList, total_cols)
+    generate_total_cols_ui(ns, "desc", input$desc_col_group_var, filtered_data(), total_cols_count_desc())
   })
   
-  # 获取描述性统计的总计列设置
-  desc_total_cols_settings <- reactive({
-    req(input$desc_total_cols_count >= 1, input$desc_col_group_var != "无")
-    
-    settings <- list()
-    for (i in 1:input$desc_total_cols_count) {
-      name_id <- paste0("desc_total_col_name_", i)
-      groups_id <- paste0("desc_total_col_groups_", i)
-      
-      if (!is.null(input[[name_id]]) && !is.null(input[[groups_id]])) {
-        settings[[i]] <- list(
-          name = input[[name_id]],
-          groups = input[[groups_id]]
-        )
-      }
+  observeEvent(input$desc_col_group_var, {
+    req(input$desc_col_group_var)
+    if (input$desc_col_group_var != "无" && total_cols_count_desc() == 0) {
+        # 如果之前没点过添加，默认还是可以保留0个，即不显示总计列，符合用户诉求：只有用户自定义添加才显示。
+        # total_cols_count_desc(1)
     }
-    
-    settings
+  })
+  
+  # 初始化响应式变量用于自定义总计列 (借鉴 desc.R 的实现思路)
+  total_cols_count_linear <- reactiveVal(0)
+  total_cols_count_logistic <- reactiveVal(0)
+  total_cols_count_cox <- reactiveVal(0)
+  
+  observeEvent(input$add_total_col_linear, { total_cols_count_linear(total_cols_count_linear() + 1) })
+  observeEvent(input$remove_total_col_linear, { if (total_cols_count_linear() > 0) total_cols_count_linear(total_cols_count_linear() - 1) })
+  observeEvent(input$add_total_col_logistic, { total_cols_count_logistic(total_cols_count_logistic() + 1) })
+  observeEvent(input$remove_total_col_logistic, { if (total_cols_count_logistic() > 0) total_cols_count_logistic(total_cols_count_logistic() - 1) })
+  observeEvent(input$add_total_col_cox, { total_cols_count_cox(total_cols_count_cox() + 1) })
+  observeEvent(input$remove_total_col_cox, { if (total_cols_count_cox() > 0) total_cols_count_cox(total_cols_count_cox() - 1) })
+  
+  # 统一的自定义总计列 UI 生成器 (调用 shared 的逻辑)
+  output$linear_total_cols_ui <- renderUI({
+    generate_total_cols_ui(ns, "linear", input$linear_facet, filtered_data(), total_cols_count_linear())
+  })
+  output$logistic_total_cols_ui <- renderUI({
+    generate_total_cols_ui(ns, "logistic", input$logistic_facet, filtered_data(), total_cols_count_logistic())
+  })
+  output$cox_total_cols_ui <- renderUI({
+    generate_total_cols_ui(ns, "cox", input$cox_facet, filtered_data(), total_cols_count_cox())
   })
   
   # 动态参数UI
@@ -676,6 +672,102 @@ statistical_analysis_server <- function(id, data) {
     )
   })
 
+  make_reference_input_id <- function(prefix, var_name) {
+    paste0(prefix, "_ref__", gsub("[^A-Za-z0-9_]", "_", var_name))
+  }
+
+  output$logistic_reference_ui <- renderUI({
+    req(filtered_data())
+    preds <- if (is.null(input$logistic_predictors)) character(0) else input$logistic_predictors
+    if (length(preds) == 0) return(NULL)
+    df <- filtered_data()
+    cat_preds <- preds[preds %in% names(df) & sapply(preds, function(v) is.factor(df[[v]]) || is.character(df[[v]]) || is.logical(df[[v]]))]
+    if (length(cat_preds) == 0) return(NULL)
+    blocks <- lapply(cat_preds, function(v) {
+      lv <- levels(factor(as.character(df[[v]])))
+      lv <- lv[nzchar(as.character(lv))]
+      if (length(lv) == 0) return(NULL)
+      input_id <- make_reference_input_id("logistic", v)
+      current <- input[[input_id]]
+      selected <- if (!is.null(current) && current %in% lv) current else lv[1]
+      selectInput(ns(input_id), paste0("参考组 - ", v), choices = lv, selected = selected)
+    })
+    blocks <- Filter(Negate(is.null), blocks)
+    if (length(blocks) == 0) return(NULL)
+    tagList(
+      tags$hr(),
+      tags$strong("分类变量参考组设置"),
+      blocks
+    )
+  })
+
+  output$cox_reference_ui <- renderUI({
+    req(filtered_data())
+    preds <- if (is.null(input$cox_covariates)) character(0) else input$cox_covariates
+    if (length(preds) == 0) return(NULL)
+    df <- filtered_data()
+    cat_preds <- preds[preds %in% names(df) & sapply(preds, function(v) is.factor(df[[v]]) || is.character(df[[v]]) || is.logical(df[[v]]))]
+    if (length(cat_preds) == 0) return(NULL)
+    blocks <- lapply(cat_preds, function(v) {
+      lv <- levels(factor(as.character(df[[v]])))
+      lv <- lv[nzchar(as.character(lv))]
+      if (length(lv) == 0) return(NULL)
+      input_id <- make_reference_input_id("cox", v)
+      current <- input[[input_id]]
+      selected <- if (!is.null(current) && current %in% lv) current else lv[1]
+      selectInput(ns(input_id), paste0("参考组 - ", v), choices = lv, selected = selected)
+    })
+    blocks <- Filter(Negate(is.null), blocks)
+    if (length(blocks) == 0) return(NULL)
+    tagList(
+      tags$hr(),
+      tags$strong("分类变量参考组设置"),
+      blocks
+    )
+  })
+
+  output$linear_reference_ui <- renderUI({
+    req(filtered_data())
+    preds <- if (is.null(input$linear_predictors)) character(0) else input$linear_predictors
+    if (length(preds) == 0) return(NULL)
+    df <- filtered_data()
+    cat_preds <- preds[preds %in% names(df) & sapply(preds, function(v) is.factor(df[[v]]) || is.character(df[[v]]) || is.logical(df[[v]]))]
+    if (length(cat_preds) == 0) return(NULL)
+    blocks <- lapply(cat_preds, function(v) {
+      lv <- levels(factor(as.character(df[[v]])))
+      lv <- lv[nzchar(as.character(lv))]
+      if (length(lv) == 0) return(NULL)
+      input_id <- make_reference_input_id("linear", v)
+      current <- input[[input_id]]
+      selected <- if (!is.null(current) && current %in% lv) current else lv[1]
+      selectInput(ns(input_id), paste0("参考组 - ", v), choices = lv, selected = selected)
+    })
+    blocks <- Filter(Negate(is.null), blocks)
+    if (length(blocks) == 0) return(NULL)
+    tagList(
+      tags$hr(),
+      tags$strong("分类变量参考组设置"),
+      blocks
+    )
+  })
+
+  collect_reference_map <- function(prefix, predictors, df) {
+    if (is.null(predictors) || length(predictors) == 0) return(character(0))
+    cat_preds <- predictors[predictors %in% names(df) & sapply(predictors, function(v) is.factor(df[[v]]) || is.character(df[[v]]) || is.logical(df[[v]]))]
+    if (length(cat_preds) == 0) return(character(0))
+    out <- character(0)
+    for (v in cat_preds) {
+      input_id <- make_reference_input_id(prefix, v)
+      lv <- levels(factor(as.character(df[[v]])))
+      lv <- lv[nzchar(as.character(lv))]
+      if (length(lv) == 0) next
+      sel <- input[[input_id]]
+      if (is.null(sel) || !sel %in% lv) sel <- lv[1]
+      out[[v]] <- as.character(sel)
+    }
+    out
+  }
+
   observeEvent(list(filtered_data(), input$desc_col_group_var, input$desc_row_group_var), {
     req(filtered_data())
 
@@ -707,7 +799,19 @@ statistical_analysis_server <- function(id, data) {
             if (is.null(input$cox_event_value) || !as.character(input$cox_event_value) %in% status_vals) {
               stop("请先为Cox状态变量选择事件值。")
             }
-            perform_cox_analysis(filtered_data(), input$cox_time, input$cox_status, input$cox_covariates, input$cox_strata, input$cox_facet, input$cox_event_value, input$cox_model_strata)
+            cox_ref_map <- collect_reference_map("cox", input$cox_covariates, filtered_data())
+            perform_cox_analysis(
+              data = filtered_data(),
+              cox_time = input$cox_time,
+              cox_status = input$cox_status,
+              cox_covariates = input$cox_covariates,
+              cox_strata = input$cox_strata,
+              cox_facet = input$cox_facet,
+              cox_event_value = input$cox_event_value,
+              cox_model_strata = input$cox_model_strata,
+              cox_reference_map = cox_ref_map,
+              total_cols_settings = get_regression_total_cols_settings(input, "cox", total_cols_count_cox())
+            )
           },
           "logistic" = {
             incProgress(0.3, detail = "运行逻辑回归")
@@ -716,11 +820,32 @@ statistical_analysis_server <- function(id, data) {
             if (is.null(input$logistic_event_value) || !as.character(input$logistic_event_value) %in% resp_vals) {
               stop("请先为逻辑回归响应变量选择事件值。")
             }
-            perform_logistic_analysis(filtered_data(), input$logistic_response, input$logistic_predictors, input$logistic_strata, input$logistic_facet, input$logistic_event_value, input$logistic_model_strata)
+            logistic_ref_map <- collect_reference_map("logistic", input$logistic_predictors, filtered_data())
+            perform_logistic_analysis(
+              data = filtered_data(),
+              logistic_response = input$logistic_response,
+              logistic_predictors = input$logistic_predictors,
+              logistic_strata = input$logistic_strata,
+              logistic_facet = input$logistic_facet,
+              logistic_event_value = input$logistic_event_value,
+              logistic_model_strata = input$logistic_model_strata,
+              logistic_reference_map = logistic_ref_map,
+              total_cols_settings = get_regression_total_cols_settings(input, "logistic", total_cols_count_logistic())
+            )
           },
           "linear" = {
             incProgress(0.3, detail = "运行线性回归")
-            perform_linear_analysis(filtered_data(), input$linear_response, input$linear_predictors, input$linear_strata, input$linear_facet, input$linear_model_strata)
+            linear_ref_map <- collect_reference_map("linear", input$linear_predictors, filtered_data())
+            perform_linear_analysis(
+              data = filtered_data(),
+              linear_response = input$linear_response,
+              linear_predictors = input$linear_predictors,
+              linear_strata = input$linear_strata,
+              linear_facet = input$linear_facet,
+              linear_model_strata = input$linear_model_strata,
+              linear_reference_map = linear_ref_map,
+              total_cols_settings = get_regression_total_cols_settings(input, "linear", total_cols_count_linear())
+            )
           },
           "anova" = {
             incProgress(0.3, detail = "运行方差分析")
@@ -747,7 +872,7 @@ statistical_analysis_server <- function(id, data) {
               stop(paste0("分析变量不能与分组变量重复: ", paste(overlap_vars, collapse = ", ")))
             }
             perform_desc_analysis(filtered_data(), desc_vars, col_group_var, row_group_var,
-                                  input$desc_total_cols_count, desc_total_cols_settings(),
+                                  total_cols_count_desc(), get_regression_total_cols_settings(input, "desc", total_cols_count_desc()),
                                   input$desc_decimals, input$desc_auto_decimals, id_var)
           },
           NULL

@@ -1,4 +1,5 @@
 library(shiny)
+source("modules/common/table_export.R")
 source("modules/statistical_analysis/desc.R")
 
 set.seed(20260305)
@@ -16,6 +17,9 @@ build_demo_data <- function() {
 }
 
 assert_gt_tbl <- function(x, scenario) {
+  if (is.list(x) && "table" %in% names(x)) {
+    x <- x$table
+  }
   if (!inherits(x, "gt_tbl")) {
     stop(paste0("[", scenario, "] 输出不是 gt_tbl"))
   }
@@ -27,13 +31,20 @@ run_scenario <- function(df, scenario, variables, col_group_var, row_group_var, 
     variables = variables,
     col_group_var = col_group_var,
     row_group_var = row_group_var,
-    total_cols_count = max(1, length(total_cols_settings)),
+    total_cols_count = length(total_cols_settings),
     total_cols_settings = total_cols_settings,
     decimals = 2,
     auto_decimals = TRUE
   )
-  assert_gt_tbl(out, scenario)
-  data_tbl <- out[["_data"]]
+  
+  if (is.list(out) && "table" %in% names(out)) {
+    gt_obj <- out$table
+  } else {
+    gt_obj <- out
+  }
+  
+  assert_gt_tbl(gt_obj, scenario)
+  data_tbl <- gt_obj[["_data"]]
   if (is.null(data_tbl) || nrow(data_tbl) == 0) {
     stop(paste0("[", scenario, "] 输出数据为空"))
   }
