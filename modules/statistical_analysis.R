@@ -24,6 +24,8 @@ source("modules/statistical_analysis/chisq.R")
 source("modules/statistical_analysis/desc.R")
 source("modules/common/data_filter.R") # 加载通用筛选模块
 source("modules/common/table_export.R")
+source("modules/common/analysis_format.R")
+source("modules/common/analysis_shared.R")
 
 # 统计方法选择UI
 statistical_analysis_ui <- function(id) {
@@ -120,20 +122,24 @@ statistical_analysis_ui <- function(id) {
           br(),
           fluidRow(
             column(
-              width = 4,
+              width = 3,
               selectInput(
                 ns("dl_format"),
                 "导出格式",
-                choices = c("Word" = "word", "HTML" = "html", "RTF" = "rtf"),
+                choices = c("Word" = "word", "HTML" = "html", "RTF" = "rtf", "PDF" = "pdf"),
                 selected = "word"
               )
             ),
             column(
-              width = 4,
+              width = 3,
+              div(style = "padding-top: 25px;", checkboxInput(ns("dl_include_report"), "导出包含报告", value = FALSE))
+            ),
+            column(
+              width = 3,
               textInput(ns("export_title"), "导出标题", value = "Table 1. Statistical Analysis Results")
             ),
             column(
-              width = 4,
+              width = 3,
               div(style = "padding-top: 25px;", downloadButton(ns("dl_table"), "导出报告", class = "btn-primary"))
             )
           ),
@@ -411,18 +417,11 @@ statistical_analysis_server <- function(id, data) {
       "cox" = c("HR(95%CI): HR>1表示事件风险升高，HR<1表示风险降低", "P值: 常以P<0.05作为统计学显著阈值"),
       profile$metrics
     )
-    config_items <- c(
-      paste0("响应变量/结局变量：", response_var),
-      paste0("预测变量数量：", predictors_n),
-      paste0("行分组变量：", strata_var),
-      paste0("列分组变量：", facet_var),
-      model_mode
-    )
     field_dict <- switch(
       method_code,
-      "logistic" = c("统计值列：OR (95% CI)", "OR>1：结局发生几率增加", "OR<1：结局发生几率降低", "P值：显著性检验结果", "分层差异P值：检验该分析变量的效应是否在不同分层间存在显著差异（交互检验）"),
-      "linear" = c("统计值列：Beta (95% CI)", "Beta>0：正向关联", "Beta<0：负向关联", "P值：显著性检验结果", "分层差异P值：检验该分析变量的效应是否在不同分层间存在显著差异（交互检验）"),
-      "cox" = c("统计值列：HR (95% CI)", "HR>1：事件风险升高", "HR<1：事件风险降低", "P值：显著性检验结果", "分层差异P值：检验该分析变量的效应是否在不同分层间存在显著差异（交互检验）"),
+      "logistic" = c("统计值列：OR (95% CI)", "OR>1：结局发生几率增加", "OR<1：结局发生几率降低", "P值：显著性检验结果", "亚组差异P值：检验该分析变量的效应是否在不同亚组间存在显著差异（交互检验）"),
+      "linear" = c("统计值列：Beta (95% CI)", "Beta>0：正向关联", "Beta<0：负向关联", "P值：显著性检验结果", "亚组差异P值：检验该分析变量的效应是否在不同亚组间存在显著差异（交互检验）"),
+      "cox" = c("统计值列：HR (95% CI)", "HR>1：事件风险升高", "HR<1：事件风险降低", "P值：显著性检验结果", "亚组差异P值：检验该分析变量的效应是否在不同亚组间存在显著差异（交互检验）"),
       c("请结合统计结果表中的列名和脚注解释字段含义")
     )
 
@@ -432,58 +431,58 @@ statistical_analysis_server <- function(id, data) {
     to_md_list <- function(items) {
       paste(paste0("- ", items), collapse = "\n")
     }
+    formal_methods <- c(
+      paste0("模型：", model_mode),
+      paste0("结局变量：", response_var),
+      paste0("纳入预测变量数：", predictors_n),
+      paste0("亚组变量：", strata_var),
+      paste0("列分组变量：", facet_var)
+    )
+    conclusions <- c(
+      paste0("在当前样本与模型设定下，", key_findings[[1]]),
+      "结论解读需结合研究设计、样本量与临床意义综合判断。"
+    )
+    note_items <- c(
+      paste0("方法介绍：", profile$intro),
+      "统计量说明：",
+      metric_explain,
+      "表格字段说明：",
+      field_dict,
+      "模型运行提示：",
+      if (length(model_notes) > 0) model_notes else c("未发现模型级警告或错误提示。"),
+      "使用提示：",
+      profile$tips
+    )
 
     ui <- tagList(
-      h4("统计报告"),
-      h5("可执行提示"),
-      make_ul(profile$tips),
-      h5("方法介绍"),
-      p(profile$intro),
-      h5("模型设定说明"),
-      make_ul(c(model_mode, "当前实现不包含逐步筛选流程，如需逐步回归需单独开启变量筛选策略实现")),
-      h5("模型配置摘要"),
-      make_ul(config_items),
-      h5("适用场景"),
-      make_ul(profile$scenarios),
-      h5("统计量说明"),
-      make_ul(metric_explain),
-      h5("表格字段说明"),
-      make_ul(field_dict),
-      h5("模型运行提示"),
-      make_ul(if (length(model_notes) > 0) model_notes else c("未发现模型级警告或错误提示。")),
-      h5("主要结果解读"),
-      make_ul(key_findings)
+      h4(paste0("Statistical Report (", profile$name, ")")),
+      h5("Objective"),
+      p(paste0("评估协变量与研究结局之间的关联，并形成可用于科研写作的结果陈述（方法：", profile$name, "）。")),
+      h5("Methods"),
+      make_ul(formal_methods),
+      h5("Results"),
+      make_ul(key_findings),
+      h5("Conclusion"),
+      make_ul(conclusions),
+      h5("Note"),
+      make_ul(note_items)
     )
 
     markdown <- paste(
-      paste0("## 统计报告（", profile$name, "）"),
+      "### Objective",
+      paste0("评估协变量与研究结局之间的关联，并形成可用于科研写作的结果陈述（方法：", profile$name, "）。"),
       "",
-      "### 可执行提示",
-      to_md_list(profile$tips),
+      "### Methods",
+      to_md_list(formal_methods),
       "",
-      "### 方法介绍",
-      profile$intro,
-      "",
-      "### 模型设定说明",
-      to_md_list(c(model_mode, "当前实现不包含逐步筛选流程，如需逐步回归需单独开启变量筛选策略实现")),
-      "",
-      "### 模型配置摘要",
-      to_md_list(config_items),
-      "",
-      "### 适用场景",
-      to_md_list(profile$scenarios),
-      "",
-      "### 统计量说明",
-      to_md_list(metric_explain),
-      "",
-      "### 表格字段说明",
-      to_md_list(field_dict),
-      "",
-      "### 模型运行提示",
-      to_md_list(if (length(model_notes) > 0) model_notes else c("未发现模型级警告或错误提示。")),
-      "",
-      "### 主要结果解读",
+      "### Results",
       to_md_list(key_findings),
+      "",
+      "### Conclusion",
+      to_md_list(conclusions),
+      "",
+      "### Note",
+      to_md_list(note_items),
       sep = "\n"
     )
     list(ui = ui, markdown = markdown)
@@ -561,21 +560,59 @@ statistical_analysis_server <- function(id, data) {
     # 更新Cox回归变量选择
     updateSelectInput(session, "cox_time", choices = numeric_vars)
     updateSelectInput(session, "cox_status", choices = all_vars)
-    updateSelectizeInput(session, "cox_covariates", choices = all_vars)
+    cox_time_sel <- isolate(input$cox_time)
+    cox_status_sel <- isolate(input$cox_status)
+    cox_split_sel <- normalize_optional_var(isolate(input$cox_strata))
+    cox_facet_sel <- normalize_optional_var(isolate(input$cox_facet))
+    cox_model_strata_sel <- normalize_optional_var(isolate(input$cox_model_strata))
+    cox_cov_choices <- get_regression_candidate_predictors(
+      df,
+      response_var = NULL,
+      split_var = cox_split_sel,
+      facet_var = cox_facet_sel,
+      model_strata_var = cox_model_strata_sel
+    )
+    cox_cov_choices <- setdiff(cox_cov_choices, unique(na.omit(c(cox_time_sel, cox_status_sel))))
+    cox_cov_selected <- intersect(isolate(input$cox_covariates), cox_cov_choices)
+    updateSelectizeInput(session, "cox_covariates", choices = cox_cov_choices, selected = cox_cov_selected, server = TRUE)
     updateSelectInput(session, "cox_strata", choices = c("None", factor_vars))
     updateSelectInput(session, "cox_facet", choices = c("None", factor_vars))
     updateSelectInput(session, "cox_model_strata", choices = c("None", factor_vars))
     
     # 更新逻辑回归变量选择
     updateSelectInput(session, "logistic_response", choices = all_vars)
-    updateSelectizeInput(session, "logistic_predictors", choices = all_vars)
+    logistic_resp_sel <- isolate(input$logistic_response)
+    logistic_split_sel <- normalize_optional_var(isolate(input$logistic_strata))
+    logistic_facet_sel <- normalize_optional_var(isolate(input$logistic_facet))
+    logistic_model_strata_sel <- normalize_optional_var(isolate(input$logistic_model_strata))
+    logistic_pred_choices <- get_regression_candidate_predictors(
+      df,
+      response_var = logistic_resp_sel,
+      split_var = logistic_split_sel,
+      facet_var = logistic_facet_sel,
+      model_strata_var = logistic_model_strata_sel
+    )
+    logistic_pred_selected <- intersect(isolate(input$logistic_predictors), logistic_pred_choices)
+    updateSelectizeInput(session, "logistic_predictors", choices = logistic_pred_choices, selected = logistic_pred_selected, server = TRUE)
     updateSelectInput(session, "logistic_strata", choices = c("None", factor_vars))
     updateSelectInput(session, "logistic_facet", choices = c("None", factor_vars))
     updateSelectInput(session, "logistic_model_strata", choices = c("None", factor_vars))
     
     # 更新线性回归变量选择
     updateSelectInput(session, "linear_response", choices = numeric_vars)
-    updateSelectizeInput(session, "linear_predictors", choices = all_vars)
+    linear_resp_sel <- isolate(input$linear_response)
+    linear_split_sel <- normalize_optional_var(isolate(input$linear_strata))
+    linear_facet_sel <- normalize_optional_var(isolate(input$linear_facet))
+    linear_model_strata_sel <- normalize_optional_var(isolate(input$linear_model_strata))
+    linear_pred_choices <- get_regression_candidate_predictors(
+      df,
+      response_var = linear_resp_sel,
+      split_var = linear_split_sel,
+      facet_var = linear_facet_sel,
+      model_strata_var = linear_model_strata_sel
+    )
+    linear_pred_selected <- intersect(isolate(input$linear_predictors), linear_pred_choices)
+    updateSelectizeInput(session, "linear_predictors", choices = linear_pred_choices, selected = linear_pred_selected, server = TRUE)
     updateSelectInput(session, "linear_strata", choices = c("None", factor_vars))
     updateSelectInput(session, "linear_facet", choices = c("None", factor_vars))
     updateSelectInput(session, "linear_model_strata", choices = c("None", factor_vars))
@@ -773,7 +810,7 @@ statistical_analysis_server <- function(id, data) {
   output$dl_table <- downloadHandler(
     filename = function() {
       fmt <- if (is.null(input$dl_format)) "word" else input$dl_format
-      ext <- switch(fmt, word = "docx", html = "html", rtf = "rtf", "docx")
+      ext <- switch(fmt, word = "docx", html = "html", rtf = "rtf", pdf = "pdf", "docx")
       paste0("analysis-report-", Sys.Date(), ".", ext)
     },
     content = function(file) {
@@ -793,7 +830,8 @@ statistical_analysis_server <- function(id, data) {
           title = export_title,
           footnotes = export_footnotes,
           report_md = report$markdown,
-          method_name = method_profile$name
+          method_name = method_profile$name,
+          include_report = isTRUE(input$dl_include_report)
         )
       }, error = function(e) {
         msg <- to_user_guidance(conditionMessage(e))

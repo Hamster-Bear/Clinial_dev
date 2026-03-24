@@ -68,6 +68,7 @@ required_packages <- c(
   "rlistings",
   "r2rtf",
   "rmarkdown",
+  "pagedown",
   "knitr",
   "flextable",
   "officer",

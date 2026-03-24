@@ -220,9 +220,12 @@ build_sci_flextable <- function(table_obj, title = "导出结果", footnotes = N
   }
   clean_gt_label <- function(x) {
     txt <- gsub("(?i)<br\\s*/?>", "\n", as.character(x), perl = TRUE)
+    txt <- gsub("\\s{2,}\\n", "\n", txt, perl = TRUE)
     txt <- gsub("<[^>]+>", "", txt)
     txt <- gsub("&nbsp;", " ", txt, fixed = TRUE)
     txt <- gsub("[ \t]*\n[ \t]*", "\n", txt, perl = TRUE)
+    txt <- gsub("\\s*\\(N\\s*=\\s*([^\\)]+)\\)", "\n(N = \\1)", txt, perl = TRUE)
+    txt <- gsub("\n{2,}", "\n", txt, perl = TRUE)
     trimws(txt)
   }
   df <- extract_table_dataframe(table_obj)
@@ -337,7 +340,9 @@ build_sci_flextable <- function(table_obj, title = "导出结果", footnotes = N
           ft <- flextable::add_header_row(ft, values = vals, colwidths = widths, top = TRUE)
         }
         if (length(gap_cols) > 0) {
-          ft <- flextable::width(ft, j = gap_cols, width = 0.5)
+          body_font_size_pt <- 10
+          gap_char_width_in <- (body_font_size_pt / 72) * 0.5
+          ft <- flextable::width(ft, j = gap_cols, width = gap_char_width_in)
         }
       }
     }
@@ -401,9 +406,36 @@ build_sci_flextable <- function(table_obj, title = "导出结果", footnotes = N
   ft
 }
 
-save_table_docx <- function(file, table_obj, title = "导出结果", footnotes = NULL, merge_first_col = TRUE) {
+markdown_to_doc_lines <- function(report_md) {
+  if (is.null(report_md) || !nzchar(trimws(report_md))) {
+    return(character(0))
+  }
+  lines <- unlist(strsplit(as.character(report_md), "\\r?\\n"))
+  lines <- gsub("^#{1,6}\\s*", "", lines, perl = TRUE)
+  lines <- gsub("^[-*+]\\s+", "• ", lines, perl = TRUE)
+  lines <- gsub("`", "", lines, fixed = TRUE)
+  lines <- trimws(lines)
+  lines[nzchar(lines)]
+}
+
+save_table_docx <- function(file, table_obj, title = "导出结果", footnotes = NULL, report_md = NULL, method_name = "统计分析", include_report = FALSE, merge_first_col = TRUE) {
   df <- extract_table_dataframe(table_obj)
   ft <- build_sci_flextable(table_obj = table_obj, title = title, footnotes = footnotes, merge_first_col = merge_first_col)
+  if (isTRUE(include_report)) {
+    doc <- officer::read_docx()
+    doc <- officer::body_add_par(doc, "统计分析报告", style = "heading 1")
+    doc <- officer::body_add_par(doc, paste0("方法：", method_name), style = "Normal")
+    report_lines <- markdown_to_doc_lines(report_md)
+    if (length(report_lines) > 0) {
+      for (line in report_lines) {
+        doc <- officer::body_add_par(doc, line, style = "Normal")
+      }
+    }
+    doc <- officer::body_add_par(doc, "统计结果表", style = "heading 2")
+    doc <- flextable::body_add_flextable(doc, value = ft)
+    print(doc, target = file)
+    return(invisible(TRUE))
+  }
   if (ncol(df) > 8) {
     sec <- officer::prop_section(
       page_size = officer::page_size(orient = "landscape"),
@@ -423,19 +455,22 @@ extract_table_for_export <- function(result_obj) {
   result_obj
 }
 
-save_table_export <- function(file, result_obj, format = "word", title = "导出结果", footnotes = NULL, report_md = NULL, method_name = "统计分析", merge_first_col = TRUE) {
+save_table_export <- function(file, result_obj, format = "word", title = "导出结果", footnotes = NULL, report_md = NULL, method_name = "统计分析", include_report = FALSE, merge_first_col = TRUE) {
   fmt <- tolower(if (is.null(format) || !nzchar(format)) "word" else format)
   fmt <- switch(fmt, docx = "word", fmt)
   table_obj <- extract_table_for_export(result_obj)
   if (identical(fmt, "word")) {
-    save_table_docx(file = file, table_obj = table_obj, title = title, footnotes = footnotes, merge_first_col = merge_first_col)
+    save_table_docx(file = file, table_obj = table_obj, title = title, footnotes = footnotes, report_md = report_md, method_name = method_name, include_report = include_report, merge_first_col = merge_first_col)
     return(invisible(TRUE))
   }
-  if (!fmt %in% c("html", "rtf")) {
-    stop("仅支持 word/html/rtf 导出格式")
+  if (!fmt %in% c("html", "rtf", "pdf")) {
+    stop("仅支持 word/html/rtf/pdf 导出格式")
   }
   if (!requireNamespace("rmarkdown", quietly = TRUE)) {
-    stop("导出 HTML/RTF 需要安装 rmarkdown 包")
+    stop("导出 HTML/RTF/PDF 需要安装 rmarkdown 包")
+  }
+  if (identical(fmt, "pdf") && !requireNamespace("pagedown", quietly = TRUE)) {
+    stop("导出 PDF 需要安装 pagedown 包")
   }
   rendered_table <- if (inherits(table_obj, "gt_tbl")) {
     apply_sci_gt_style(table_obj, title = title, footnotes = footnotes)
@@ -448,50 +483,85 @@ save_table_export <- function(file, result_obj, format = "word", title = "导出
   payload <- list(
     rendered_table = rendered_table,
     report_md = if (is.null(report_md)) "" else as.character(report_md),
-    method_name = if (is.null(method_name)) "统计分析" else as.character(method_name)
+    method_name = if (is.null(method_name)) "统计分析" else as.character(method_name),
+    include_report = isTRUE(include_report)
   )
   tmp_rds <- tempfile(fileext = ".rds")
   saveRDS(payload, tmp_rds)
   tmp_rds <- normalizePath(tmp_rds, winslash = "/", mustWork = FALSE)
-  rmd_content <- paste0(
-    "---\n",
-    "title: \"统计分析报告\"\n",
-    "params:\n",
-    "  payload_rds: \"\"\n",
-    "  method_name: \"\"\n",
-    "---\n\n",
-    "## 分析方法\n\n",
-    "方法：`r params$method_name`\n\n",
-    "## 统计报告\n\n",
-    "```{r, echo=FALSE, results='asis'}\n",
-    "payload <- readRDS(params$payload_rds)\n",
-    "if (nzchar(trimws(payload$report_md))) cat(payload$report_md)\n",
-    "```\n\n",
-    "## 统计结果表\n\n",
-    "```{r, echo=FALSE, results='asis'}\n",
-    "payload <- readRDS(params$payload_rds)\n",
-    "table_obj <- payload$rendered_table\n",
-    "if (inherits(table_obj, 'gt_tbl')) {\n",
-    "  table_obj\n",
-    "} else if (is.data.frame(table_obj)) {\n",
-    "  knitr::kable(table_obj, format='pipe')\n",
-    "} else {\n",
-    "  txt <- paste(capture.output(print(table_obj)), collapse='\\n')\n",
-    "  knitr::kable(data.frame(Result = strsplit(txt, '\\n', fixed = TRUE)[[1]]), format='pipe')\n",
-    "}\n",
-    "```\n"
-  )
+  if (isTRUE(payload$include_report)) {
+    rmd_content <- paste0(
+      "---\n",
+      "title: \"\"\n",
+      "params:\n",
+      "  payload_rds: \"\"\n",
+      "  method_name: \"\"\n",
+      "---\n\n",
+      "```{r, echo=FALSE, results='asis'}\n",
+      "payload <- readRDS(params$payload_rds)\n",
+      "cat(payload$report_md)\n",
+      "```\n\n",
+      "## Table\n\n",
+      "```{r, echo=FALSE, results='asis'}\n",
+      "payload <- readRDS(params$payload_rds)\n",
+      "table_obj <- payload$rendered_table\n",
+      "if (inherits(table_obj, 'gt_tbl')) {\n",
+      "  table_obj\n",
+      "} else if (is.data.frame(table_obj)) {\n",
+      "  knitr::kable(table_obj, format='pipe')\n",
+      "} else {\n",
+      "  txt <- paste(capture.output(print(table_obj)), collapse='\\n')\n",
+      "  knitr::kable(data.frame(Result = strsplit(txt, '\\n', fixed = TRUE)[[1]]), format='pipe')\n",
+      "}\n",
+      "```\n"
+    )
+  } else {
+    rmd_content <- paste0(
+      "---\n",
+      "title: \"\"\n",
+      "params:\n",
+      "  payload_rds: \"\"\n",
+      "  method_name: \"\"\n",
+      "---\n\n",
+      "```{r, echo=FALSE, results='asis'}\n",
+      "payload <- readRDS(params$payload_rds)\n",
+      "table_obj <- payload$rendered_table\n",
+      "if (inherits(table_obj, 'gt_tbl')) {\n",
+      "  table_obj\n",
+      "} else if (is.data.frame(table_obj)) {\n",
+      "  knitr::kable(table_obj, format='pipe')\n",
+      "} else {\n",
+      "  txt <- paste(capture.output(print(table_obj)), collapse='\\n')\n",
+      "  knitr::kable(data.frame(Result = strsplit(txt, '\\n', fixed = TRUE)[[1]]), format='pipe')\n",
+      "}\n",
+      "```\n"
+    )
+  }
   tmp_rmd <- tempfile(fileext = ".Rmd")
   writeLines(rmd_content, tmp_rmd)
-  output_format <- switch(fmt, html = "html_document", rtf = "rtf_document", "word_document")
-  rmarkdown::render(
-    input = tmp_rmd,
-    output_format = output_format,
-    output_file = basename(file),
-    output_dir = dirname(file),
-    params = list(payload_rds = tmp_rds, method_name = payload$method_name),
-    envir = new.env(parent = globalenv()),
-    quiet = TRUE
-  )
+  output_format <- switch(fmt, html = "html_document", rtf = "rtf_document", pdf = "html_document", "word_document")
+  if (identical(fmt, "pdf")) {
+    tmp_html <- tempfile(fileext = ".html")
+    rmarkdown::render(
+      input = tmp_rmd,
+      output_format = output_format,
+      output_file = basename(tmp_html),
+      output_dir = dirname(tmp_html),
+      params = list(payload_rds = tmp_rds, method_name = payload$method_name),
+      envir = new.env(parent = globalenv()),
+      quiet = TRUE
+    )
+    pagedown::chrome_print(input = normalizePath(tmp_html, winslash = "/", mustWork = TRUE), output = file)
+  } else {
+    rmarkdown::render(
+      input = tmp_rmd,
+      output_format = output_format,
+      output_file = basename(file),
+      output_dir = dirname(file),
+      params = list(payload_rds = tmp_rds, method_name = payload$method_name),
+      envir = new.env(parent = globalenv()),
+      quiet = TRUE
+    )
+  }
   invisible(TRUE)
 }
