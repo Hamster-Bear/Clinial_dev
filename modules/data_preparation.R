@@ -1625,6 +1625,7 @@ data_preparation_server <- function(id) {
     all_choices <- build_column_choices(data_store())
     updateSelectizeInput(session, "selected_var",
                          choices = all_choices,
+                         selected = character(0),
                          server = TRUE)
     
     # 更新列选择 - 保持合理的默认显示列数

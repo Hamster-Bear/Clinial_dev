@@ -116,9 +116,128 @@ get_interaction_p_value <- function(int_map, pred_key, sval, facet_tag = "__ALL_
   if (key %in% names(int_map)) unname(int_map[[key]]) else "NA"
 }
 
+#' 通用回归结果提取与后备方案
+#' @param fit 拟合好的模型对象 (如 lm, glm, coxph)
+#' @param conf.int 是否计算置信区间
+#' @param exponentiate 是否对估计值及置信区间进行指数化(例如OR, HR)
+#' @param facet_var 分组变量名，用于日志提示
+#' @param sval 亚组值，用于日志提示
+#' @param fval 分组值，用于日志提示
+#' @param add_note_fn 写入日志的函数
+extract_broom_tidy_with_fallback <- function(fit, conf.int = TRUE, exponentiate = FALSE,
+                                             facet_var = NULL, sval = NULL, fval = NULL, add_note_fn = NULL) {
+  # 辅助函数：格式化提示前缀
+  get_msg_prefix <- function() {
+    if (is.null(facet_var)) paste0("亚组[", sval, "]") else paste0("亚组[", sval, "]分组[", fval, "]")
+  }
+
+  # 1. 尝试使用 broom::tidy
+  tid <- tryCatch(
+    broom::tidy(fit, conf.int = conf.int, exponentiate = exponentiate),
+    error = function(e) {
+      if (!is.null(add_note_fn)) {
+        add_note_fn(paste0(get_msg_prefix(), " 结果整理失败(broom::tidy): ", conditionMessage(e)))
+      }
+      NULL
+    }
+  )
+
+  # 2. 如果 tidy 失败或为空，启动完全备选方案
+  if (is.null(tid) || nrow(tid) == 0) {
+    if (!is.null(add_note_fn)) {
+      add_note_fn(paste0(get_msg_prefix(), " 启动备选结果提取方案(summary$coefficients)。"))
+    }
+    
+    sm0 <- tryCatch(summary(fit)$coefficients, error = function(e) {
+      if (!is.null(add_note_fn)) {
+         add_note_fn(paste0(get_msg_prefix(), " 备选方案(summary)也失败: ", conditionMessage(e)))
+      }
+      NULL
+    })
+    
+    if (!is.null(sm0) && is.matrix(sm0) && nrow(sm0) > 0) {
+      tid <- data.frame(term = rownames(sm0), stringsAsFactors = FALSE)
+      
+      # 适配不同模型的 summary 列名
+      est_col <- if ("Estimate" %in% colnames(sm0)) "Estimate" else if ("coef" %in% colnames(sm0)) "coef" else colnames(sm0)[1]
+      se_col <- if ("Std. Error" %in% colnames(sm0)) "Std. Error" else if ("se(coef)" %in% colnames(sm0)) "se(coef)" else colnames(sm0)[2]
+      p_col <- if ("Pr(>|z|)" %in% colnames(sm0)) "Pr(>|z|)" else if ("Pr(>|t|)" %in% colnames(sm0)) "Pr(>|t|)" else if ("p" %in% colnames(sm0)) "p" else colnames(sm0)[ncol(sm0)]
+      
+      est_val <- as.numeric(sm0[, est_col])
+      se_val <- as.numeric(sm0[, se_col])
+      p_val <- as.numeric(sm0[, p_col])
+      
+      tid$estimate <- if (exponentiate) exp(est_val) else est_val
+      tid$conf.low <- NA_real_
+      tid$conf.high <- NA_real_
+      tid$p.value <- p_val
+      
+      if (conf.int) {
+        # 默认使用 95% Wald CI
+        ci_low <- est_val - 1.96 * se_val
+        ci_high <- est_val + 1.96 * se_val
+        tid$conf.low <- if (exponentiate) exp(ci_low) else ci_low
+        tid$conf.high <- if (exponentiate) exp(ci_high) else ci_high
+      }
+    }
+  }
+
+  if (is.null(tid) || nrow(tid) == 0) return(NULL)
+
+  # 3. 如果部分值存在 NA (如 profile likelihood CI 计算失败)，进行填补
+  sm <- tryCatch(summary(fit)$coefficients, error = function(e) NULL)
+  if (!is.null(sm) && is.matrix(sm)) {
+    rn <- rownames(sm)
+    idx <- match(as.character(tid$term), rn)
+    
+    est_col <- if ("Estimate" %in% colnames(sm)) "Estimate" else if ("coef" %in% colnames(sm)) "coef" else colnames(sm)[1]
+    se_col <- if ("Std. Error" %in% colnames(sm)) "Std. Error" else if ("se(coef)" %in% colnames(sm)) "se(coef)" else colnames(sm)[2]
+    p_col <- if ("Pr(>|z|)" %in% colnames(sm)) "Pr(>|z|)" else if ("Pr(>|t|)" %in% colnames(sm)) "Pr(>|t|)" else if ("p" %in% colnames(sm)) "p" else colnames(sm)[ncol(sm)]
+    
+    est_beta <- suppressWarnings(as.numeric(sm[idx, est_col]))
+    se_beta <- suppressWarnings(as.numeric(sm[idx, se_col]))
+    p_wald <- suppressWarnings(as.numeric(sm[idx, p_col]))
+    
+    # 填补 estimate
+    if (!"estimate" %in% names(tid)) tid$estimate <- if (exponentiate) exp(est_beta) else est_beta
+    if ("estimate" %in% names(tid)) {
+      bad_est <- is.na(tid$estimate) & !is.na(est_beta)
+      if (any(bad_est)) tid$estimate[bad_est] <- if (exponentiate) exp(est_beta[bad_est]) else est_beta[bad_est]
+    }
+    
+    # 填补 CI
+    if (!"conf.low" %in% names(tid)) tid$conf.low <- NA_real_
+    if (!"conf.high" %in% names(tid)) tid$conf.high <- NA_real_
+    bad_ci <- (is.na(tid$conf.low) | is.na(tid$conf.high)) & !is.na(est_beta) & !is.na(se_beta)
+    if (any(bad_ci)) {
+      ci_low_calc <- est_beta[bad_ci] - 1.96 * se_beta[bad_ci]
+      ci_high_calc <- est_beta[bad_ci] + 1.96 * se_beta[bad_ci]
+      tid$conf.low[bad_ci] <- if (exponentiate) exp(ci_low_calc) else ci_low_calc
+      tid$conf.high[bad_ci] <- if (exponentiate) exp(ci_high_calc) else ci_high_calc
+    }
+    
+    # 填补 p.value
+    if (!"p.value" %in% names(tid)) tid$p.value <- p_wald
+    if ("p.value" %in% names(tid)) {
+      bad_p <- is.na(tid$p.value) & !is.na(p_wald)
+      if (any(bad_p)) tid$p.value[bad_p] <- p_wald[bad_p]
+    }
+  }
+
+  # 4. 最终校验并提示不可稳定估计项
+  if ((("p.value" %in% names(tid)) && any(is.na(tid$p.value))) || (("conf.low" %in% names(tid)) && any(is.na(tid$conf.low))) || (("conf.high" %in% names(tid)) && any(is.na(tid$conf.high)))) {
+    if (!is.null(add_note_fn)) {
+      add_note_fn(paste0(get_msg_prefix(), " 存在不可稳定估计项，部分统计量显示为NA。"))
+    }
+  }
+
+  tid
+}
+
 build_unified_regression_table <- function(
   df_in,
   predictors,
+  response_var_name = NULL, # 新增参数，用于过滤 complete.cases
   strata_var = NULL,
   facet_var = NULL,
   strata_vals,
@@ -208,6 +327,12 @@ build_unified_regression_table <- function(
       
       tid$亚组 <- if (is.null(strata_var)) "总体" else as.character(sval)
       
+      # 为了保证各水平的 n 与模型实际运行的 n (Complete Cases) 口径一致，需要先过滤 sub_data
+      # 获取模型涉及的所有变量
+      model_vars_in_sub <- unique(c(predictors, response_var_name))
+      model_vars_in_sub <- model_vars_in_sub[model_vars_in_sub %in% names(sub_data)]
+      cc_sub_data <- if (length(model_vars_in_sub) > 0) sub_data[stats::complete.cases(sub_data[, model_vars_in_sub, drop = FALSE]), , drop = FALSE] else sub_data
+      
       # 为分类变量分别计算每个水平的 n
       tid_n_vals <- rep(as.character(count_effective_n_fn(sub_data)), nrow(tid))
       if (!is.null(categorical_ref_map) && length(categorical_ref_map) > 0) {
@@ -218,8 +343,8 @@ build_unified_regression_table <- function(
             term_str <- tid$term[i]
             if (startsWith(term_str, v_raw)) {
               lvl <- substring(term_str, nchar(v_raw) + 1)
-              # 计算特定水平的 n
-              level_n <- sum(as.character(sub_data[[v_raw]]) == lvl, na.rm = TRUE)
+              # 计算特定水平的 n (使用过滤后的 cc_sub_data)
+              level_n <- sum(as.character(cc_sub_data[[v_raw]]) == lvl, na.rm = TRUE)
               tid_n_vals[i] <- as.character(level_n)
             }
           }
@@ -229,9 +354,10 @@ build_unified_regression_table <- function(
       tid$N <- tid_n_vals
       tid$统计值 <- vapply(seq_len(nrow(tid)), function(i) format_estimate_fn(est[i], low[i], high[i]), character(1))
       tid$P值 <- vapply(pvals, function(p) {
-        if (is.na(p)) "NA" else format_p_value_ama(p)
+        format_p_fn(p)
       }, character(1))
       tid$.__row_order <- 1L
+      tid$.__row_key <- paste(tid$预测变量原始, tid$.__row_order, tid$预测变量, sep = "||")
       
       if (!is.null(facet_var)) tid$列分组 <- as.character(fval)
       
@@ -249,11 +375,12 @@ build_unified_regression_table <- function(
           rr$预测变量 <- paste0("\U00A0\U00A0\U00A0\U00A0", ref_val, " (Reference)")
           rr$预测变量原始 <- cv
           # 计算 Reference 水平的 n
-          ref_level_n <- sum(as.character(sub_data[[cv]]) == ref_val, na.rm = TRUE)
+          ref_level_n <- sum(as.character(cc_sub_data[[cv]]) == ref_val, na.rm = TRUE)
           rr$N <- as.character(ref_level_n)
           rr$统计值 <- "Reference"
           rr$P值 <- ""
           rr$.__row_order <- 0L
+          rr$.__row_key <- paste(rr$预测变量原始, rr$.__row_order, rr$预测变量, sep = "||")
           ref_rows[[length(ref_rows) + 1L]] <- rr
         }
         if (length(ref_rows) > 0) {
@@ -261,13 +388,13 @@ build_unified_regression_table <- function(
         }
       }
       
-      keep_cols <- c("预测变量", "预测变量原始", "亚组", if (!is.null(facet_var)) "列分组", "N", "统计值", "P值", ".__row_order")
+      keep_cols <- c("预测变量", "预测变量原始", "亚组", if (!is.null(facet_var)) "列分组", "N", "统计值", "P值", ".__row_order", ".__row_key")
       out_list[[length(out_list) + 1L]] <- tid[, keep_cols, drop = FALSE]
     }
   }
   
   if (length(out_list) == 0) {
-    stop("无法为任何亚组生成模型结果，请检查各组样本量。")
+    stop("所有子模型均未能稳定估计，请检查分层/分组设置、分类变量水平与模型复杂度。")
   }
   final_df <- dplyr::bind_rows(out_list)
   
@@ -306,18 +433,25 @@ build_unified_regression_table <- function(
             .__row_order = -1L,
             stringsAsFactors = FALSE
           )
+          hr$.__row_key <- paste(hr$预测变量原始, hr$.__row_order, hr$预测变量, sep = "||")
           
-          # 正确计算标题行的总体 N (基于 sval 和 fval)
-          # 注意：这里的标题行 N，应该是指这个分类变量在该亚组/列分组下的非缺失样本数
+          # 正确计算标题行的总体 N (基于 sval 和 fval，并且要对齐模型 actual complete cases)
           hr_sub_data <- if (is.null(strata_var)) df_in else df_in[df_in[[strata_var]] == sval, , drop = FALSE]
           if (!is.null(facet_var)) {
             if (startsWith(fval, ".__TOTAL__")) {
                setting_idx <- match(fval, vapply(valid_total_settings, function(x) x$internal_name, character(1)))
                groups_to_include <- valid_total_settings[[setting_idx]]$groups
                hr_sub_data <- hr_sub_data[as.character(hr_sub_data[[facet_var]]) %in% groups_to_include, , drop = FALSE]
-            } else {
+            } else if (fval != "总体") {
                hr_sub_data <- hr_sub_data[as.character(hr_sub_data[[facet_var]]) == as.character(fval), , drop = FALSE]
             }
+          }
+          
+          # 获取模型涉及的所有变量进行过滤
+          model_vars_in_sub <- unique(c(predictors, response_var_name))
+          model_vars_in_sub <- model_vars_in_sub[model_vars_in_sub %in% names(hr_sub_data)]
+          if (length(model_vars_in_sub) > 0) {
+             hr_sub_data <- hr_sub_data[stats::complete.cases(hr_sub_data[, model_vars_in_sub, drop = FALSE]), , drop = FALSE]
           }
           
           hr$N <- as.character(sum(!is.na(hr_sub_data[[v_raw]])))
@@ -345,50 +479,53 @@ build_unified_regression_table <- function(
   final_df <- dplyr::bind_rows(final_df, dplyr::bind_rows(header_rows))
   
   # 3. 补全缺失组合 (由于分类变量可能在某亚组中完全缺失)
-  all_preds <- unique(final_df$预测变量)
+  row_map <- final_df[!is.na(final_df$.__row_key), c(".__row_key", "预测变量", "预测变量原始", ".__row_order"), drop = FALSE]
+  row_map <- row_map[!duplicated(row_map$.__row_key), , drop = FALSE]
+  all_row_keys <- unique(final_df$.__row_key)
   if (!is.null(strata_var)) {
-    all_preds <- unique(final_df$预测变量)
     if (!is.null(facet_var)) {
-       grid_list <- list(预测变量 = all_preds)
+       grid_list <- list(.__row_key = all_row_keys)
        grid_list$亚组 <- strata_vals
        grid_list$列分组 <- facet_values_to_run
        complete_grid <- do.call(expand.grid, c(grid_list, list(stringsAsFactors = FALSE)))
        final_df <- dplyr::left_join(complete_grid, final_df, by = names(grid_list))
     } else {
-       grid_list <- list(预测变量 = all_preds)
+       grid_list <- list(.__row_key = all_row_keys)
        grid_list$亚组 <- strata_vals
        complete_grid <- do.call(expand.grid, c(grid_list, list(stringsAsFactors = FALSE)))
        final_df <- dplyr::left_join(complete_grid, final_df, by = names(grid_list))
     }
+    
+     final_df <- dplyr::left_join(final_df, row_map, by = ".__row_key", suffix = c("", ".map"))
+     final_df$预测变量 <- dplyr::coalesce(final_df$预测变量, final_df$预测变量.map)
+     final_df$预测变量原始 <- dplyr::coalesce(final_df$预测变量原始, final_df$预测变量原始.map)
+     final_df$.__row_order <- dplyr::coalesce(final_df$.__row_order, final_df$.__row_order.map)
+     final_df$预测变量.map <- NULL
+     final_df$预测变量原始.map <- NULL
+     final_df$.__row_order.map <- NULL
      
      final_df$N <- ifelse(is.na(final_df$N), "", final_df$N)
      final_df$统计值 <- ifelse(is.na(final_df$统计值), "", final_df$统计值)
      final_df$P值 <- ifelse(is.na(final_df$P值), "", final_df$P值)
-     
-     # 恢复原始变量名和 row_order
-     pred_map <- final_df[!is.na(final_df$预测变量原始), c("预测变量", "预测变量原始", ".__row_order")]
-     pred_map <- pred_map[!duplicated(pred_map$预测变量), ]
-     final_df$预测变量原始 <- NULL
-     final_df$.__row_order <- NULL
-     final_df <- dplyr::left_join(final_df, pred_map, by = "预测变量")
   } else if (!is.null(facet_var)) {
      # 没有亚组，但有列分组，也需要补全组合
-     grid_list <- list(预测变量 = all_preds)
+     grid_list <- list(.__row_key = all_row_keys)
      grid_list$列分组 <- facet_values_to_run
      complete_grid <- do.call(expand.grid, c(grid_list, list(stringsAsFactors = FALSE)))
      final_df <- dplyr::left_join(complete_grid, final_df, by = names(grid_list))
+     
+     final_df <- dplyr::left_join(final_df, row_map, by = ".__row_key", suffix = c("", ".map"))
+     final_df$预测变量 <- dplyr::coalesce(final_df$预测变量, final_df$预测变量.map)
+     final_df$预测变量原始 <- dplyr::coalesce(final_df$预测变量原始, final_df$预测变量原始.map)
+     final_df$.__row_order <- dplyr::coalesce(final_df$.__row_order, final_df$.__row_order.map)
+     final_df$预测变量.map <- NULL
+     final_df$预测变量原始.map <- NULL
+     final_df$.__row_order.map <- NULL
      
      final_df$亚组 <- "总体"
      final_df$N <- ifelse(is.na(final_df$N), "", final_df$N)
      final_df$统计值 <- ifelse(is.na(final_df$统计值), "", final_df$统计值)
      final_df$P值 <- ifelse(is.na(final_df$P值), "", final_df$P值)
-     
-     # 恢复原始变量名和 row_order
-     pred_map <- final_df[!is.na(final_df$预测变量原始), c("预测变量", "预测变量原始", ".__row_order")]
-     pred_map <- pred_map[!duplicated(pred_map$预测变量), ]
-     final_df$预测变量原始 <- NULL
-     final_df$.__row_order <- NULL
-     final_df <- dplyr::left_join(final_df, pred_map, by = "预测变量")
   }
   
   # 修复变量名可能出现 NA 的问题：当 left_join 后，新生成的 header_rows 如果在某些组合里没有预测变量原始名，就会变成 NA
@@ -401,23 +538,25 @@ build_unified_regression_table <- function(
   # 4. 处理交互作用 P 值 (单列或单行展示)
   if (!is.null(strata_var) && !is.null(get_int_p_fn)) {
     if (!is.null(facet_var)) {
-      # 模式 B: 并排展示，交互 P 值作为独立列，仅在变量标题行的总体组中显示
       final_df$亚组差异P值 <- ""
+      ref_level <- as.character(strata_vals[1])
+      non_ref_levels <- as.character(strata_vals[as.character(strata_vals) != ref_level])
+      p_level <- if (length(non_ref_levels) > 0) non_ref_levels[1] else ref_level
       for (i in seq_len(nrow(final_df))) {
-        # 注意：这里我们仅在 "总体" 组中显示 P for interaction，或者您可以选择在每个组里算一个
-        # 根据常规临床报告，交互 P 值通常是基于整体数据集（或对应行）算出的一个总体 P 值
-        if (final_df$.__row_order[i] == -1L && as.character(final_df$亚组[i]) == as.character(strata_vals[1])) {
-          # 计算全局的交互作用 P 值 (使用 "__ALL__")
-          pval <- get_int_p_fn(int_p_map, final_df$预测变量原始[i], as.character(final_df$亚组[i]), "__ALL__")
+        if (final_df$.__row_order[i] == -1L && as.character(final_df$亚组[i]) == p_level) {
+          facet_tag <- if ("列分组" %in% names(final_df)) as.character(final_df$列分组[i]) else "__ALL__"
+          pval <- get_int_p_fn(int_p_map, final_df$预测变量原始[i], p_level, facet_tag)
           final_df$亚组差异P值[i] <- pval
         }
       }
     } else {
-      # 模式 A: 堆叠展示，交互 P 值在每个变量块的底部独立成行
       int_rows <- list()
+      ref_level <- as.character(strata_vals[1])
+      non_ref_levels <- as.character(strata_vals[as.character(strata_vals) != ref_level])
+      p_level <- if (length(non_ref_levels) > 0) non_ref_levels[1] else ref_level
       for (v_raw in unique(final_df$预测变量原始)) {
         if (!nzchar(v_raw)) next
-        pval <- get_int_p_fn(int_p_map, v_raw, as.character(strata_vals[1]), "__ALL__")
+        pval <- get_int_p_fn(int_p_map, v_raw, p_level, "__ALL__")
         if (nzchar(pval) && pval != "NA") {
           ir <- data.frame(
             预测变量 = paste0("\U00A0\U00A0\U00A0\U00A0*P for interaction*"),
@@ -440,8 +579,10 @@ build_unified_regression_table <- function(
 
   # 5. 展开列分组 (Pivot wider)
   if ("列分组" %in% names(final_df)) {
-    facet_n_map <- sapply(facet_levels_all, function(x) sum(as.character(df_in[[facet_var]]) == x, na.rm = TRUE), USE.NAMES = TRUE)
-    # 添加自定义总计列的 n 映射
+    facet_n_map <- sapply(facet_levels_all, function(x) {
+      df_lv <- df_in[as.character(df_in[[facet_var]]) == as.character(x), , drop = FALSE]
+      count_effective_n_fn(df_lv)
+    }, USE.NAMES = TRUE)
     if (length(valid_total_settings) > 0) {
       for (setting in valid_total_settings) {
         facet_n_map[[setting$internal_name]] <- count_effective_n_fn(df_in[as.character(df_in[[facet_var]]) %in% setting$groups, , drop = FALSE])
@@ -490,12 +631,10 @@ build_unified_regression_table <- function(
       
       cols_for_spanner <- c(n_col, stat_col, p_col)
       if (pd_col %in% names(final_df)) {
-        # 交互作用 P 值仅需在第一个分组中显示（或者如果不需要在每个分组显示，则仅保留在一个特定的列，由于我们移除了总体列，可以保留在第一个普通分组下，或者单独列出来。此处为了简洁，在第一个分组下显示。）
         if (lv == display_facet_levels[1]) {
             label_map[[pd_col]] <- "P for interaction"
             cols_for_spanner <- c(cols_for_spanner, pd_col)
         } else {
-            # 隐藏其余组的交互 P 值列
             final_df[[pd_col]] <- NULL
         }
       }
@@ -595,8 +734,11 @@ build_unified_regression_table <- function(
     }
   }
   
-  # 解析 markdown 语法 (用于 P for interaction)
-  gt_tbl <- gt::fmt_markdown(gt_tbl, columns = gt::everything())
+  # 仅对P值列解析 markdown，避免影响预测变量层级缩进显示
+  md_cols <- grep("P值$", names(final_df), value = TRUE)
+  if (length(md_cols) > 0) {
+    gt_tbl <- gt::fmt_markdown(gt_tbl, columns = dplyr::all_of(md_cols))
+  }
   
   gt_tbl <- apply_style_fn(gt_tbl)
   attr(gt_tbl, "skipped_models") <- skipped_models

@@ -228,6 +228,9 @@ statistical_analysis_server <- function(id, data) {
   
   to_user_guidance <- function(raw_msg) {
     msg <- trimws(as.character(raw_msg))
+    if (grepl("所有子模型均未能稳定估计", msg, ignore.case = TRUE)) {
+      return("当前分层/分组切分后各子模型均不可稳定估计，常见原因是分类变量在子组中水平不足或模型过于复杂。建议减少分层维度、合并稀疏水平或减少预测变量。")
+    }
     if (grepl("contrasts can be applied only to factors with 2 or more levels", msg, ignore.case = TRUE)) {
       return("某个分类变量在当前数据中仅剩1个水平，请调整全局筛选或更换分层/分组变量。")
     }
@@ -237,7 +240,10 @@ statistical_analysis_server <- function(id, data) {
     if (grepl("did not converge|converge|separation|fitted probabilities numerically 0 or 1", msg, ignore.case = TRUE)) {
       return("模型未稳定收敛，建议合并稀疏分组、减少变量数量或放宽筛选条件。")
     }
-    if (grepl("not enough|insufficient|too few|样本量|事件数", msg, ignore.case = TRUE)) {
+    if (grepl("not enough|insufficient|too few", msg, ignore.case = TRUE)) {
+      return("当前分层或分组后模型不可稳定估计，建议减少分层维度、合并稀疏水平或降低模型复杂度。")
+    }
+    if (grepl("响应变量至少需要两个非缺失取值|状态变量至少需要两个非缺失取值|请先为逻辑回归响应变量选择事件值|请先为Cox状态变量选择事件值", msg, ignore.case = TRUE)) {
       return("当前样本量或事件数不足，建议减少模型复杂度或扩大分析样本。")
     }
     if (grepl("object '.*' not found|不存在", msg, ignore.case = TRUE)) {
@@ -815,6 +821,19 @@ statistical_analysis_server <- function(id, data) {
           },
           "logistic" = {
             incProgress(0.3, detail = "运行逻辑回归")
+            logi_df <- filtered_data()
+            logi_preds <- if (is.null(input$logistic_predictors)) character(0) else input$logistic_predictors
+            if (length(logi_preds) == 0) stop("逻辑回归至少需要一个预测变量。")
+            cat_preds <- logi_preds[logi_preds %in% names(logi_df) & sapply(logi_preds, function(v) is.factor(logi_df[[v]]) || is.character(logi_df[[v]]) || is.logical(logi_df[[v]]))]
+            if (length(cat_preds) > 0) {
+              bad_cat <- cat_preds[sapply(cat_preds, function(v) {
+                lv <- unique(as.character(logi_df[[v]][!is.na(logi_df[[v]]) & nzchar(as.character(logi_df[[v]]))]))
+                length(lv) < 2
+              })]
+              if (length(bad_cat) > 0) {
+                stop(paste0("分类预测变量在当前数据中仅有1个有效水平，无法估计：", paste(bad_cat, collapse = ", "), "。请重置筛选或更换变量。"))
+              }
+            }
             resp_vals <- unique(as.character(filtered_data()[[input$logistic_response]][!is.na(filtered_data()[[input$logistic_response]])]))
             if (length(resp_vals) < 2) stop("逻辑回归响应变量至少需要两个非缺失取值。")
             if (is.null(input$logistic_event_value) || !as.character(input$logistic_event_value) %in% resp_vals) {

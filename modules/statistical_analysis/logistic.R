@@ -114,15 +114,21 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
   term_to_display <- function(term) {
     t <- as.character(term)
     if (is.na(t) || !nzchar(t)) return(t)
+    t_clean <- gsub("`", "", t)
     ordered <- logistic_predictors[order(nchar(logistic_predictors), decreasing = TRUE)]
-    hit <- ordered[startsWith(t, ordered)]
-    if (length(hit) == 0) return(t)
-    v <- hit[1]
-    suffix <- substring(t, nchar(v) + 1)
-    if (isTRUE(pred_is_cat[[v]]) && nzchar(suffix)) {
-      return(suffix)
+    for (v in ordered) {
+      aliases <- unique(c(v, make.names(v)))
+      for (al in aliases) {
+        if (startsWith(t_clean, al)) {
+          suffix <- substring(t_clean, nchar(al) + 1)
+          if (isTRUE(pred_is_cat[[v]]) && nzchar(suffix)) {
+            return(suffix)
+          }
+          return(unname(var_labels[[v]]))
+        }
+      }
     }
-    unname(var_labels[[v]])
+    t
   }
 
   get_levels_all <- function(x) {
@@ -150,10 +156,13 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
   }
 
   predictor_key <- function(term_raw) {
+    t_clean <- gsub("`", "", as.character(term_raw))
     ordered <- logistic_predictors[order(nchar(logistic_predictors), decreasing = TRUE)]
-    hit <- ordered[startsWith(as.character(term_raw), ordered)]
-    if (length(hit) == 0) return(NA_character_)
-    hit[1]
+    for (v in ordered) {
+      aliases <- unique(c(v, make.names(v)))
+      if (any(startsWith(t_clean, aliases))) return(v)
+    }
+    NA_character_
   }
 
   fit_tidy_interaction <- function(df_in, pred, strata_nm) {
@@ -249,44 +258,53 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
         NULL
       })
       if (is.null(fit)) return(NULL)
-      tid <- tryCatch(broom::tidy(fit), error = function(e) {
-        if (is.null(facet_var)) {
-          add_note(paste0("亚组[", sval, "]结果整理失败: ", conditionMessage(e)))
-        } else {
-          add_note(paste0("亚组[", sval, "]分组[", fval, "]结果整理失败: ", conditionMessage(e)))
-        }
-        NULL
-      })
-      if (is.null(tid) || nrow(tid) == 0) return(NULL)
-      beta <- if ("estimate" %in% names(tid)) tid$estimate else rep(NA_real_, nrow(tid))
-      se <- if ("std.error" %in% names(tid)) tid$std.error else rep(NA_real_, nrow(tid))
-      beta <- suppressWarnings(as.numeric(beta))
-      se <- suppressWarnings(as.numeric(se))
-      tid$estimate <- exp(beta)
-      tid$conf.low <- exp(beta - 1.96 * se)
-      tid$conf.high <- exp(beta + 1.96 * se)
-      tid
+      
+      extract_broom_tidy_with_fallback(
+        fit = fit, 
+        conf.int = FALSE, 
+        exponentiate = TRUE,
+        facet_var = facet_var, 
+        sval = sval, 
+        fval = fval, 
+        add_note_fn = add_note
+      )
     }
 
-    build_unified_regression_table(
-      df_in = df_in,
-      predictors = logistic_predictors,
-      strata_var = strata_var,
-      facet_var = facet_var,
-      strata_vals = strata_vals,
-      metric_label = "OR (95% CI)",
-      fit_tidy_fn = fit_tidy_fn,
-      term_to_display_fn = term_to_display,
-      predictor_key_fn = predictor_key,
-      count_effective_n_fn = count_effective_n,
-      format_estimate_fn = format_regression_stat,
-      format_p_fn = format_p_value_regression,
-      apply_style_fn = apply_clinical_style,
-      add_note_fn = add_note,
-      int_p_map = int_p,
-      get_int_p_fn = get_interaction_p_value,
-      categorical_ref_map = pred_ref_level[!is.na(pred_ref_level)],
-      total_cols_settings = total_cols_settings
+    cat_refs <- pred_ref_level[!is.na(pred_ref_level)]
+    if (length(cat_refs) > 0 && is.null(names(cat_refs))) {
+      names(cat_refs) <- names(pred_ref_level)[!is.na(pred_ref_level)]
+    }
+
+    tryCatch(
+      build_unified_regression_table(
+        df_in = df_in,
+        predictors = logistic_predictors,
+        response_var_name = logistic_response,
+        strata_var = strata_var,
+        facet_var = facet_var,
+        strata_vals = strata_vals,
+        metric_label = "OR (95% CI)",
+        fit_tidy_fn = fit_tidy_fn,
+        term_to_display_fn = term_to_display,
+        predictor_key_fn = predictor_key,
+        count_effective_n_fn = count_effective_n,
+        format_estimate_fn = format_regression_stat,
+        format_p_fn = format_p_value_regression,
+        apply_style_fn = apply_clinical_style,
+        add_note_fn = add_note,
+        int_p_map = int_p,
+        get_int_p_fn = get_interaction_p_value,
+        categorical_ref_map = cat_refs,
+        total_cols_settings = total_cols_settings
+      ),
+      error = function(e) {
+        emsg <- conditionMessage(e)
+        if (grepl("所有子模型均未能稳定估计", emsg, fixed = TRUE) && length(model_notes) > 0) {
+          detail <- paste(utils::head(model_notes, 6), collapse = " | ")
+          stop(paste0(emsg, "；子模型诊断：", detail), call. = FALSE)
+        }
+        stop(e)
+      }
     )
   }
 

@@ -97,15 +97,22 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
 
   term_to_display <- function(term) {
     t <- as.character(term)
+    if (is.na(t) || !nzchar(t)) return(t)
+    t_clean <- gsub("`", "", t)
     ordered <- linear_predictors[order(nchar(linear_predictors), decreasing = TRUE)]
-    hit <- ordered[startsWith(t, ordered)]
-    if (length(hit) == 0) return(t)
-    v <- hit[1]
-    suffix <- substring(t, nchar(v) + 1)
-    if (isTRUE(pred_is_cat[[v]]) && nzchar(suffix)) {
-      return(suffix)
+    for (v in ordered) {
+      aliases <- unique(c(v, make.names(v)))
+      for (al in aliases) {
+        if (startsWith(t_clean, al)) {
+          suffix <- substring(t_clean, nchar(al) + 1)
+          if (isTRUE(pred_is_cat[[v]]) && nzchar(suffix)) {
+            return(suffix)
+          }
+          return(unname(var_labels[[v]]))
+        }
+      }
     }
-    unname(var_labels[[v]])
+    t
   }
 
   get_levels_all <- function(x) {
@@ -126,10 +133,13 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
     sum(stats::complete.cases(df_sub[, vars, drop = FALSE]))
   }
   predictor_key <- function(term_raw) {
+    t_clean <- gsub("`", "", as.character(term_raw))
     ordered <- linear_predictors[order(nchar(linear_predictors), decreasing = TRUE)]
-    hit <- ordered[startsWith(as.character(term_raw), ordered)]
-    if (length(hit) == 0) return(NA_character_)
-    hit[1]
+    for (v in ordered) {
+      aliases <- unique(c(v, make.names(v)))
+      if (any(startsWith(t_clean, aliases))) return(v)
+    }
+    NA_character_
   }
   fit_tidy_interaction <- function(df_in, pred, strata_nm) {
     ctrl_terms <- if (!is.null(model_strata_var) && !identical(model_strata_var, strata_nm)) model_strata_var else NULL
@@ -224,21 +234,27 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
         NULL
       })
       if (is.null(fit)) return(NULL)
-      tid <- tryCatch(broom::tidy(fit, conf.int = TRUE), error = function(e) {
-        if (is.null(facet_var)) {
-          add_note(paste0("亚组[", sval, "]结果整理失败: ", conditionMessage(e)))
-        } else {
-          add_note(paste0("亚组[", sval, "]分组[", fval, "]结果整理失败: ", conditionMessage(e)))
-        }
-        NULL
-      })
-      if (is.null(tid) || nrow(tid) == 0) return(NULL)
-      tid
+      
+      extract_broom_tidy_with_fallback(
+        fit = fit, 
+        conf.int = TRUE, 
+        exponentiate = FALSE,
+        facet_var = facet_var, 
+        sval = sval, 
+        fval = fval, 
+        add_note_fn = add_note
+      )
+    }
+
+    cat_refs <- pred_ref_level[!is.na(pred_ref_level)]
+    if (length(cat_refs) > 0 && is.null(names(cat_refs))) {
+      names(cat_refs) <- names(pred_ref_level)[!is.na(pred_ref_level)]
     }
 
     build_unified_regression_table(
       df_in = df_in,
       predictors = linear_predictors,
+      response_var_name = linear_response,
       strata_var = strata_var,
       facet_var = facet_var,
       strata_vals = strata_vals,
@@ -253,7 +269,7 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
       add_note_fn = add_note,
       int_p_map = int_p,
       get_int_p_fn = get_interaction_p_value,
-      categorical_ref_map = pred_ref_level[!is.na(pred_ref_level)],
+      categorical_ref_map = cat_refs,
       total_cols_settings = total_cols_settings
     )
   }
