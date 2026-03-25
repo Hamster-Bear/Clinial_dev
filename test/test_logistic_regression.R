@@ -1,6 +1,11 @@
 library(shiny)
 library(dplyr)
-source("modules/statistical_analysis/logistic.R")
+logistic_module <- if (file.exists("modules/statistical_analysis/logistic.R")) {
+  "modules/statistical_analysis/logistic.R"
+} else {
+  file.path("..", "modules", "statistical_analysis", "logistic.R")
+}
+source(logistic_module)
 
 set.seed(20260312)
 

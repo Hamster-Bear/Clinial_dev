@@ -55,11 +55,16 @@ extract_table_dataframe <- function(table_obj) {
       }
       label_map <- stats::setNames(as.character(gt_boxhead$column_label), gt_boxhead$var)
       clean_label <- function(x) {
+        trim_keep_nbsp <- function(y) {
+          temp <- gsub("\u00A0", "\u0001", y, fixed = TRUE)
+          temp <- gsub("^[ \t\r\n]+|[ \t\r\n]+$", "", temp, perl = TRUE)
+          gsub("\u0001", "\u00A0", temp, fixed = TRUE)
+        }
         txt <- gsub("(?i)<br\\s*/?>", "\n", x, perl = TRUE)
         txt <- gsub("<[^>]+>", "", txt)
         txt <- gsub("&nbsp;", " ", txt, fixed = TRUE)
         txt <- gsub("[ \t]*\n[ \t]*", "\n", txt, perl = TRUE)
-        txt <- trimws(txt)
+        txt <- trim_keep_nbsp(txt)
         ifelse(!nzchar(txt), NA_character_, txt)
       }
       new_names <- vapply(names(gt_data), function(v) {
@@ -224,6 +229,11 @@ build_sci_flextable <- function(table_obj, title = "导出结果", footnotes = N
     stop("导出 Word 需要安装 flextable 和 officer 包")
   }
   clean_gt_label <- function(x) {
+    trim_keep_nbsp <- function(y) {
+      temp <- gsub("\u00A0", "\u0001", y, fixed = TRUE)
+      temp <- gsub("^[ \t\r\n]+|[ \t\r\n]+$", "", temp, perl = TRUE)
+      gsub("\u0001", "\u00A0", temp, fixed = TRUE)
+    }
     txt <- gsub("(?i)<br\\s*/?>", "\n", as.character(x), perl = TRUE)
     txt <- gsub("\\s{2,}\\n", "\n", txt, perl = TRUE)
     txt <- gsub("<[^>]+>", "", txt)
@@ -231,7 +241,7 @@ build_sci_flextable <- function(table_obj, title = "导出结果", footnotes = N
     txt <- gsub("[ \t]*\n[ \t]*", "\n", txt, perl = TRUE)
     txt <- gsub("\\s*\\(N\\s*=\\s*([^\\)]+)\\)", "\n(N = \\1)", txt, perl = TRUE)
     txt <- gsub("\n{2,}", "\n", txt, perl = TRUE)
-    trimws(txt)
+    trim_keep_nbsp(txt)
   }
   df <- extract_table_dataframe(table_obj)
   ft <- NULL

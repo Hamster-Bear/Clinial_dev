@@ -3,9 +3,12 @@ library(shiny)
 library(survival)
 library(broom)
 
-source("modules/statistical_analysis/cox.R")
-source("modules/statistical_analysis/logistic.R")
-source("modules/statistical_analysis/linear.R")
+module_path <- function(p) {
+  if (file.exists(p)) p else file.path("..", p)
+}
+source(module_path("modules/statistical_analysis/cox.R"))
+source(module_path("modules/statistical_analysis/logistic.R"))
+source(module_path("modules/statistical_analysis/linear.R"))
 
 set.seed(20260324)
 n <- 1200

@@ -1,1 +1,0 @@
-df <- data.frame('AGE GROUP'=factor(sample(c('Low','High'),100,TRUE)), Y=rbinom(100,1,0.5), check.names=FALSE); fit <- glm(Y ~ \AGE GROUP\, data=df, family=binomial()); print(broom::tidy(fit)[['term']])

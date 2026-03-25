@@ -15,17 +15,17 @@ if (requireNamespace("gtsummary", quietly = TRUE)) {
   library(gtsummary)
 }
 
-# 加载子模块
+# 先加载公共能力，再加载子模块，避免会话内旧函数残留影响结果
+source("modules/common/table_export.R")
+source("modules/common/analysis_format.R")
+source("modules/common/analysis_shared.R")
+source("modules/common/data_filter.R")
 source("modules/statistical_analysis/cox.R")
 source("modules/statistical_analysis/logistic.R")
 source("modules/statistical_analysis/linear.R")
 source("modules/statistical_analysis/anova.R")
 source("modules/statistical_analysis/chisq.R")
 source("modules/statistical_analysis/desc.R")
-source("modules/common/data_filter.R") # 加载通用筛选模块
-source("modules/common/table_export.R")
-source("modules/common/analysis_format.R")
-source("modules/common/analysis_shared.R")
 
 # 统计方法选择UI
 statistical_analysis_ui <- function(id) {
