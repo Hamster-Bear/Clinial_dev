@@ -2,12 +2,16 @@ library(shiny)
 library(dplyr)
 library(survival)
 
-source("modules/common/table_export.R")
-source("modules/common/analysis_format.R")
-source("modules/common/analysis_shared.R")
-source("modules/statistical_analysis/linear.R")
-source("modules/statistical_analysis/logistic.R")
-source("modules/statistical_analysis/cox.R")
+module_path <- function(p) {
+  if (file.exists(p)) p else file.path("..", p)
+}
+
+source(module_path("modules/common/table_export.R"))
+source(module_path("modules/common/analysis_format.R"))
+source(module_path("modules/common/analysis_shared.R"))
+source(module_path("modules/statistical_analysis/linear.R"))
+source(module_path("modules/statistical_analysis/logistic.R"))
+source(module_path("modules/statistical_analysis/cox.R"))
 
 # 1. 构造极端稀疏数据集
 build_sparse_data <- function() {

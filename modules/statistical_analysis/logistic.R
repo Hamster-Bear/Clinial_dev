@@ -186,17 +186,6 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
   formula_str <- paste(logistic_response, "~", paste(model_terms, collapse = "+"))
   formula <- as.formula(formula_str)
 
-  build_tbl <- function(df_sub) {
-    model <- glm(formula, data = df_sub, family = binomial())
-    gtsummary::tbl_regression(model, exponentiate = TRUE) %>%
-      gtsummary::add_n() %>%
-      gtsummary::add_global_p() %>%
-      gtsummary::bold_p(t = 0.05) %>%
-      gtsummary::bold_labels() %>%
-      gtsummary::italicize_levels() %>%
-      gtsummary::modify_header(label = "预测变量", p.value = "P值")
-  }
-
   # format_p <- function(p) {
   #   format_p_value_regression(p)
   # }

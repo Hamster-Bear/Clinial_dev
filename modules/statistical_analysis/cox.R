@@ -194,21 +194,6 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
   } else NULL
   analysis_formula <- if (!is.null(strata_ctrl_formula)) strata_ctrl_formula else formula
 
-  build_tbl <- function(df_sub) {
-    sub_model <- survival::coxph(analysis_formula, data = df_sub)
-    tbl_tmp <- gtsummary::tbl_regression(sub_model, exponentiate = TRUE)
-    tbl_tmp <- tryCatch(gtsummary::add_n(tbl_tmp), error = function(e) {
-      add_note(paste0("Cox分组表N列提示: ", conditionMessage(e)))
-      tbl_tmp
-    })
-    tbl_tmp <- tryCatch(gtsummary::add_global_p(tbl_tmp), error = function(e) tbl_tmp)
-    tbl_tmp %>%
-      gtsummary::bold_p(t = 0.05) %>%
-      gtsummary::bold_labels() %>%
-      gtsummary::italicize_levels() %>%
-      gtsummary::modify_header(label = "预测变量", p.value = "P值")
-  }
-
   # format_p <- function(p) {
   #   format_p_value_regression(p)
   # }

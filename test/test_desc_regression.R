@@ -1,6 +1,11 @@
 library(shiny)
-source("modules/common/table_export.R")
-source("modules/statistical_analysis/desc.R")
+
+module_path <- function(p) {
+  if (file.exists(p)) p else file.path("..", p)
+}
+
+source(module_path("modules/common/table_export.R"))
+source(module_path("modules/statistical_analysis/desc.R"))
 
 set.seed(20260305)
 

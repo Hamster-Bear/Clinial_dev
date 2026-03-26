@@ -162,17 +162,6 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
   formula_str <- paste(linear_response, "~", paste(model_terms, collapse = "+"))
   formula <- as.formula(formula_str)
 
-  build_tbl <- function(df_sub) {
-    model <- lm(formula, data = df_sub)
-    gtsummary::tbl_regression(model) %>%
-      gtsummary::add_n() %>%
-      gtsummary::add_global_p() %>%
-      gtsummary::bold_p(t = 0.05) %>%
-      gtsummary::bold_labels() %>%
-      gtsummary::italicize_levels() %>%
-      gtsummary::modify_header(label = "预测变量", p.value = "P值")
-  }
-
   # format_p <- function(p) {
   #   format_p_value_regression(p)
   # }

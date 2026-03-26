@@ -568,6 +568,79 @@ apply_interaction_p_values <- function(final_df, strata_var = NULL, facet_var = 
   final_df
 }
 
+ensure_categorical_parent_rows <- function(final_df, df_in, categorical_ref_map = NULL) {
+  if (is.null(categorical_ref_map) || length(categorical_ref_map) == 0) return(final_df)
+  if (!all(c("预测变量", "预测变量原始", ".__row_order") %in% names(final_df))) return(final_df)
+  cat_vars <- names(categorical_ref_map)
+  if (length(cat_vars) == 0) return(final_df)
+  extras <- list()
+  combo_cols <- intersect(c("亚组", "列分组"), names(final_df))
+  for (v in cat_vars) {
+    idx_var <- which(as.character(final_df$预测变量原始) == v)
+    if (length(idx_var) == 0 && length(cat_vars) == 1) {
+      idx_var <- which(as.integer(final_df$.__row_order) %in% c(0L, 1L))
+    }
+    if (length(idx_var) == 0) next
+    lv <- attr(df_in[[v]], "label", exact = TRUE)
+    clean_name <- if (is.null(lv) || !nzchar(trimws(as.character(lv)[1]))) v else trimws(as.character(lv)[1])
+    combos <- if (length(combo_cols) == 0) data.frame(.dummy = 1L) else unique(final_df[idx_var, combo_cols, drop = FALSE])
+    for (i in seq_len(nrow(combos))) {
+      if (length(combo_cols) == 0) {
+        idx_combo <- idx_var
+      } else {
+        idx_combo <- idx_var
+        for (cc in combo_cols) idx_combo <- idx_combo[as.character(final_df[[cc]][idx_combo]) == as.character(combos[[cc]][i])]
+      }
+      if (length(idx_combo) == 0) next
+      ref_val <- as.character(categorical_ref_map[[v]])
+      if (!is.na(ref_val) && nzchar(ref_val)) {
+        idx_ref <- idx_combo[as.integer(final_df$.__row_order[idx_combo]) == 0L]
+        if (length(idx_ref) == 0) {
+          pred_clean <- trimws(gsub("\u00A0", " ", as.character(final_df$预测变量[idx_combo]), fixed = TRUE))
+          idx_ref <- idx_combo[pred_clean %in% c(ref_val, paste0(ref_val, " (Reference)"))]
+        }
+        if (length(idx_ref) == 0 && "统计值" %in% names(final_df)) {
+          idx_ref <- idx_combo[as.character(final_df$统计值[idx_combo]) == "Reference"]
+        }
+        if (length(idx_ref) > 0) {
+          j <- idx_ref[1]
+          final_df$预测变量[j] <- paste0("\U00A0\U00A0\U00A0\U00A0", ref_val, " (Reference)")
+          final_df$.__row_order[j] <- 0L
+          final_df$.__row_key[j] <- paste(v, 0L, final_df$预测变量[j], sep = "||")
+          if ("统计值" %in% names(final_df)) final_df$统计值[j] <- "Reference"
+          if ("P值" %in% names(final_df)) final_df$P值[j] <- ""
+        } else {
+          rr0 <- final_df[idx_combo[1], , drop = FALSE]
+          rr0$预测变量 <- paste0("\U00A0\U00A0\U00A0\U00A0", ref_val, " (Reference)")
+          rr0$.__row_order <- 0L
+          rr0$.__row_key <- paste(v, rr0$.__row_order, rr0$预测变量, sep = "||")
+          if ("统计值" %in% names(rr0)) rr0$统计值 <- "Reference"
+          if ("P值" %in% names(rr0)) rr0$P值 <- ""
+          extras[[length(extras) + 1L]] <- rr0
+        }
+      }
+      if (any(as.integer(final_df$.__row_order[idx_combo]) == -1L, na.rm = TRUE)) next
+      rr <- final_df[idx_combo[1], , drop = FALSE]
+      rr$预测变量 <- clean_name
+      rr$.__row_order <- -1L
+      rr$.__row_key <- paste(v, rr$.__row_order, rr$预测变量, sep = "||")
+      if ("统计值" %in% names(rr)) rr$统计值 <- ""
+      if ("P值" %in% names(rr)) rr$P值 <- ""
+      if ("亚组差异P值" %in% names(rr)) rr$亚组差异P值 <- ""
+      if ("N" %in% names(rr)) {
+        n_vals <- as.character(final_df$N[idx_combo])
+        n_vals <- n_vals[nzchar(n_vals)]
+        rr$N <- if (length(n_vals) > 0) n_vals[1] else ""
+      }
+      extras[[length(extras) + 1L]] <- rr
+    }
+  }
+  if (length(extras) > 0) {
+    final_df <- dplyr::bind_rows(final_df, dplyr::bind_rows(extras))
+  }
+  final_df
+}
+
 compute_regression_columns <- function(final_df, df_in, facet_var = NULL, facet_levels_all, valid_total_settings, count_effective_n_fn, metric_label) {
   if ("列分组" %in% names(final_df)) {
     facet_n_map <- sapply(facet_levels_all, function(x) {
@@ -762,6 +835,12 @@ compute_regression_stats <- function(
     get_int_p_fn = get_int_p_fn,
     int_p_map = int_p_map
   )
+  
+  final_df <- ensure_categorical_parent_rows(
+    final_df = final_df,
+    df_in = df_in,
+    categorical_ref_map = categorical_ref_map
+  )
 
   column_res <- compute_regression_columns(
     final_df = final_df,
@@ -860,33 +939,6 @@ build_unified_regression_table <- function(
 # -------------------------------------------------------------------------
 # 公共 UI/Server 逻辑抽象
 # -------------------------------------------------------------------------
-
-# 统一的自定义总计列 UI 生成器
-render_regression_total_cols_ui <- function(ns, ns_prefix, facet_var_id, input_data, input_list) {
-  facet_var <- input_list[[facet_var_id]]
-  if (is.null(facet_var) || facet_var == "None" || facet_var == "无") return(NULL)
-  
-  levels_choices <- unique(as.character(input_data[[facet_var]]))
-  levels_choices <- levels_choices[!is.na(levels_choices)]
-  
-  ui_elements <- list(
-    shiny::tags$div(
-      class = "total-cols-controls",
-      style = "margin-bottom: 15px;",
-      shiny::tags$label("自定义总计列 (Total Columns)", class = "control-label"),
-      shiny::tags$br(),
-      shiny::actionButton(ns(paste0("add_total_col_", ns_prefix)), "添加列", icon = shiny::icon("plus"), class = "btn-sm btn-primary"),
-      shiny::actionButton(ns(paste0("remove_total_col_", ns_prefix)), "移除列", icon = shiny::icon("minus"), class = "btn-sm btn-danger")
-    )
-  )
-  
-  # 此处不能直接使用 reactiveVal，我们需要依赖调用方传入当前的 count_val
-  count_val_id <- paste0("total_cols_count_", ns_prefix)
-  count_val <- if (!is.null(input_list[[count_val_id]])) input_list[[count_val_id]] else 0
-  
-  # 为了在模块化中保持状态，我们将使用更直接的参数传递
-  # 见下方的修改版本
-}
 
 # 生成回归参数的总计列设置提取
 get_regression_total_cols_settings <- function(input_list, ns_prefix, count_val) {
