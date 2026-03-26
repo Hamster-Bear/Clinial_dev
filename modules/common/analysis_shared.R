@@ -68,10 +68,24 @@ prepare_predictor_reference_levels <- function(data, predictors, reference_map =
     is_cat <- is.factor(df[[v]]) || is.character(df[[v]]) || is.logical(df[[v]])
     pred_is_cat[[v]] <- is_cat
     if (!is_cat) next
-    lv <- get_levels_all(df[[v]])
-    lv <- lv[nzchar(as.character(lv))]
+    if (is.factor(df[[v]])) {
+      lv <- trimws(as.character(levels(df[[v]])))
+      lv <- lv[nzchar(lv)]
+      lv <- unique(lv)
+      v_chr <- trimws(as.character(df[[v]]))
+      v_chr[!nzchar(v_chr)] <- NA_character_
+      df[[v]] <- v_chr
+    } else if (is.character(df[[v]])) {
+      v_chr <- trimws(as.character(df[[v]]))
+      v_chr[!nzchar(v_chr)] <- NA_character_
+      df[[v]] <- v_chr
+      lv <- unique(v_chr[!is.na(v_chr)])
+    } else {
+      lv <- get_levels_all(df[[v]])
+      lv <- lv[nzchar(as.character(lv))]
+    }
     if (length(lv) == 0) next
-    selected_ref <- unname(reference_map[v])
+    selected_ref <- trimws(as.character(unname(reference_map[v])))
     chosen_ref <- if (length(selected_ref) > 0 && !is.na(selected_ref) && as.character(selected_ref) %in% as.character(lv)) as.character(selected_ref) else as.character(lv[1])
     pred_ref_level[[v]] <- chosen_ref
     new_lv <- c(chosen_ref, setdiff(as.character(lv), chosen_ref))
@@ -317,11 +331,52 @@ compute_regression_rows <- function(
       }
       if ("term" %in% names(tid)) tid <- tid[tid$term != "(Intercept)", , drop = FALSE]
       if (nrow(tid) == 0) next
-      est <- if ("estimate" %in% names(tid)) tid$estimate else rep(NA_real_, nrow(tid))
-      low <- if ("conf.low" %in% names(tid)) tid$conf.low else rep(NA_real_, nrow(tid))
-      high <- if ("conf.high" %in% names(tid)) tid$conf.high else rep(NA_real_, nrow(tid))
-      pvals <- if ("p.value" %in% names(tid)) tid$p.value else rep(NA_real_, nrow(tid))
+      pick_num_col <- function(df, candidates) {
+        nm_vec <- names(df)
+        norm_name <- function(x) tolower(gsub("[^a-z0-9]", "", as.character(x)))
+        nm_norm <- norm_name(nm_vec)
+        cand_norm <- norm_name(candidates)
+        for (nm in candidates) {
+          if (nm %in% nm_vec) return(suppressWarnings(as.numeric(df[[nm]])))
+        }
+        idx <- which(nm_norm %in% cand_norm)
+        if (length(idx) > 0) return(suppressWarnings(as.numeric(df[[nm_vec[idx[1]]]])))
+        rep(NA_real_, nrow(df))
+      }
+      est <- pick_num_col(tid, c("odds_ratio", "oddsratio", "or", "hr", "beta", "estimate"))
+      low <- pick_num_col(tid, c("conf.low", "lcl", "lower", "ci_low", "lower_ci"))
+      high <- pick_num_col(tid, c("conf.high", "ucl", "upper", "ci_high", "upper_ci"))
+      ci_candidates <- c("ci", "confint", "confidenceinterval", "confidence_interval")
+      ci_norm <- tolower(gsub("[^a-z0-9]", "", names(tid)))
+      ci_idx <- which(ci_norm %in% tolower(gsub("[^a-z0-9]", "", ci_candidates)))
+      if ((all(is.na(low)) || all(is.na(high))) && length(ci_idx) > 0) {
+        ci_txt <- as.character(tid[[names(tid)[ci_idx[1]]]])
+        ci_txt <- gsub("\u00A0", " ", ci_txt, fixed = TRUE)
+        ci_txt <- gsub("[\\[\\]()]", " ", ci_txt, perl = TRUE)
+        ci_txt <- gsub(",", " ", ci_txt, fixed = TRUE)
+        ci_txt <- gsub("\\s+", " ", ci_txt, perl = TRUE)
+        ci_txt <- trimws(ci_txt)
+        parts <- strsplit(ci_txt, " ", fixed = TRUE)
+        low_ci <- suppressWarnings(as.numeric(vapply(parts, function(v) if (length(v) >= 1) v[1] else NA_character_, character(1))))
+        high_ci <- suppressWarnings(as.numeric(vapply(parts, function(v) if (length(v) >= 2) v[2] else NA_character_, character(1))))
+        if (all(is.na(low))) low <- low_ci
+        if (all(is.na(high))) high <- high_ci
+      }
+      pvals <- pick_num_col(tid, c("p.value", "p", "p_value", "pvalue", "pr(>|z|)", "pr(>|t|)"))
       tid$预测变量原始 <- vapply(tid$term, predictor_key_fn, character(1))
+      keep_tid <- !is.na(tid$预测变量原始) & nzchar(tid$预测变量原始) & tid$预测变量原始 %in% predictors
+      if ("term" %in% names(tid)) {
+        keep_tid <- keep_tid & !grepl(":", as.character(tid$term), fixed = TRUE)
+      }
+      if (!any(keep_tid)) {
+        skipped_models <- skipped_models + 1L
+        next
+      }
+      tid <- tid[keep_tid, , drop = FALSE]
+      est <- est[keep_tid]
+      low <- low[keep_tid]
+      high <- high[keep_tid]
+      pvals <- pvals[keep_tid]
       tid$预测变量 <- paste0("\U00A0\U00A0\U00A0\U00A0", vapply(tid$term, term_to_display_fn, character(1)))
       tid$亚组 <- if (is.null(strata_var)) "总体" else as.character(sval)
       model_vars_in_sub <- unique(c(predictors, response_var_name))
@@ -332,14 +387,21 @@ compute_regression_rows <- function(
         for (i in seq_len(nrow(tid))) {
           v_raw <- tid$预测变量原始[i]
           if (v_raw %in% names(categorical_ref_map)) {
-            term_str <- tid$term[i]
+            term_str <- as.character(tid$term[i])
+            term_str_clean <- gsub("`", "", term_str, fixed = TRUE)
             aliases <- unique(c(v_raw, make.names(v_raw)))
-            hit_alias <- aliases[startsWith(term_str, aliases)]
+            hit_alias <- aliases[startsWith(term_str_clean, aliases)]
             if (length(hit_alias) > 0) {
               alias_used <- hit_alias[1]
-              lvl <- substring(term_str, nchar(alias_used) + 1)
+              lvl <- substring(term_str_clean, nchar(alias_used) + 1)
               level_n <- sum(as.character(cc_sub_data[[v_raw]]) == lvl, na.rm = TRUE)
               tid_n_vals[i] <- as.character(level_n)
+            } else {
+              lvl_fallback <- trimws(as.character(term_to_display_fn(term_str_clean)))
+              if (nzchar(lvl_fallback)) {
+                level_n <- sum(as.character(cc_sub_data[[v_raw]]) == lvl_fallback, na.rm = TRUE)
+                tid_n_vals[i] <- as.character(level_n)
+              }
             }
           }
         }
@@ -349,6 +411,34 @@ compute_regression_rows <- function(
       tid$P值 <- vapply(pvals, function(p) {
         format_p_fn(p)
       }, character(1))
+      if (!is.null(categorical_ref_map) && length(categorical_ref_map) > 0 && nrow(tid) > 0) {
+        norm_level <- function(x) {
+          z <- gsub("\u00A0", " ", as.character(x), fixed = TRUE)
+          z <- trimws(z)
+          z <- gsub("\\s*\\(Reference\\)$", "", z, perl = TRUE)
+          tolower(z)
+        }
+        drop_ref_idx <- integer(0)
+        dedup_drop_idx <- integer(0)
+        for (cv in names(categorical_ref_map)) {
+          ref_val <- norm_level(categorical_ref_map[[cv]])
+          if (!nzchar(ref_val)) next
+          idx_cv <- which(tid$预测变量原始 == cv)
+          if (length(idx_cv) == 0) next
+          lv_cv <- norm_level(tid$预测变量[idx_cv])
+          drop_ref_idx <- c(drop_ref_idx, idx_cv[lv_cv == ref_val])
+          if (length(idx_cv) > 1) {
+            dup_idx <- idx_cv[duplicated(lv_cv) & nzchar(lv_cv)]
+            dedup_drop_idx <- c(dedup_drop_idx, dup_idx)
+          }
+        }
+        drop_ref_idx <- unique(c(drop_ref_idx, dedup_drop_idx))
+        if (length(drop_ref_idx) > 0) {
+          keep_idx <- setdiff(seq_len(nrow(tid)), drop_ref_idx)
+          if (length(keep_idx) == 0) next
+          tid <- tid[keep_idx, , drop = FALSE]
+        }
+      }
       tid$.__row_order <- 1L
       tid$.__row_key <- paste(tid$预测变量原始, tid$.__row_order, tid$预测变量, sep = "||")
       if (!is.null(facet_var)) tid$列分组 <- as.character(fval)
@@ -460,6 +550,58 @@ apply_regression_header_rows <- function(
       }
     }
   }
+  candidate_cat_vars <- unique(c(cat_vars, intersect(predictors, unique(final_df$预测变量原始))))
+  candidate_cat_vars <- candidate_cat_vars[nzchar(candidate_cat_vars)]
+  pending_df <- if (length(header_rows) > 0) dplyr::bind_rows(final_df, dplyr::bind_rows(header_rows)) else final_df
+  if (length(candidate_cat_vars) > 0) {
+    for (sval in unique_strata) {
+      for (fval in unique_facets) {
+        for (v_raw in candidate_cat_vars) {
+          if (!v_raw %in% unique(pending_df$预测变量原始)) next
+          if (!is.null(facet_var)) {
+            has_rows <- any(pending_df$预测变量原始 == v_raw & pending_df$亚组 == sval & pending_df$列分组 == fval)
+            has_header <- any(pending_df$预测变量原始 == v_raw & pending_df$亚组 == sval & pending_df$列分组 == fval & pending_df$.__row_order == -1L)
+          } else {
+            has_rows <- any(pending_df$预测变量原始 == v_raw & pending_df$亚组 == sval)
+            has_header <- any(pending_df$预测变量原始 == v_raw & pending_df$亚组 == sval & pending_df$.__row_order == -1L)
+          }
+          if (!has_rows || has_header) next
+          clean_var_name <- unname(var_labels[v_raw])
+          if (is.null(clean_var_name) || is.na(clean_var_name)) clean_var_name <- v_raw
+          hr <- data.frame(
+            预测变量 = clean_var_name,
+            预测变量原始 = v_raw,
+            亚组 = sval,
+            N = as.character(count_effective_n_fn(df_in)),
+            统计值 = "",
+            P值 = "",
+            .__row_order = -1L,
+            stringsAsFactors = FALSE
+          )
+          hr$.__row_key <- paste(hr$预测变量原始, hr$.__row_order, hr$预测变量, sep = "||")
+          hr_sub_data <- if (is.null(strata_var)) df_in else df_in[df_in[[strata_var]] == sval, , drop = FALSE]
+          if (!is.null(facet_var)) {
+            if (startsWith(fval, ".__TOTAL__")) {
+              setting_idx <- match(fval, vapply(valid_total_settings, function(x) x$internal_name, character(1)))
+              groups_to_include <- valid_total_settings[[setting_idx]]$groups
+              hr_sub_data <- hr_sub_data[as.character(hr_sub_data[[facet_var]]) %in% groups_to_include, , drop = FALSE]
+            } else if (fval != "总体") {
+              hr_sub_data <- hr_sub_data[as.character(hr_sub_data[[facet_var]]) == as.character(fval), , drop = FALSE]
+            }
+          }
+          model_vars_in_sub <- unique(c(predictors, response_var_name))
+          model_vars_in_sub <- model_vars_in_sub[model_vars_in_sub %in% names(hr_sub_data)]
+          if (length(model_vars_in_sub) > 0) {
+            hr_sub_data <- hr_sub_data[stats::complete.cases(hr_sub_data[, model_vars_in_sub, drop = FALSE]), , drop = FALSE]
+          }
+          hr$N <- as.character(sum(!is.na(hr_sub_data[[v_raw]])))
+          if (!is.null(facet_var)) hr$列分组 <- fval
+          header_rows[[length(header_rows) + 1L]] <- hr
+          pending_df <- dplyr::bind_rows(pending_df, hr)
+        }
+      }
+    }
+  }
   dplyr::bind_rows(final_df, dplyr::bind_rows(header_rows))
 }
 
@@ -564,79 +706,6 @@ apply_interaction_p_values <- function(final_df, strata_var = NULL, facet_var = 
     if (length(int_rows) > 0) {
       final_df <- dplyr::bind_rows(final_df, dplyr::bind_rows(int_rows))
     }
-  }
-  final_df
-}
-
-ensure_categorical_parent_rows <- function(final_df, df_in, categorical_ref_map = NULL) {
-  if (is.null(categorical_ref_map) || length(categorical_ref_map) == 0) return(final_df)
-  if (!all(c("预测变量", "预测变量原始", ".__row_order") %in% names(final_df))) return(final_df)
-  cat_vars <- names(categorical_ref_map)
-  if (length(cat_vars) == 0) return(final_df)
-  extras <- list()
-  combo_cols <- intersect(c("亚组", "列分组"), names(final_df))
-  for (v in cat_vars) {
-    idx_var <- which(as.character(final_df$预测变量原始) == v)
-    if (length(idx_var) == 0 && length(cat_vars) == 1) {
-      idx_var <- which(as.integer(final_df$.__row_order) %in% c(0L, 1L))
-    }
-    if (length(idx_var) == 0) next
-    lv <- attr(df_in[[v]], "label", exact = TRUE)
-    clean_name <- if (is.null(lv) || !nzchar(trimws(as.character(lv)[1]))) v else trimws(as.character(lv)[1])
-    combos <- if (length(combo_cols) == 0) data.frame(.dummy = 1L) else unique(final_df[idx_var, combo_cols, drop = FALSE])
-    for (i in seq_len(nrow(combos))) {
-      if (length(combo_cols) == 0) {
-        idx_combo <- idx_var
-      } else {
-        idx_combo <- idx_var
-        for (cc in combo_cols) idx_combo <- idx_combo[as.character(final_df[[cc]][idx_combo]) == as.character(combos[[cc]][i])]
-      }
-      if (length(idx_combo) == 0) next
-      ref_val <- as.character(categorical_ref_map[[v]])
-      if (!is.na(ref_val) && nzchar(ref_val)) {
-        idx_ref <- idx_combo[as.integer(final_df$.__row_order[idx_combo]) == 0L]
-        if (length(idx_ref) == 0) {
-          pred_clean <- trimws(gsub("\u00A0", " ", as.character(final_df$预测变量[idx_combo]), fixed = TRUE))
-          idx_ref <- idx_combo[pred_clean %in% c(ref_val, paste0(ref_val, " (Reference)"))]
-        }
-        if (length(idx_ref) == 0 && "统计值" %in% names(final_df)) {
-          idx_ref <- idx_combo[as.character(final_df$统计值[idx_combo]) == "Reference"]
-        }
-        if (length(idx_ref) > 0) {
-          j <- idx_ref[1]
-          final_df$预测变量[j] <- paste0("\U00A0\U00A0\U00A0\U00A0", ref_val, " (Reference)")
-          final_df$.__row_order[j] <- 0L
-          final_df$.__row_key[j] <- paste(v, 0L, final_df$预测变量[j], sep = "||")
-          if ("统计值" %in% names(final_df)) final_df$统计值[j] <- "Reference"
-          if ("P值" %in% names(final_df)) final_df$P值[j] <- ""
-        } else {
-          rr0 <- final_df[idx_combo[1], , drop = FALSE]
-          rr0$预测变量 <- paste0("\U00A0\U00A0\U00A0\U00A0", ref_val, " (Reference)")
-          rr0$.__row_order <- 0L
-          rr0$.__row_key <- paste(v, rr0$.__row_order, rr0$预测变量, sep = "||")
-          if ("统计值" %in% names(rr0)) rr0$统计值 <- "Reference"
-          if ("P值" %in% names(rr0)) rr0$P值 <- ""
-          extras[[length(extras) + 1L]] <- rr0
-        }
-      }
-      if (any(as.integer(final_df$.__row_order[idx_combo]) == -1L, na.rm = TRUE)) next
-      rr <- final_df[idx_combo[1], , drop = FALSE]
-      rr$预测变量 <- clean_name
-      rr$.__row_order <- -1L
-      rr$.__row_key <- paste(v, rr$.__row_order, rr$预测变量, sep = "||")
-      if ("统计值" %in% names(rr)) rr$统计值 <- ""
-      if ("P值" %in% names(rr)) rr$P值 <- ""
-      if ("亚组差异P值" %in% names(rr)) rr$亚组差异P值 <- ""
-      if ("N" %in% names(rr)) {
-        n_vals <- as.character(final_df$N[idx_combo])
-        n_vals <- n_vals[nzchar(n_vals)]
-        rr$N <- if (length(n_vals) > 0) n_vals[1] else ""
-      }
-      extras[[length(extras) + 1L]] <- rr
-    }
-  }
-  if (length(extras) > 0) {
-    final_df <- dplyr::bind_rows(final_df, dplyr::bind_rows(extras))
   }
   final_df
 }
@@ -835,12 +904,6 @@ compute_regression_stats <- function(
     get_int_p_fn = get_int_p_fn,
     int_p_map = int_p_map
   )
-  
-  final_df <- ensure_categorical_parent_rows(
-    final_df = final_df,
-    df_in = df_in,
-    categorical_ref_map = categorical_ref_map
-  )
 
   column_res <- compute_regression_columns(
     final_df = final_df,
@@ -939,6 +1002,33 @@ build_unified_regression_table <- function(
 # -------------------------------------------------------------------------
 # 公共 UI/Server 逻辑抽象
 # -------------------------------------------------------------------------
+
+# 统一的自定义总计列 UI 生成器
+render_regression_total_cols_ui <- function(ns, ns_prefix, facet_var_id, input_data, input_list) {
+  facet_var <- input_list[[facet_var_id]]
+  if (is.null(facet_var) || facet_var == "None" || facet_var == "无") return(NULL)
+  
+  levels_choices <- unique(as.character(input_data[[facet_var]]))
+  levels_choices <- levels_choices[!is.na(levels_choices)]
+  
+  ui_elements <- list(
+    shiny::tags$div(
+      class = "total-cols-controls",
+      style = "margin-bottom: 15px;",
+      shiny::tags$label("自定义总计列 (Total Columns)", class = "control-label"),
+      shiny::tags$br(),
+      shiny::actionButton(ns(paste0("add_total_col_", ns_prefix)), "添加列", icon = shiny::icon("plus"), class = "btn-sm btn-primary"),
+      shiny::actionButton(ns(paste0("remove_total_col_", ns_prefix)), "移除列", icon = shiny::icon("minus"), class = "btn-sm btn-danger")
+    )
+  )
+  
+  # 此处不能直接使用 reactiveVal，我们需要依赖调用方传入当前的 count_val
+  count_val_id <- paste0("total_cols_count_", ns_prefix)
+  count_val <- if (!is.null(input_list[[count_val_id]])) input_list[[count_val_id]] else 0
+  
+  # 为了在模块化中保持状态，我们将使用更直接的参数传递
+  # 见下方的修改版本
+}
 
 # 生成回归参数的总计列设置提取
 get_regression_total_cols_settings <- function(input_list, ns_prefix, count_val) {

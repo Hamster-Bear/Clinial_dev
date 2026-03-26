@@ -119,14 +119,6 @@ statistical_analysis_ui <- function(id) {
                      verbatimTextOutput(ns("repro_code_out"))
             )
           ),
-          div(
-            style = "margin: 0 18px 8px 18px; color: #666; font-family: monospace; font-size: 12px;",
-            textOutput(ns("result_signature"))
-          ),
-          div(
-            style = "margin: 0 18px 8px 18px; color: #666; font-family: monospace; font-size: 12px;",
-            textOutput(ns("result_compare_signature"))
-          ),
           br(),
           fluidRow(
             column(
@@ -172,102 +164,7 @@ statistical_analysis_ui <- function(id) {
 statistical_analysis_server <- function(id, data) {
   moduleServer(id, function(input, output, session) {
   ns <- session$ns
-  
-  compute_result_signature <- function(result_obj, stat_method = NULL) {
-    raw_df <- tryCatch({
-      if (inherits(result_obj, "gt_tbl")) {
-        as.data.frame(result_obj[["_data"]], stringsAsFactors = FALSE)
-      } else if (is.data.frame(result_obj)) {
-        as.data.frame(result_obj, stringsAsFactors = FALSE)
-      } else if (is.list(result_obj) && !is.null(result_obj$table)) {
-        if (inherits(result_obj$table, "gt_tbl")) {
-          as.data.frame(result_obj$table[["_data"]], stringsAsFactors = FALSE)
-        } else if (is.data.frame(result_obj$table)) {
-          as.data.frame(result_obj$table, stringsAsFactors = FALSE)
-        } else {
-          extract_table_dataframe(result_obj$table)
-        }
-      } else {
-        data.frame(Result = "no_result", stringsAsFactors = FALSE)
-      }
-    }, error = function(e) {
-      data.frame(Result = "signature_error", stringsAsFactors = FALSE)
-    })
-    if (!is.data.frame(raw_df)) {
-      raw_df <- data.frame(Result = as.character(raw_df), stringsAsFactors = FALSE)
-    }
-    df <- as.data.frame(lapply(raw_df, function(x) {
-      if (is.factor(x)) as.character(x) else as.character(x)
-    }), stringsAsFactors = FALSE)
-    serial <- paste(
-      c(
-        paste(names(df), collapse = "\u241f"),
-        apply(df, 1, function(r) paste(r, collapse = "\u241f"))
-      ),
-      collapse = "\u241e"
-    )
-    tmp <- tempfile(fileext = ".txt")
-    writeLines(serial, tmp, useBytes = TRUE)
-    hash <- as.character(tools::md5sum(tmp)[[1]])
-    unlink(tmp)
-    core_text <- tryCatch({
-      fn_names <- c(
-        "compute_regression_stats",
-        "compute_regression_rows",
-        "apply_regression_header_rows",
-        "complete_regression_rows_grid",
-        "apply_interaction_p_values",
-        "compute_regression_columns",
-        "finalize_regression_display",
-        "extract_broom_tidy_with_fallback"
-      )
-      available <- fn_names[vapply(fn_names, function(nm) exists(nm, mode = "function"), logical(1))]
-      if (length(available) == 0) {
-        if (exists("build_unified_regression_table", mode = "function")) {
-          return(paste(deparse(body(build_unified_regression_table)), collapse = "\n"))
-        }
-        return("no_core")
-      }
-      paste(vapply(available, function(nm) paste(deparse(body(get(nm))), collapse = "\n"), character(1)), collapse = "\n---\n")
-    }, error = function(e) "core_error")
-    core_tmp <- tempfile(fileext = ".txt")
-    writeLines(core_text, core_tmp, useBytes = TRUE)
-    core_hash <- as.character(tools::md5sum(core_tmp)[[1]])
-    unlink(core_tmp)
-    method_tag <- if (is.null(stat_method) || !nzchar(trimws(stat_method))) "unknown" else trimws(as.character(stat_method))
-    pred_preview <- tryCatch({
-      if ("预测变量" %in% names(df) && nrow(df) > 0) {
-        pv <- trimws(gsub("\u00A0", " ", as.character(df$预测变量), fixed = TRUE))
-        paste(utils::head(pv, 3), collapse = ">")
-      } else {
-        "no_pred_col"
-      }
-    }, error = function(e) "pred_preview_error")
-    entry_hash <- tryCatch({
-      if (exists("perform_logistic_analysis", mode = "function")) {
-        tx <- paste(deparse(body(perform_logistic_analysis)), collapse = "\n")
-        et <- tempfile(fileext = ".txt")
-        writeLines(tx, et, useBytes = TRUE)
-        eh <- as.character(tools::md5sum(et)[[1]])
-        unlink(et)
-        substr(eh, 1, 8)
-      } else {
-        "no_entry"
-      }
-    }, error = function(e) "entry_err")
-    paste0(
-      "SIG-", substr(hash, 1, 12),
-      " | method=", method_tag,
-      " | rows=", nrow(df),
-      " | cols=", ncol(df),
-      " | basis=gt_data",
-      " | corepack=", substr(core_hash, 1, 8),
-      " | entry=", entry_hash,
-      " | pred=", pred_preview,
-      " | engine=unified-regression-v2"
-    )
-  }
-  
+
   reload_regression_runtime <- function() {
     source("modules/common/table_export.R")
     source("modules/common/analysis_format.R")
@@ -277,170 +174,7 @@ statistical_analysis_server <- function(id, data) {
     source("modules/statistical_analysis/cox.R")
     invisible(TRUE)
   }
-  
-  compute_data_fingerprint <- function(df, method, input_obj) {
-    safe_txt <- function(x) {
-      if (is.null(x)) return("")
-      paste(as.character(x), collapse = "|")
-    }
-    key_cols <- switch(
-      method,
-      logistic = unique(c(input_obj$logistic_response, input_obj$logistic_predictors, input_obj$logistic_strata, input_obj$logistic_facet, input_obj$logistic_model_strata)),
-      linear = unique(c(input_obj$linear_response, input_obj$linear_predictors, input_obj$linear_strata, input_obj$linear_facet, input_obj$linear_model_strata)),
-      cox = unique(c(input_obj$cox_time, input_obj$cox_status, input_obj$cox_covariates, input_obj$cox_strata, input_obj$cox_facet, input_obj$cox_model_strata)),
-      character(0)
-    )
-    key_cols <- key_cols[!is.na(key_cols) & nzchar(key_cols) & key_cols %in% names(df) & !key_cols %in% c("None", "无")]
-    if (length(key_cols) == 0) key_cols <- names(df)
-    sub_df <- as.data.frame(df[, key_cols, drop = FALSE], stringsAsFactors = FALSE)
-    sub_df <- as.data.frame(lapply(sub_df, function(x) as.character(x)), stringsAsFactors = FALSE)
-    serial <- paste(
-      c(
-        paste(key_cols, collapse = "\u241f"),
-        apply(sub_df, 1, function(r) paste(r, collapse = "\u241f")),
-        paste0("event=", safe_txt(input_obj$logistic_event_value)),
-        paste0("predictors=", safe_txt(input_obj$logistic_predictors))
-      ),
-      collapse = "\u241e"
-    )
-    tf <- tempfile(fileext = ".txt")
-    writeLines(serial, tf, useBytes = TRUE)
-    h <- as.character(tools::md5sum(tf)[[1]])
-    unlink(tf)
-    paste0("DATA-", substr(h, 1, 10), "|n=", nrow(sub_df), "|k=", length(key_cols))
-  }
-  
-  compute_run_context_signature <- function(method, input_obj) {
-    one <- function(x, default = "None") {
-      if (is.null(x) || length(x) == 0) return(default)
-      v <- trimws(as.character(x)[1])
-      if (!nzchar(v)) default else v
-    }
-    many <- function(x, default = "None") {
-      if (is.null(x) || length(x) == 0) return(default)
-      v <- trimws(as.character(x))
-      v <- v[nzchar(v)]
-      if (length(v) == 0) default else paste(v, collapse = ",")
-    }
-    params <- switch(
-      method,
-      logistic = paste0(
-        "response=", one(input_obj$logistic_response),
-        ";predictors=", many(input_obj$logistic_predictors),
-        ";strata=", one(input_obj$logistic_strata),
-        ";facet=", one(input_obj$logistic_facet),
-        ";model_strata=", one(input_obj$logistic_model_strata),
-        ";event=", one(input_obj$logistic_event_value)
-      ),
-      linear = paste0(
-        "response=", one(input_obj$linear_response),
-        ";predictors=", many(input_obj$linear_predictors),
-        ";strata=", one(input_obj$linear_strata),
-        ";facet=", one(input_obj$linear_facet),
-        ";model_strata=", one(input_obj$linear_model_strata)
-      ),
-      cox = paste0(
-        "time=", one(input_obj$cox_time),
-        ";status=", one(input_obj$cox_status),
-        ";covariates=", many(input_obj$cox_covariates),
-        ";strata=", one(input_obj$cox_strata),
-        ";facet=", one(input_obj$cox_facet),
-        ";model_strata=", one(input_obj$cox_model_strata),
-        ";event=", one(input_obj$cox_event_value)
-      ),
-      paste0("method=", one(method, "unknown"))
-    )
-    tf <- tempfile(fileext = ".txt")
-    writeLines(params, tf, useBytes = TRUE)
-    h <- as.character(tools::md5sum(tf)[[1]])
-    unlink(tf)
-    paste0("CTX-", substr(h, 1, 8), "|", params)
-  }
-  
-  normalize_result_for_compare <- function(df_raw) {
-    df <- as.data.frame(df_raw, stringsAsFactors = FALSE)
-    if ("N" %in% names(df)) names(df)[names(df) == "N"] <- "n"
-    if ("统计值" %in% names(df)) names(df)[names(df) == "统计值"] <- "OR (95% CI)"
-    keep <- c("预测变量", "n", "OR (95% CI)", "P值")
-    miss <- setdiff(keep, names(df))
-    if (length(miss) > 0) {
-      for (m in miss) df[[m]] <- ""
-    }
-    df <- df[, keep, drop = FALSE]
-    as.data.frame(lapply(df, function(x) as.character(x)), stringsAsFactors = FALSE)
-  }
-  
-  get_medical_expected_result <- function() {
-    expected <- data.frame(
-      预测变量 = c(
-        "gender",
-        "\u00A0\u00A0\u00A0\u00A0Female (Reference)",
-        "\u00A0\u00A0\u00A0\u00A0Male"
-      ),
-      n = c("30", "15", "15"),
-      check.names = FALSE,
-      stringsAsFactors = FALSE
-    )
-    expected[["OR (95% CI)"]] <- c("", "Reference", "1.00 (0.22, 4.56)")
-    expected[["P值"]] <- c("", "", ">0.99")
-    expected
-  }
-  
-  hash_df_short <- function(df) {
-    x <- as.data.frame(lapply(df, as.character), stringsAsFactors = FALSE)
-    serial <- paste(
-      c(
-        paste(names(x), collapse = "\u241f"),
-        apply(x, 1, function(r) paste(r, collapse = "\u241f"))
-      ),
-      collapse = "\u241e"
-    )
-    tf <- tempfile(fileext = ".txt")
-    writeLines(serial, tf, useBytes = TRUE)
-    h <- as.character(tools::md5sum(tf)[[1]])
-    unlink(tf)
-    substr(h, 1, 10)
-  }
-  
-  compute_result_comparison_signature <- function(result_obj, method, input_obj) {
-    if (!identical(method, "logistic")) return("CMP-skip|reason=method")
-    response <- if (is.null(input_obj$logistic_response)) "" else trimws(as.character(input_obj$logistic_response)[1])
-    predictors <- if (is.null(input_obj$logistic_predictors)) character(0) else trimws(as.character(input_obj$logistic_predictors))
-    predictors <- predictors[nzchar(predictors)]
-    strata <- if (is.null(input_obj$logistic_strata)) "None" else trimws(as.character(input_obj$logistic_strata)[1])
-    facet <- if (is.null(input_obj$logistic_facet)) "None" else trimws(as.character(input_obj$logistic_facet)[1])
-    model_strata <- if (is.null(input_obj$logistic_model_strata)) "None" else trimws(as.character(input_obj$logistic_model_strata)[1])
-    event <- if (is.null(input_obj$logistic_event_value)) "" else trimws(as.character(input_obj$logistic_event_value)[1])
-    target <- identical(response, "event") && length(predictors) == 1 && identical(predictors[[1]], "gender") &&
-      identical(strata, "None") && identical(facet, "None") && identical(model_strata, "None") && identical(event, "1")
-    if (!target) return("CMP-skip|reason=context")
-    front_raw <- tryCatch({
-      if (is.list(result_obj) && !is.null(result_obj$table) && inherits(result_obj$table, "gt_tbl")) {
-        as.data.frame(result_obj$table[["_data"]], stringsAsFactors = FALSE)
-      } else if (inherits(result_obj, "gt_tbl")) {
-        as.data.frame(result_obj[["_data"]], stringsAsFactors = FALSE)
-      } else {
-        extract_table_dataframe(result_obj)
-      }
-    }, error = function(e) data.frame())
-    result1 <- normalize_result_for_compare(front_raw)
-    result2 <- get_medical_expected_result()
-    h1 <- hash_df_short(result1)
-    h2 <- hash_df_short(result2)
-    if (identical(result1, result2)) {
-      return(paste0("CMP-pass|R1-", h1, "|R2-", h2))
-    }
-    n1 <- if (nrow(result1) >= 2) paste(result1$n[2:min(3, nrow(result1))], collapse = ",") else "na"
-    n2 <- paste(result2$n[2:3], collapse = ",")
-    stat1 <- if (nrow(result1) >= 3) result1[["OR (95% CI)"]][3] else "na"
-    stat2 <- result2[["OR (95% CI)"]][3]
-    p1 <- if (nrow(result1) >= 3) result1$P值[3] else "na"
-    p2 <- result2$P值[3]
-    paste0("CMP-fail|R1-", h1, "|R2-", h2, "|n(", n1, " vs ", n2, ")|male(", stat1, " vs ", stat2, ";p ", p1, " vs ", p2, ")")
-  }
-  
-  latest_context_signature <- reactiveVal("")
-  
+
   # 调用筛选模块，获取筛选后的数据
   filtered_data <- data_filter_server("global_filter", data)
   
@@ -1070,11 +804,6 @@ statistical_analysis_server <- function(id, data) {
   analysis_results <- eventReactive(input$run_analysis, {
     req(filtered_data(), input$stat_method)
     reload_regression_runtime()
-    latest_context_signature(paste(
-      compute_data_fingerprint(filtered_data(), input$stat_method, input),
-      compute_run_context_signature(input$stat_method, input),
-      sep = " | "
-    ))
     
     tryCatch(withCallingHandlers({
       withProgress(message = "正在执行统计分析...", value = 0, {
@@ -1199,8 +928,7 @@ statistical_analysis_server <- function(id, data) {
     
     result <- analysis_results()
     export_title <- if (!is.null(input$export_title) && nzchar(trimws(input$export_title))) trimws(input$export_title) else "Statistical Analysis Results"
-    signature_txt <- paste0(compute_result_signature(result, input$stat_method), " | ", latest_context_signature())
-    footnotes <- c(build_export_footnotes(input$stat_method, input$export_footnotes), paste0("Result Signature: ", signature_txt))
+    footnotes <- build_export_footnotes(input$stat_method, input$export_footnotes)
     
     if (inherits(result, "gt_tbl")) {
       return(apply_sci_gt_style(result, title = export_title, footnotes = footnotes))
@@ -1215,16 +943,6 @@ statistical_analysis_server <- function(id, data) {
     } else {
       apply_sci_gt_style(gt::gt(data.frame(Result = "无可用结果")), title = export_title, footnotes = footnotes)
     }
-  })
-  
-  output$result_signature <- renderText({
-    req(analysis_results())
-    paste0("Result Signature: ", compute_result_signature(analysis_results(), input$stat_method), " | ", latest_context_signature())
-  })
-  
-  output$result_compare_signature <- renderText({
-    req(analysis_results())
-    paste0("Result Compare: ", compute_result_comparison_signature(analysis_results(), input$stat_method, input))
   })
   
   output$analysis_interpretation <- renderUI({
@@ -1258,8 +976,7 @@ statistical_analysis_server <- function(id, data) {
       method_profile <- get_method_profile(input$stat_method)
       fmt <- if (is.null(input$dl_format)) "word" else input$dl_format
       export_title <- if (!is.null(input$export_title) && nzchar(trimws(input$export_title))) trimws(input$export_title) else paste0("Table. ", method_profile$name, " Analysis Results")
-      signature_txt <- paste0(compute_result_signature(result, input$stat_method), " | ", latest_context_signature())
-      export_footnotes <- c(build_export_footnotes(input$stat_method, input$export_footnotes), paste0("Result Signature: ", signature_txt))
+      export_footnotes <- build_export_footnotes(input$stat_method, input$export_footnotes)
       tryCatch({
         save_table_export(
           file = file,
