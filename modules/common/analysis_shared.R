@@ -287,6 +287,53 @@ compute_regression_context <- function(df_in, facet_var = NULL, total_cols_setti
   )
 }
 
+regression_norm_text <- function(x) {
+  z <- gsub("\u00A0", " ", as.character(x), fixed = TRUE)
+  z <- trimws(z)
+  tolower(z)
+}
+
+regression_extract_n_cols <- function(raw_df) {
+  grep("(^N$|__N$)", names(raw_df), value = TRUE)
+}
+
+regression_build_total_map <- function(df_in, facet_var = NULL, total_cols_settings = list()) {
+  if (is.null(facet_var) || !nzchar(as.character(facet_var)) || length(total_cols_settings) == 0) return(list())
+  ctx <- compute_regression_context(df_in = df_in, facet_var = facet_var, total_cols_settings = total_cols_settings)
+  if (length(ctx$valid_total_settings) == 0) return(list())
+  stats::setNames(
+    lapply(ctx$valid_total_settings, function(x) as.character(x$groups)),
+    vapply(ctx$valid_total_settings, function(x) x$internal_name, character(1))
+  )
+}
+
+regression_update_current_strata <- function(raw_df, row_index, current_strata = NA_character_, strata_levels = character(0)) {
+  if (!"亚组" %in% names(raw_df) || length(strata_levels) == 0) return(current_strata)
+  cell <- as.character(raw_df$亚组[row_index])
+  cell_norm <- regression_norm_text(cell)
+  if (!nzchar(cell_norm)) return(current_strata)
+  levels_norm <- regression_norm_text(strata_levels)
+  hit <- which(levels_norm == cell_norm)
+  if (length(hit) > 0) return(as.character(strata_levels[hit[1]]))
+  current_strata
+}
+
+regression_slice_for_n_context <- function(cc_data, raw_df, row_index, n_col, strata_var = NULL, current_strata = NA_character_, facet_var = NULL, total_map = list()) {
+  slice <- cc_data
+  if (!is.null(strata_var) && nzchar(as.character(strata_var)) && !is.na(current_strata) && nzchar(as.character(current_strata)) && strata_var %in% names(slice)) {
+    slice <- slice[as.character(slice[[strata_var]]) == as.character(current_strata), , drop = FALSE]
+  }
+  if (!is.null(facet_var) && nzchar(as.character(facet_var)) && facet_var %in% names(slice) && grepl("__N$", as.character(n_col))) {
+    tag <- sub("__N$", "", as.character(n_col))
+    if (startsWith(tag, ".__TOTAL__") && tag %in% names(total_map)) {
+      slice <- slice[as.character(slice[[facet_var]]) %in% as.character(total_map[[tag]]), , drop = FALSE]
+    } else if (!identical(tag, "总体")) {
+      slice <- slice[as.character(slice[[facet_var]]) == as.character(tag), , drop = FALSE]
+    }
+  }
+  slice
+}
+
 compute_regression_rows <- function(
   df_in,
   predictors,
@@ -657,54 +704,27 @@ complete_regression_rows_grid <- function(final_df, strata_var = NULL, facet_var
 
 apply_interaction_p_values <- function(final_df, strata_var = NULL, facet_var = NULL, strata_vals, get_int_p_fn = NULL, int_p_map = character(0)) {
   if (is.null(strata_var) || is.null(get_int_p_fn)) return(final_df)
-  if (!is.null(facet_var)) {
-    final_df$亚组差异P值 <- ""
-    ref_level <- as.character(strata_vals[1])
-    non_ref_levels <- as.character(strata_vals[as.character(strata_vals) != ref_level])
-    p_level <- if (length(non_ref_levels) > 0) non_ref_levels[1] else ref_level
-    facet_tags <- if ("列分组" %in% names(final_df)) unique(as.character(final_df$列分组)) else "__ALL__"
-    for (facet_tag in facet_tags) {
-      for (v_raw in unique(final_df$预测变量原始)) {
-        if (!nzchar(v_raw)) next
-        idx_base <- final_df$预测变量原始 == v_raw & as.character(final_df$亚组) == p_level
-        if ("列分组" %in% names(final_df)) {
-          idx_base <- idx_base & as.character(final_df$列分组) == facet_tag
-        }
-        idx_title <- which(idx_base & final_df$.__row_order == -1L)
-        if (length(idx_title) == 0L) {
-          idx_fallback <- which(idx_base)
-          if (length(idx_fallback) > 0L) idx_title <- idx_fallback[1]
-        }
-        if (length(idx_title) > 0L) {
-          pval <- get_int_p_fn(int_p_map, v_raw, p_level, facet_tag)
-          final_df$亚组差异P值[idx_title[1]] <- pval
-        }
-      }
-    }
-  } else {
-    int_rows <- list()
-    ref_level <- as.character(strata_vals[1])
-    non_ref_levels <- as.character(strata_vals[as.character(strata_vals) != ref_level])
-    p_level <- if (length(non_ref_levels) > 0) non_ref_levels[1] else ref_level
+  final_df$亚组差异P值 <- ""
+  ref_level <- as.character(strata_vals[1])
+  non_ref_levels <- as.character(strata_vals[as.character(strata_vals) != ref_level])
+  p_level <- if (length(non_ref_levels) > 0) non_ref_levels[1] else ref_level
+  facet_tags <- if (!is.null(facet_var) && "列分组" %in% names(final_df)) unique(as.character(final_df$列分组)) else "__ALL__"
+  for (facet_tag in facet_tags) {
     for (v_raw in unique(final_df$预测变量原始)) {
       if (!nzchar(v_raw)) next
-      pval <- get_int_p_fn(int_p_map, v_raw, p_level, "__ALL__")
-      if (nzchar(pval) && pval != "NA") {
-        ir <- data.frame(
-          预测变量 = paste0("\U00A0\U00A0*P for interaction*"),
-          预测变量原始 = v_raw,
-          亚组 = as.character(strata_vals[length(strata_vals)]),
-          N = "",
-          统计值 = "",
-          P值 = paste0("*", pval, "*"),
-          .__row_order = 999L,
-          stringsAsFactors = FALSE
-        )
-        int_rows[[length(int_rows) + 1L]] <- ir
+      idx_base <- final_df$预测变量原始 == v_raw & as.character(final_df$亚组) == p_level
+      if (!is.null(facet_var) && "列分组" %in% names(final_df)) {
+        idx_base <- idx_base & as.character(final_df$列分组) == facet_tag
       }
-    }
-    if (length(int_rows) > 0) {
-      final_df <- dplyr::bind_rows(final_df, dplyr::bind_rows(int_rows))
+      idx_title <- which(idx_base & final_df$.__row_order == -1L)
+      if (length(idx_title) == 0L) {
+        idx_fallback <- which(idx_base)
+        if (length(idx_fallback) > 0L) idx_title <- idx_fallback[1]
+      }
+      if (length(idx_title) > 0L) {
+        pval <- get_int_p_fn(int_p_map, v_raw, p_level, facet_tag)
+        final_df$亚组差异P值[idx_title[1]] <- pval
+      }
     }
   }
   final_df
@@ -774,8 +794,10 @@ compute_regression_columns <- function(final_df, df_in, facet_var = NULL, facet_
     }
   } else {
     keep_cols <- c("预测变量", "预测变量原始", ".__row_order", "亚组", "N", "统计值", "P值")
+    if ("亚组差异P值" %in% names(final_df)) keep_cols <- c(keep_cols, "亚组差异P值")
     final_df <- final_df[, keep_cols, drop = FALSE]
     label_map <- list(亚组 = "亚组", N = "n", 统计值 = metric_label, P值 = "P值")
+    if ("亚组差异P值" %in% names(final_df)) label_map[["亚组差异P值"]] <- "P for interaction"
     spanner_map <- list()
   }
   list(final_df = final_df, label_map = label_map, spanner_map = spanner_map)

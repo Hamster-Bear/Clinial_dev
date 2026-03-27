@@ -408,11 +408,16 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
       }
     }
     keep <- rep(TRUE, nrow(raw))
-    n_out <- if ("N" %in% names(raw)) as.character(raw$N) else rep("", nrow(raw))
+    n_cols <- regression_extract_n_cols(raw)
+    n_out_map <- stats::setNames(lapply(n_cols, function(cn) as.character(raw[[cn]])), n_cols)
+    total_map <- regression_build_total_map(df_in = df_in, facet_var = facet_var, total_cols_settings = total_cols_settings)
+    strata_levels <- if (!is.null(strata_var) && strata_var %in% names(df_in)) unique(as.character(stats::na.omit(df_in[[strata_var]]))) else character(0)
     current_var <- NA_character_
     current_ref <- NA_character_
+    current_strata <- NA_character_
     seen_levels <- character(0)
     for (i in seq_len(nrow(raw))) {
+      current_strata <- regression_update_current_strata(raw_df = raw, row_index = i, current_strata = current_strata, strata_levels = strata_levels)
       lbl <- as.character(raw$预测变量[i])
       lbl_norm <- norm_text(lbl)
       stat_norm <- norm_text(raw$统计值[i])
@@ -420,11 +425,23 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
         current_var <- unname(header_map[[lbl_norm]])
         current_ref <- NA_character_
         seen_levels <- character(0)
-        if ("N" %in% names(raw) && current_var %in% names(cc_data)) {
-          denom <- suppressWarnings(as.numeric(raw$N[i]))
-          if (is.na(denom)) denom <- sum(!is.na(cc_data[[current_var]]))
-          events <- sum(cc_data[[logistic_response]] == 1 & !is.na(cc_data[[current_var]]), na.rm = TRUE)
-          n_out[i] <- paste0(events, "/", as.integer(denom))
+        if (length(n_cols) > 0 && current_var %in% names(cc_data)) {
+          for (cn in n_cols) {
+            denom <- suppressWarnings(as.numeric(raw[[cn]][i]))
+            slice <- regression_slice_for_n_context(
+              cc_data = cc_data,
+              raw_df = raw,
+              row_index = i,
+              n_col = cn,
+              strata_var = strata_var,
+              current_strata = current_strata,
+              facet_var = facet_var,
+              total_map = total_map
+            )
+            if (is.na(denom)) denom <- sum(!is.na(slice[[current_var]]))
+            events <- sum(slice[[logistic_response]] == 1 & !is.na(slice[[current_var]]), na.rm = TRUE)
+            n_out_map[[cn]][i] <- paste0(as.integer(events), "/", as.integer(denom))
+          }
         }
         next
       }
@@ -441,17 +458,32 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
         keep[i] <- FALSE
       }
       seen_levels <- c(seen_levels, level_clean)
-      if ("N" %in% names(raw) && current_var %in% names(cc_data)) {
-        denom <- suppressWarnings(as.numeric(raw$N[i]))
-        level_vec <- norm_text(cc_data[[current_var]])
-        if (is.na(denom)) denom <- sum(level_vec == level_clean, na.rm = TRUE)
-        events <- sum(cc_data[[logistic_response]] == 1 & level_vec == level_clean, na.rm = TRUE)
-        n_out[i] <- paste0(events, "/", as.integer(denom))
+      if (length(n_cols) > 0 && current_var %in% names(cc_data)) {
+        for (cn in n_cols) {
+          denom <- suppressWarnings(as.numeric(raw[[cn]][i]))
+          slice <- regression_slice_for_n_context(
+            cc_data = cc_data,
+            raw_df = raw,
+            row_index = i,
+            n_col = cn,
+            strata_var = strata_var,
+            current_strata = current_strata,
+            facet_var = facet_var,
+            total_map = total_map
+          )
+          level_vec <- norm_text(slice[[current_var]])
+          if (is.na(denom)) denom <- sum(level_vec == level_clean, na.rm = TRUE)
+          events <- sum(slice[[logistic_response]] == 1 & level_vec == level_clean, na.rm = TRUE)
+          n_out_map[[cn]][i] <- paste0(as.integer(events), "/", as.integer(denom))
+        }
       }
     }
-    if ("N" %in% names(raw)) {
-      raw$N <- n_out
-      names(raw)[names(raw) == "N"] <- "event/N"
+    if (length(n_cols) > 0) {
+      for (cn in n_cols) raw[[cn]] <- n_out_map[[cn]]
+      nm <- names(raw)
+      nm[nm == "N"] <- "event/N"
+      nm <- sub("__N$", "__event/N", nm)
+      names(raw) <- nm
     }
     sanitized <- raw[keep, , drop = FALSE]
     new_tbl <- gt::gt(sanitized)

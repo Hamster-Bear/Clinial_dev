@@ -321,8 +321,79 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
     )
   }
 
-  # 统一使用 build_strata_first_gt (底层已替换为 build_unified_regression_table)
-  gt_table <- build_strata_first_gt(data, strata_var, facet_var)
+  sanitize_cox_gt <- function(gt_tbl, df_in) {
+    if (!inherits(gt_tbl, "gt_tbl")) return(gt_tbl)
+    raw <- tryCatch(as.data.frame(gt_tbl[["_data"]], stringsAsFactors = FALSE), error = function(e) NULL)
+    if (is.null(raw) || !is.data.frame(raw) || nrow(raw) == 0) return(gt_tbl)
+    n_cols <- regression_extract_n_cols(raw)
+    if (length(n_cols) == 0) return(gt_tbl)
+    model_vars <- unique(c(cox_time, cox_status, cox_covariates, model_strata_var, strata_var, facet_var))
+    model_vars <- model_vars[!is.na(model_vars) & nzchar(model_vars) & model_vars %in% names(df_in)]
+    cc_data <- if (length(model_vars) > 0) {
+      df_in[stats::complete.cases(df_in[, model_vars, drop = FALSE]), , drop = FALSE]
+    } else {
+      df_in
+    }
+    total_map <- regression_build_total_map(df_in = df_in, facet_var = facet_var, total_cols_settings = total_cols_settings)
+    strata_levels <- if (!is.null(strata_var) && strata_var %in% names(df_in)) unique(as.character(stats::na.omit(df_in[[strata_var]]))) else character(0)
+    is_header_row <- function(x) {
+      txt <- gsub("\u00A0", " ", as.character(x), fixed = TRUE)
+      !grepl("^\\s", txt)
+    }
+    header_map <- character(0)
+    for (v in cox_covariates) {
+      if (!v %in% names(df_in)) next
+      header_map[[regression_norm_text(v)]] <- v
+      v_label <- attr(df_in[[v]], "label", exact = TRUE)
+      if (!is.null(v_label) && nzchar(trimws(as.character(v_label)[1]))) {
+        header_map[[regression_norm_text(v_label)]] <- v
+      }
+    }
+    current_strata <- NA_character_
+    current_var <- NA_character_
+    for (i in seq_len(nrow(raw))) {
+      current_strata <- regression_update_current_strata(raw_df = raw, row_index = i, current_strata = current_strata, strata_levels = strata_levels)
+      lbl <- as.character(raw$预测变量[i])
+      lbl_norm <- regression_norm_text(lbl)
+      if (is_header_row(lbl) && lbl_norm %in% names(header_map)) {
+        current_var <- unname(header_map[[lbl_norm]])
+      }
+      for (cn in n_cols) {
+        d <- suppressWarnings(as.numeric(as.character(raw[[cn]][i])))
+        if (is.na(d)) next
+        slice <- regression_slice_for_n_context(
+          cc_data = cc_data,
+          raw_df = raw,
+          row_index = i,
+          n_col = cn,
+          strata_var = strata_var,
+          current_strata = current_strata,
+          facet_var = facet_var,
+          total_map = total_map
+        )
+        events <- 0L
+        if (cox_status %in% names(slice)) {
+          if (!is.na(current_var) && nzchar(current_var) && current_var %in% names(slice)) {
+            if (is_header_row(lbl)) {
+              events <- sum(slice[[cox_status]] == 1 & !is.na(slice[[current_var]]), na.rm = TRUE)
+            } else {
+              level_clean <- regression_norm_text(gsub("\\s*\\(Reference\\)$", "", lbl, perl = TRUE))
+              level_vec <- regression_norm_text(slice[[current_var]])
+              events <- sum(slice[[cox_status]] == 1 & level_vec == level_clean, na.rm = TRUE)
+            }
+          } else {
+            events <- sum(slice[[cox_status]] == 1, na.rm = TRUE)
+          }
+        }
+        raw[[cn]][i] <- paste0(as.integer(events), "/", as.integer(d))
+      }
+    }
+    gt_tbl[["_data"]] <- raw
+    lbls <- stats::setNames(as.list(rep("event/N", length(n_cols))), n_cols)
+    do.call(gt::cols_label, c(list(.data = gt_tbl), lbls))
+  }
+
+  gt_table <- sanitize_cox_gt(build_strata_first_gt(data, strata_var, facet_var), data)
 
   interpretation <- "<h4><b>结果解读 (Result Interpretation):</b></h4><ul>"
   if (!is.null(strata_var)) interpretation <- paste0(interpretation, "<li><b>亚组(Subgroup):</b> ", strata_var, "（按变量分组独立拟合）</li>")
