@@ -55,13 +55,15 @@ waterfall_plot_ui <- function(id) {
                       6,
                       selectInput(
                         ns("track_mode"),
-                        "轨道展示方式",
+                        "轨道默认展示方式",
                         choices = c("颜色填充" = "color", "文本填充" = "text"),
                         selected = "color",
                         width = "100%"
                       )
                     )
                   ),
+                  checkboxInput(ns("show_tracks"), "显示下方分组轨道", TRUE),
+                  uiOutput(ns("track_mode_controls")),
                   checkboxInput(ns("show_subject_labels"), "显示受试者标签", FALSE),
                   checkboxInput(ns("use_percent_label"), "Y轴默认显示百分比", TRUE),
                   checkboxInput(ns("show_legend"), "显示图例", TRUE)
@@ -250,6 +252,26 @@ waterfall_plot_server <- function(input, output, session, data) {
           session$ns(paste0("bar_col_", digest::digest(lv, algo = "crc32"))),
           label = lv,
           value = defaults[[i]],
+          width = "100%"
+        )
+      })
+    )
+  })
+
+  output$track_mode_controls <- renderUI({
+    req(input$tracks)
+    selected_tracks <- input$tracks
+    if (length(selected_tracks) == 0) {
+      return(NULL)
+    }
+    tagList(
+      h5("分组轨道展示方式"),
+      lapply(selected_tracks, function(tr) {
+        selectInput(
+          session$ns(paste0("track_mode_", digest::digest(tr, algo = "crc32"))),
+          label = tr,
+          choices = c("颜色填充" = "color", "文本填充" = "text"),
+          selected = input$track_mode %||% "color",
           width = "100%"
         )
       })
@@ -492,36 +514,52 @@ waterfall_plot_server <- function(input, output, session, data) {
         }
       }
 
-      if (is.null(track_df)) {
+      if (is.null(track_df) || !isTRUE(input$show_tracks)) {
         p_combined <- p_main
       } else {
-        track_values <- unique(track_df$.track_value)
+        track_mode_map <- setNames(
+          vapply(selected_tracks, function(tr) {
+            id <- paste0("track_mode_", digest::digest(tr, algo = "crc32"))
+            mode_val <- input[[id]]
+            if (is.null(mode_val) || !nzchar(mode_val)) input$track_mode %||% "color" else mode_val
+          }, character(1)),
+          selected_tracks
+        )
+
+        track_df <- track_df %>%
+          mutate(
+            .track_name_chr = as.character(.track_name),
+            .track_mode = unname(track_mode_map[.track_name_chr]),
+            .track_mode = ifelse(is.na(.track_mode), input$track_mode %||% "color", .track_mode)
+          )
+
+        text_track_df <- track_df %>% filter(.track_mode == "text")
+        color_track_df <- track_df %>% filter(.track_mode == "color")
+        track_values <- unique(color_track_df$.track_value)
         track_colors <- setNames(palette_values(length(track_values), input$track_palette %||% "hue"), track_values)
-        if (input$track_mode == "text") {
-          p_track <- ggplot(track_df, aes(x = .subject_factor, y = .track_name)) +
-            geom_tile(fill = "#F7F7F7", color = "white", height = 0.9) +
-            geom_text(aes(label = .track_value), size = max(2.8, input$base_font_size * 0.22), color = input$track_text_color) +
-            labs(x = NULL, y = NULL) +
-            theme_minimal(base_size = max(9, input$base_font_size - 1)) +
-            theme(
-              axis.text.x = element_blank(),
-              axis.ticks.x = element_blank(),
-              panel.grid = element_blank(),
-              legend.position = "none"
-            )
-        } else {
-          p_track <- ggplot(track_df, aes(x = .subject_factor, y = .track_name, fill = .track_value)) +
-            geom_tile(color = "white", height = 0.9) +
-            scale_fill_manual(values = track_colors) +
-            labs(x = NULL, y = NULL, fill = "轨道分组") +
-            theme_minimal(base_size = max(9, input$base_font_size - 1)) +
-            theme(
-              axis.text.x = element_blank(),
-              axis.ticks.x = element_blank(),
-              panel.grid = element_blank(),
-              legend.position = if (isTRUE(input$show_legend)) "right" else "none"
-            )
+
+        p_track <- ggplot(track_df, aes(x = .subject_factor, y = .track_name))
+        if (nrow(color_track_df) > 0) {
+          p_track <- p_track +
+            geom_tile(data = color_track_df, aes(fill = .track_value), color = "white", height = 0.9)
         }
+        if (nrow(text_track_df) > 0) {
+          p_track <- p_track +
+            geom_tile(data = text_track_df, fill = "#F7F7F7", color = "white", height = 0.9) +
+            geom_text(data = text_track_df, aes(label = .track_value), size = max(2.8, input$base_font_size * 0.22), color = input$track_text_color)
+        }
+        if (nrow(color_track_df) > 0) {
+          p_track <- p_track + scale_fill_manual(values = track_colors)
+        }
+        p_track <- p_track +
+          labs(x = NULL, y = NULL, fill = "轨道分组") +
+          theme_minimal(base_size = max(9, input$base_font_size - 1)) +
+          theme(
+            axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            panel.grid = element_blank(),
+            legend.position = if (isTRUE(input$show_legend) && nrow(color_track_df) > 0) "right" else "none"
+          )
 
         p_combined <- cowplot::plot_grid(
           p_main,
@@ -552,7 +590,7 @@ waterfall_plot_server <- function(input, output, session, data) {
     final_plot()
   }, height = function() {
     track_df <- prepared_track_data()
-    if (is.null(track_df)) {
+    if (is.null(track_df) || !isTRUE(input$show_tracks)) {
       700
     } else {
       track_n <- length(unique(as.character(track_df$.track_name)))

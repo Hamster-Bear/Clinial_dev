@@ -13,6 +13,7 @@ source("modules/statistical_graphics/heatmap.R")
 source("modules/statistical_graphics/correlation_matrix.R")
 source("modules/statistical_graphics/combo_plot.R")
 source("modules/statistical_graphics/waterfall_plot.R")
+source("modules/statistical_graphics/swimmer_plot.R")
 source("modules/common/data_filter.R") # 加载通用筛选模块
 
 statistical_graphics_ui <- function(id) {
@@ -51,7 +52,8 @@ statistical_graphics_ui <- function(id) {
             "热图" = "heatmap",
             "相关性矩阵" = "correlation",
             "组合图形" = "combo",
-            "瀑布图" = "waterfall"
+            "瀑布图" = "waterfall",
+            "泳道图" = "swimmer"
           )
         )
       )
@@ -77,7 +79,8 @@ statistical_graphics_server <- function(id, data) {
     heatmap = NULL,
     correlation = NULL,
     combo = NULL,
-    waterfall = NULL
+    waterfall = NULL,
+    swimmer = NULL
   )
   
   # 动态显示选定的图形子模块UI
@@ -91,7 +94,8 @@ statistical_graphics_server <- function(id, data) {
            "heatmap" = heatmap_ui(ns("heatmap")),
            "correlation" = correlation_matrix_ui(ns("correlation")),
            "combo" = combo_plot_ui(ns("combo")),
-           "waterfall" = waterfall_plot_ui(ns("waterfall"))
+           "waterfall" = waterfall_plot_ui(ns("waterfall")),
+           "swimmer" = swimmer_plot_ui(ns("swimmer"))
     )
   })
   
@@ -135,6 +139,11 @@ statistical_graphics_server <- function(id, data) {
              if (is.null(module_states$waterfall)) {
                module_states$waterfall <- callModule(waterfall_plot_server, "waterfall", filtered_data)
              }
+           },
+           "swimmer" = {
+             if (is.null(module_states$swimmer)) {
+               module_states$swimmer <- callModule(swimmer_plot_server, "swimmer", filtered_data)
+             }
            }
     )
   })
@@ -149,6 +158,7 @@ statistical_graphics_server <- function(id, data) {
            "correlation" = module_states$correlation(),
            "combo" = module_states$combo(),
            "waterfall" = module_states$waterfall(),
+           "swimmer" = module_states$swimmer(),
            NULL
     )
   }))
