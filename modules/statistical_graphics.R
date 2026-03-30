@@ -4,6 +4,8 @@
 # 加载必要的包
 library(shiny)
 source("modules/common/plot_export.R")
+source("modules/common/analysis_format.R")
+source("modules/common/graphics_repro.R")
 
 # 加载子模块
 source("modules/statistical_graphics/survival_analysis.R")
@@ -59,8 +61,16 @@ statistical_graphics_ui <- function(id) {
       )
     ),
     
-    # 动态显示选定的图形子模块
-    uiOutput(ns("selected_graphic_ui"))
+    uiOutput(ns("selected_graphic_ui")),
+    fluidRow(
+      box(
+        width = 12,
+        title = "可复现代码",
+        status = "info",
+        solidHeader = TRUE,
+        verbatimTextOutput(ns("graphic_repro_code_out"))
+      )
+    )
   )
 }
 
@@ -149,6 +159,25 @@ statistical_graphics_server <- function(id, data) {
   })
   
   # 返回当前活动模块的状态
+  output$graphic_repro_code_out <- renderText({
+    req(input$fig_type)
+    active_state <- switch(input$fig_type,
+      "km" = if (!is.null(module_states$survival)) module_states$survival() else NULL,
+      "boxplot" = if (!is.null(module_states$boxplot)) module_states$boxplot() else NULL,
+      "forest" = if (!is.null(module_states$forest)) module_states$forest() else NULL,
+      "heatmap" = if (!is.null(module_states$heatmap)) module_states$heatmap() else NULL,
+      "correlation" = if (!is.null(module_states$correlation)) module_states$correlation() else NULL,
+      "combo" = if (!is.null(module_states$combo)) module_states$combo() else NULL,
+      "waterfall" = if (!is.null(module_states$waterfall)) module_states$waterfall() else NULL,
+      "swimmer" = if (!is.null(module_states$swimmer)) module_states$swimmer() else NULL,
+      NULL
+    )
+    if (!is.list(active_state)) {
+      active_state <- list()
+    }
+    generate_graphics_repro_code(input$fig_type, active_state, data_name = "data")
+  })
+
   return(reactive({
     switch(input$fig_type,
            "km" = module_states$survival(),
