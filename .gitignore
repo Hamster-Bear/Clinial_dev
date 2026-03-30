@@ -21,6 +21,9 @@ AI prompt
 .roo/
 .vscode/
 .env.test
+deploy/alicloud/env/.env
+deploy/alicloud/certs/*.pem
+deploy/alicloud/certs/*.key
 plans/
 test/tmp_*.R
 

@@ -259,13 +259,95 @@ AutoTFL 提供了高度兼容的部署方案，适配单机研发、内网服务
 - **`install_dependencies.R`**: 安装所需 R 包的主脚本。
 - **`download_offline_packages.R`**: 离线仓库维护脚本。在有网环境将依赖同步到 `package/` 目录，并自动生成 `PACKAGES` 索引；在无网部署环境由 `install_dependencies.R` 优先从本地仓库安装，再在线补齐缺失依赖。
 
-### 7.2 Docker 与 Docker Compose 部署 (推荐)
+### 7.2 Docker 与 Docker Compose 部署（开发/联调）
 
 - **构建镜像**: 运行 `docker build -t autotfl-shiny-app:latest .`。Dockerfile 会将 `package/` 复制进容器并优先使用本地源码仓库安装依赖。
-- **一键启动 (Compose)**: 使用 `docker-compose up -d --build`，系统将自动拉起 **Nginx (反向代理)**、**Shiny 应用容器**、**PostgreSQL 数据库** 与 **Redis 缓存服务**。
+- **一键启动（开发编排）**: 使用 `docker compose -f docker-compose.yml up -d --build`，系统将自动拉起 **Nginx (反向代理)**、**Shiny 应用容器**、**PostgreSQL 数据库** 与 **Redis 缓存服务**。
 - **环境变量**: 建议在部署前通过系统环境变量设置 `DB_PASSWORD` 提升安全性。
 
-### 7.3 Windows 快捷部署
+### 7.3 阿里云 Ubuntu 22.04 生产部署（HTTPS 反向代理 + 离线镜像）
+
+当前仓库已形成阿里云可用部署链路：
+
+- 主编排：`docker-compose.server.yml`
+- 反向代理：`nginx/server_ssl.conf`
+- 首屏入口：`nginx/landing/index.html` + `nginx/landing/style.css`
+- 生产环境模板：`deploy/alicloud/env/.env.example`
+- 生产环境生成脚本：`deploy/alicloud/scripts/init_env.sh`
+- 离线部署脚本：`deploy/alicloud/scripts/deploy_from_tar.sh`
+
+#### 7.3.1 文件位置与职责（必须文件）
+
+1. **根目录编排文件**
+   - `docker-compose.server.yml`: 服务器编排入口，包含 `postgres`、`redis`、`app`、`nginx` 四服务。
+   - 关键约定：
+     - 数据目录由 `DATA_ROOT` 控制（默认 `/data/autotfl`）。
+     - 证书目录由 `CERT_ROOT` 控制（建议 `/etc/autotfl/certs`）。
+     - 证书文件名由 `SSL_CERT_FILE` / `SSL_KEY_FILE` 控制。
+2. **Nginx 文件**
+   - `nginx/server_ssl.conf`: 域名 `kyyin.xyz` / `www.kyyin.xyz`，80 跳转 443，`/` 首屏静态页，`/app/` 进入 Shiny。
+   - `nginx/landing/index.html`: 部署入口页（不直接跳应用）。
+   - `nginx/landing/style.css`: 入口页样式。
+3. **阿里云部署辅助目录（deploy/alicloud）**
+   - `deploy/alicloud/env/.env.example`: 环境变量模板。
+   - `deploy/alicloud/env/.env`: 生产环境变量实文件（由脚本生成，不入库）。
+   - `deploy/alicloud/scripts/init_env.sh`: 自动生成 `.env` 并注入随机 `DB_PASSWORD`。
+   - `deploy/alicloud/scripts/deploy_from_tar.sh`: 导入 tar 镜像并执行 compose 启动。
+
+#### 7.3.2 服务器目录规划（最佳实践）
+
+1. **代码目录**：`/opt/autotfl/current`
+2. **证书目录**：`/etc/autotfl/certs`
+3. **持久化目录**：`/data/autotfl`
+   - `/data/autotfl/postgres`
+   - `/data/autotfl/redis`
+   - `/data/autotfl/storage`
+4. **环境变量文件**：`/opt/autotfl/current/deploy/alicloud/env/.env`
+
+#### 7.3.3 .env 生成与使用
+
+1. 在服务器进入项目目录后执行：
+   - `bash deploy/alicloud/scripts/init_env.sh`
+2. 生成文件位置：
+   - `deploy/alicloud/env/.env`
+3. 按需调整以下字段：
+   - `DB_PASSWORD`
+   - `DATA_ROOT`
+   - `CERT_ROOT`
+   - `SSL_CERT_FILE`
+   - `SSL_KEY_FILE`
+4. 启动时显式指定 env 文件：
+   - `docker compose --env-file deploy/alicloud/env/.env -f docker-compose.server.yml up -d`
+
+#### 7.3.4 离线镜像（tar）部署流程
+
+1. **本地构建镜像**：`docker build -t autotfl-shiny-app:server .`
+2. **本地导出镜像**：`docker save -o autotfl-shiny-app_server.tar autotfl-shiny-app:server`
+3. **上传 tar 到服务器并导入**：`docker load -i autotfl-shiny-app_server.tar`
+4. **执行部署脚本**：`bash deploy/alicloud/scripts/deploy_from_tar.sh autotfl-shiny-app_server.tar`
+
+#### 7.3.5 上线验收
+
+1. 访问 `https://kyyin.xyz` 与 `https://www.kyyin.xyz`，应先显示静态入口页。
+2. 点击“进入 AutoTFL”后进入 `/app/` 并完成页面与交互加载。
+3. 自签名证书在浏览器告警属于预期，正式环境建议替换为受信任证书。
+
+### 7.4 部署辅助目录（deploy/alicloud）总览
+
+```text
+deploy/alicloud/
+├── README.md
+├── certs/
+│   └── .gitkeep
+├── env/
+│   ├── .env.example
+│   └── .env            # 运行期生成，不入库
+└── scripts/
+    ├── init_env.sh
+    └── deploy_from_tar.sh
+```
+
+### 7.5 Windows 快捷部署
 
 运行 `run_app.R` / `run_app_test.ps1`：
 

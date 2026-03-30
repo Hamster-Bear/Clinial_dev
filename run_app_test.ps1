@@ -1,6 +1,6 @@
 param(
   [string]$EnvFile = ".env.test",
-  [string]$RScriptPath = "E:\R-4.5.2\bin\Rscript.exe"
+  [string]$RScriptPath = "F:\R-4.5.3\bin\Rscript.exe"
 )
 
 if (-not (Test-Path $EnvFile)) {
