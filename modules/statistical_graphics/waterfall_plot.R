@@ -11,183 +11,215 @@ waterfall_plot_ui <- function(id) {
 
   tagList(
     fluidRow(
-      box(
-        width = 12,
+      graphics_config_tabs_box(
+        id = id,
         title = "瀑布图参数配置",
-        status = "primary",
-        solidHeader = TRUE,
-        collapsible = TRUE,
-        collapsed = FALSE,
-        fluidRow(
-          column(
-            6,
-            wellPanel(
-              style = "height: 640px; overflow-y: auto;",
-              h4("数据与变量设置", style = "color: #007bff; margin-top: 0;"),
-              tags$div(
-                class = "panel panel-default",
-                tags$div(class = "panel-heading", "核心变量映射"),
+        collapsed = TRUE,
+        tabs = list(
+          tabPanel(
+            "数据映射",
+            br(),
+            fluidRow(
+              column(
+                4,
                 tags$div(
-                  class = "panel-body",
-                  selectizeInput(
-                    ns("subject_id"),
-                    tags$span("受试者ID变量 [字符/因子]", title = "每行唯一受试者标识，建议字符或因子类型"),
-                    choices = NULL,
-                    width = "100%"
-                  ),
-                  selectizeInput(
-                    ns("value_var"),
-                    tags$span("变化值变量 [数值]", title = "连续数值型变量，通常为较基线变化百分比"),
-                    choices = NULL,
-                    width = "100%"
-                  ),
-                  selectizeInput(
-                    ns("bar_color_by"),
-                    tags$span("柱颜色分组 [字符/因子，可选]", title = "用于柱颜色分层的分组变量"),
-                    choices = NULL,
-                    width = "100%"
-                  ),
-                  selectizeInput(
-                    ns("symbol_by"),
-                    tags$span("柱符号分组 [字符/因子，可选]", title = "在柱顶显示额外符号分组，例如PD/SD等"),
-                    choices = NULL,
-                    width = "100%"
-                  ),
-                  selectizeInput(
-                    ns("tracks"),
-                    tags$span("下方分组轨道 [字符/因子，可多选]", title = "用于下方轨道注释展示的分类变量，可多选"),
-                    choices = NULL,
-                    multiple = TRUE,
-                    width = "100%"
-                  ),
-                  helpText("提示：将鼠标悬停在字段标签上可查看变量类型要求。")
+                  class = "panel panel-default",
+                  tags$div(class = "panel-heading", "核心变量映射"),
+                  tags$div(
+                    class = "panel-body",
+                    selectizeInput(ns("subject_id"), "受试者ID变量", choices = NULL, width = "100%"),
+                    selectizeInput(ns("value_var"), "变化值变量", choices = NULL, width = "100%"),
+                    selectizeInput(ns("bar_color_by"), "柱颜色分组", choices = NULL, width = "100%"),
+                    selectizeInput(ns("symbol_by"), "柱符号分组(可选)", choices = NULL, width = "100%"),
+                    selectizeInput(ns("tracks"), "下方分组轨道(可多选)", choices = NULL, multiple = TRUE, width = "100%")
+                  )
                 )
               ),
-              tags$div(
-                class = "panel panel-default",
-                tags$div(class = "panel-heading", "排序与显示"),
+              column(
+                4,
                 tags$div(
-                  class = "panel-body",
-                  fluidRow(
-                    column(
-                      6,
-                      selectInput(
-                        ns("sort_order"),
-                        "排序方向",
-                        choices = c("从低到高" = "asc", "从高到低" = "desc"),
-                        selected = "asc",
-                        width = "100%"
-                      )
-                    ),
-                    column(
-                      6,
-                      selectInput(
-                        ns("track_mode"),
-                        "轨道默认展示方式",
-                        choices = c("颜色填充" = "color", "文本填充" = "text"),
-                        selected = "color",
-                        width = "100%"
+                  class = "panel panel-default",
+                  tags$div(class = "panel-heading", "排序和显示"),
+                  tags$div(
+                    class = "panel-body",
+                    tabsetPanel(
+                      tabPanel(
+                        "排序与轨道",
+                        br(),
+                        selectInput(ns("sort_order"), "排序方向", choices = c("从低到高" = "asc", "从高到低" = "desc"), selected = "asc", width = "100%"),
+                        selectInput(ns("track_mode"), "轨道默认展示方式", choices = c("颜色填充" = "color", "文本填充" = "text"), selected = "color", width = "100%"),
+                        checkboxInput(ns("show_tracks"), "显示下方分组轨道", TRUE),
+                        uiOutput(ns("track_mode_controls"))
+                      ),
+                      tabPanel(
+                        "显示与图例",
+                        br(),
+                        checkboxInput(ns("show_symbols"), "显示柱符号分组", TRUE),
+                        checkboxInput(ns("show_subject_labels"), "显示受试者标签", FALSE),
+                        checkboxInput(ns("use_percent_label"), "Y轴默认显示百分比", TRUE),
+                        checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
+                        selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
+                        checkboxInput(ns("show_legend"), "显示图例", TRUE),
+                        selectInput(ns("main_legend_position"), "主图图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%"),
+                        selectInput(ns("track_legend_position"), "轨道图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%")
                       )
                     )
-                  ),
-                  checkboxInput(ns("show_tracks"), "显示下方分组轨道", TRUE),
-                  uiOutput(ns("track_mode_controls")),
-                  checkboxInput(ns("show_symbols"), "显示柱符号分组", TRUE),
-                  checkboxInput(ns("show_subject_labels"), "显示受试者标签", FALSE),
-                  checkboxInput(ns("use_percent_label"), "Y轴默认显示百分比", TRUE),
-                  checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
-                  selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
-                  checkboxInput(ns("show_legend"), "显示图例", TRUE),
-                  selectInput(ns("main_legend_position"), "主图图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%"),
-                  selectInput(ns("track_legend_position"), "轨道图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%")
+                  )
                 )
               ),
-              tags$div(
-                class = "panel panel-default",
-                tags$div(class = "panel-heading", "阈值与临床线"),
+              column(
+                4,
                 tags$div(
-                  class = "panel-body",
-                  checkboxInput(ns("show_recist"), "显示RECIST阈值线", TRUE),
-                  fluidRow(
-                    column(6, numericInput(ns("recist_lower"), "RECIST下阈值", value = -30, step = 1, width = "100%")),
-                    column(6, numericInput(ns("recist_upper"), "RECIST上阈值", value = 20, step = 1, width = "100%"))
-                  ),
-                  checkboxInput(ns("show_recist_labels"), "显示阈值文本标签", TRUE),
-                  fluidRow(
-                    column(6, textInput(ns("recist_lower_label"), "下阈值标签", value = "RECIST -30%", width = "100%")),
-                    column(6, textInput(ns("recist_upper_label"), "上阈值标签", value = "RECIST +20%", width = "100%"))
+                  class = "panel panel-default",
+                  tags$div(class = "panel-heading", "阈值与临床线"),
+                  tags$div(
+                    class = "panel-body",
+                    checkboxInput(ns("show_recist"), "显示RECIST阈值线", TRUE),
+                    fluidRow(
+                      column(6, numericInput(ns("recist_lower"), "RECIST下阈值", value = -30, step = 1, width = "100%")),
+                      column(6, numericInput(ns("recist_upper"), "RECIST上阈值", value = 20, step = 1, width = "100%"))
+                    ),
+                    checkboxInput(ns("show_recist_labels"), "显示阈值文本标签", TRUE),
+                    textInput(ns("recist_lower_label"), "下阈值标签", value = "RECIST -30%", width = "100%"),
+                    textInput(ns("recist_upper_label"), "上阈值标签", value = "RECIST +20%", width = "100%")
                   )
                 )
               )
             )
           ),
-          column(
-            6,
-            wellPanel(
-              style = "height: 640px; overflow-y: auto;",
-              h4("图形与样式设置", style = "color: #007bff; margin-top: 0;"),
-              tabsetPanel(
-                tabPanel(
-                  "文本与标签",
-                  br(),
-                  actionButton(ns("render_plot"), "生成图形", icon = icon("chart-bar"), class = "btn-primary btn-block", style = "font-weight: bold; margin-bottom: 12px;"),
-                  textInput(ns("plot_title"), "主标题", value = "瀑布图", width = "100%"),
-                  textInput(ns("plot_subtitle"), "副标题", value = "", width = "100%"),
-                  textAreaInput(ns("plot_caption"), "脚注", value = "", rows = 2, width = "100%"),
-                  fluidRow(
-                    column(6, textInput(ns("plot_xlab"), "X轴标签", value = "受试者", width = "100%")),
-                    column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "较基线变化 (%)", width = "100%"))
-                  ),
-                  textInput(ns("legend_title"), "图例标题", value = "", width = "100%")
+          tabPanel(
+            "样式主题",
+            br(),
+            tabsetPanel(
+              tabPanel(
+                "文本与标签",
+                textInput(ns("plot_title"), "主标题", value = "瀑布图", width = "100%"),
+                textInput(ns("plot_subtitle"), "副标题", value = "", width = "100%"),
+                textAreaInput(ns("plot_caption"), "脚注", value = "", rows = 2, width = "100%"),
+                fluidRow(
+                  column(6, textInput(ns("plot_xlab"), "X轴标签", value = "受试者", width = "100%")),
+                  column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "较基线变化 (%)", width = "100%"))
                 ),
-                tabPanel(
-                  "配色与布局",
-                  br(),
-                  selectInput(
-                    ns("bar_palette"),
-                    "柱图调色板",
-                    choices = c("默认Hue" = "hue", "Set2" = "Set2", "Set3" = "Set3", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"),
-                    selected = "Set2",
-                    width = "100%"
+                textInput(ns("legend_title"), "图例标题", value = "", width = "100%")
+              ),
+              tabPanel(
+                "配色与布局",
+                fluidRow(
+                  column(
+                    6,
+                    tags$div(
+                      class = "panel panel-default",
+                      tags$div(class = "panel-heading", "柱体配色"),
+                      tags$div(
+                        class = "panel-body",
+                        selectInput(
+                          ns("bar_palette"),
+                          "柱图调色板",
+                          choices = c("默认Hue" = "hue", "Set2" = "Set2", "Set3" = "Set3", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"),
+                          selected = "Set2",
+                          width = "100%"
+                        ),
+                        uiOutput(ns("bar_color_controls")),
+                        colourpicker::colourInput(ns("bar_single_color"), "单组柱颜色", value = "#4E79A7", width = "100%"),
+                        fluidRow(
+                          column(6, colourpicker::colourInput(ns("bar_border_color"), "柱边框颜色", value = "#4D4D4D", width = "100%")),
+                          column(6, colourpicker::colourInput(ns("zero_line_color"), "零线颜色", value = "#000000", width = "100%"))
+                        ),
+                        numericInput(ns("bar_width"), "柱宽", value = 0.9, min = 0.2, max = 1, step = 0.05, width = "100%")
+                      )
+                    )
                   ),
-                  uiOutput(ns("bar_color_controls")),
-                  colourpicker::colourInput(ns("bar_single_color"), "单组柱颜色", value = "#4E79A7", width = "100%"),
-                  fluidRow(
-                    column(6, colourpicker::colourInput(ns("bar_border_color"), "柱边框颜色", value = "#4D4D4D", width = "100%")),
-                    column(6, colourpicker::colourInput(ns("zero_line_color"), "零线颜色", value = "#000000", width = "100%"))
+                  column(
+                    6,
+                    tags$div(
+                      class = "panel panel-default",
+                      tags$div(class = "panel-heading", "阈值与符号样式"),
+                      tags$div(
+                        class = "panel-body",
+                        fluidRow(
+                          column(6, colourpicker::colourInput(ns("recist_lower_color"), "下阈值线颜色", value = "#2C7BB6", width = "100%")),
+                          column(6, colourpicker::colourInput(ns("recist_upper_color"), "上阈值线颜色", value = "#D7191C", width = "100%"))
+                        ),
+                        uiOutput(ns("symbol_controls")),
+                        fluidRow(
+                          column(6, colourpicker::colourInput(ns("symbol_text_color"), "符号颜色", value = "#1A1A1A", width = "100%")),
+                          column(6, numericInput(ns("symbol_text_size"), "符号大小", value = 4, min = 2, max = 10, step = 0.2, width = "100%"))
+                        )
+                      )
+                    )
+                  )
+                ),
+                fluidRow(
+                  column(
+                    6,
+                    tags$div(
+                      class = "panel panel-default",
+                      tags$div(class = "panel-heading", "轨道与缺失值"),
+                      tags$div(
+                        class = "panel-body",
+                        selectInput(
+                          ns("track_palette"),
+                          "轨道调色板",
+                          choices = c("默认Hue" = "hue", "Set3" = "Set3", "Paired" = "Paired", "Dark2" = "Dark2", "Viridis" = "viridis"),
+                          selected = "Set3",
+                          width = "100%"
+                        ),
+                        fluidRow(
+                          column(6, colourpicker::colourInput(ns("track_text_bg_color"), "轨道文本底色", value = "#F7F7F7", width = "100%")),
+                          column(6, colourpicker::colourInput(ns("track_text_color"), "轨道文本颜色", value = "#1A1A1A", width = "100%"))
+                        ),
+                        textInput(ns("track_legend_title"), "轨道图例标题", value = "轨道分组", width = "100%"),
+                        checkboxInput(ns("track_compact_mode"), "轨道紧凑模式", TRUE),
+                        fluidRow(
+                          column(6, sliderInput(ns("track_tile_height"), "轨道方框高度", min = 0.1, max = 1.4, value = 0.65, step = 0.05, width = "100%")),
+                          column(6, sliderInput(ns("track_row_spacing"), "轨道行间距", min = 0, max = 0.8, value = 0.08, step = 0.02, width = "100%"))
+                        ),
+                        selectInput(ns("missing_display_mode"), "空值显示方式", choices = c("空白" = "blank", "无" = "none", "NA" = "na", "破折号" = "dash", "自定义" = "custom"), selected = "na", width = "100%"),
+                        conditionalPanel(
+                          condition = sprintf("input['%s'] === 'custom'", ns("missing_display_mode")),
+                          textInput(ns("missing_display_custom"), "自定义空值文本", value = "NA", width = "100%")
+                        )
+                      )
+                    )
                   ),
-                  fluidRow(
-                    column(6, colourpicker::colourInput(ns("recist_lower_color"), "下阈值线颜色", value = "#2C7BB6", width = "100%")),
-                    column(6, colourpicker::colourInput(ns("recist_upper_color"), "上阈值线颜色", value = "#D7191C", width = "100%"))
-                  ),
-                  uiOutput(ns("symbol_controls")),
-                  selectInput(
-                    ns("track_palette"),
-                    "轨道调色板",
-                    choices = c("默认Hue" = "hue", "Set3" = "Set3", "Paired" = "Paired", "Dark2" = "Dark2", "Viridis" = "viridis"),
-                    selected = "Set3",
-                    width = "100%"
-                  ),
-                  colourpicker::colourInput(ns("track_text_bg_color"), "轨道文本底色", value = "#F7F7F7", width = "100%"),
-                  colourpicker::colourInput(ns("track_text_color"), "轨道文本颜色", value = "#1A1A1A", width = "100%"),
-                  textInput(ns("track_legend_title"), "轨道图例标题", value = "轨道分组", width = "100%"),
-                  checkboxInput(ns("track_compact_mode"), "轨道紧凑模式", TRUE),
-                  sliderInput(ns("track_tile_height"), "轨道方框高度", min = 0.1, max = 1.4, value = 0.65, step = 0.05, width = "100%"),
-                  sliderInput(ns("track_row_spacing"), "轨道行间距", min = 0, max = 0.8, value = 0.08, step = 0.02, width = "100%"),
-                  selectInput(ns("missing_display_mode"), "空值显示方式", choices = c("空白" = "blank", "无" = "none", "NA" = "na", "破折号" = "dash", "自定义" = "custom"), selected = "na", width = "100%"),
-                  conditionalPanel(
-                    condition = sprintf("input['%s'] === 'custom'", ns("missing_display_mode")),
-                    textInput(ns("missing_display_custom"), "自定义空值文本", value = "NA", width = "100%")
-                  ),
-                  fluidRow(
-                    column(6, colourpicker::colourInput(ns("symbol_text_color"), "符号颜色", value = "#1A1A1A", width = "100%")),
-                    column(6, numericInput(ns("symbol_text_size"), "符号大小", value = 4, min = 2, max = 10, step = 0.2, width = "100%"))
-                  ),
-                  numericInput(ns("y_breaks_n"), "Y轴刻度数量", value = 9, min = 4, max = 20, step = 1, width = "100%"),
-                  sliderInput(ns("track_rel_height"), "下方表格占比", min = 0.5, max = 4, value = 0.5, step = 0.1, width = "100%"),
-                  numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%"),
-                  numericInput(ns("bar_width"), "柱宽", value = 0.9, min = 0.2, max = 1, step = 0.05, width = "100%")
+                  column(
+                    6,
+                    tags$div(
+                      class = "panel panel-default",
+                      tags$div(class = "panel-heading", "坐标与版式"),
+                      tags$div(
+                        class = "panel-body",
+                        fluidRow(
+                          column(6, numericInput(ns("y_breaks_n"), "Y轴刻度数量", value = 9, min = 4, max = 20, step = 1, width = "100%")),
+                          column(6, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%"))
+                        ),
+                        sliderInput(ns("track_rel_height"), "下方表格占比", min = 0.5, max = 4, value = 0.5, step = 0.1, width = "100%")
+                      )
+                    )
+                  )
                 )
+              )
+            )
+          ),
+          tabPanel(
+            "输出与导出",
+            br(),
+            fluidRow(
+              column(4, selectInput(ns("size_mode"), "尺寸模式", choices = c("宽图标准" = "wide_standard", "自定义尺寸" = "custom"), selected = "wide_standard", width = "100%")),
+              column(4, selectInput(ns("export_format"), "导出格式", choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "pdf", width = "100%")),
+              column(4, numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%"))
+            ),
+            conditionalPanel(
+              condition = sprintf("input['%s'] === 'custom'", ns("size_mode")),
+              fluidRow(
+                column(3, numericInput(ns("static_width_px"), "静态图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
+                column(3, numericInput(ns("static_height_px"), "静态图基础高度(px)", value = 760, min = 400, max = 1800, step = 20, width = "100%")),
+                column(3, numericInput(ns("interactive_width_px"), "交互图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
+                column(3, numericInput(ns("interactive_height_px"), "交互图高度(px)", value = 620, min = 350, max = 1600, step = 20, width = "100%"))
+              ),
+              fluidRow(
+                column(3, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 13, min = 6, max = 30, step = 0.5, width = "100%")),
+                column(3, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 9, min = 4, max = 24, step = 0.5, width = "100%"))
               )
             )
           )
@@ -201,38 +233,8 @@ waterfall_plot_ui <- function(id) {
         status = "success",
         solidHeader = TRUE,
         fluidRow(
-          column(
-            12,
-            div(
-              style = "display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;",
-              div(
-                style = "margin-right: 10px; width: 180px;",
-                selectInput(ns("size_mode"), NULL, choices = c("宽图标准" = "wide_standard", "自定义尺寸" = "custom"), selected = "wide_standard", width = "100%")
-              ),
-              div(
-                style = "margin-right: 10px; width: 150px;",
-                selectInput(ns("export_format"), NULL, choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "pdf", width = "100%")
-              ),
-              div(
-                style = "margin-right: 10px; width: 130px;",
-                numericInput(ns("export_dpi"), NULL, value = 600, min = 72, max = 1200, step = 10, width = "100%")
-              ),
-              downloadButton(ns("dl_plot"), "下载图形", class = "btn-primary")
-            )
-          )
-        ),
-        conditionalPanel(
-          condition = sprintf("input['%s'] === 'custom'", ns("size_mode")),
-          fluidRow(
-            column(3, numericInput(ns("static_width_px"), "静态图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
-            column(3, numericInput(ns("static_height_px"), "静态图基础高度(px)", value = 760, min = 400, max = 1800, step = 20, width = "100%")),
-            column(3, numericInput(ns("interactive_width_px"), "交互图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
-            column(3, numericInput(ns("interactive_height_px"), "交互图高度(px)", value = 620, min = 350, max = 1600, step = 20, width = "100%"))
-          ),
-          fluidRow(
-            column(3, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 13, min = 6, max = 30, step = 0.5, width = "100%")),
-            column(3, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 9, min = 4, max = 24, step = 0.5, width = "100%"))
-          )
+          column(6, div(style = "text-align: left; margin-bottom: 10px;", actionButton(ns("render_plot"), "生成图形", class = "btn-primary"))),
+          column(6, div(style = "text-align: right; margin-bottom: 10px;", downloadButton(ns("dl_plot"), "下载图形", class = "btn-primary")))
         ),
         tabsetPanel(
           id = ns("output_tabs"),

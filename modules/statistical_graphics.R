@@ -6,6 +6,8 @@ library(shiny)
 source("modules/common/plot_export.R")
 source("modules/common/analysis_format.R")
 source("modules/common/graphics_repro.R")
+source("modules/common/graphics_common.R")
+source("modules/statistical_graphics_ui/common_ui_shell.R")
 
 # 加载子模块
 source("modules/statistical_graphics/survival_analysis.R")

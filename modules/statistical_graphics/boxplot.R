@@ -11,92 +11,59 @@ boxplot_ui <- function(id) {
   
   tagList(
     fluidRow(
-      box(
-        width = 12,
+      graphics_config_tabs_box(
+        id = id,
         title = "箱线图参数配置",
-        status = "primary",
-        solidHeader = TRUE,
-        fluidRow(
-          column(6,
-                 selectizeInput(ns("boxplot_x"), "X轴变量 (分组)", choices = NULL)
-          ),
-          column(6,
-                 selectizeInput(ns("boxplot_y"), "Y轴变量 (数值)", choices = NULL)
-          )
-        )
-      )
-    ),
-    
-    # 高级美学设置
-    fluidRow(
-      box(
-        width = 12,
-        title = "高级美学设置",
-        status = "primary",
-        collapsible = TRUE,
         collapsed = TRUE,
-        fluidRow(
-          column(6,
-                 textInput(ns("plot_title"), "主标题", value = "", width = "100%")
+        tabs = list(
+          tabPanel(
+            "数据映射",
+            br(),
+            fluidRow(
+              column(6, selectizeInput(ns("boxplot_x"), "X轴变量 (分组)", choices = NULL)),
+              column(6, selectizeInput(ns("boxplot_y"), "Y轴变量 (数值)", choices = NULL))
+            )
           ),
-          column(6,
-                 selectInput(ns("plot_palette"), "颜色主题",
-                           choices = c("Lancet"="lancet", "JAMA"="jama", "NEJM"="nejm", "Viridis"="viridis"))
-          )
-        ),
-        fluidRow(
-          column(6,
-                 textInput(ns("plot_xlab"), "X轴标签", value = "", width = "100%")
+          tabPanel(
+            "样式主题",
+            br(),
+            fluidRow(
+              column(6, textInput(ns("plot_title"), "主标题", value = "", width = "100%")),
+              column(6, selectInput(ns("plot_palette"), "颜色主题",
+                                    choices = c("Lancet"="lancet", "JAMA"="jama", "NEJM"="nejm", "Viridis"="viridis")))
+            ),
+            fluidRow(
+              column(6, textInput(ns("plot_xlab"), "X轴标签", value = "", width = "100%")),
+              column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%"))
+            ),
+            fluidRow(
+              column(4, numericInput(ns("line_size"), "线条大小", value = 0.6, min = 0.1, max = 5, step = 0.1)),
+              column(4, selectInput(ns("line_type"), "线条类型",
+                                    choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted",
+                                                "点虚线" = "dotdash", "长虚线" = "longdash"))),
+              column(4, numericInput(ns("point_size"), "点大小", value = 1, min = 0.5, max = 5, step = 0.1))
+            )
           ),
-          column(6,
-                 textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%")
-          )
-        ),
-        fluidRow(
-          column(4,
-                 numericInput(ns("line_size"), "线条大小", value = 0.6, min = 0.1, max = 5, step = 0.1)
-          ),
-          column(4,
-                 selectInput(ns("line_type"), "线条类型",
-                           choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted",
-                                      "点虚线" = "dotdash", "长虚线" = "longdash"))
-          ),
-          column(4,
-                 numericInput(ns("point_size"), "点大小", value = 1, min = 0.5, max = 5, step = 0.1)
+          tabPanel(
+            "输出与导出",
+            br(),
+            graphics_primary_action_button_ui(ns, "render_plot", "生成图形", "chart-line"),
+            graphics_export_size_controls_ui(ns, download_id = "dl_plot", include_size_mode = FALSE)
           )
         )
       )
     ),
-    
-    # 箱线图输出
     fluidRow(
       box(
         width = 12,
         title = "箱线图输出",
         status = "info",
         solidHeader = TRUE,
-        sidebarLayout(
-          sidebarPanel(
-            width = 3,
-            actionButton(ns("render_plot"), "生成图形", icon = icon("chart-line"),
-                       class = "btn btn-primary"),
-            br(), br(),
-            # 导出格式选择
-            selectInput(ns("export_format"), "导出格式",
-                       choices = c("PDF" = "pdf", "PNG" = "png", "SVG" = "svg"),
-                       selected = "pdf"),
-            br(),
-            downloadButton(ns("dl_plot"), "导出图形")
-          ),
-          mainPanel(
-            width = 9,
-            tabsetPanel(
-              id = ns("output_tabs"),
-              tabPanel("静态图", plotOutput(ns("static_plot"), height = "600px")),
-              tabPanel("交互式图", plotly::plotlyOutput(ns("interactive_plot"), height = "600px")),
-              tabPanel("数据表", DTOutput(ns("data_table")))
-            )
-          )
+        tabsetPanel(
+          id = ns("output_tabs"),
+          tabPanel("静态图", plotOutput(ns("static_plot"), height = "600px")),
+          tabPanel("交互式图", plotly::plotlyOutput(ns("interactive_plot"), height = "600px")),
+          tabPanel("数据表", DTOutput(ns("data_table")))
         )
       )
     )
@@ -117,8 +84,8 @@ boxplot_server <- function(input, output, session, data) {
     req(data())
     
     # 获取分类变量和数值变量列表
-    categorical_vars <- names(data())[sapply(data(), function(x) is.factor(x) || is.character(x))]
-    numeric_vars <- names(data())[sapply(data(), is.numeric)]
+    categorical_vars <- get_categorical_vars(data(), include_logical = FALSE)
+    numeric_vars <- get_numeric_vars(data())
     
     # 更新X轴变量选择（分类变量）
     updateSelectizeInput(session, "boxplot_x", choices = categorical_vars, selected = graphics_state$boxplot_x)
@@ -161,28 +128,28 @@ boxplot_server <- function(input, output, session, data) {
     tryCatch({
       p <- create_boxplot()
       final_plot(p)
-      showNotification("箱线图生成完成", type = "message")
+      graphics_notify_success("箱线图")
     }, error = function(e) {
-      showNotification(paste("箱线图生成错误:", e$message), type = "error")
+      graphics_notify_error("箱线图", e)
       final_plot(NULL)
     })
   })
   
   # 显示静态图
   output$static_plot <- renderPlot({
-    req(final_plot())
+    validate(need(!is.null(final_plot()), "请先选择变量并点击“生成图形”。"))
     final_plot()
   }, height = 600)
   
   # 显示交互式图
   output$interactive_plot <- plotly::renderPlotly({
-    req(final_plot())
+    validate(need(!is.null(final_plot()), "请先生成箱线图，再查看交互式图。"))
     ggplotly(final_plot(), height = 600)
   })
   
   # 显示数据表
   output$data_table <- renderDT({
-    req(data())
+    validate(need(!is.null(data()) && nrow(data()) > 0, "当前无可展示的数据。"))
     datatable(data(), options = list(pageLength = 10, scrollX = TRUE))
   })
   
@@ -198,7 +165,7 @@ boxplot_server <- function(input, output, session, data) {
         format = input$export_format,
         width = 10,
         height = 8,
-        dpi = 300
+        dpi = if (is.null(input$export_dpi)) 300 else input$export_dpi
       )
     }
   )

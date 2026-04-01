@@ -12,175 +12,172 @@ survival_analysis_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
-    # 参数配置区域 - 顶部（横向双卡片布局）
     fluidRow(
-      box(
-        width = 12,
+      graphics_config_tabs_box(
+        id = id,
         title = "生存分析参数配置",
-        status = "primary",
-        solidHeader = TRUE,
-        collapsible = TRUE,
         collapsed = FALSE,
-        fluidRow(
-          # 左侧：数据与变量选择
-          column(6,
-            wellPanel(
-              style = "height: 700px; overflow-y: auto;",
-              h4("数据与变量选择", style = "color: #007bff; margin-top: 0;"),
-              
-              # 核心变量选择
-              tags$div(class = "panel panel-default",
-                tags$div(class = "panel-heading", "核心变量"),
-                tags$div(class = "panel-body",
-                  selectizeInput(ns("km_time"), "时间变量 (数值型)", choices = NULL, width = "100%"),
-                  selectizeInput(ns("km_status"), "状态变量 (数值型)", choices = NULL, width = "100%"),
-                  
-                  fluidRow(
-                    column(6, selectizeInput(ns("strata_var"), "分层变量 (分组)", choices = c("无" = "None"), width = "100%")),
-                    column(6, selectizeInput(ns("facet_var"), "分面变量 (分组)", choices = c("无" = "None"), width = "100%"))
-                  ),
-                  
-                  # 动态UI区域：参考组和分面值
-                  conditionalPanel(
-                    condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
-                    uiOutput(ns("hr_reference_ui"))
-                  ),
-                  conditionalPanel(
-                    condition = paste0("input['", ns("facet_var"), "'] != 'None'"),
-                    uiOutput(ns("facet_value_ui"))
-                  )
-                )
+        tabs = list(
+          tabPanel(
+            "数据映射",
+            br(),
+            fluidRow(
+              column(
+                6,
+                tags$div(class = "panel panel-default",
+                         tags$div(class = "panel-heading", "数据映射"),
+                         tags$div(class = "panel-body",
+                                  selectizeInput(ns("km_time"), "时间变量 (数值型)", choices = NULL, width = "100%"),
+                                  selectizeInput(ns("km_status"), "状态变量 (数值型)", choices = NULL, width = "100%"),
+                                  fluidRow(
+                                    column(6, selectizeInput(ns("strata_var"), "分层变量 (分组)", choices = c("无" = "None"), width = "100%")),
+                                    column(6, selectizeInput(ns("facet_var"), "分面变量 (分组)", choices = c("无" = "None"), width = "100%"))
+                                  ),
+                                  conditionalPanel(
+                                    condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
+                                    uiOutput(ns("hr_reference_ui"))
+                                  ),
+                                  conditionalPanel(
+                                    condition = paste0("input['", ns("facet_var"), "'] != 'None'"),
+                                    uiOutput(ns("facet_value_ui"))
+                                  )))
               ),
-              
-              # 数据处理设置
-              tags$div(class = "panel panel-default",
-                tags$div(class = "panel-heading", "数据处理设置"),
-                tags$div(class = "panel-body",
-                  radioButtons(ns("km_censor_value"), "删失值定义",
-                             choices = c("0 = 删失, 1 = 事件" = "0", "1 = 删失, 0 = 事件" = "1"),
-                             selected = "0", inline = TRUE),
-                  hr(),
-                  uiOutput(ns("time_range_slider")),
-                  numericInput(ns("time_step"), "时间轴步长", value = NULL, min = 1, max = 1000, step = 1, width = "100%")
-                )
+              column(
+                6,
+                tags$div(class = "panel panel-default",
+                         tags$div(class = "panel-heading", "处理与筛选"),
+                         tags$div(class = "panel-body",
+                                  radioButtons(ns("km_censor_value"), "删失值定义",
+                                               choices = c("0 = 删失, 1 = 事件" = "0", "1 = 删失, 0 = 事件" = "1"),
+                                               selected = "0", inline = TRUE),
+                                  hr(),
+                                  uiOutput(ns("time_range_slider")),
+                                  numericInput(ns("time_step"), "时间轴步长", value = NULL, min = 1, max = 1000, step = 1, width = "100%")))
               )
             )
           ),
-          
-          # 右侧：图形与样式设置
-          column(6,
-            wellPanel(
-              style = "height: 700px; overflow-y: auto;",
-              h4("图形与样式设置", style = "color: #007bff; margin-top: 0;"),
-              
-              tabsetPanel(
-                # Tab 1: 基本设置
-                tabPanel("基本设置",
-                   br(),
-                   actionButton(ns("render_km_plot"), "生成图形", icon = icon("chart-line"),
-                         class = "btn-primary btn-block", style = "font-weight: bold; margin-bottom: 15px;"),
-                   
-                   fluidRow(
-                     column(6, numericInput(ns("line_size"), "线条粗细", value = 0.6, min = 0.1, max = 5, step = 0.1, width = "100%")),
-                     column(6, selectInput(ns("line_type"), "线条类型",
-                           choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted",
-                                      "点虚线" = "dotdash", "长虚线" = "longdash"), width = "100%"))
-                   ),
-                   
-                   checkboxInput(ns("km_show_censor"), "显示删失符号", value = TRUE),
-                   conditionalPanel(
-                     condition = paste0("input['", ns("km_show_censor"), "'] == true"),
-                     fluidRow(
-                       column(6, numericInput(ns("km_censor_size"), "删失点大小", value = 2, min = 1, max = 10, step = 0.5, width = "100%")),
-                       column(6, selectInput(ns("km_censor_shape"), "删失点形状",
-                             choices = c("+" = 3, "I" = 124, "□" = 0, "○" = 1, "△" = 2, "◇" = 5, "☆" = 8),
-                             selected = 3, width = "100%"))
-                     )
-                   ),
-                   
-                   checkboxInput(ns("km_show_risktable"), "显示风险表", value = TRUE),
-                   checkboxInput(ns("show_grid"), "显示网格线", value = FALSE)
-                ),
-                
-                # Tab 2: 统计与标注
-                tabPanel("统计与标注",
-                   br(),
-                   checkboxInput(ns("show_median"), "显示中位生存时间", value = TRUE),
-                   checkboxInput(ns("show_stats"), "显示统计量(P值/HR)", value = TRUE),
-                   
-                   hr(),
-                   selectInput(ns("text_position_preset"), "统计文本位置预设",
-                             choices = c("自动（默认）" = "auto",
-                                         "左上" = "top-left",
-                                         "右上" = "top-right",
-                                         "左下" = "bottom-left",
-                                         "右下" = "bottom-right",
-                                         "自定义" = "custom"),
-                             selected = "bottom-left", width = "100%"),
-                             
-                   conditionalPanel(
-                      condition = paste0("input['", ns("text_position_preset"), "'] == 'custom'"),
-                      h5("自定义坐标 (0-1相对位置)"),
-                      fluidRow(
-                        column(6, numericInput(ns("median_x"), "中位生存X", value = 0.98, min = 0, max = 1, step = 0.01, width = "100%")),
-                        column(6, numericInput(ns("median_y"), "中位生存Y", value = 0.95, min = 0, max = 1, step = 0.01, width = "100%"))
-                      ),
-                      fluidRow(
-                        column(6, numericInput(ns("stats_x"), "统计量X", value = 0.02, min = 0, max = 1, step = 0.01, width = "100%")),
-                        column(6, numericInput(ns("stats_y"), "统计量Y", value = 0.95, min = 0, max = 1, step = 0.01, width = "100%"))
-                      )
-                   )
-                ),
-                
-                # Tab 3: 文本与标签
-                tabPanel("文本与标签",
-                   br(),
-                   textInput(ns("plot_title"), "主标题", value = "", placeholder = "输入标题", width = "100%"),
-                   fluidRow(
-                     column(6, numericInput(ns("title_size"), "标题大小", value = 14, min = 8, max = 24, step = 1, width = "100%")),
-                     column(6, numericInput(ns("caption_size"), "脚注大小", value = 10, min = 8, max = 20, step = 1, width = "100%"))
-                   ),
-                   textInput(ns("plot_caption"), "脚注", value = "", placeholder = "输入脚注", width = "100%"),
-                   
-                   hr(),
-                   fluidRow(
-                     column(6, textInput(ns("plot_xlab"), "X轴标签", value = "", width = "100%")),
-                     column(6, numericInput(ns("xlab_size"), "X轴字号", value = 12, min = 8, max = 20, step = 1, width = "100%"))
-                   ),
-                   fluidRow(
-                     column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%")),
-                     column(6, numericInput(ns("ylab_size"), "Y轴字号", value = 12, min = 8, max = 20, step = 1, width = "100%"))
-                   ),
-                   fluidRow(
-                     column(4, numericInput(ns("axis_text_size"), "坐标刻度字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
-                     column(4, numericInput(ns("legend_text_size"), "图例文本字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
-                     column(4, numericInput(ns("stats_text_size"), "统计标注字号", value = 10, min = 6, max = 20, step = 1, width = "100%"))
-                   ),
-                   numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1, width = "100%"),
-                   
-                   hr(),
-                   fluidRow(
-                     column(6, selectInput(ns("legend_position"), "图例位置",
-                             choices = c("top-right", "top", "top-left", "left", "right", "bottom-left", "bottom", "bottom-right", "none"),
-                             selected = "top-right", width = "100%")),
-                     column(6, textInput(ns("legend_title"), "图例标题", value = "", placeholder = "默认", width = "100%"))
-                   )
-                ),
-                
-                # Tab 4: 分层标签
-                tabPanel("分层标签",
-                   br(),
-                   conditionalPanel(
-                      condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
-                      uiOutput(ns("strata_labels_ui"))
-                   ),
-                   conditionalPanel(
-                      condition = paste0("input['", ns("strata_var"), "'] == 'None'"),
-                      textInput(ns("overall_group_label"), "总体分组标签(at risk表)", value = "all", width = "100%"),
-                      helpText("未分层时用于风险表显示的总体标签")
-                   )
-                )
+          tabPanel(
+            "分析参数",
+            br(),
+            fluidRow(
+              column(
+                6,
+                tags$div(class = "panel panel-default",
+                         tags$div(class = "panel-heading", "曲线与风险表"),
+                         tags$div(class = "panel-body",
+                                  fluidRow(
+                                    column(6, numericInput(ns("line_size"), "线条粗细", value = 0.6, min = 0.1, max = 5, step = 0.1, width = "100%")),
+                                    column(6, selectInput(ns("line_type"), "线条类型",
+                                                          choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted",
+                                                                      "点虚线" = "dotdash", "长虚线" = "longdash"), width = "100%"))
+                                  ),
+                                  checkboxInput(ns("km_show_censor"), "显示删失符号", value = TRUE),
+                                  conditionalPanel(
+                                    condition = paste0("input['", ns("km_show_censor"), "'] == true"),
+                                    fluidRow(
+                                      column(6, numericInput(ns("km_censor_size"), "删失点大小", value = 2, min = 1, max = 10, step = 0.5, width = "100%")),
+                                      column(6, selectInput(ns("km_censor_shape"), "删失点形状",
+                                                            choices = c("+" = 3, "I" = 124, "□" = 0, "○" = 1, "△" = 2, "◇" = 5, "☆" = 8),
+                                                            selected = 3, width = "100%"))
+                                    )
+                                  ),
+                                  checkboxInput(ns("km_show_risktable"), "显示风险表", value = TRUE),
+                                  checkboxInput(ns("show_grid"), "显示网格线", value = FALSE)))
+              ),
+              column(
+                6,
+                tags$div(class = "panel panel-default",
+                         tags$div(class = "panel-heading", "统计标注"),
+                         tags$div(class = "panel-body",
+                                  checkboxInput(ns("show_median"), "显示中位生存时间", value = TRUE),
+                                  checkboxInput(ns("show_stats"), "显示统计量(P值/HR)", value = TRUE),
+                                  selectInput(ns("text_position_preset"), "统计文本位置预设",
+                                              choices = c("自动（默认）" = "auto",
+                                                          "左上" = "top-left",
+                                                          "右上" = "top-right",
+                                                          "左下" = "bottom-left",
+                                                          "右下" = "bottom-right",
+                                                          "自定义" = "custom"),
+                                              selected = "bottom-left", width = "100%"),
+                                  conditionalPanel(
+                                    condition = paste0("input['", ns("text_position_preset"), "'] == 'custom'"),
+                                    h5("自定义坐标 (0-1相对位置)"),
+                                    fluidRow(
+                                      column(6, numericInput(ns("median_x"), "中位生存X", value = 0.98, min = 0, max = 1, step = 0.01, width = "100%")),
+                                      column(6, numericInput(ns("median_y"), "中位生存Y", value = 0.95, min = 0, max = 1, step = 0.01, width = "100%"))
+                                    ),
+                                    fluidRow(
+                                      column(6, numericInput(ns("stats_x"), "统计量X", value = 0.02, min = 0, max = 1, step = 0.01, width = "100%")),
+                                      column(6, numericInput(ns("stats_y"), "统计量Y", value = 0.95, min = 0, max = 1, step = 0.01, width = "100%"))
+                                    )
+                                  )))
               )
+            )
+          ),
+          tabPanel(
+            "样式主题",
+            br(),
+            fluidRow(
+              column(
+                6,
+                tags$div(class = "panel panel-default",
+                         tags$div(class = "panel-heading", "标题与坐标轴"),
+                         tags$div(class = "panel-body",
+                                  textInput(ns("plot_title"), "主标题", value = "", placeholder = "输入标题", width = "100%"),
+                                  fluidRow(
+                                    column(6, numericInput(ns("title_size"), "标题大小", value = 14, min = 8, max = 24, step = 1, width = "100%")),
+                                    column(6, numericInput(ns("caption_size"), "脚注大小", value = 10, min = 8, max = 20, step = 1, width = "100%"))
+                                  ),
+                                  textInput(ns("plot_caption"), "脚注", value = "", placeholder = "输入脚注", width = "100%"),
+                                  fluidRow(
+                                    column(6, textInput(ns("plot_xlab"), "X轴标签", value = "", width = "100%")),
+                                    column(6, numericInput(ns("xlab_size"), "X轴字号", value = 12, min = 8, max = 20, step = 1, width = "100%"))
+                                  ),
+                                  fluidRow(
+                                    column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%")),
+                                    column(6, numericInput(ns("ylab_size"), "Y轴字号", value = 12, min = 8, max = 20, step = 1, width = "100%"))
+                                  )))
+              ),
+              column(
+                6,
+                tags$div(class = "panel panel-default",
+                         tags$div(class = "panel-heading", "图例与文字"),
+                         tags$div(class = "panel-body",
+                                  fluidRow(
+                                    column(4, numericInput(ns("axis_text_size"), "坐标刻度字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+                                    column(4, numericInput(ns("legend_text_size"), "图例文本字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+                                    column(4, numericInput(ns("stats_text_size"), "统计标注字号", value = 10, min = 6, max = 20, step = 1, width = "100%"))
+                                  ),
+                                  numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1, width = "100%"),
+                                  fluidRow(
+                                    column(6, selectInput(ns("legend_position"), "图例位置",
+                                                          choices = c("top-right", "top", "top-left", "left", "right", "bottom-left", "bottom", "bottom-right", "none"),
+                                                          selected = "top-right", width = "100%")),
+                                    column(6, textInput(ns("legend_title"), "图例标题", value = "", placeholder = "默认", width = "100%"))
+                                  )))
+              )
+            )
+          ),
+          tabPanel(
+            "输出与导出",
+            br(),
+            fluidRow(
+              column(6,
+                     selectInput(ns("export_format"), "导出格式",
+                                 choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"),
+                                 selected = "pdf", width = "100%")),
+              column(6,
+                     numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%"))
+            ),
+            hr(),
+            conditionalPanel(
+              condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
+              uiOutput(ns("strata_labels_ui"))
+            ),
+            conditionalPanel(
+              condition = paste0("input['", ns("strata_var"), "'] == 'None'"),
+              textInput(ns("overall_group_label"), "总体分组标签(at risk表)", value = "all", width = "100%"),
+              helpText("未分层时用于风险表显示的总体标签")
             )
           )
         )
@@ -194,20 +191,9 @@ survival_analysis_ui <- function(id) {
         title = "生存曲线输出",
         status = "success",
         solidHeader = TRUE,
-        
-        # 顶部工具栏
         fluidRow(
-          column(12,
-            div(style = "display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;",
-               div(style = "margin-right: 10px; width: 150px;",
-                   selectInput(ns("export_format"), NULL, choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "pdf", width = "100%")
-               ),
-               div(style = "margin-right: 10px; width: 130px;",
-                   numericInput(ns("export_dpi"), NULL, value = 600, min = 72, max = 1200, step = 10, width = "100%")
-               ),
-               downloadButton(ns("download_plot"), "下载图形", class = "btn-primary")
-            )
-          )
+          column(6, div(style = "text-align: left; margin-bottom: 10px;", actionButton(ns("render_km_plot"), "生成图形", class = "btn-primary"))),
+          column(6, div(style = "text-align: right; margin-bottom: 10px;", downloadButton(ns("download_plot"), "下载图形", class = "btn-primary")))
         ),
         
         tabsetPanel(
@@ -218,7 +204,9 @@ survival_analysis_ui <- function(id) {
           ),
           tabPanel("交互式图", 
             div(style = "height: 10px;"),
-            plotly::plotlyOutput(ns("interactiveSurvPlot"), height = "600px")
+            plotly::plotlyOutput(ns("interactiveSurvPlot"), height = "600px"),
+            div(style = "height: 10px;"),
+            DTOutput(ns("interactive_risk_table"))
           ),
           tabPanel("数据表", 
             div(style = "height: 10px;"),
@@ -305,8 +293,8 @@ survival_analysis_server <- function(input, output, session, data) {
     req(data())
     
     # 获取分类变量和数值变量列表
-    categorical_vars <- names(data())[sapply(data(), function(x) is.factor(x) || is.character(x) || is.logical(x))]
-    numeric_vars <- names(data())[sapply(data(), is.numeric)]
+    categorical_vars <- get_categorical_vars(data(), include_logical = TRUE)
+    numeric_vars <- get_numeric_vars(data())
     
     # 更新时间变量选择
     if(length(numeric_vars) > 0) {
@@ -341,7 +329,7 @@ survival_analysis_server <- function(input, output, session, data) {
     isolate({
       current_data <- data()
       if(!is.null(current_data) && nrow(current_data) > 0) {
-        numeric_vars <- names(current_data)[sapply(current_data, is.numeric)]
+        numeric_vars <- get_numeric_vars(current_data)
         if(length(numeric_vars) >= 2) {
           # 只有在当前状态为NULL时才设置默认值
           if(is.null(graphics_state$km_time)) {
@@ -372,7 +360,7 @@ survival_analysis_server <- function(input, output, session, data) {
     # 确保变量选择框已填充选项后设置默认选择
     current_data <- data()
     if(!is.null(current_data) && nrow(current_data) > 0 && is.null(input$km_time) && is.null(graphics_state$km_time)) {
-      numeric_vars <- names(current_data)[sapply(current_data, is.numeric)]
+      numeric_vars <- get_numeric_vars(current_data)
       if(length(numeric_vars) >= 1) {
         updateSelectizeInput(session, "km_time", selected = numeric_vars[1])
         graphics_state$km_time <- numeric_vars[1]
@@ -390,7 +378,7 @@ survival_analysis_server <- function(input, output, session, data) {
     isolate({
       current_data <- data()
       if(!is.null(current_data) && nrow(current_data) > 0) {
-        numeric_vars <- names(current_data)[sapply(current_data, is.numeric)]
+        numeric_vars <- get_numeric_vars(current_data)
         if(length(numeric_vars) >= 2) {
           # 设置默认选择并更新状态
           if(is.null(graphics_state$km_time)) {
@@ -1217,7 +1205,7 @@ survival_analysis_server <- function(input, output, session, data) {
   
   # 生成生存曲线图
   output$survPlot <- renderPlot({
-    req(fit())
+    validate(need(!is.null(fit()), "请先完成变量设置并点击“生成图形”。"))
     create_surv_plot()
   }, height = 600)
   
@@ -1357,7 +1345,7 @@ survival_analysis_server <- function(input, output, session, data) {
   
     # 交互式生存曲线图
   output$interactiveSurvPlot <- renderPlotly({
-    req(fit(), filtered_data())
+    validate(need(!is.null(fit()) && !is.null(filtered_data()) && nrow(filtered_data()) > 0, "请先生成生存曲线后查看交互式图。"))
     
     # 创建专门的交互式图形
     interactive_plot <- create_interactive_surv_plot()
@@ -1373,58 +1361,70 @@ survival_analysis_server <- function(input, output, session, data) {
     
     return(plotly_obj)
   })
+
+  build_km_summary_df <- function(fit_obj, time_range = NULL) {
+    surv_summary <- summary(fit_obj, censored = TRUE)
+    if (is.null(surv_summary$time) || length(surv_summary$time) == 0) return(NULL)
+    surv_df <- data.frame(
+      时间 = surv_summary$time,
+      组别 = if (!is.null(surv_summary$strata)) as.character(surv_summary$strata) else "all",
+      风险人数 = surv_summary$n.risk,
+      事件数 = surv_summary$n.event,
+      删失数 = surv_summary$n.censor,
+      生存概率 = round(surv_summary$surv, 4),
+      置信区间下限 = round(surv_summary$lower, 4),
+      置信区间上限 = round(surv_summary$upper, 4),
+      check.names = FALSE
+    )
+    if (!is.null(time_range) && length(time_range) == 2) {
+      surv_df <- surv_df[surv_df$时间 >= min(time_range) & surv_df$时间 <= max(time_range), , drop = FALSE]
+    }
+    surv_df
+  }
+
+  output$interactive_risk_table <- renderDT({
+    validate(need(!is.null(fit()), "请先生成生存曲线后查看风险表。"))
+    surv_df <- build_km_summary_df(fit(), input$time_range)
+    validate(need(!is.null(surv_df) && nrow(surv_df) > 0, "当前时间范围内无风险表数据。"))
+    DT::datatable(
+      surv_df,
+      options = list(
+        pageLength = 8,
+        scrollX = TRUE,
+        order = list(list(1, "asc"), list(0, "asc")),
+        columnDefs = list(list(className = "dt-center", targets = 0:7))
+      )
+    )
+  })
   
   # 生存分析数据表
   output$km_data_table <- renderDT({
-    req(fit())
+    validate(need(!is.null(fit()), "请先生成生存曲线后查看数据表。"))
     
     # 获取生存分析结果数据
     tryCatch({
-      surv_summary <- summary(fit(), censored = TRUE)
-      
-      # 创建生存分析结果表格
-      if (!is.null(surv_summary$time)) {
-        # 提取生存分析结果
-        time_points <- surv_summary$time
-        n_risk <- surv_summary$n.risk
-        n_event <- surv_summary$n.event
-        n_censor <- surv_summary$n.censor
-        surv_prob <- surv_summary$surv
-        lower_ci <- surv_summary$lower
-        upper_ci <- surv_summary$upper
+      surv_df <- build_km_summary_df(fit())
+      if (!is.null(surv_df)) {
         
-        # 创建结果数据框
-        surv_df <- data.frame(
-          时间 = time_points,
-          "风险人数" = n_risk,
-          "事件数" = n_event,
-          "删失数" = n_censor,
-          "生存概率" = round(surv_prob, 4),
-          "置信区间下限" = round(lower_ci, 4),
-          "置信区间上限" = round(upper_ci, 4)
-        )
-        
-        # 为表格添加格式
         DT::datatable(surv_df, options = list(
           pageLength = 10,
           scrollX = TRUE,
           columnDefs = list(
-            list(className = 'dt-center', targets = 0:6)
+            list(className = 'dt-center', targets = 0:7)
           )
         )) %>%
           formatRound(columns = c("生存概率", "置信区间下限", "置信区间上限"), digits = 4)
       } else {
-        # 如果无法获取生存分析结果，显示提示信息
         data.frame(错误 = "无法生成生存分析数据表", 信息 = "请检查输入数据")
       }
     }, error = function(e) {
-      # 如果出现错误，返回错误信息
       data.frame(错误 = "生成数据表时出错", 信息 = e$message)
     })
   })
   
   output$survival_report <- renderUI({
-    req(fit(), filtered_data(), input$km_time, input$km_status)
+    validate(need(!is.null(fit()) && !is.null(filtered_data()) && nrow(filtered_data()) > 0, "请先生成生存曲线后查看统计报告。"))
+    validate(need(!is.null(input$km_time) && !is.null(input$km_status), "请先选择时间与状态变量。"))
     data_local <- filtered_data()
     fit_local <- fit()
     

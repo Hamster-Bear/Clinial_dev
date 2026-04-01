@@ -11,95 +11,61 @@ correlation_matrix_ui <- function(id) {
   
   tagList(
     fluidRow(
-      box(
-        width = 12,
+      graphics_config_tabs_box(
+        id = id,
         title = "相关性矩阵参数配置",
-        status = "primary",
-        solidHeader = TRUE,
-        fluidRow(
-          column(8,
-                 selectizeInput(ns("correlation_vars"), "选择数值变量", 
-                              choices = NULL, multiple = TRUE)
-          ),
-          column(4,
-                 selectizeInput(ns("correlation_method"), "相关方法",
-                              choices = c("pearson", "spearman", "kendall"),
-                              selected = "pearson")
-          )
-        ),
-        helpText("相关性矩阵显示变量间的相关系数")
-      )
-    ),
-    
-    # 高级美学设置
-    fluidRow(
-      box(
-        width = 12,
-        title = "高级美学设置",
-        status = "primary",
-        collapsible = TRUE,
         collapsed = TRUE,
-        fluidRow(
-          column(6,
-                 textInput(ns("plot_title"), "主标题", value = "", width = "100%")
+        tabs = list(
+          tabPanel(
+            "数据映射",
+            br(),
+            fluidRow(
+              column(8, selectizeInput(ns("correlation_vars"), "选择数值变量", choices = NULL, multiple = TRUE)),
+              column(4, selectizeInput(ns("correlation_method"), "相关方法",
+                                       choices = c("pearson", "spearman", "kendall"),
+                                       selected = "pearson"))
+            ),
+            helpText("相关性矩阵显示变量间的相关系数")
           ),
-          column(6,
-                 selectInput(ns("color_palette"), "颜色方案",
-                           choices = c("蓝白红" = "blue_white_red", "彩虹" = "rainbow", 
-                                      "热力图" = "heat", "冷色调" = "cool"))
-          )
-        ),
-        fluidRow(
-          column(6,
-                 textInput(ns("plot_xlab"), "X轴标签", value = "", width = "100%")
+          tabPanel(
+            "样式主题",
+            br(),
+            fluidRow(
+              column(6, textInput(ns("plot_title"), "主标题", value = "", width = "100%")),
+              column(6, selectInput(ns("color_palette"), "颜色方案",
+                                    choices = c("蓝白红" = "blue_white_red", "彩虹" = "rainbow",
+                                                "热力图" = "heat", "冷色调" = "cool")))
+            ),
+            fluidRow(
+              column(6, textInput(ns("plot_xlab"), "X轴标签", value = "", width = "100%")),
+              column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%"))
+            ),
+            fluidRow(
+              column(4, numericInput(ns("text_size"), "文本大小", value = 10, min = 6, max = 20, step = 1)),
+              column(4, numericInput(ns("tile_size"), "格子大小", value = 1, min = 0.5, max = 3, step = 0.1)),
+              column(4, checkboxInput(ns("show_values"), "显示数值", value = TRUE))
+            )
           ),
-          column(6,
-                 textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%")
-          )
-        ),
-        fluidRow(
-          column(4,
-                 numericInput(ns("text_size"), "文本大小", value = 10, min = 6, max = 20, step = 1)
-          ),
-          column(4,
-                 numericInput(ns("tile_size"), "格子大小", value = 1, min = 0.5, max = 3, step = 0.1)
-          ),
-          column(4,
-                 checkboxInput(ns("show_values"), "显示数值", value = TRUE)
+          tabPanel(
+            "输出与导出",
+            br(),
+            graphics_primary_action_button_ui(ns, "render_plot", "生成图形", "chart-line"),
+            graphics_export_size_controls_ui(ns, download_id = "dl_plot", include_size_mode = FALSE)
           )
         )
       )
     ),
-    
-    # 相关性矩阵输出
     fluidRow(
       box(
         width = 12,
         title = "相关性矩阵输出",
         status = "success",
         solidHeader = TRUE,
-        sidebarLayout(
-          sidebarPanel(
-            width = 3,
-            actionButton(ns("render_plot"), "生成图形", icon = icon("chart-line"),
-                       class = "btn btn-primary"),
-            br(), br(),
-            # 导出格式选择
-            selectInput(ns("export_format"), "导出格式",
-                       choices = c("PDF" = "pdf", "PNG" = "png", "SVG" = "svg"),
-                       selected = "pdf"),
-            br(),
-            downloadButton(ns("dl_plot"), "导出图形")
-          ),
-          mainPanel(
-            width = 9,
-            tabsetPanel(
-              id = ns("output_tabs"),
-              tabPanel("静态图", plotOutput(ns("static_plot"), height = "600px")),
-              tabPanel("交互式图", plotly::plotlyOutput(ns("interactive_plot"), height = "600px")),
-              tabPanel("数据表", DTOutput(ns("data_table")))
-            )
-          )
+        tabsetPanel(
+          id = ns("output_tabs"),
+          tabPanel("静态图", plotOutput(ns("static_plot"), height = "600px")),
+          tabPanel("交互式图", plotly::plotlyOutput(ns("interactive_plot"), height = "600px")),
+          tabPanel("数据表", DTOutput(ns("data_table")))
         )
       )
     )
@@ -183,28 +149,30 @@ correlation_matrix_server <- function(input, output, session, data) {
     tryCatch({
       p <- create_correlation_plot()
       final_plot(p)
-      showNotification("相关性矩阵生成完成", type = "message")
+      graphics_notify_success("相关性矩阵")
     }, error = function(e) {
-      showNotification(paste("相关性矩阵生成错误:", e$message), type = "error")
+      graphics_notify_error("相关性矩阵", e)
       final_plot(NULL)
     })
   })
   
   # 显示静态图
   output$static_plot <- renderPlot({
-    req(final_plot())
+    validate(need(!is.null(final_plot()), "请先选择变量并点击“生成图形”。"))
     final_plot()
   }, height = 600)
   
   # 显示交互式图
   output$interactive_plot <- plotly::renderPlotly({
-    req(final_plot())
+    validate(need(!is.null(final_plot()), "请先生成相关性矩阵，再查看交互式图。"))
     ggplotly(final_plot(), height = 600)
   })
   
   # 显示数据表
   output$data_table <- renderDT({
-    req(data(), input$correlation_vars, input$correlation_method)
+    validate(need(!is.null(data()) && nrow(data()) > 0, "当前无可展示的数据。"))
+    validate(need(!is.null(input$correlation_vars) && length(input$correlation_vars) > 0, "请先选择数值变量。"))
+    validate(need(!is.null(input$correlation_method) && nzchar(input$correlation_method), "请先选择相关方法。"))
     
     if (!is.null(input$correlation_vars)) {
       # 计算相关性矩阵
@@ -235,7 +203,7 @@ correlation_matrix_server <- function(input, output, session, data) {
         format = input$export_format,
         width = 10,
         height = 8,
-        dpi = 300
+        dpi = if (is.null(input$export_dpi)) 300 else input$export_dpi
       )
     }
   )

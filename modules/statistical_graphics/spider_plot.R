@@ -15,7 +15,7 @@ spider_plot_ui <- function(id) {
         status = "primary",
         solidHeader = TRUE,
         collapsible = TRUE,
-        collapsed = FALSE,
+        collapsed = TRUE,
         fluidRow(
           column(
             6,
@@ -24,7 +24,7 @@ spider_plot_ui <- function(id) {
               h4("数据与变量设置", style = "color: #007bff; margin-top: 0;"),
               tags$div(
                 class = "panel panel-default",
-                tags$div(class = "panel-heading", "核心映射"),
+                tags$div(class = "panel-heading", "数据映射"),
                 tags$div(
                   class = "panel-body",
                   selectizeInput(
@@ -62,7 +62,7 @@ spider_plot_ui <- function(id) {
               ),
               tags$div(
                 class = "panel panel-default",
-                tags$div(class = "panel-heading", "临床参考线"),
+                tags$div(class = "panel-heading", "参考线与阈值"),
                 tags$div(
                   class = "panel-body",
                   checkboxInput(ns("show_recist"), "显示RECIST阈值线", TRUE),
@@ -83,7 +83,6 @@ spider_plot_ui <- function(id) {
                 tabPanel(
                   "文本与布局",
                   br(),
-                  actionButton(ns("render_plot"), "生成图形", icon = icon("project-diagram"), class = "btn-primary btn-block", style = "font-weight: bold; margin-bottom: 12px;"),
                   textInput(ns("plot_title"), "主标题", value = "蜘蛛图", width = "100%"),
                   textInput(ns("plot_subtitle"), "副标题", value = "", width = "100%"),
                   textAreaInput(ns("plot_caption"), "脚注", value = "", rows = 2, width = "100%"),
@@ -96,34 +95,92 @@ spider_plot_ui <- function(id) {
                 tabPanel(
                   "配色与比例",
                   br(),
-                  checkboxInput(ns("show_legend"), "显示图例", TRUE),
-                  selectInput(ns("legend_position"), "图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%"),
-                  checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
-                  selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
-                  selectInput(ns("line_linetype"), "线条样式", choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted", "点划线" = "dotdash", "长虚线" = "longdash"), selected = "solid", width = "100%"),
-                  checkboxInput(ns("show_points"), "显示测量点", FALSE),
-                  checkboxInput(ns("show_end_labels"), "显示末次标签", FALSE),
-                  checkboxInput(ns("add_baseline_zero"), "补充基线点(time=0, chg=0)", FALSE),
-                  selectInput(
-                    ns("time_unit"),
-                    "时间单位换算",
-                    choices = c("原始数值/天" = "day", "周" = "week", "月(30.44天)" = "month", "年(365.25天)" = "year"),
-                    selected = "day",
-                    width = "100%"
+                  fluidRow(
+                    column(
+                      6,
+                      tags$div(
+                        class = "panel panel-default",
+                        tags$div(class = "panel-heading", "显示与图例"),
+                        tags$div(
+                          class = "panel-body",
+                          checkboxInput(ns("show_legend"), "显示图例", TRUE),
+                          fluidRow(
+                            column(6, selectInput(ns("legend_position"), "图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%")),
+                            column(6, selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"))
+                          ),
+                          checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
+                          checkboxInput(ns("show_points"), "显示测量点", FALSE),
+                          checkboxInput(ns("show_end_labels"), "显示末次标签", FALSE),
+                          checkboxInput(ns("add_baseline_zero"), "补充基线点(time=0, chg=0)", FALSE),
+                          fluidRow(
+                            column(6, selectInput(
+                              ns("time_unit"),
+                              "时间单位换算",
+                              choices = c("原始数值/天" = "day", "周" = "week", "月(30.44天)" = "month", "年(365.25天)" = "year"),
+                              selected = "day",
+                              width = "100%"
+                            )),
+                            column(6, numericInput(ns("x_break_step"), "X轴刻度步长", value = 0, min = 0, step = 0.1, width = "100%"))
+                          ),
+                          fluidRow(
+                            column(6, numericInput(ns("y_breaks_n"), "Y轴刻度数量", value = 9, min = 4, max = 20, step = 1, width = "100%")),
+                            column(6, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%"))
+                          )
+                        )
+                      )
+                    ),
+                    column(
+                      6,
+                      tags$div(
+                        class = "panel panel-default",
+                        tags$div(class = "panel-heading", "坐标与配色"),
+                        tags$div(
+                          class = "panel-body",
+                          selectInput(
+                            ns("line_linetype"),
+                            "线条样式",
+                            choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted", "点划线" = "dotdash", "长虚线" = "longdash"),
+                            selected = "solid",
+                            width = "100%"
+                          ),
+                          selectInput(
+                            ns("line_palette"),
+                            "线条调色板",
+                            choices = c("默认Hue" = "hue", "Set1" = "Set1", "Set2" = "Set2", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"),
+                            selected = "Set1",
+                            width = "100%"
+                          ),
+                          fluidRow(
+                            column(6, sliderInput(ns("line_size"), "线宽", min = 0.4, max = 3, value = 0.9, step = 0.1, width = "100%")),
+                            column(6, sliderInput(ns("line_alpha"), "线条透明度", min = 0.2, max = 1, value = 0.8, step = 0.05, width = "100%"))
+                          ),
+                          sliderInput(ns("point_size"), "点大小", min = 0.5, max = 6, value = 1.8, step = 0.1, width = "100%")
+                        )
+                      )
+                    )
+                  )
+                ),
+                tabPanel(
+                  "输出与导出",
+                  br(),
+                  fluidRow(
+                    column(4, selectInput(ns("size_mode"), "尺寸模式", choices = c("宽图标准" = "wide_standard", "自定义尺寸" = "custom"), selected = "wide_standard", width = "100%")),
+                    column(4, selectInput(ns("export_format"), "导出格式", choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "pdf", width = "100%")),
+                    column(4, numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%"))
                   ),
-                  selectInput(
-                    ns("line_palette"),
-                    "线条调色板",
-                    choices = c("默认Hue" = "hue", "Set1" = "Set1", "Set2" = "Set2", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"),
-                    selected = "Set1",
-                    width = "100%"
-                  ),
-                  sliderInput(ns("line_size"), "线宽", min = 0.4, max = 3, value = 0.9, step = 0.1, width = "100%"),
-                  sliderInput(ns("line_alpha"), "线条透明度", min = 0.2, max = 1, value = 0.8, step = 0.05, width = "100%"),
-                  numericInput(ns("x_break_step"), "X轴刻度步长(0为自动)", value = 0, min = 0, step = 0.1, width = "100%"),
-                  sliderInput(ns("point_size"), "点大小", min = 0.5, max = 6, value = 1.8, step = 0.1, width = "100%"),
-                  numericInput(ns("y_breaks_n"), "Y轴刻度数量", value = 9, min = 4, max = 20, step = 1, width = "100%"),
-                  numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%")
+                  conditionalPanel(
+                    condition = sprintf("input['%s'] === 'custom'", ns("size_mode")),
+                    fluidRow(
+                      column(3, numericInput(ns("static_width_px"), "静态图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
+                      column(3, numericInput(ns("static_height_px"), "静态图高度(px)", value = 760, min = 400, max = 1800, step = 20, width = "100%")),
+                      column(3, numericInput(ns("interactive_width_px"), "交互图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
+                      column(3, numericInput(ns("interactive_height_px"), "交互图高度(px)", value = 620, min = 350, max = 1600, step = 20, width = "100%"))
+                    ),
+                    fluidRow(
+                      column(3, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 13, min = 6, max = 30, step = 0.5, width = "100%")),
+                      column(3, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 9, min = 4, max = 24, step = 0.5, width = "100%"))
+                    )
+                  )
                 )
               )
             )
@@ -138,38 +195,8 @@ spider_plot_ui <- function(id) {
         status = "success",
         solidHeader = TRUE,
         fluidRow(
-          column(
-            12,
-            div(
-              style = "display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;",
-              div(
-                style = "margin-right: 10px; width: 180px;",
-                selectInput(ns("size_mode"), NULL, choices = c("宽图标准" = "wide_standard", "自定义尺寸" = "custom"), selected = "wide_standard", width = "100%")
-              ),
-              div(
-                style = "margin-right: 10px; width: 150px;",
-                selectInput(ns("export_format"), NULL, choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "pdf", width = "100%")
-              ),
-              div(
-                style = "margin-right: 10px; width: 130px;",
-                numericInput(ns("export_dpi"), NULL, value = 600, min = 72, max = 1200, step = 10, width = "100%")
-              ),
-              downloadButton(ns("dl_plot"), "下载图形", class = "btn-primary")
-            )
-          )
-        ),
-        conditionalPanel(
-          condition = sprintf("input['%s'] === 'custom'", ns("size_mode")),
-          fluidRow(
-            column(3, numericInput(ns("static_width_px"), "静态图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
-            column(3, numericInput(ns("static_height_px"), "静态图高度(px)", value = 760, min = 400, max = 1800, step = 20, width = "100%")),
-            column(3, numericInput(ns("interactive_width_px"), "交互图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
-            column(3, numericInput(ns("interactive_height_px"), "交互图高度(px)", value = 620, min = 350, max = 1600, step = 20, width = "100%"))
-          ),
-          fluidRow(
-            column(3, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 13, min = 6, max = 30, step = 0.5, width = "100%")),
-            column(3, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 9, min = 4, max = 24, step = 0.5, width = "100%"))
-          )
+          column(6, div(style = "text-align: left; margin-bottom: 10px;", actionButton(ns("render_plot"), "生成图形", class = "btn-primary"))),
+          column(6, div(style = "text-align: right; margin-bottom: 10px;", downloadButton(ns("dl_plot"), "下载图形", class = "btn-primary")))
         ),
         tabsetPanel(
           id = ns("output_tabs"),
@@ -476,17 +503,17 @@ spider_plot_server <- function(input, output, session, data) {
       final_plot(p)
       main_plot_obj(p)
       prepared_data(plot_df)
-      showNotification("蜘蛛图生成完成", type = "message")
+      graphics_notify_success("蜘蛛图")
     }, error = function(e) {
       final_plot(NULL)
       main_plot_obj(NULL)
       prepared_data(NULL)
-      showNotification(paste("蜘蛛图生成错误:", e$message), type = "error")
+      graphics_notify_error("蜘蛛图", e)
     })
   })
 
   output$static_plot <- renderPlot({
-    req(final_plot())
+    validate(need(!is.null(final_plot()), "请先完成参数设置并点击“生成图形”。"))
     final_plot()
   }, width = function() {
     as.integer(size_config()$static_width)
@@ -495,13 +522,13 @@ spider_plot_server <- function(input, output, session, data) {
   })
 
   output$interactive_plot <- plotly::renderPlotly({
-    req(main_plot_obj())
+    validate(need(!is.null(main_plot_obj()), "请先生成蜘蛛图后查看交互式图。"))
     cfg <- size_config()
     ggplotly(main_plot_obj(), tooltip = "text", width = as.integer(cfg$interactive_width), height = as.integer(cfg$interactive_height))
   })
 
   output$data_table <- renderDT({
-    req(prepared_data())
+    validate(need(!is.null(prepared_data()) && nrow(prepared_data()) > 0, "当前无可展示的蜘蛛图数据。"))
     datatable(prepared_data(), options = list(pageLength = 15, scrollX = TRUE))
   })
 

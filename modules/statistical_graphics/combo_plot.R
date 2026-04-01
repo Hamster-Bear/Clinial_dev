@@ -27,7 +27,7 @@ combo_plot_ui <- function(id) {
         status = "primary",
         solidHeader = TRUE,
         collapsible = TRUE,
-        collapsed = FALSE,
+        collapsed = TRUE,
         fluidRow(
           # 左侧：核心变量与类型选择
           column(4,
@@ -37,10 +37,12 @@ combo_plot_ui <- function(id) {
               
               # 1. 变量选择
               tags$div(class = "panel panel-default",
-                tags$div(class = "panel-heading", "变量映射"),
+                tags$div(class = "panel-heading", "数据映射"),
                 tags$div(class = "panel-body",
-                  selectizeInput(ns("main_x_var"), "主X轴变量:", choices = NULL, width = "100%"),
-                  selectizeInput(ns("main_y_var"), "主Y轴变量:", choices = NULL, width = "100%"),
+                  fluidRow(
+                    column(6, selectizeInput(ns("main_x_var"), "主X轴变量:", choices = NULL, width = "100%")),
+                    column(6, selectizeInput(ns("main_y_var"), "主Y轴变量:", choices = NULL, width = "100%"))
+                  ),
                   fluidRow(
                     column(6, selectizeInput(ns("group_var"), "分组变量:", choices = c("无分组" = "none"), width = "100%")),
                     column(6, selectizeInput(ns("facet_var"), "分面变量:", choices = c("无分面" = "none"), width = "100%"))
@@ -50,7 +52,7 @@ combo_plot_ui <- function(id) {
               
               # 2. 图形类型选择
               tags$div(class = "panel panel-default",
-                tags$div(class = "panel-heading", "图形类型"),
+                tags$div(class = "panel-heading", "图形与样式"),
                 tags$div(class = "panel-body",
                   checkboxGroupInput(ns("plot_types"), "选择图形类型 (多选):",
                                    choices = c(
@@ -70,7 +72,7 @@ combo_plot_ui <- function(id) {
               
               # 3. 组合方式
               tags$div(class = "panel panel-default",
-                tags$div(class = "panel-heading", "组合布局"),
+                tags$div(class = "panel-heading", "布局与比例"),
                 tags$div(class = "panel-body",
                   radioButtons(ns("combo_method"), NULL,
                              choices = c(
@@ -79,6 +81,15 @@ combo_plot_ui <- function(id) {
                                "上下显示 (独立子图)" = "top_bottom"
                              ),
                              selected = "overlay")
+                )
+              ),
+              tags$div(class = "panel panel-default",
+                tags$div(class = "panel-heading", "输出与导出参数"),
+                tags$div(class = "panel-body",
+                  fluidRow(
+                    column(6, selectInput(ns("export_format"), "导出格式", choices = c("导出PNG" = "png", "导出PDF" = "pdf", "导出SVG" = "svg"), selected = "png", width = "100%")),
+                    column(6, numericInput(ns("export_dpi"), "导出DPI", value = 300, min = 72, max = 1200, step = 10, width = "100%"))
+                  )
                 )
               )
             )
@@ -108,15 +119,8 @@ combo_plot_ui <- function(id) {
         
         # 顶部工具栏
         fluidRow(
-          column(12,
-            div(style = "display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;",
-               actionButton(ns("generate_plot"), "生成图形", class = "btn-success", style = "margin-right: 10px;"),
-               div(style = "margin-right: 10px; width: 150px;",
-                   selectInput(ns("export_format"), NULL, choices = c("导出PNG" = "png", "导出PDF" = "pdf", "导出SVG" = "svg"), selected = "png", width = "100%")
-               ),
-               downloadButton(ns("download_plot"), "下载图形", class = "btn-primary")
-            )
-          )
+          column(6, div(style = "text-align: left; margin-bottom: 10px;", actionButton(ns("generate_plot"), "生成图形", class = "btn-primary"))),
+          column(6, div(style = "text-align: right; margin-bottom: 10px;", downloadButton(ns("download_plot"), "下载图形", class = "btn-primary")))
         ),
         
         # 图形显示区域
@@ -449,7 +453,7 @@ combo_plot_server <- function(input, output, session, data) {
         format = input$export_format,
         width = 12,
         height = 8,
-        dpi = 300
+        dpi = if (is.null(input$export_dpi)) 300 else input$export_dpi
       )
     }
   )
