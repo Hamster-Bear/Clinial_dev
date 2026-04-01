@@ -12,18 +12,36 @@ save_plot_export <- function(file, plot_obj, format, width = 10, height = 8, dpi
     stop(paste0("不支持的导出格式: ", export_format))
   }
 
+  device_fun <- switch(
+    export_format,
+    png = "png",
+    pdf = grDevices::cairo_pdf,
+    svg = if (requireNamespace("svglite", quietly = TRUE)) svglite::svglite else grDevices::svg,
+    export_format
+  )
+
   args <- list(
     filename = file,
     plot = plot_obj,
     width = width,
     height = height,
     bg = bg,
-    device = export_format
+    device = device_fun
   )
 
   if (export_format == "png") {
     args$dpi <- dpi
   }
 
-  do.call(ggsave, args)
+  tryCatch(
+    do.call(ggsave, args),
+    error = function(e) {
+      if (export_format == "pdf") {
+        args$device <- "pdf"
+        do.call(ggsave, args)
+      } else {
+        stop(e)
+      }
+    }
+  )
 }

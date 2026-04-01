@@ -25,6 +25,7 @@ generate_graphics_repro_code <- function(fig_type, state = list(), data_name = "
     "combo" = "组合图形",
     "waterfall" = "瀑布图",
     "swimmer" = "泳道图",
+    "spider" = "蜘蛛图",
     "图形分析"
   )
   base_steps <- list(
@@ -203,6 +204,28 @@ generate_graphics_repro_code <- function(fig_type, state = list(), data_name = "
           "lane_df$.lane <- seq_len(nrow(lane_df))",
           "p <- ggplot(lane_df) +",
           "  geom_segment(aes(y = .data$.lane, yend = .data$.lane, x = .data[[start_time]], xend = .data[[end_time]]), linewidth = 5, lineend = \"round\") +",
+          "  theme_minimal()",
+          "print(p)"
+        )
+      )
+    ),
+    "spider" = list(
+      list(
+        title = "Set spider plot parameters",
+        lines = c(
+          paste0("subject_id <- ", graphics_quote_value(state$subject_id)),
+          paste0("time_var <- ", graphics_quote_value(state$time_var)),
+          paste0("value_var <- ", graphics_quote_value(state$value_var)),
+          paste0("line_color_by <- ", graphics_quote_value(state$line_color_by)),
+          paste0("facet_var <- ", graphics_quote_value(state$facet_var))
+        )
+      ),
+      list(
+        title = "Draw spider plot",
+        lines = c(
+          "sp_df <- data %>% dplyr::arrange(.data[[subject_id]], .data[[time_var]])",
+          "p <- ggplot(sp_df, aes(x = .data[[time_var]], y = .data[[value_var]], group = .data[[subject_id]], color = if (!is.null(line_color_by)) .data[[gsub('^\"|\"$', '', line_color_by)]] else NULL)) +",
+          "  geom_line(alpha = 0.8) +",
           "  theme_minimal()",
           "print(p)"
         )

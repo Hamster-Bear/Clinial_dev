@@ -197,7 +197,7 @@ forest_plot_ui <- function(id) {
                   numericInput(ns("axis_label_size"), "轴标签字体大小",
                     min = 8, max = 16, value = 12, step = 1, width = "100%"),
                   textAreaInput(ns("plot_footer"), "图形脚注",
-                    value = "注：点大小反映研究权重，区间线表示95%置信区间。|参考线位于HR=1.0处。",
+                    value = "注: 点大小反映研究权重, 区间线表示95%置信区间. | 参考线位于HR=1.0处.",
                     placeholder = "输入图形脚注", rows = 3, width = "100%"),
                   numericInput(ns("footer_size"), "脚注字体大小",
                     min = 6, max = 14, value = 10, step = 1, width = "100%"),
@@ -224,8 +224,18 @@ forest_plot_ui <- function(id) {
                    div(style = "height: 10px;"),
                    uiOutput(ns("plot_ui")),
                    div(style = "height: 10px;"),
-                   downloadButton(ns("download_plot"), "下载图形",
-                                  class = "btn-primary pull-right")
+                   div(
+                     style = "display: flex; justify-content: flex-end; align-items: center;",
+                     div(
+                       style = "margin-right: 10px; width: 150px;",
+                       selectInput(ns("export_format"), NULL, choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "png", width = "100%")
+                     ),
+                     div(
+                       style = "margin-right: 10px; width: 130px;",
+                       numericInput(ns("export_dpi"), NULL, value = 600, min = 72, max = 1200, step = 10, width = "100%")
+                     ),
+                     downloadButton(ns("download_plot"), "下载图形", class = "btn-primary")
+                   )
           ),
           tabPanel("数据预览",
                    div(style = "height: 10px;"),
@@ -1204,7 +1214,7 @@ forest_plot_server <- function(input, output, session, data) {
         x = x_axis_label,
         y = NULL
       ) +
-      theme_minimal(base_size = 12) +
+      theme_minimal(base_size = 12, base_family = "sans") +
       theme(
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank(),
@@ -1366,13 +1376,13 @@ forest_plot_server <- function(input, output, session, data) {
           geom_text(data = header_row,
                     aes(x = x, y = y, label = label),
                     hjust = hjust_val, vjust = 0.5,
-                    fontface = "bold", size = header_font_size)
+                    fontface = "bold", size = header_font_size, family = "sans")
         
         # 添加列内容
         table_plot <- table_plot +
           geom_text(aes_string(x = adjusted_x_pos, y = "y_pos",
                                label = paste0("table_col_", i)),
-                    hjust = hjust_val, vjust = 0.5, size = table_font_size,
+                    hjust = hjust_val, vjust = 0.5, size = table_font_size, family = "sans",
                     lineheight = 0.8)
       }
       
@@ -1480,16 +1490,20 @@ forest_plot_server <- function(input, output, session, data) {
   # 下载图形
   output$download_plot <- downloadHandler(
     filename = function() {
-      build_plot_export_filename("forest_plot", "png", include_time = TRUE)
+      export_fmt <- if (is.null(input$export_format) || !nzchar(input$export_format)) "png" else input$export_format
+      build_plot_export_filename("forest_plot", export_fmt, include_time = TRUE)
     },
     content = function(file) {
+      export_fmt <- if (is.null(input$export_format) || !nzchar(input$export_format)) "png" else input$export_format
+      export_dpi <- suppressWarnings(as.numeric(input$export_dpi))
+      if (is.na(export_dpi) || !is.finite(export_dpi)) export_dpi <- 600
       save_plot_export(
         file = file,
         plot_obj = forest_plot_reactive(),
-        format = "png",
+        format = export_fmt,
         width = input$plot_width,
         height = input$plot_height,
-        dpi = 300,
+        dpi = export_dpi,
         bg = "white"
       )
     }

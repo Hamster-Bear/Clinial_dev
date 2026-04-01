@@ -176,7 +176,8 @@ survival_analysis_ui <- function(id) {
                    ),
                    conditionalPanel(
                       condition = paste0("input['", ns("strata_var"), "'] == 'None'"),
-                      helpText("请先选择分层变量")
+                      textInput(ns("overall_group_label"), "总体分组标签(at risk表)", value = "all", width = "100%"),
+                      helpText("未分层时用于风险表显示的总体标签")
                    )
                 )
               )
@@ -200,6 +201,9 @@ survival_analysis_ui <- function(id) {
             div(style = "display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;",
                div(style = "margin-right: 10px; width: 150px;",
                    selectInput(ns("export_format"), NULL, choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "pdf", width = "100%")
+               ),
+               div(style = "margin-right: 10px; width: 130px;",
+                   numericInput(ns("export_dpi"), NULL, value = 600, min = 72, max = 1200, step = 10, width = "100%")
                ),
                downloadButton(ns("download_plot"), "下载图形", class = "btn-primary")
             )
@@ -623,8 +627,33 @@ survival_analysis_server <- function(input, output, session, data) {
     }
   })
   
-  # 创建生存对象
-  surv_obj <- reactive({
+  extract_median_ci <- function(fit_obj) {
+    tbl <- tryCatch(summary(fit_obj)$table, error = function(e) NULL)
+    if (is.null(tbl)) return(NULL)
+    if (is.null(dim(tbl))) {
+      tbl <- matrix(tbl, nrow = 1)
+      rownames(tbl) <- "all"
+    } else {
+      tbl <- as.matrix(tbl)
+    }
+    cn <- colnames(tbl)
+    med_col <- if ("median" %in% cn) "median" else grep("median", cn, ignore.case = TRUE, value = TRUE)[1]
+    low_col <- if ("0.95LCL" %in% cn) "0.95LCL" else grep("LCL|lower", cn, ignore.case = TRUE, value = TRUE)[1]
+    up_col <- if ("0.95UCL" %in% cn) "0.95UCL" else grep("UCL|upper", cn, ignore.case = TRUE, value = TRUE)[1]
+    if (any(is.na(c(med_col, low_col, up_col)))) return(NULL)
+    strata_name <- rownames(tbl)
+    if (is.null(strata_name)) strata_name <- rep("all", nrow(tbl))
+    data.frame(
+      strata = strata_name,
+      median = as.numeric(tbl[, med_col]),
+      lower = as.numeric(tbl[, low_col]),
+      upper = as.numeric(tbl[, up_col]),
+      stringsAsFactors = FALSE
+    )
+  }
+
+  # 创建生存对象（仅在点击“生成图形”后更新）
+  surv_obj <- eventReactive(input$render_km_plot, {
     req(input$km_time, input$km_status, filtered_data())
     
     data <- filtered_data()
@@ -658,10 +687,10 @@ survival_analysis_server <- function(input, output, session, data) {
     }
     
     Surv(time_var, status_var)
-  })
+  }, ignoreInit = TRUE)
   
-  # 拟合生存曲线
-  fit <- reactive({
+  # 拟合生存曲线（仅在点击“生成图形”后更新）
+  fit <- eventReactive(input$render_km_plot, {
     req(surv_obj(), filtered_data())
     data <- filtered_data()
     
@@ -687,7 +716,7 @@ survival_analysis_server <- function(input, output, session, data) {
       formula_str <- paste("surv_obj() ~", input$strata_var)
       surv_fit(as.formula(formula_str), data = data)
     }
-  })
+  }, ignoreInit = TRUE)
   
   # 获取标签映射后的分层变量值
   mapped_strata <- reactive({
@@ -803,14 +832,15 @@ survival_analysis_server <- function(input, output, session, data) {
     
     # 计算并标注中位生存时间
     if (input$show_median) {
-      median_surv <- surv_median(fit_local)
+      median_surv <- extract_median_ci(fit_local)
       if (!is.null(median_surv) && nrow(median_surv) > 0) {
-        # 直接使用fit_local的strata作为标签（已经过映射处理）
-        median_surv$label <- paste0(median_surv$strata, ": ",
-                                    round(median_surv$median, 2),
-                                    " (95%CI: ",
-                                    round(median_surv$lower, 2), "-",
-                                    round(median_surv$upper, 2), ")")
+        median_surv$median_txt <- ifelse(is.finite(median_surv$median), formatC(median_surv$median, format = "f", digits = 2), "未达到")
+        median_surv$lower_txt <- ifelse(is.finite(median_surv$lower), formatC(median_surv$lower, format = "f", digits = 2), "NA")
+        median_surv$upper_txt <- ifelse(is.finite(median_surv$upper), formatC(median_surv$upper, format = "f", digits = 2), "NA")
+        median_surv$label <- paste0(
+          median_surv$strata, ": 中位生存时间 ", median_surv$median_txt,
+          " (95%CI ", median_surv$lower_txt, "-", median_surv$upper_txt, ")"
+        )
         
         # 确定标注位置
         # 1. 根据预设位置或自定义坐标计算x,y
@@ -879,7 +909,7 @@ survival_analysis_server <- function(input, output, session, data) {
       # 准备统计量文本
       stats_text <- ""
       if (!is.na(logrank_p)) {
-        stats_text <- paste0(stats_text, "Log-rank P = ", formatC(logrank_p, format = "f", digits = 3))
+        stats_text <- paste0(stats_text, "Log-rank检验 P值 = ", formatC(logrank_p, format = "f", digits = 3))
       }
       
       # 如果存在分层变量，计算Cox回归HR（支持多分类和参考组选择）
@@ -948,8 +978,8 @@ survival_analysis_server <- function(input, output, session, data) {
               contrast_mapped <- map_label(contrast_clean)
               reference_mapped <- map_label(reference_level)
               # 构建新格式
-              hr_line <- paste0(contrast_mapped, " vs ", reference_mapped,
-                                " HR = ", formatC(hr, format = "f", digits = 2),
+              hr_line <- paste0(contrast_mapped, " 对比 ", reference_mapped,
+                                "：HR = ", formatC(hr, format = "f", digits = 2),
                                 " (95%CI: ", formatC(hr_lower, format = "f", digits = 2), "-",
                                 formatC(hr_upper, format = "f", digits = 2), ")")
               hr_lines <- c(hr_lines, hr_line)
@@ -1026,14 +1056,14 @@ survival_analysis_server <- function(input, output, session, data) {
         p$plot <- p$plot +
           geom_point(
             data = censored_points,
-            aes(x = time, y = surv, shape = "删失"),
+            aes(x = time, y = surv, shape = "Censor"),
             size = input$km_censor_size,
             color = "black",  # 固定颜色，不映射
             alpha = 1         # 固定透明度
           ) +
           scale_shape_manual(
             name = "",
-            values = c("删失" = as.numeric(input$km_censor_shape))
+            values = c("Censor" = as.numeric(input$km_censor_shape))
           )
       }
     }
@@ -1045,7 +1075,9 @@ survival_analysis_server <- function(input, output, session, data) {
     p$plot <- p$plot +
       guides(
         shape = guide_legend(title = ""),
-        alpha = "none"
+        alpha = "none",
+        size = "none",
+        linewidth = "none"
       )
     
     # 移除任何可能存在的alpha美学映射
@@ -1072,6 +1104,7 @@ survival_analysis_server <- function(input, output, session, data) {
     # 移除上、右边框，并添加坐标轴箭头
     p$plot <- p$plot +
       theme(
+        text = element_text(family = "sans"),
         panel.border = element_blank(),
         axis.line = element_line(colour = "black", arrow = arrow(length = unit(0.2, "cm"), type = "closed")),
         axis.text = element_text(size = input$axis_text_size),
@@ -1129,6 +1162,7 @@ survival_analysis_server <- function(input, output, session, data) {
       p$table <- p$table +
         theme_minimal() +
         theme(
+          text = element_text(family = "sans"),
           axis.title.x = element_blank(),
           axis.title.y = element_blank(),
           axis.text.x = element_blank(),
@@ -1137,6 +1171,11 @@ survival_analysis_server <- function(input, output, session, data) {
           plot.margin = margin(0, 0, 0, 0, "pt"),
           axis.text.y = element_text(size = input$y_text_size)
         )
+      if (input$strata_var == "None") {
+        overall_label <- trimws(input$overall_group_label %||% "all")
+        if (!nzchar(overall_label)) overall_label <- "all"
+        p$table <- p$table + scale_y_discrete(labels = function(x) rep(overall_label, length(x)))
+      }
       
       # 创建图形列表
       plot_list <- list(p$plot, p$table)
@@ -1178,7 +1217,6 @@ survival_analysis_server <- function(input, output, session, data) {
   
   # 生成生存曲线图
   output$survPlot <- renderPlot({
-    input$render_km_plot  # 依赖于render_km_plot按钮
     req(fit())
     create_surv_plot()
   }, height = 600)
@@ -1243,14 +1281,14 @@ survival_analysis_server <- function(input, output, session, data) {
         p <- p +
           geom_point(
             data = censored_points,
-            aes(x = time, y = surv, shape = "删失"),
+            aes(x = time, y = surv, shape = "Censor"),
             size = input$km_censor_size,
             color = "black",  # 固定颜色，不映射
             alpha = 1         # 固定透明度
           ) +
           scale_shape_manual(
             name = "",
-            values = c("删失" = as.numeric(input$km_censor_shape))
+            values = c("Censor" = as.numeric(input$km_censor_shape))
           )
       }
     }
@@ -1262,8 +1300,11 @@ survival_analysis_server <- function(input, output, session, data) {
     p <- p +
       guides(
         shape = guide_legend(title = ""),
-        alpha = "none"
+        alpha = "none",
+        size = "none",
+        linewidth = "none"
       )
+    p <- p + theme(text = element_text(family = "sans"))
     
     # 移除任何可能存在的alpha美学映射
     if ("alpha" %in% names(p$layers)) {
@@ -1316,7 +1357,6 @@ survival_analysis_server <- function(input, output, session, data) {
   
     # 交互式生存曲线图
   output$interactiveSurvPlot <- renderPlotly({
-    input$render_km_plot
     req(fit(), filtered_data())
     
     # 创建专门的交互式图形
@@ -1424,16 +1464,18 @@ survival_analysis_server <- function(input, output, session, data) {
       }, error = function(e) NA)
     }
     
-    med <- tryCatch(surv_median(fit_local), error = function(e) NULL)
+    med <- tryCatch(extract_median_ci(fit_local), error = function(e) NULL)
     median_lines <- character(0)
     if (!is.null(med) && nrow(med) > 0) {
       for (i in seq_len(nrow(med))) {
         median_lines <- c(
           median_lines,
           paste0(
-            med$strata[i], "：中位生存时间 ", formatC(med$median[i], format = "f", digits = 2),
-            "（95%CI ", formatC(med$lower[i], format = "f", digits = 2), " - ",
-            formatC(med$upper[i], format = "f", digits = 2), "）"
+            med$strata[i], "：中位生存时间 ",
+            ifelse(is.finite(med$median[i]), formatC(med$median[i], format = "f", digits = 2), "未达到"),
+            "（95%CI ",
+            ifelse(is.finite(med$lower[i]), formatC(med$lower[i], format = "f", digits = 2), "NA"), " - ",
+            ifelse(is.finite(med$upper[i]), formatC(med$upper[i], format = "f", digits = 2), "NA"), "）"
           )
         )
       }
@@ -1479,9 +1521,9 @@ survival_analysis_server <- function(input, output, session, data) {
     
     if (!is.na(logrank_p)) {
       if (logrank_p < 0.05) {
-        interpretation <- c(interpretation, paste0("Log-rank 检验 P=", formatC(logrank_p, format = "f", digits = 3), "，提示组间生存曲线差异具有统计学意义。"))
+        interpretation <- c(interpretation, paste0("Log-rank 检验 P值=", formatC(logrank_p, format = "f", digits = 3), "，提示组间生存曲线差异具有统计学意义。"))
       } else {
-        interpretation <- c(interpretation, paste0("Log-rank 检验 P=", formatC(logrank_p, format = "f", digits = 3), "，未见组间生存曲线显著差异。"))
+        interpretation <- c(interpretation, paste0("Log-rank 检验 P值=", formatC(logrank_p, format = "f", digits = 3), "，未见组间生存曲线显著差异。"))
       }
     }
     
@@ -1522,7 +1564,7 @@ survival_analysis_server <- function(input, output, session, data) {
         format = input$export_format,
         width = 10,
         height = 8,
-        dpi = 300,
+                dpi = input$export_dpi %||% 600,
         bg = "white"
       )
     }

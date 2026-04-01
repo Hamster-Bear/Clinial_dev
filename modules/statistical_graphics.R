@@ -16,6 +16,7 @@ source("modules/statistical_graphics/correlation_matrix.R")
 source("modules/statistical_graphics/combo_plot.R")
 source("modules/statistical_graphics/waterfall_plot.R")
 source("modules/statistical_graphics/swimmer_plot.R")
+source("modules/statistical_graphics/spider_plot.R")
 source("modules/common/data_filter.R") # 加载通用筛选模块
 
 statistical_graphics_ui <- function(id) {
@@ -55,22 +56,14 @@ statistical_graphics_ui <- function(id) {
             "相关性矩阵" = "correlation",
             "组合图形" = "combo",
             "瀑布图" = "waterfall",
-            "泳道图" = "swimmer"
+            "泳道图" = "swimmer",
+            "蜘蛛图" = "spider"
           )
         )
       )
     ),
     
-    uiOutput(ns("selected_graphic_ui")),
-    fluidRow(
-      box(
-        width = 12,
-        title = "可复现代码",
-        status = "info",
-        solidHeader = TRUE,
-        verbatimTextOutput(ns("graphic_repro_code_out"))
-      )
-    )
+    uiOutput(ns("selected_graphic_ui"))
   )
 }
 
@@ -90,22 +83,35 @@ statistical_graphics_server <- function(id, data) {
     correlation = NULL,
     combo = NULL,
     waterfall = NULL,
-    swimmer = NULL
+    swimmer = NULL,
+    spider = NULL
   )
   
   # 动态显示选定的图形子模块UI
   output$selected_graphic_ui <- renderUI({
-    req(input$fig_type)
-    
-    switch(input$fig_type,
-           "km" = survival_analysis_ui(ns("survival")),
-           "boxplot" = boxplot_ui(ns("boxplot")),
-           "forest" = forest_plot_ui(ns("forest")),
-           "heatmap" = heatmap_ui(ns("heatmap")),
-           "correlation" = correlation_matrix_ui(ns("correlation")),
-           "combo" = combo_plot_ui(ns("combo")),
-           "waterfall" = waterfall_plot_ui(ns("waterfall")),
-           "swimmer" = swimmer_plot_ui(ns("swimmer"))
+    tagList(
+      switch(input$fig_type,
+             "km" = survival_analysis_ui(ns("survival")),
+             "boxplot" = boxplot_ui(ns("boxplot")),
+             "forest" = forest_plot_ui(ns("forest")),
+             "heatmap" = heatmap_ui(ns("heatmap")),
+             "correlation" = correlation_matrix_ui(ns("correlation")),
+             "combo" = combo_plot_ui(ns("combo")),
+             "waterfall" = waterfall_plot_ui(ns("waterfall")),
+             "swimmer" = swimmer_plot_ui(ns("swimmer")),
+             "spider" = spider_plot_ui(ns("spider"))
+      ),
+      fluidRow(
+        box(
+          width = 12,
+          title = "可复现代码",
+          status = "info",
+          solidHeader = TRUE,
+          collapsible = TRUE,
+          collapsed = TRUE,
+          verbatimTextOutput(ns("graphic_repro_code_out"))
+        )
+      )
     )
   })
   
@@ -154,6 +160,11 @@ statistical_graphics_server <- function(id, data) {
              if (is.null(module_states$swimmer)) {
                module_states$swimmer <- callModule(swimmer_plot_server, "swimmer", filtered_data)
              }
+           },
+           "spider" = {
+             if (is.null(module_states$spider)) {
+               module_states$spider <- callModule(spider_plot_server, "spider", filtered_data)
+             }
            }
     )
   })
@@ -170,6 +181,7 @@ statistical_graphics_server <- function(id, data) {
       "combo" = if (!is.null(module_states$combo)) module_states$combo() else NULL,
       "waterfall" = if (!is.null(module_states$waterfall)) module_states$waterfall() else NULL,
       "swimmer" = if (!is.null(module_states$swimmer)) module_states$swimmer() else NULL,
+      "spider" = if (!is.null(module_states$spider)) module_states$spider() else NULL,
       NULL
     )
     if (!is.list(active_state)) {
@@ -188,6 +200,7 @@ statistical_graphics_server <- function(id, data) {
            "combo" = module_states$combo(),
            "waterfall" = module_states$waterfall(),
            "swimmer" = module_states$swimmer(),
+           "spider" = module_states$spider(),
            NULL
     )
   }))

@@ -29,10 +29,38 @@ waterfall_plot_ui <- function(id) {
                 tags$div(class = "panel-heading", "核心变量映射"),
                 tags$div(
                   class = "panel-body",
-                  selectizeInput(ns("subject_id"), "受试者ID变量", choices = NULL, width = "100%"),
-                  selectizeInput(ns("value_var"), "变化值变量", choices = NULL, width = "100%"),
-                  selectizeInput(ns("bar_color_by"), "柱颜色分组", choices = NULL, width = "100%"),
-                  selectizeInput(ns("tracks"), "下方分组轨道", choices = NULL, multiple = TRUE, width = "100%")
+                  selectizeInput(
+                    ns("subject_id"),
+                    tags$span("受试者ID变量 [字符/因子]", title = "每行唯一受试者标识，建议字符或因子类型"),
+                    choices = NULL,
+                    width = "100%"
+                  ),
+                  selectizeInput(
+                    ns("value_var"),
+                    tags$span("变化值变量 [数值]", title = "连续数值型变量，通常为较基线变化百分比"),
+                    choices = NULL,
+                    width = "100%"
+                  ),
+                  selectizeInput(
+                    ns("bar_color_by"),
+                    tags$span("柱颜色分组 [字符/因子，可选]", title = "用于柱颜色分层的分组变量"),
+                    choices = NULL,
+                    width = "100%"
+                  ),
+                  selectizeInput(
+                    ns("symbol_by"),
+                    tags$span("柱符号分组 [字符/因子，可选]", title = "在柱顶显示额外符号分组，例如PD/SD等"),
+                    choices = NULL,
+                    width = "100%"
+                  ),
+                  selectizeInput(
+                    ns("tracks"),
+                    tags$span("下方分组轨道 [字符/因子，可多选]", title = "用于下方轨道注释展示的分类变量，可多选"),
+                    choices = NULL,
+                    multiple = TRUE,
+                    width = "100%"
+                  ),
+                  helpText("提示：将鼠标悬停在字段标签上可查看变量类型要求。")
                 )
               ),
               tags$div(
@@ -64,9 +92,14 @@ waterfall_plot_ui <- function(id) {
                   ),
                   checkboxInput(ns("show_tracks"), "显示下方分组轨道", TRUE),
                   uiOutput(ns("track_mode_controls")),
+                  checkboxInput(ns("show_symbols"), "显示柱符号分组", TRUE),
                   checkboxInput(ns("show_subject_labels"), "显示受试者标签", FALSE),
                   checkboxInput(ns("use_percent_label"), "Y轴默认显示百分比", TRUE),
-                  checkboxInput(ns("show_legend"), "显示图例", TRUE)
+                  checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
+                  selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
+                  checkboxInput(ns("show_legend"), "显示图例", TRUE),
+                  selectInput(ns("main_legend_position"), "主图图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%"),
+                  selectInput(ns("track_legend_position"), "轨道图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%")
                 )
               ),
               tags$div(
@@ -127,6 +160,7 @@ waterfall_plot_ui <- function(id) {
                     column(6, colourpicker::colourInput(ns("recist_lower_color"), "下阈值线颜色", value = "#2C7BB6", width = "100%")),
                     column(6, colourpicker::colourInput(ns("recist_upper_color"), "上阈值线颜色", value = "#D7191C", width = "100%"))
                   ),
+                  uiOutput(ns("symbol_controls")),
                   selectInput(
                     ns("track_palette"),
                     "轨道调色板",
@@ -134,8 +168,23 @@ waterfall_plot_ui <- function(id) {
                     selected = "Set3",
                     width = "100%"
                   ),
+                  colourpicker::colourInput(ns("track_text_bg_color"), "轨道文本底色", value = "#F7F7F7", width = "100%"),
                   colourpicker::colourInput(ns("track_text_color"), "轨道文本颜色", value = "#1A1A1A", width = "100%"),
-                  sliderInput(ns("track_rel_height"), "下方表格占比", min = 0.5, max = 4, value = 1.4, step = 0.1, width = "100%"),
+                  textInput(ns("track_legend_title"), "轨道图例标题", value = "轨道分组", width = "100%"),
+                  checkboxInput(ns("track_compact_mode"), "轨道紧凑模式", TRUE),
+                  sliderInput(ns("track_tile_height"), "轨道方框高度", min = 0.1, max = 1.4, value = 0.65, step = 0.05, width = "100%"),
+                  sliderInput(ns("track_row_spacing"), "轨道行间距", min = 0, max = 0.8, value = 0.08, step = 0.02, width = "100%"),
+                  selectInput(ns("missing_display_mode"), "空值显示方式", choices = c("空白" = "blank", "无" = "none", "NA" = "na", "破折号" = "dash", "自定义" = "custom"), selected = "na", width = "100%"),
+                  conditionalPanel(
+                    condition = sprintf("input['%s'] === 'custom'", ns("missing_display_mode")),
+                    textInput(ns("missing_display_custom"), "自定义空值文本", value = "NA", width = "100%")
+                  ),
+                  fluidRow(
+                    column(6, colourpicker::colourInput(ns("symbol_text_color"), "符号颜色", value = "#1A1A1A", width = "100%")),
+                    column(6, numericInput(ns("symbol_text_size"), "符号大小", value = 4, min = 2, max = 10, step = 0.2, width = "100%"))
+                  ),
+                  numericInput(ns("y_breaks_n"), "Y轴刻度数量", value = 9, min = 4, max = 20, step = 1, width = "100%"),
+                  sliderInput(ns("track_rel_height"), "下方表格占比", min = 0.5, max = 4, value = 0.5, step = 0.1, width = "100%"),
                   numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%"),
                   numericInput(ns("bar_width"), "柱宽", value = 0.9, min = 0.2, max = 1, step = 0.05, width = "100%")
                 )
@@ -157,11 +206,32 @@ waterfall_plot_ui <- function(id) {
             div(
               style = "display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;",
               div(
+                style = "margin-right: 10px; width: 180px;",
+                selectInput(ns("size_mode"), NULL, choices = c("宽图标准" = "wide_standard", "自定义尺寸" = "custom"), selected = "wide_standard", width = "100%")
+              ),
+              div(
                 style = "margin-right: 10px; width: 150px;",
                 selectInput(ns("export_format"), NULL, choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "pdf", width = "100%")
               ),
+              div(
+                style = "margin-right: 10px; width: 130px;",
+                numericInput(ns("export_dpi"), NULL, value = 600, min = 72, max = 1200, step = 10, width = "100%")
+              ),
               downloadButton(ns("dl_plot"), "下载图形", class = "btn-primary")
             )
+          )
+        ),
+        conditionalPanel(
+          condition = sprintf("input['%s'] === 'custom'", ns("size_mode")),
+          fluidRow(
+            column(3, numericInput(ns("static_width_px"), "静态图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
+            column(3, numericInput(ns("static_height_px"), "静态图基础高度(px)", value = 760, min = 400, max = 1800, step = 20, width = "100%")),
+            column(3, numericInput(ns("interactive_width_px"), "交互图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
+            column(3, numericInput(ns("interactive_height_px"), "交互图高度(px)", value = 620, min = 350, max = 1600, step = 20, width = "100%"))
+          ),
+          fluidRow(
+            column(3, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 13, min = 6, max = 30, step = 0.5, width = "100%")),
+            column(3, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 9, min = 4, max = 24, step = 0.5, width = "100%"))
           )
         ),
         tabsetPanel(
@@ -196,6 +266,12 @@ waterfall_plot_ui <- function(id) {
 }
 
 waterfall_plot_server <- function(input, output, session, data) {
+  get_var_label <- function(df, var_name) {
+    if (is.null(var_name) || !nzchar(var_name) || !(var_name %in% names(df))) return(var_name)
+    lbl <- attr(df[[var_name]], "label")
+    if (!is.null(lbl) && nzchar(as.character(lbl))) as.character(lbl) else var_name
+  }
+
   palette_values <- function(n, palette_name = "hue") {
     if (n <= 0) return(character(0))
     if (palette_name == "hue") {
@@ -210,6 +286,22 @@ waterfall_plot_server <- function(input, output, session, data) {
       return(base_vals[seq_len(n)])
     }
     grDevices::colorRampPalette(base_vals)(n)
+  }
+
+  get_missing_text <- function() {
+    mode <- input$missing_display_mode %||% "na"
+    if (mode == "blank") return("")
+    if (mode == "none") return("无")
+    if (mode == "dash") return("-")
+    if (mode == "custom") return(input$missing_display_custom %||% "NA")
+    "NA"
+  }
+
+  format_missing_vec <- function(x) {
+    x_chr <- as.character(x)
+    miss_idx <- is.na(x) | is.na(x_chr) | !nzchar(trimws(x_chr))
+    x_chr[miss_idx] <- get_missing_text()
+    x_chr
   }
 
   pick_first <- function(candidates, choices) {
@@ -228,6 +320,7 @@ waterfall_plot_server <- function(input, output, session, data) {
     subject_id = NULL,
     value_var = NULL,
     bar_color_by = "",
+    symbol_by = "",
     tracks = character(0),
     columns_signature = NULL
   )
@@ -259,19 +352,44 @@ waterfall_plot_server <- function(input, output, session, data) {
   })
 
   output$track_mode_controls <- renderUI({
-    req(input$tracks)
+    req(input$tracks, data())
     selected_tracks <- input$tracks
     if (length(selected_tracks) == 0) {
       return(NULL)
     }
+    track_label_map <- setNames(make.unique(vapply(selected_tracks, function(tr) get_var_label(data(), tr), character(1))), selected_tracks)
     tagList(
       h5("分组轨道展示方式"),
       lapply(selected_tracks, function(tr) {
         selectInput(
           session$ns(paste0("track_mode_", digest::digest(tr, algo = "crc32"))),
-          label = tr,
+          label = track_label_map[[tr]],
           choices = c("颜色填充" = "color", "文本填充" = "text"),
           selected = input$track_mode %||% "color",
+          width = "100%"
+        )
+      })
+    )
+  })
+
+  output$symbol_controls <- renderUI({
+    req(data())
+    if (is.null(input$symbol_by) || !nzchar(input$symbol_by) || !(input$symbol_by %in% names(data()))) {
+      return(NULL)
+    }
+    symbol_levels <- unique(as.character(data()[[input$symbol_by]]))
+    symbol_levels <- symbol_levels[!is.na(symbol_levels) & nzchar(symbol_levels)]
+    symbol_levels <- head(symbol_levels, 12)
+    if (length(symbol_levels) == 0) return(NULL)
+    default_symbols <- c("★", "▲", "●", "◆", "■", "✕", "✦", "✚", "⬟", "⬢", "◉", "◈")
+    tagList(
+      h5("符号分组映射"),
+      lapply(seq_along(symbol_levels), function(i) {
+        lv <- symbol_levels[[i]]
+        textInput(
+          session$ns(paste0("symbol_lbl_", digest::digest(lv, algo = "crc32"))),
+          label = lv,
+          value = default_symbols[[i]],
           width = "100%"
         )
       })
@@ -320,6 +438,14 @@ waterfall_plot_server <- function(input, output, session, data) {
       }
     }
 
+    selected_symbol <- isolate(input$symbol_by)
+    if (is.null(selected_symbol) || !(selected_symbol %in% c("", all_vars))) {
+      selected_symbol <- graphics_state$symbol_by
+      if (is.null(selected_symbol) || !(selected_symbol %in% c("", all_vars))) {
+        selected_symbol <- ""
+      }
+    }
+
     selected_tracks <- isolate(input$tracks)
     if (is.null(selected_tracks) || length(selected_tracks) == 0) {
       selected_tracks <- graphics_state$tracks
@@ -332,6 +458,7 @@ waterfall_plot_server <- function(input, output, session, data) {
     updateSelectizeInput(session, "subject_id", choices = all_vars, selected = selected_subject, server = TRUE)
     updateSelectizeInput(session, "value_var", choices = numeric_vars, selected = selected_value, server = TRUE)
     updateSelectizeInput(session, "bar_color_by", choices = c("无" = "", all_vars), selected = selected_color, server = TRUE)
+    updateSelectizeInput(session, "symbol_by", choices = c("无" = "", all_vars), selected = selected_symbol, server = TRUE)
     updateSelectizeInput(session, "tracks", choices = all_vars, selected = selected_tracks, server = TRUE)
   }, ignoreInit = FALSE)
 
@@ -339,6 +466,7 @@ waterfall_plot_server <- function(input, output, session, data) {
     graphics_state$subject_id <- input$subject_id
     graphics_state$value_var <- input$value_var
     graphics_state$bar_color_by <- input$bar_color_by
+    graphics_state$symbol_by <- input$symbol_by
     graphics_state$tracks <- if (is.null(input$tracks)) character(0) else input$tracks
   })
 
@@ -348,6 +476,32 @@ waterfall_plot_server <- function(input, output, session, data) {
   main_plot_obj <- reactiveVal(NULL)
   prepared_data <- reactiveVal(NULL)
   prepared_track_data <- reactiveVal(NULL)
+  size_config <- reactive({
+    mode <- input$size_mode %||% "wide_standard"
+    to_num <- function(x, fallback) {
+      val <- suppressWarnings(as.numeric(x))
+      if (is.na(val) || !is.finite(val)) fallback else val
+    }
+    if (identical(mode, "custom")) {
+      list(
+        static_width = to_num(input$static_width_px, 1200),
+        static_height = to_num(input$static_height_px, 760),
+        interactive_width = to_num(input$interactive_width_px, 1200),
+        interactive_height = to_num(input$interactive_height_px, 620),
+        export_width = to_num(input$export_width_in, 13),
+        export_height = to_num(input$export_height_in, 9)
+      )
+    } else {
+      list(
+        static_width = 1200,
+        static_height = 760,
+        interactive_width = 1200,
+        interactive_height = 620,
+        export_width = 13,
+        export_height = 9
+      )
+    }
+  })
 
   observeEvent(input$render_plot, {
     req(data(), input$subject_id, input$value_var)
@@ -356,7 +510,8 @@ waterfall_plot_server <- function(input, output, session, data) {
       df <- data()
       selected_tracks <- if (is.null(input$tracks)) character(0) else input$tracks
       selected_tracks <- selected_tracks[selected_tracks %in% names(df)]
-      selected_cols <- unique(c(input$subject_id, input$value_var, input$bar_color_by, selected_tracks))
+      track_label_map <- setNames(make.unique(vapply(selected_tracks, function(tr) get_var_label(df, tr), character(1))), selected_tracks)
+      selected_cols <- unique(c(input$subject_id, input$value_var, input$bar_color_by, input$symbol_by, selected_tracks))
       selected_cols <- selected_cols[nzchar(selected_cols)]
       selected_cols <- selected_cols[selected_cols %in% names(df)]
 
@@ -369,6 +524,11 @@ waterfall_plot_server <- function(input, output, session, data) {
       } else {
         plot_df$.bar_color <- "全部受试者"
       }
+      if (!is.null(input$symbol_by) && nzchar(input$symbol_by) && input$symbol_by %in% names(df)) {
+        names(plot_df)[names(plot_df) == input$symbol_by] <- ".symbol_group"
+      } else {
+        plot_df$.symbol_group <- ""
+      }
 
       for (tr in selected_tracks) {
         names(plot_df)[names(plot_df) == tr] <- paste0(".track__", tr)
@@ -378,7 +538,8 @@ waterfall_plot_server <- function(input, output, session, data) {
         mutate(
           .subject_id = as.character(.subject_id),
           .value = as.numeric(.value),
-          .bar_color = as.character(.bar_color)
+          .bar_color = as.character(.bar_color),
+          .symbol_group = as.character(.symbol_group)
         ) %>%
         filter(!is.na(.subject_id), nzchar(.subject_id), !is.na(.value))
 
@@ -409,6 +570,7 @@ waterfall_plot_server <- function(input, output, session, data) {
       track_cols <- grep("^\\.track__", names(plot_df), value = TRUE)
       if (length(track_cols) > 0) {
         track_df <- plot_df %>%
+          mutate(across(all_of(track_cols), ~ as.character(.x))) %>%
           select(.subject_id, .subject_factor, .order, all_of(track_cols)) %>%
           pivot_longer(
             cols = all_of(track_cols),
@@ -416,9 +578,11 @@ waterfall_plot_server <- function(input, output, session, data) {
             values_to = ".track_value"
           ) %>%
           mutate(
-            .track_name = sub("^\\.track__", "", .track_name),
-            .track_value = ifelse(is.na(.track_value), "NA", as.character(.track_value)),
-            .track_name = factor(.track_name, levels = rev(selected_tracks))
+            .track_name_raw = sub("^\\.track__", "", .track_name),
+            .track_name = unname(track_label_map[.track_name_raw]),
+            .track_name = ifelse(is.na(.track_name) | !nzchar(.track_name), .track_name_raw, .track_name),
+            .track_value = format_missing_vec(.track_value),
+            .track_name = factor(.track_name, levels = rev(unname(track_label_map[selected_tracks])))
           )
       } else {
         track_df <- NULL
@@ -435,14 +599,17 @@ waterfall_plot_server <- function(input, output, session, data) {
           if (!is.null(input$bar_color_by) && nzchar(input$bar_color_by)) {
             base_text <- paste0(base_text, "<br>", input$bar_color_by, ": ", r[[".bar_color"]])
           }
+          if (!is.null(input$symbol_by) && nzchar(input$symbol_by) && ".symbol_group" %in% names(r) && nzchar(r[[".symbol_group"]])) {
+            base_text <- paste0(base_text, "<br>", input$symbol_by, ": ", r[[".symbol_group"]])
+          }
           if (length(track_cols) > 0) {
             track_text <- vapply(
               selected_tracks,
               function(tr) {
                 key <- paste0(".track__", tr)
-                val <- if (key %in% names(r)) as.character(r[[key]]) else "NA"
-                if (is.na(val) || !nzchar(val)) val <- "NA"
-                paste0(tr, ": ", val)
+                val <- if (key %in% names(r)) format_missing_vec(r[[key]]) else get_missing_text()
+                if (length(val) > 1) val <- val[[1]]
+                paste0(get_var_label(df, tr), ": ", val)
               },
               character(1)
             )
@@ -476,12 +643,12 @@ waterfall_plot_server <- function(input, output, session, data) {
           y = y_axis_title,
           fill = legend_title
         ) +
-        theme_minimal(base_size = input$base_font_size) +
+        theme_minimal(base_size = input$base_font_size, base_family = "sans") +
         theme(
           axis.text.x = if (isTRUE(input$show_subject_labels)) element_text(angle = 90, vjust = 0.5, hjust = 1) else element_blank(),
           axis.ticks.x = if (isTRUE(input$show_subject_labels)) element_line() else element_blank(),
           panel.grid.major.x = element_blank(),
-          legend.position = if (isTRUE(input$show_legend)) "right" else "none"
+          legend.position = if (isTRUE(input$show_legend)) (input$main_legend_position %||% "right") else "none"
         )
 
       group_levels <- unique(plot_df$.bar_color)
@@ -499,8 +666,52 @@ waterfall_plot_server <- function(input, output, session, data) {
         p_main <- p_main + scale_fill_manual(values = color_vals)
       }
 
+      y_breaks_fun <- scales::breaks_pretty(n = input$y_breaks_n %||% 9)
       if (isTRUE(input$use_percent_label)) {
-        p_main <- p_main + scale_y_continuous(labels = label_number(accuracy = 0.1, suffix = "%"))
+        p_main <- p_main + scale_y_continuous(
+          breaks = y_breaks_fun,
+          labels = label_number(accuracy = 0.1, suffix = "%"),
+          expand = expansion(mult = c(0.02, 0.12))
+        )
+      } else {
+        p_main <- p_main + scale_y_continuous(
+          breaks = y_breaks_fun,
+          labels = label_number(accuracy = 0.1),
+          expand = expansion(mult = c(0.02, 0.12))
+        )
+      }
+
+      if (isTRUE(input$show_symbols) && !is.null(input$symbol_by) && nzchar(input$symbol_by)) {
+        symbol_levels <- unique(plot_df$.symbol_group)
+        symbol_levels <- symbol_levels[!is.na(symbol_levels) & nzchar(symbol_levels)]
+        if (length(symbol_levels) > 0) {
+          symbol_map <- setNames(
+            vapply(symbol_levels, function(lv) {
+              id <- paste0("symbol_lbl_", digest::digest(lv, algo = "crc32"))
+              lbl <- input[[id]]
+              if (is.null(lbl) || !nzchar(lbl)) "●" else lbl
+            }, character(1)),
+            symbol_levels
+          )
+          value_range <- range(plot_df$.value, na.rm = TRUE)
+          symbol_offset <- max(diff(value_range) * 0.03, 0.5)
+          symbol_df <- plot_df %>%
+            mutate(
+              .symbol_label = ifelse(!is.na(.symbol_group) & nzchar(.symbol_group), unname(symbol_map[.symbol_group]), ""),
+              .symbol_y = .value + ifelse(.value >= 0, symbol_offset, -symbol_offset)
+            ) %>%
+            filter(nzchar(.symbol_label))
+          if (nrow(symbol_df) > 0) {
+            p_main <- p_main +
+              geom_text(
+                data = symbol_df,
+                aes(x = .subject_factor, y = .symbol_y, label = .symbol_label),
+                inherit.aes = FALSE,
+                color = input$symbol_text_color,
+                size = input$symbol_text_size
+              )
+          }
+        }
       }
 
       if (isTRUE(input$show_recist)) {
@@ -512,6 +723,28 @@ waterfall_plot_server <- function(input, output, session, data) {
             annotate("text", x = Inf, y = input$recist_lower, label = input$recist_lower_label %||% "", hjust = 1.02, vjust = -0.2, color = input$recist_lower_color, size = 3.5) +
             annotate("text", x = Inf, y = input$recist_upper, label = input$recist_upper_label %||% "", hjust = 1.02, vjust = -0.2, color = input$recist_upper_color, size = 3.5)
         }
+      }
+
+      if (!isTRUE(input$show_grid_lines)) {
+        p_main <- p_main + theme(panel.grid = element_blank(), panel.grid.minor = element_blank())
+      }
+      if ((input$axis_style %||% "default") == "classic_arrow") {
+        n_x <- length(levels(plot_df$.subject_factor))
+        y_rng <- range(plot_df$.value, na.rm = TRUE)
+        y_span <- max(1e-6, diff(y_rng))
+        y_axis_base <- y_rng[1] - 0.06 * y_span
+        y_axis_top <- y_rng[2] + 0.08 * y_span
+        p_main <- p_main +
+          theme_classic(base_size = input$base_font_size, base_family = "sans") +
+          theme(
+            axis.text.x = if (isTRUE(input$show_subject_labels)) element_text(angle = 90, vjust = 0.5, hjust = 1) else element_blank(),
+            axis.ticks.x = if (isTRUE(input$show_subject_labels)) element_line() else element_blank(),
+            legend.position = if (isTRUE(input$show_legend)) (input$main_legend_position %||% "right") else "none",
+            plot.margin = margin(10, 20, 14, 16)
+          ) +
+          coord_cartesian(clip = "off") +
+          annotate("segment", x = 0.5, xend = n_x + 0.55, y = y_axis_base, yend = y_axis_base, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black") +
+          annotate("segment", x = 0.5, xend = 0.5, y = y_axis_base, yend = y_axis_top, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black")
       }
 
       if (is.null(track_df) || !isTRUE(input$show_tracks)) {
@@ -528,44 +761,55 @@ waterfall_plot_server <- function(input, output, session, data) {
 
         track_df <- track_df %>%
           mutate(
-            .track_name_chr = as.character(.track_name),
-            .track_mode = unname(track_mode_map[.track_name_chr]),
+            .track_mode = unname(track_mode_map[.track_name_raw]),
             .track_mode = ifelse(is.na(.track_mode), input$track_mode %||% "color", .track_mode)
           )
 
         text_track_df <- track_df %>% filter(.track_mode == "text")
-        color_track_df <- track_df %>% filter(.track_mode == "color")
-        track_values <- unique(color_track_df$.track_value)
-        track_colors <- setNames(palette_values(length(track_values), input$track_palette %||% "hue"), track_values)
+        color_track_df <- track_df %>%
+          filter(.track_mode == "color") %>%
+          mutate(.track_legend_key = paste0(as.character(.track_name), " : ", .track_value))
+        track_keys <- unique(color_track_df$.track_legend_key)
+        track_colors <- setNames(palette_values(length(track_keys), input$track_palette %||% "hue"), track_keys)
+
+        compact_mode <- isTRUE(input$track_compact_mode)
+        track_row_spacing_eff <- if (compact_mode) 0 else max(0, input$track_row_spacing %||% 0)
+        track_tile_height_eff <- if (track_row_spacing_eff <= 1e-8) 1 else (if (compact_mode) min(0.35, input$track_tile_height %||% 0.65) else (input$track_tile_height %||% 0.65))
+        track_rel_eff <- if (compact_mode) min(0.35, input$track_rel_height %||% 0.5) else (input$track_rel_height %||% 0.5)
 
         p_track <- ggplot(track_df, aes(x = .subject_factor, y = .track_name))
         if (nrow(color_track_df) > 0) {
           p_track <- p_track +
-            geom_tile(data = color_track_df, aes(fill = .track_value), color = "white", height = 0.9)
+            geom_tile(data = color_track_df, aes(fill = .track_legend_key), color = "white", height = track_tile_height_eff)
         }
         if (nrow(text_track_df) > 0) {
           p_track <- p_track +
-            geom_tile(data = text_track_df, fill = "#F7F7F7", color = "white", height = 0.9) +
+            geom_tile(data = text_track_df, fill = input$track_text_bg_color, color = "white", height = track_tile_height_eff) +
             geom_text(data = text_track_df, aes(label = .track_value), size = max(2.8, input$base_font_size * 0.22), color = input$track_text_color)
         }
         if (nrow(color_track_df) > 0) {
           p_track <- p_track + scale_fill_manual(values = track_colors)
         }
         p_track <- p_track +
-          labs(x = NULL, y = NULL, fill = "轨道分组") +
-          theme_minimal(base_size = max(9, input$base_font_size - 1)) +
+          labs(x = NULL, y = NULL, fill = ifelse(nzchar(input$track_legend_title %||% ""), input$track_legend_title, "轨道分组")) +
+          scale_y_discrete(expand = expansion(add = c(track_row_spacing_eff, track_row_spacing_eff))) +
+          theme_minimal(base_size = max(9, input$base_font_size - 1), base_family = "sans") +
           theme(
             axis.text.x = element_blank(),
             axis.ticks.x = element_blank(),
             panel.grid = element_blank(),
-            legend.position = if (isTRUE(input$show_legend) && nrow(color_track_df) > 0) "right" else "none"
+            legend.position = if (isTRUE(input$show_legend) && nrow(color_track_df) > 0) (input$track_legend_position %||% "right") else "none"
           )
+
+        track_n <- length(unique(as.character(track_df$.track_name)))
+        main_rel_h <- 1
+        track_rel_h <- max(0.12, min(2.0, track_rel_eff))
 
         p_combined <- cowplot::plot_grid(
           p_main,
           p_track,
           ncol = 1,
-          rel_heights = c(4, max(1, input$track_rel_height * max(1, length(selected_tracks)) * 0.7)),
+          rel_heights = c(main_rel_h, track_rel_h),
           align = "v",
           axis = "lr"
         )
@@ -588,19 +832,29 @@ waterfall_plot_server <- function(input, output, session, data) {
   output$static_plot <- renderPlot({
     req(final_plot())
     final_plot()
+  }, width = function() {
+    as.integer(size_config()$static_width)
   }, height = function() {
+    cfg <- size_config()
+    base_h <- as.integer(cfg$static_height)
     track_df <- prepared_track_data()
     if (is.null(track_df) || !isTRUE(input$show_tracks)) {
-      700
+      base_h
     } else {
       track_n <- length(unique(as.character(track_df$.track_name)))
-      700 + as.integer(45 * input$track_rel_height * track_n)
+      if (isTRUE(input$track_compact_mode)) {
+        base_h
+      } else {
+        tile_eff <- ifelse((input$track_row_spacing %||% 0) <= 1e-8, 1, input$track_tile_height %||% 0.65)
+        base_h + as.integer(min(180, 18 * tile_eff * track_n))
+      }
     }
   })
 
   output$interactive_plot <- plotly::renderPlotly({
     req(main_plot_obj())
-    ggplotly(main_plot_obj(), tooltip = "text", height = 620)
+    cfg <- size_config()
+    ggplotly(main_plot_obj(), tooltip = "text", width = as.integer(cfg$interactive_width), height = as.integer(cfg$interactive_height))
   })
 
   output$data_table <- renderDT({
@@ -623,13 +877,14 @@ waterfall_plot_server <- function(input, output, session, data) {
     },
     content = function(file) {
       req(final_plot())
+      cfg <- size_config()
       save_plot_export(
         file = file,
         plot_obj = final_plot(),
         format = input$export_format,
-        width = 12,
-        height = 9,
-        dpi = 300
+        width = cfg$export_width,
+        height = cfg$export_height,
+        dpi = input$export_dpi %||% 600
       )
     }
   )
@@ -639,7 +894,11 @@ waterfall_plot_server <- function(input, output, session, data) {
       subject_id = input$subject_id,
       value_var = input$value_var,
       color_by = input$bar_color_by,
-      tracks = if (is.null(input$tracks)) character(0) else input$tracks
+      symbol_by = input$symbol_by,
+      tracks = if (is.null(input$tracks)) character(0) else input$tracks,
+      size_mode = input$size_mode,
+      export_width_in = size_config()$export_width,
+      export_height_in = size_config()$export_height
     )
   }))
 }

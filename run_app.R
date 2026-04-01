@@ -47,8 +47,12 @@ cat("应用将在浏览器中打开，请稍候...\n")
 cat("按 Ctrl+C 停止应用\n\n")
 
 # 设置启动选项
-options(shiny.port = 8109)
-options(shiny.host = "127.0.0.1")
+shiny_port <- suppressWarnings(as.integer(Sys.getenv("SHINY_PORT", "8109")))
+if (is.na(shiny_port) || shiny_port <= 0) shiny_port <- 8109
+shiny_host <- Sys.getenv("SHINY_HOST", "127.0.0.1")
+options(shiny.port = shiny_port)
+options(shiny.host = shiny_host)
+cat("监听地址:", paste0(shiny_host, ":", shiny_port), "\n")
 # 设置最大上传文件大小为100MB
 options(shiny.maxRequestSize = 100 * 1024^2)
 
