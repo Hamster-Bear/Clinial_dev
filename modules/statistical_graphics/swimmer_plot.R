@@ -163,6 +163,7 @@ swimmer_plot_ui <- function(id) {
                         class = "panel-body",
                         checkboxInput(ns("show_event_labels"), "显示事件文本标签", FALSE),
                         checkboxInput(ns("lock_event_style_refresh"), "锁定事件样式（变量刷新不重置）", TRUE),
+                        numericInput(ns("event_symbol_seed"), "随机符号种子", value = 2026, min = 1, step = 1, width = "100%"),
                         selectInput(
                           ns("event_palette"),
                           "事件调色板",
@@ -393,6 +394,7 @@ swimmer_plot_server <- function(input, output, session, data) {
         event_type = input[[paste0("event_type_", i)]] %||% state_get(i, "event_type", ""),
         event_label = input[[paste0("event_label_", i)]] %||% state_get(i, "event_label", ""),
         event_legend_title = input[[paste0("event_legend_title_", i)]] %||% state_get(i, "event_legend_title", ""),
+        event_grp_color_mode = input[[paste0("event_grp_color_mode_", i)]] %||% state_get(i, "event_grp_color_mode", "random_unique"),
         event_grp_col = input[[paste0("event_grp_col_", i)]] %||% state_get(i, "event_grp_col", NULL),
         event_grp_shape = input[[paste0("event_grp_shape_", i)]] %||% state_get(i, "event_grp_shape", NULL),
         event_grp_symbol_mode = input[[paste0("event_grp_symbol_mode_", i)]] %||% state_get(i, "event_grp_symbol_mode", "random_unique")
@@ -416,9 +418,9 @@ swimmer_plot_server <- function(input, output, session, data) {
       if (is.null(current_time)) current_time <- state_get(i, "event_time", NULL)
       if (is.null(current_type)) current_type <- state_get(i, "event_type", NULL)
       if (is.null(current_label)) current_label <- state_get(i, "event_label", NULL)
-      if (is.null(current_time)) current_time <- pick_first(event_time_candidates, time_vars) %||% ""
-      if (is.null(current_type)) current_type <- pick_first(event_type_candidates, all_vars) %||% ""
-      if (is.null(current_label)) current_label <- pick_first(event_label_candidates, all_vars) %||% ""
+      if (is.null(current_time)) current_time <- ""
+      if (is.null(current_type)) current_type <- ""
+      if (is.null(current_label)) current_label <- ""
       updateSelectizeInput(session, id_time, choices = c("无" = "", time_vars), selected = ifelse(is.null(current_time), "", current_time), server = TRUE)
       updateSelectizeInput(session, id_type, choices = c("无" = "", all_vars), selected = ifelse(is.null(current_type), "", current_type), server = TRUE)
       updateSelectizeInput(session, id_label, choices = c("无" = "", all_vars), selected = ifelse(is.null(current_label), "", current_label), server = TRUE)
@@ -523,50 +525,69 @@ swimmer_plot_server <- function(input, output, session, data) {
 
   observeEvent(input$add_event_map, {
     snapshot_event_ui_state()
-    event_map_count(event_map_count() + 1)
-    session$onFlushed(function() {
-      if (is.null(data())) return()
-      all_vars <- names(data())
-      time_vars <- get_time_vars(data())
+    df_now <- isolate(data())
+    if (!is.null(df_now)) {
+      all_vars <- names(df_now)
+      time_vars <- get_time_vars(df_now)
       event_time_candidates <- c("EVENT_TIME", "EVT_TIME", "ADT", "AVISITN", "event_time")
       event_type_candidates <- c("EVENT", "EVENT_TYPE", "BOR", "STATUS", "RESPONSE", "event_type")
       event_label_candidates <- c("EVENT_LABEL", "LABEL", "EVENT_TEXT", "AVALC", "event_label")
-      refresh_event_mapping_choices(all_vars, time_vars, event_time_candidates, event_type_candidates, event_label_candidates)
-    }, once = TRUE)
+      st <- event_ui_state()
+      st[[length(st) + 1]] <- list(
+        event_time = "",
+        event_type = "",
+        event_label = "",
+        event_legend_title = "",
+        event_grp_color_mode = "random_unique",
+        event_grp_col = NULL,
+        event_grp_shape = NULL,
+        event_grp_symbol_mode = "random_unique"
+      )
+      event_ui_state(st)
+    }
+    event_map_count(event_map_count() + 1)
   })
 
   observeEvent(input$remove_event_map, {
     snapshot_event_ui_state()
     event_map_count(max(1, event_map_count() - 1))
+    st <- event_ui_state()
+    n_maps <- max(1, event_map_count())
+    if (length(st) > n_maps) event_ui_state(st[seq_len(n_maps)])
   })
 
   observeEvent(event_map_count(), {
     st <- event_ui_state()
     n_maps <- event_map_count()
     if (length(st) > n_maps) event_ui_state(st[seq_len(n_maps)])
-    req(data())
-    all_vars <- names(data())
-    time_vars <- get_time_vars(data())
-    event_time_candidates <- c("EVENT_TIME", "EVT_TIME", "ADT", "AVISITN", "event_time")
-    event_type_candidates <- c("EVENT", "EVENT_TYPE", "BOR", "STATUS", "RESPONSE", "event_type")
-    event_label_candidates <- c("EVENT_LABEL", "LABEL", "EVENT_TEXT", "AVALC", "event_label")
-    refresh_event_mapping_choices(all_vars, time_vars, event_time_candidates, event_type_candidates, event_label_candidates)
   }, ignoreInit = TRUE)
 
   output$event_mapping_ui <- renderUI({
     n_maps <- event_map_count()
+    df_ui <- data()
+    all_vars_ui <- if (is.null(df_ui)) character(0) else names(df_ui)
+    time_vars_ui <- if (is.null(df_ui)) character(0) else get_time_vars(df_ui)
+    event_time_candidates <- c("EVENT_TIME", "EVT_TIME", "ADT", "AVISITN", "event_time")
+    event_type_candidates <- c("EVENT", "EVENT_TYPE", "BOR", "STATUS", "RESPONSE", "event_type")
+    event_label_candidates <- c("EVENT_LABEL", "LABEL", "EVENT_TEXT", "AVALC", "event_label")
     tagList(
       lapply(seq_len(n_maps), function(i) {
+        selected_time <- isolate(input[[paste0("event_time_", i)]]) %||% state_get(i, "event_time", NULL)
+        selected_type <- isolate(input[[paste0("event_type_", i)]]) %||% state_get(i, "event_type", NULL)
+        selected_label <- isolate(input[[paste0("event_label_", i)]]) %||% state_get(i, "event_label", NULL)
+        if (is.null(selected_time)) selected_time <- ""
+        if (is.null(selected_type)) selected_type <- ""
+        if (is.null(selected_label)) selected_label <- ""
         tags$div(
           class = "panel panel-default",
           tags$div(class = "panel-heading", paste0("事件变量组 ", i)),
           tags$div(
             class = "panel-body",
             fluidRow(
-              column(6, selectizeInput(session$ns(paste0("event_time_", i)), tags$span("事件时间变量 [数值/日期]", title = "该事件组的发生时间"), choices = NULL, width = "100%")),
-              column(6, selectizeInput(session$ns(paste0("event_type_", i)), tags$span("事件类型变量 [字符/因子]", title = "该事件组的类别变量"), choices = NULL, width = "100%"))
+              column(6, selectizeInput(session$ns(paste0("event_time_", i)), tags$span("事件时间变量 [数值/日期]", title = "该事件组的发生时间"), choices = c("无" = "", time_vars_ui), selected = selected_time, width = "100%")),
+              column(6, selectizeInput(session$ns(paste0("event_type_", i)), tags$span("事件类型变量 [字符/因子]", title = "该事件组的类别变量"), choices = c("无" = "", all_vars_ui), selected = selected_type, width = "100%"))
             ),
-            selectizeInput(session$ns(paste0("event_label_", i)), tags$span("事件标签变量 [字符，可选]", title = "事件点旁展示的文本"), choices = NULL, width = "100%"),
+            selectizeInput(session$ns(paste0("event_label_", i)), tags$span("事件标签变量 [字符，可选]", title = "事件点旁展示的文本"), choices = c("无" = "", all_vars_ui), selected = selected_label, width = "100%"),
             textInput(session$ns(paste0("event_legend_title_", i)), paste0("事件图例主标题(组", i, ")"), value = state_get(i, "event_legend_title", ""), width = "100%")
           )
         )
@@ -621,13 +642,21 @@ swimmer_plot_server <- function(input, output, session, data) {
         legend_title <- trimws(input[[paste0("event_legend_title_", i)]] %||% state_get(i, "event_legend_title", ""))
         if (!nzchar(legend_title)) legend_title <- paste0("事件组", i)
         color_default <- if (lock_style) state_get(i, "event_grp_col", defaults[[i]]) else defaults[[i]]
+        color_mode_default <- state_get(i, "event_grp_color_mode", "random_unique")
         symbol_mode_default <- state_get(i, "event_grp_symbol_mode", "random_unique")
         shape_default <- state_get(i, "event_grp_shape", default_shapes[[i]])
         fluidRow(
-          column(4, colourpicker::colourInput(session$ns(paste0("event_grp_col_", i)), label = paste0(legend_title, " 颜色"), value = color_default, width = "100%")),
-          column(4, selectInput(session$ns(paste0("event_grp_symbol_mode_", i)), label = paste0(legend_title, " 符号分配"), choices = c("随机且不重复" = "random_unique", "单一指定" = "single"), selected = symbol_mode_default, width = "100%")),
+          column(3, selectInput(session$ns(paste0("event_grp_color_mode_", i)), label = paste0(legend_title, " 颜色分配"), choices = c("随机且不重复" = "random_unique", "单一指定" = "single"), selected = color_mode_default, width = "100%")),
           column(
-            4,
+            3,
+            conditionalPanel(
+              condition = sprintf("input['%s'] === 'single'", session$ns(paste0("event_grp_color_mode_", i))),
+              colourpicker::colourInput(session$ns(paste0("event_grp_col_", i)), label = paste0(legend_title, " 指定颜色"), value = color_default, width = "100%")
+            )
+          ),
+          column(3, selectInput(session$ns(paste0("event_grp_symbol_mode_", i)), label = paste0(legend_title, " 符号分配"), choices = c("随机且不重复" = "random_unique", "单一指定" = "single"), selected = symbol_mode_default, width = "100%")),
+          column(
+            3,
             conditionalPanel(
               condition = sprintf("input['%s'] === 'single'", session$ns(paste0("event_grp_symbol_mode_", i))),
               selectInput(session$ns(paste0("event_grp_shape_", i)), label = paste0(legend_title, " 指定符号"), choices = shape_choice_values, selected = shape_default, width = "100%")
@@ -1020,23 +1049,40 @@ swimmer_plot_server <- function(input, output, session, data) {
       event_legend_df <- NULL
       if (!is.null(event_df) && nrow(event_df) > 0) {
         key_info <- event_df %>%
-          group_by(.event_group_key) %>%
+          group_by(.event_group_key, .event_group_index, .event_source, .event_type) %>%
           summarise(
-            .event_group_index = first(.event_group_index),
-            .event_source = first(.event_source),
             .groups = "drop"
           ) %>%
-          arrange(.event_group_index)
-        event_keys <- key_info$.event_group_key
-        event_label_map <- setNames(key_info$.event_source, key_info$.event_group_key)
-        source_default_colors <- setNames(palette_values(length(event_keys), input$event_palette %||% "hue"), event_keys)
+          arrange(.event_group_index, .event_type)
+        key_info <- key_info %>%
+          mutate(
+            .event_style_key = paste0("S", seq_len(dplyr::n())),
+            .event_style_label = .event_type
+          )
+        event_keys <- key_info$.event_style_key
+        event_label_map <- setNames(key_info$.event_style_label, key_info$.event_style_key)
+        color_seed_val <- suppressWarnings(as.integer(input$event_symbol_seed %||% NA))
+        source_default_colors <- palette_values(length(event_keys), input$event_palette %||% "hue")
+        if (!is.na(color_seed_val) && is.finite(color_seed_val) && color_seed_val > 0) {
+          set.seed(color_seed_val + 17L)
+          source_default_colors <- sample(source_default_colors, length(source_default_colors))
+        }
+        source_default_colors <- setNames(source_default_colors, event_keys)
         event_colors_by_key <- source_default_colors
         for (k in seq_along(event_keys)) {
           idx <- key_info$.event_group_index[[k]]
+          color_mode_i <- input[[paste0("event_grp_color_mode_", idx)]] %||% "random_unique"
           id <- paste0("event_grp_col_", idx)
-          if (!is.null(input[[id]]) && nzchar(input[[id]])) event_colors_by_key[[event_keys[[k]]]] <- input[[id]]
+          if (identical(color_mode_i, "single") && !is.null(input[[id]]) && nzchar(input[[id]])) {
+            event_colors_by_key[[event_keys[[k]]]] <- input[[id]]
+          }
         }
         shape_pool <- unique(as.numeric(unname(shape_choice_values)))
+        seed_val <- suppressWarnings(as.integer(input$event_symbol_seed %||% NA))
+        if (!is.na(seed_val) && is.finite(seed_val) && seed_val > 0) {
+          set.seed(seed_val)
+        }
+        shape_pool_ordered <- sample(shape_pool, length(shape_pool))
         event_shapes_by_key <- setNames(rep(NA_real_, length(event_keys)), event_keys)
         used_shapes <- numeric(0)
         for (k in seq_along(event_keys)) {
@@ -1044,18 +1090,24 @@ swimmer_plot_server <- function(input, output, session, data) {
           mode_i <- input[[paste0("event_grp_symbol_mode_", idx)]] %||% "random_unique"
           if (identical(mode_i, "single")) {
             chosen <- suppressWarnings(as.numeric(input[[paste0("event_grp_shape_", idx)]]))
-            if (is.na(chosen)) chosen <- shape_pool[[((k - 1) %% length(shape_pool)) + 1]]
+            if (is.na(chosen)) chosen <- shape_pool_ordered[[((k - 1) %% length(shape_pool_ordered)) + 1]]
             event_shapes_by_key[[event_keys[[k]]]] <- chosen
             used_shapes <- c(used_shapes, chosen)
           }
         }
         for (k in seq_along(event_keys)) {
           if (!is.na(event_shapes_by_key[[event_keys[[k]]]])) next
-          available <- setdiff(shape_pool, used_shapes)
-          chosen <- if (length(available) > 0) available[[1]] else shape_pool[[((k - 1) %% length(shape_pool)) + 1]]
+          available <- shape_pool_ordered[shape_pool_ordered %in% setdiff(shape_pool_ordered, used_shapes)]
+          chosen <- if (length(available) > 0) available[[1]] else shape_pool_ordered[[((k - 1) %% length(shape_pool_ordered)) + 1]]
           event_shapes_by_key[[event_keys[[k]]]] <- chosen
           used_shapes <- c(used_shapes, chosen)
         }
+
+        event_df <- event_df %>%
+          left_join(
+            key_info %>% select(.event_group_key, .event_group_index, .event_source, .event_type, .event_style_key),
+            by = c(".event_group_key", ".event_group_index", ".event_source", ".event_type")
+          )
 
         event_df$.tooltip_event <- paste0(
           "受试者: ", event_df$.subject_id,
@@ -1068,7 +1120,7 @@ swimmer_plot_server <- function(input, output, session, data) {
         p_main <- p_main +
           geom_point(
             data = event_df,
-            aes(x = .event_time_plot, y = .subject_factor, shape = .event_group_key, color = .event_group_key, text = .tooltip_event),
+            aes(x = .event_time_plot, y = .subject_factor, shape = .event_style_key, color = .event_style_key, text = .tooltip_event),
             size = input$event_size,
             stroke = 0.4
           ) +
@@ -1089,11 +1141,15 @@ swimmer_plot_server <- function(input, output, session, data) {
         p_main <- p_main + guides(shape = "none", color = "none")
         event_legend_df <- data.frame(
           .key = event_keys,
+          .group_index = as.numeric(unname(key_info$.event_group_index[match(event_keys, key_info$.event_style_key)])),
+          .group = unname(key_info$.event_source[match(event_keys, key_info$.event_style_key)]),
           .label = unname(event_label_map[event_keys]),
           .color = unname(event_colors_by_key[event_keys]),
           .shape = as.numeric(unname(event_shapes_by_key[event_keys])),
           stringsAsFactors = FALSE
         )
+        event_df$.event_shape_assigned <- as.numeric(unname(event_shapes_by_key[event_df$.event_style_key]))
+        event_df$.event_color_assigned <- unname(event_colors_by_key[event_df$.event_style_key])
       }
 
       if (isTRUE(input$show_ongoing_arrow)) {
@@ -1215,12 +1271,61 @@ swimmer_plot_server <- function(input, output, session, data) {
 
       if (isTRUE(input$show_legend) && !is.null(event_legend_df) && nrow(event_legend_df) > 0) {
         legend_title <- trimws(input$event_legend_title %||% "")
-        p_event_legend <- ggplot(event_legend_df, aes(y = factor(.label, levels = rev(.label)))) +
-          geom_point(aes(x = 0, shape = .shape, color = .color), size = input$event_size, stroke = 0.4) +
-          geom_text(aes(x = 0.22, label = .label), hjust = 0, size = max(3, input$base_font_size * 0.24)) +
+        group_levels <- unique(event_legend_df$.group[order(event_legend_df$.group_index)])
+        legend_rows_list <- lapply(seq_along(group_levels), function(gidx) {
+          g <- group_levels[[gidx]]
+          sub <- event_legend_df %>% filter(.group == g) %>% arrange(.label)
+          header <- data.frame(.group = g, .label = g, .color = NA_character_, .shape = NA_real_, .is_header = TRUE, .is_spacer = FALSE, stringsAsFactors = FALSE)
+          items <- sub %>% mutate(.is_header = FALSE, .is_spacer = FALSE) %>% select(.group, .label, .color, .shape, .is_header, .is_spacer)
+          spacer <- data.frame(.group = g, .label = "", .color = NA_character_, .shape = NA_real_, .is_header = FALSE, .is_spacer = TRUE, stringsAsFactors = FALSE)
+          if (gidx < length(group_levels)) {
+            bind_rows(header, items, spacer)
+          } else {
+            bind_rows(header, items)
+          }
+        })
+        legend_rows <- bind_rows(legend_rows_list)
+        
+        # Calculate y positions to keep items compact and groups separated
+        current_y <- 0
+        y_vals <- numeric(nrow(legend_rows))
+        for (i in seq_len(nrow(legend_rows))) {
+          if (legend_rows$.is_header[i]) {
+            current_y <- current_y - 1.2
+            y_vals[i] <- current_y
+          } else if (legend_rows$.is_spacer[i]) {
+            current_y <- current_y - 2.5  # Increase gap between event groups
+            y_vals[i] <- current_y
+          } else {
+            current_y <- current_y - 0.8
+            y_vals[i] <- current_y
+          }
+        }
+        legend_rows$.y <- y_vals
+        
+        min_y_val <- min(y_vals, na.rm = TRUE)
+        # Prevent stretching when there are few items by setting a minimum range
+        y_lower_limit <- min(min_y_val - 2, -25)
+        
+        p_event_legend <- ggplot(legend_rows, aes(y = .y)) +
+          geom_point(
+            data = legend_rows %>% filter(!.is_header, !.is_spacer),
+            aes(x = 0.04, shape = .shape, color = .color),
+            size = input$event_size,
+            stroke = 0.4,
+            show.legend = FALSE
+          ) +
+          geom_text(
+            data = legend_rows %>% filter(!.is_spacer),
+            aes(x = ifelse(.is_header, 0.02, 0.12), label = .label, fontface = ifelse(.is_header, "bold", "plain")),
+            hjust = 0,
+            size = max(3, input$base_font_size * 0.24),
+            show.legend = FALSE
+          ) +
           scale_shape_identity() +
           scale_color_identity() +
-          coord_cartesian(xlim = c(-0.1, 1), clip = "off") +
+          scale_y_continuous(limits = c(y_lower_limit, 0), expand = c(0, 0)) +
+          coord_cartesian(xlim = c(0, 1), clip = "off") +
           theme_void(base_family = "sans") +
           theme(
             plot.margin = margin(8, 8, 8, 8),
@@ -1244,7 +1349,7 @@ swimmer_plot_server <- function(input, output, session, data) {
       final_plot(p_combined)
       main_plot_obj(p_main)
       lane_data(lane_df)
-      event_data(event_df)
+      event_data(if (!is.null(event_df)) dplyr::select(event_df, -tidyselect::any_of(".event_style_key")) else event_df)
       track_data(track_df)
       showNotification("泳道图生成完成", type = "message")
     }, error = function(e) {
@@ -1338,6 +1443,7 @@ swimmer_plot_server <- function(input, output, session, data) {
       duration_var = input$duration_var,
       event_mappings = event_mappings,
       lock_event_style_refresh = input$lock_event_style_refresh,
+      event_symbol_seed = input$event_symbol_seed,
       event_legend_title = input$event_legend_title,
       x_break_step = input$x_break_step,
       tracks = input$tracks %||% character(0),

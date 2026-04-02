@@ -34,7 +34,7 @@ services:
       - autotfl-network
 
   app:
-    image: autotfl-shiny-app:server
+    image: autotfl-shiny-app:latest
     container_name: autotfl-shiny
     environment:
       POSTGRES_DB: autotfl

@@ -8,6 +8,14 @@ library(plotly)
 library(DT)
 library(cowplot)
 
+.resolve_survival_choice <- function(input_value, state_value, choices, default_value = NULL) {
+  if (length(choices) == 0) return(default_value %||% NULL)
+  if (!is.null(input_value) && input_value %in% choices) return(input_value)
+  if (!is.null(state_value) && state_value %in% choices) return(state_value)
+  if (!is.null(default_value) && default_value %in% choices) return(default_value)
+  choices[1]
+}
+
 survival_analysis_ui <- function(id) {
   ns <- NS(id)
   
@@ -153,7 +161,7 @@ survival_analysis_ui <- function(id) {
                                     column(6, selectInput(ns("legend_position"), "图例位置",
                                                           choices = c("top-right", "top", "top-left", "left", "right", "bottom-left", "bottom", "bottom-right", "none"),
                                                           selected = "top-right", width = "100%")),
-                                    column(6, textInput(ns("legend_title"), "图例标题", value = "", placeholder = "默认", width = "100%"))
+                                    column(6, textInput(ns("legend_title"), "图例标题", value = "", placeholder = "留空不显示", width = "100%"))
                                   )))
               )
             )
@@ -204,9 +212,7 @@ survival_analysis_ui <- function(id) {
           ),
           tabPanel("交互式图", 
             div(style = "height: 10px;"),
-            plotly::plotlyOutput(ns("interactiveSurvPlot"), height = "600px"),
-            div(style = "height: 10px;"),
-            DTOutput(ns("interactive_risk_table"))
+            plotly::plotlyOutput(ns("interactiveSurvPlot"), height = "600px")
           ),
           tabPanel("数据表", 
             div(style = "height: 10px;"),
@@ -287,40 +293,32 @@ survival_analysis_server <- function(input, output, session, data) {
     hr_reference = NULL,
     strata_labels = list()
   )
+  view_state <- reactiveValues(
+    km_time = NULL,
+    km_status = NULL,
+    km_strata = "None",
+    km_facet = "None",
+    km_facet_values = NULL
+  )
   
-  # 更新变量选择
   observe({
     req(data())
-    
-    # 获取分类变量和数值变量列表
     categorical_vars <- get_categorical_vars(data(), include_logical = TRUE)
     numeric_vars <- get_numeric_vars(data())
-    
-    # 更新时间变量选择
-    if(length(numeric_vars) > 0) {
-      # 如果当前选择不在选项中，设置为第一个选项
-      current_time_choice <- if(is.null(graphics_state$km_time) || !graphics_state$km_time %in% numeric_vars) numeric_vars[1] else graphics_state$km_time
-      updateSelectizeInput(session, "km_time", choices = numeric_vars, selected = current_time_choice)
-    } else {
-      updateSelectizeInput(session, "km_time", choices = numeric_vars, selected = NULL)
-    }
-    
-    # 更新状态变量选择
-    if(length(numeric_vars) > 0) {
-      # 如果当前选择不在选项中，设置为第一个选项
-      current_status_choice <- if(is.null(graphics_state$km_status) || !graphics_state$km_status %in% numeric_vars) numeric_vars[1] else graphics_state$km_status
-      updateSelectizeInput(session, "km_status", choices = numeric_vars, selected = current_status_choice)
-    } else {
-      updateSelectizeInput(session, "km_status", choices = numeric_vars, selected = NULL)
-    }
-    
-    # 更新分层变量选择
+    default_time <- if (length(numeric_vars) >= 1) numeric_vars[1] else NULL
+    default_status <- if (length(numeric_vars) >= 2) numeric_vars[2] else default_time
+    current_time_choice <- .resolve_survival_choice(input$km_time, view_state$km_time, numeric_vars, default_time)
+    current_status_choice <- .resolve_survival_choice(input$km_status, view_state$km_status, numeric_vars, default_status)
     strata_choices <- c("无" = "None", categorical_vars)
-    updateSelectizeInput(session, "strata_var", choices = strata_choices)
-    
-    # 更新分面变量选择
+    curr_strata <- .resolve_survival_choice(input$strata_var, view_state$km_strata, c("None", categorical_vars), "None")
     facet_choices <- c("无" = "None", categorical_vars)
-    updateSelectizeInput(session, "facet_var", choices = facet_choices)
+    curr_facet <- .resolve_survival_choice(input$facet_var, view_state$km_facet, c("None", categorical_vars), "None")
+    isolate({
+      updateSelectizeInput(session, "km_time", choices = numeric_vars, selected = current_time_choice)
+      updateSelectizeInput(session, "km_status", choices = numeric_vars, selected = current_status_choice)
+      updateSelectizeInput(session, "strata_var", choices = strata_choices, selected = curr_strata)
+      updateSelectizeInput(session, "facet_var", choices = facet_choices, selected = curr_facet)
+    })
   })
   
   # 强制初始化默认值（在数据可用时立即设置状态）
@@ -332,22 +330,30 @@ survival_analysis_server <- function(input, output, session, data) {
         numeric_vars <- get_numeric_vars(current_data)
         if(length(numeric_vars) >= 2) {
           # 只有在当前状态为NULL时才设置默认值
-          if(is.null(graphics_state$km_time)) {
+          if(is.null(graphics_state$km_time) || !graphics_state$km_time %in% names(current_data)) {
             graphics_state$km_time <- numeric_vars[1]
-            # 立即尝试更新UI选择
-            updateSelectizeInput(session, "km_time", selected = numeric_vars[1])
           }
-          if(is.null(graphics_state$km_status)) {
+          if(is.null(graphics_state$km_status) || !graphics_state$km_status %in% names(current_data)) {
             graphics_state$km_status <- numeric_vars[2]
-            # 立即尝试更新UI选择
-            updateSelectizeInput(session, "km_status", selected = numeric_vars[2])
+          }
+          if(is.null(view_state$km_time) || !view_state$km_time %in% names(current_data)) {
+            view_state$km_time <- numeric_vars[1]
+          }
+          if(is.null(view_state$km_status) || !view_state$km_status %in% names(current_data)) {
+            view_state$km_status <- numeric_vars[2]
           }
         } else if(length(numeric_vars) == 1) {
-          # 如果只有一个数值变量，设置为时间变量
-          if(is.null(graphics_state$km_time)) {
+          if(is.null(graphics_state$km_time) || !graphics_state$km_time %in% names(current_data)) {
             graphics_state$km_time <- numeric_vars[1]
-            # 立即尝试更新UI选择
-            updateSelectizeInput(session, "km_time", selected = numeric_vars[1])
+          }
+          if(is.null(graphics_state$km_status) || !graphics_state$km_status %in% names(current_data)) {
+            graphics_state$km_status <- numeric_vars[1]
+          }
+          if(is.null(view_state$km_time) || !view_state$km_time %in% names(current_data)) {
+            view_state$km_time <- numeric_vars[1]
+          }
+          if(is.null(view_state$km_status) || !view_state$km_status %in% names(current_data)) {
+            view_state$km_status <- numeric_vars[1]
           }
         }
       }
@@ -362,47 +368,22 @@ survival_analysis_server <- function(input, output, session, data) {
     if(!is.null(current_data) && nrow(current_data) > 0 && is.null(input$km_time) && is.null(graphics_state$km_time)) {
       numeric_vars <- get_numeric_vars(current_data)
       if(length(numeric_vars) >= 1) {
-        updateSelectizeInput(session, "km_time", selected = numeric_vars[1])
         graphics_state$km_time <- numeric_vars[1]
+        view_state$km_time <- numeric_vars[1]
       }
       if(length(numeric_vars) >= 2) {
-        updateSelectizeInput(session, "km_status", selected = numeric_vars[2])
         graphics_state$km_status <- numeric_vars[2]
+        view_state$km_status <- numeric_vars[2]
       }
     }
   })
   
-  # 初始化时设置默认值
-  observeEvent(data(), {
-    req(data())
-    isolate({
-      current_data <- data()
-      if(!is.null(current_data) && nrow(current_data) > 0) {
-        numeric_vars <- get_numeric_vars(current_data)
-        if(length(numeric_vars) >= 2) {
-          # 设置默认选择并更新状态
-          if(is.null(graphics_state$km_time)) {
-            graphics_state$km_time <- numeric_vars[1]
-          }
-          if(is.null(graphics_state$km_status)) {
-            graphics_state$km_status <- numeric_vars[2]
-          }
-        } else if(length(numeric_vars) == 1) {
-          # 如果只有一个数值变量，设置为时间变量
-          if(is.null(graphics_state$km_time)) {
-            graphics_state$km_time <- numeric_vars[1]
-          }
-        }
-      }
-    })
-  }, once = TRUE)  # 只在数据首次可用时运行一次
-  
   
   # 动态分面值选择器UI
   output$facet_value_ui <- renderUI({
-    req(data(), input$facet_var)
+    req(data())
     
-    if (input$facet_var != "None" && input$facet_var %in% names(data())) {
+    if (!is.null(input$facet_var) && input$facet_var != "None" && input$facet_var %in% names(data())) {
       # 获取分面变量的唯一值
       facet_col <- data()[[input$facet_var]]
       facet_values <- unique(facet_col)
@@ -416,7 +397,9 @@ survival_analysis_server <- function(input, output, session, data) {
       # 创建选择列表，只包含实际的分面值（不包含"全部"）
       choices <- facet_values_char
       if (length(choices) > 0) {
-        selectInput(ns("facet_value"), "分面值选择", choices = choices, selected = if(is.null(graphics_state$km_facet_values) || !graphics_state$km_facet_values %in% choices) choices[1] else graphics_state$km_facet_values)
+        # 注意：这里我们不再依赖 graphics_state$km_facet_values，而是直接看当前是否有有效选项
+        # 这是为了避免在不同分面变量切换时，旧的 state 值导致 selectInput 无法选中有效值
+        selectInput(ns("facet_value"), "分面值选择", choices = choices)
       } else {
         selectInput(ns("facet_value"), "分面值选择", choices = NULL)
       }
@@ -427,9 +410,9 @@ survival_analysis_server <- function(input, output, session, data) {
   
   # 动态HR参考组选择UI
   output$hr_reference_ui <- renderUI({
-    req(data(), input$strata_var)
+    req(data())
     
-    if (input$strata_var != "None" && input$strata_var %in% names(data())) {
+    if (!is.null(input$strata_var) && input$strata_var != "None" && input$strata_var %in% names(data())) {
       # 获取分层变量的唯一值
       strata_col <- data()[[input$strata_var]]
       strata_values <- unique(strata_col)
@@ -457,9 +440,9 @@ survival_analysis_server <- function(input, output, session, data) {
   
   # 动态分层变量标签映射UI
   output$strata_labels_ui <- renderUI({
-    req(data(), input$strata_var)
+    req(data())
     
-    if (input$strata_var != "None" && input$strata_var %in% names(data())) {
+    if (!is.null(input$strata_var) && input$strata_var != "None" && input$strata_var %in% names(data())) {
       # 获取分层变量的唯一值
       strata_col <- data()[[input$strata_var]]
       strata_values <- unique(strata_col)
@@ -490,86 +473,120 @@ survival_analysis_server <- function(input, output, session, data) {
     }
   })
   
-  # 观察并保存图形参数
-  observe({
-    graphics_state$km_time <- input$km_time
-    graphics_state$km_status <- input$km_status
-    graphics_state$km_censor_value <- input$km_censor_value
-    graphics_state$km_facet_values <- input$facet_value
-    graphics_state$km_show_risktable <- input$km_show_risktable
-    graphics_state$km_line_size <- input$line_size
-    graphics_state$km_line_type <- input$line_type
-    graphics_state$km_censor_size <- input$km_censor_size
-    graphics_state$km_censor_shape <- input$km_censor_shape
-    graphics_state$y_text_size <- input$y_text_size
-    graphics_state$title_size <- input$title_size
-    graphics_state$caption_size <- input$caption_size
-    graphics_state$xlab_size <- input$xlab_size
-    graphics_state$ylab_size <- input$ylab_size
-    graphics_state$axis_text_size <- input$axis_text_size
-    graphics_state$legend_text_size <- input$legend_text_size
-    graphics_state$stats_text_size <- input$stats_text_size
-    graphics_state$show_grid <- input$show_grid
-    graphics_state$time_step <- input$time_step
-    graphics_state$show_median <- input$show_median
-    graphics_state$show_stats <- input$show_stats
-    graphics_state$legend_position <- input$legend_position
-    graphics_state$legend_title <- input$legend_title
-    graphics_state$text_position_preset <- input$text_position_preset
-    graphics_state$median_x <- input$median_x
-    graphics_state$median_y <- input$median_y
-    graphics_state$stats_x <- input$stats_x
-    graphics_state$stats_y <- input$stats_y
-    graphics_state$hr_reference <- input$hr_reference
-    
-    # 收集分层变量标签映射
-    if (!is.null(input$strata_var) && input$strata_var != "None") {
-      req(data())
-      strata_col <- data()[[input$strata_var]]
-      strata_values <- unique(strata_col)
-      strata_values <- strata_values[!is.na(strata_values)]
-      strata_values_char <- as.character(strata_values)
-      strata_values_char <- strata_values_char[strata_values_char != ""]
-      
-      label_list <- list()
-      for (val in strata_values_char) {
-        input_name <- paste0("strata_label_", val)
-        if (!is.null(input[[input_name]])) {
-          label_list[[val]] <- input[[input_name]]
-        }
+  observeEvent(input$render_km_plot, {
+    progress_id <- graphics_progress_start("生存分析")
+    ok <- FALSE
+    err <- NULL
+    on.exit({
+      graphics_progress_end(progress_id)
+      if (ok) {
+        graphics_notify_success("生存分析")
+      } else if (!is.null(err)) {
+        graphics_notify_error("生存分析", err)
       }
-      graphics_state$strata_labels <- label_list
-    } else {
-      graphics_state$strata_labels <- list()
-    }
+    }, add = TRUE)
+    tryCatch({
+      withProgress(message = "Generating survival plot...", value = 0, {
+        graphics_progress_update(progress_id, "生存分析", "提交参数", 0.2)
+        incProgress(0.2, detail = "Committing UI state")
+        graphics_state$km_time <- view_state$km_time
+        graphics_state$km_status <- view_state$km_status
+        graphics_state$km_strata <- view_state$km_strata
+        graphics_state$km_facet <- view_state$km_facet
+        graphics_state$km_facet_values <- view_state$km_facet_values
+        graphics_state$km_censor_value <- input$km_censor_value
+        graphics_state$km_show_risktable <- input$km_show_risktable
+        graphics_state$km_line_size <- input$line_size
+        graphics_state$km_line_type <- input$line_type
+        graphics_state$km_censor_size <- input$km_censor_size
+        graphics_state$km_censor_shape <- input$km_censor_shape
+        graphics_state$y_text_size <- input$y_text_size
+        graphics_state$title_size <- input$title_size
+        graphics_state$caption_size <- input$caption_size
+        graphics_state$xlab_size <- input$xlab_size
+        graphics_state$ylab_size <- input$ylab_size
+        graphics_state$axis_text_size <- input$axis_text_size
+        graphics_state$legend_text_size <- input$legend_text_size
+        graphics_state$stats_text_size <- input$stats_text_size
+        graphics_state$show_grid <- input$show_grid
+        graphics_state$time_step <- input$time_step
+        graphics_state$show_median <- input$show_median
+        graphics_state$show_stats <- input$show_stats
+        graphics_state$legend_position <- input$legend_position
+        graphics_state$legend_title <- input$legend_title
+        graphics_state$text_position_preset <- input$text_position_preset
+        graphics_state$median_x <- input$median_x
+        graphics_state$median_y <- input$median_y
+        graphics_state$stats_x <- input$stats_x
+        graphics_state$stats_y <- input$stats_y
+        graphics_state$hr_reference <- input$hr_reference
+        if (!is.null(graphics_state$km_strata) && graphics_state$km_strata != "None") {
+          req(data())
+          strata_col <- data()[[graphics_state$km_strata]]
+          strata_values <- unique(strata_col)
+          strata_values <- strata_values[!is.na(strata_values)]
+          strata_values_char <- as.character(strata_values)
+          strata_values_char <- strata_values_char[strata_values_char != ""]
+          label_list <- list()
+          for (val in strata_values_char) {
+            input_name <- paste0("strata_label_", val)
+            if (!is.null(input[[input_name]])) {
+              label_list[[val]] <- input[[input_name]]
+            }
+          }
+          graphics_state$strata_labels <- label_list
+        } else {
+          graphics_state$strata_labels <- list()
+        }
+        graphics_progress_update(progress_id, "生存分析", "模型拟合", 0.55)
+        incProgress(0.35, detail = "Fitting survival model")
+        surv_obj()
+        fit()
+        graphics_progress_update(progress_id, "生存分析", "统计计算", 0.8)
+        incProgress(0.25, detail = "Computing statistics")
+        surv_summary_data()
+        stats_results()
+        mapped_strata()
+        base_surv_plot()
+        graphics_progress_update(progress_id, "生存分析", "图形完成", 1)
+        incProgress(0.2, detail = "Completed")
+      })
+      ok <- TRUE
+    }, error = function(e) {
+      err <<- e
+    })
+    if (!ok && !is.null(err)) stop(err)
   })
   
-  # 获取过滤后的数据
+  # 获取过滤后的数据（不再使用 eventReactive，恢复为 reactive，保证下拉框随时更新）
   filtered_data <- reactive({
     req(data())
-    data <- data()
+    df <- data()
     
     # 如果选择了分面变量，则过滤数据
-    if (input$facet_var != "None" && input$facet_var %in% names(data) && !is.null(input$facet_value)) {
-      # 确保分面值被选中
-      facet_col <- data[[input$facet_var]]
-      # 转换为字符进行比较
-      filtered_data <- data[as.character(facet_col) == as.character(input$facet_value), ]
-      return(filtered_data)
+    facet_var_selected <- .resolve_survival_choice(input$facet_var, view_state$km_facet, c("None", names(df)), "None")
+    facet_value_selected <- if (!is.null(input$facet_value)) input$facet_value else view_state$km_facet_values
+    if (!is.null(facet_var_selected) && facet_var_selected != "None" && facet_var_selected %in% names(df) && !is.null(facet_value_selected)) {
+      facet_col <- df[[facet_var_selected]]
+      filtered_df <- df[as.character(facet_col) == as.character(facet_value_selected), ]
+      return(filtered_df)
     }
-    return(data)
+    return(df)
   })
   
   
   # 动态时间范围滑块UI
   output$time_range_slider <- renderUI({
     req(input$km_time)
-    data <- filtered_data()
     
-    if (is.null(data) || nrow(data) == 0) {
+    # 注意：为了让用户在选择变量后能立刻看到滑块范围，这里直接使用 data()
+    # 并且如果存在分面，不影响全局时间轴的最大值计算，保持一致的范围更合理
+    df <- data()
+    
+    if (is.null(df) || nrow(df) == 0) {
       helpText("没有可用的数据")
-    } else if (input$km_time %in% names(data)) {
-      time_var <- data[[input$km_time]]
+    } else if (input$km_time %in% names(df)) {
+      time_var <- df[[input$km_time]]
       
       if (!is.null(time_var) && is.numeric(time_var)) {
         # 移除NA值
@@ -619,7 +636,7 @@ survival_analysis_server <- function(input, output, session, data) {
     tbl <- tryCatch(summary(fit_obj)$table, error = function(e) NULL)
     if (is.null(tbl)) return(NULL)
     if (is.null(dim(tbl))) {
-      tbl <- matrix(tbl, nrow = 1)
+      tbl <- t(as.matrix(tbl))
       rownames(tbl) <- "all"
     } else {
       tbl <- as.matrix(tbl)
@@ -642,76 +659,167 @@ survival_analysis_server <- function(input, output, session, data) {
 
   # 创建生存对象（仅在点击“生成图形”后更新）
   surv_obj <- eventReactive(input$render_km_plot, {
-    req(input$km_time, input$km_status, filtered_data())
-    
-    data <- filtered_data()
-    
-    # 确保变量存在且数据不为空
+    req(graphics_state$km_time, graphics_state$km_status)
+    data <- isolate(filtered_data())
+    req(data)
+    time_var_name <- graphics_state$km_time
+    status_var_name <- graphics_state$km_status
     validate(
-      need(input$km_time %in% names(data), "请选择有效的时间变量"),
-      need(input$km_status %in% names(data), "请选择有效的状态变量"),
+      need(time_var_name %in% names(data), "请选择有效的时间变量"),
+      need(status_var_name %in% names(data), "请选择有效的状态变量"),
       need(nrow(data) > 0, "选择的分面值没有数据")
     )
-    
-    # 处理删失值定义
-    time_var <- data[[input$km_time]]
-    status_var <- data[[input$km_status]]
-    
-    # 根据删失值定义调整状态变量 (0=删失, 1=事件 vs 1=删失, 0=事件)
-    if (input$km_censor_value == "1") {
-      # 如果定义是1=删失, 0=事件，则需要翻转状态值
+    time_var <- data[[time_var_name]]
+    status_var <- data[[status_var_name]]
+    if (graphics_state$km_censor_value == "1") {
       status_var <- ifelse(status_var == 1, 0, ifelse(status_var == 0, 1, status_var))
     }
-    
-    # 检查状态变量是否只包含0和1
     unique_status <- unique(status_var)
     valid_status <- unique_status[!is.na(unique_status)]
-    
     if (!all(valid_status %in% c(0, 1))) {
-      # 如果状态变量包含其他值，将其转换为0和1
-      # 将最小值设为0（删失），其余设为1（事件）
       min_status <- min(valid_status, na.rm = TRUE)
       status_var <- ifelse(status_var == min_status, 0, 1)
     }
-    
     Surv(time_var, status_var)
   }, ignoreInit = TRUE)
   
   # 拟合生存曲线（仅在点击“生成图形”后更新）
   fit <- eventReactive(input$render_km_plot, {
-    req(surv_obj(), filtered_data())
-    data <- filtered_data()
+    req(surv_obj())
+    data <- isolate(filtered_data())
+    req(data)
     
-    # 检查是否有足够的数据进行拟合
     if (nrow(data) == 0) {
       stop("没有足够的数据进行生存分析")
     }
-    
-    # 检查生存对象是否有效
     if (any(is.na(surv_obj()))) {
       stop("生存对象包含无效值")
     }
-    
-    if (input$strata_var == "None") {
-      # 无分层
+    strata_var <- graphics_state$km_strata
+    if (is.null(strata_var) || strata_var == "None") {
       surv_fit(surv_obj() ~ 1, data = data)
     } else {
-      # 有分层
       validate(
-        need(input$strata_var %in% names(data), "请选择有效的分层变量"),
+        need(strata_var %in% names(data), "请选择有效的分层变量"),
         need(nrow(data) > 0, "选择的分面值没有数据")
       )
-      formula_str <- paste("surv_obj() ~", input$strata_var)
+      formula_str <- paste("surv_obj() ~", strata_var)
       surv_fit(as.formula(formula_str), data = data)
     }
   }, ignoreInit = TRUE)
   
-  # 获取标签映射后的分层变量值
-  mapped_strata <- reactive({
-    req(data(), input$strata_var)
-    if (input$strata_var == "None") return(NULL)
+  # 缓存生存摘要数据，用于提取删失点等
+  surv_summary_data <- eventReactive(input$render_km_plot, {
+    req(fit())
+    surv_summary(fit())
+  }, ignoreInit = TRUE)
+  
+  # 缓存统计分析结果，避免重复计算
+  stats_results <- eventReactive(input$render_km_plot, {
+    req(fit())
+    data <- isolate(filtered_data())
+    req(data)
     
-    strata_col <- data()[[input$strata_var]]
+    res <- list(
+      median_surv = extract_median_ci(fit()),
+      logrank_p = NA_real_,
+      hr_lines = character(0)
+    )
+    
+    strata_var <- graphics_state$km_strata
+    if (!is.null(strata_var) && strata_var != "None" && strata_var %in% names(data)) {
+      try({
+        sd <- survdiff(surv_obj() ~ data[[strata_var]], data = data)
+        res$logrank_p <- pchisq(sd$chisq, length(sd$n) - 1, lower.tail = FALSE)
+      }, silent = TRUE)
+      try({
+        strata_data <- data[[strata_var]]
+        strata_levels <- unique(strata_data)
+        reference_level <- if (!is.null(graphics_state$hr_reference) && graphics_state$hr_reference != "auto") {
+          graphics_state$hr_reference
+        } else {
+          as.character(strata_levels[1])
+        }
+        strata_fac <- factor(strata_data)
+        if (reference_level %in% levels(strata_fac)) {
+          strata_fac <- relevel(strata_fac, ref = reference_level)
+        }
+        cox_fit <- coxph(surv_obj() ~ strata_fac, data = data)
+        csum <- summary(cox_fit)
+        
+        if (!is.null(csum$coefficients) && nrow(csum$coefficients) > 0) {
+          labels <- graphics_state$strata_labels
+          map_label <- function(x) {
+            if (x %in% names(labels) && labels[[x]] != "") return(labels[[x]])
+            if (grepl("=", x)) {
+              ext <- sub(".*=", "", x)
+              if (ext %in% names(labels) && labels[[ext]] != "") return(labels[[ext]])
+            }
+            return(x)
+          }
+          
+          for (i in seq_len(nrow(csum$coefficients))) {
+            hr <- exp(csum$coefficients[i, 1])
+            hr_low <- exp(csum$coefficients[i, 1] - 1.96 * csum$coefficients[i, 3])
+            hr_up <- exp(csum$coefficients[i, 1] + 1.96 * csum$coefficients[i, 3])
+            p_val <- csum$coefficients[i, 5]
+            
+            contrast_name <- rownames(csum$coefficients)[i]
+            contrast_clean <- gsub("^.*?([^.]+)$", "\\1", contrast_name)
+            if (grepl("strata_fac", contrast_name)) contrast_clean <- gsub("strata_fac", "", contrast_name)
+            
+            contrast_mapped <- map_label(contrast_clean)
+            reference_mapped <- map_label(reference_level)
+            
+            hr_line <- paste0(contrast_mapped, " vs ", reference_mapped,
+                              ": HR = ", formatC(hr, format = "f", digits = 2),
+                              " (95%CI: ", formatC(hr_low, format = "f", digits = 2), "-",
+                              formatC(hr_up, format = "f", digits = 2), ")",
+                              ", P = ", formatC(p_val, format = "f", digits = 3))
+            res$hr_lines <- c(res$hr_lines, hr_line)
+          }
+        }
+      }, silent = TRUE)
+    }
+    
+    res
+  })
+  
+  observeEvent(input$km_time, {
+    if (!is.null(input$km_time) && nzchar(input$km_time)) {
+      view_state$km_time <- input$km_time
+    }
+  }, ignoreInit = TRUE)
+  
+  observeEvent(input$km_status, {
+    if (!is.null(input$km_status) && nzchar(input$km_status)) {
+      view_state$km_status <- input$km_status
+    }
+  }, ignoreInit = TRUE)
+  
+  observeEvent(input$strata_var, {
+    if (!is.null(input$strata_var) && nzchar(input$strata_var)) {
+      view_state$km_strata <- input$strata_var
+    }
+  }, ignoreInit = TRUE)
+  
+  observeEvent(input$facet_var, {
+    if (!is.null(input$facet_var) && nzchar(input$facet_var)) {
+      view_state$km_facet <- input$facet_var
+    }
+  }, ignoreInit = TRUE)
+  
+  observeEvent(input$facet_value, {
+    view_state$km_facet_values <- input$facet_value
+  }, ignoreInit = TRUE)
+  
+  # 获取标签映射后的分层变量值
+  mapped_strata <- eventReactive(input$render_km_plot, {
+    data <- isolate(filtered_data())
+    req(data)
+    strata_var <- graphics_state$km_strata
+    if (is.null(strata_var) || strata_var == "None" || !strata_var %in% names(data)) return(NULL)
+    strata_col <- data[[strata_var]]
     strata_values <- as.character(strata_col)
     
     # 应用标签映射
@@ -726,16 +834,18 @@ survival_analysis_server <- function(input, output, session, data) {
     return(strata_values)
   })
   
-  # 创建生存曲线图
-  create_surv_plot <- function() {
-    req(fit(), filtered_data())
-    data <- filtered_data()
+  # 生成基础生存曲线图对象（缓存以提升性能）
+  base_surv_plot <- eventReactive(input$render_km_plot, {
+    req(fit())
+    data <- isolate(filtered_data())
+    req(data)
+    time_var_name <- graphics_state$km_time
+    status_var_name <- graphics_state$km_status
+    strata_var <- graphics_state$km_strata
     
-    # 时间范围设置
     time_range <- if (!is.null(input$time_range)) {
       input$time_range
     } else {
-      time_var_name <- input$km_time
       time_max <- max(data[[time_var_name]], na.rm = TRUE)
       time_range_max <- time_max + 30  # 最大值 = 实际最大值 + 30
       c(0, time_range_max)
@@ -748,12 +858,9 @@ survival_analysis_server <- function(input, output, session, data) {
       round((time_range[2] - time_range[1]) / 10)
     }
     
-    # 如果有标签映射，创建一个使用映射标签的副本数据
     plot_data <- data
-    if (input$strata_var != "None" && length(graphics_state$strata_labels) > 0) {
-      # 复制数据以避免修改原始数据
-      plot_data <- data
-      strata_col <- plot_data[[input$strata_var]]
+    if (!is.null(strata_var) && strata_var != "None" && length(graphics_state$strata_labels) > 0) {
+      strata_col <- plot_data[[strata_var]]
       strata_values <- as.character(strata_col)
       labels <- graphics_state$strata_labels
       for (orig in names(labels)) {
@@ -761,15 +868,13 @@ survival_analysis_server <- function(input, output, session, data) {
           strata_values[strata_values == orig] <- labels[[orig]]
         }
       }
-      plot_data[[input$strata_var]] <- factor(strata_values, levels = unique(strata_values))
+      plot_data[[strata_var]] <- factor(strata_values, levels = unique(strata_values))
     }
     
-    # 使用映射后的数据重新拟合生存曲线
-    if (input$strata_var != "None" && length(graphics_state$strata_labels) > 0) {
-      # 重新创建生存对象
-      time_var <- plot_data[[input$km_time]]
-      status_var <- plot_data[[input$km_status]]
-      if (input$km_censor_value == "1") {
+    if (!is.null(strata_var) && strata_var != "None" && length(graphics_state$strata_labels) > 0) {
+      time_var <- plot_data[[time_var_name]]
+      status_var <- plot_data[[status_var_name]]
+      if (graphics_state$km_censor_value == "1") {
         status_var <- ifelse(status_var == 1, 0, ifelse(status_var == 0, 1, status_var))
       }
       unique_status <- unique(status_var)
@@ -781,12 +886,8 @@ survival_analysis_server <- function(input, output, session, data) {
       surv_obj_local <- Surv(time_var, status_var)
       
       # 重新拟合
-      if (input$strata_var == "None") {
-        fit_local <- surv_fit(surv_obj_local ~ 1, data = plot_data)
-      } else {
-        formula_str <- paste("surv_obj_local ~", input$strata_var)
-        fit_local <- surv_fit(as.formula(formula_str), data = plot_data)
-      }
+      formula_str <- paste("surv_obj_local ~", strata_var)
+      fit_local <- surv_fit(as.formula(formula_str), data = plot_data)
     } else {
       # 使用原始拟合
       fit_local <- fit()
@@ -794,40 +895,41 @@ survival_analysis_server <- function(input, output, session, data) {
     }
     
     # 计算图例标题文本
-    legend_title_text <- ifelse(input$legend_title != "", input$legend_title,
-                               ifelse(input$strata_var != "None", input$strata_var, ""))
-    # 如果图例标题为空字符串，设置为NULL，避免产生空标签
-    if (legend_title_text == "") {
-      legend_title_text <- NULL
+    legend_title_text <- if (!is.null(graphics_state$legend_title) && nzchar(trimws(graphics_state$legend_title))) {
+      trimws(graphics_state$legend_title)
+    } else {
+      "" # 改为空字符串而不是 NULL，确保 ggsurvplot 移除标题
     }
     
-    # 创建生存曲线图 - 启用默认图例，禁用默认置信区间和删失点
+    # 创建生存曲线图
     p <- suppressWarnings(ggsurvplot(
       fit_local,
       data = plot_data,
       risk.table = input$km_show_risktable,
-      conf.int = FALSE,  # 关键：禁用默认置信区间
+      conf.int = FALSE,
       pval = FALSE,
-      censor = FALSE,  # 关键：禁用默认删失点
+      censor = FALSE,
       xlim = time_range,
-      break.time.by = time_step,  # 使用自定义时间步长
+      break.time.by = time_step,
       ggtheme = theme_bw(),
       palette = "Set1",
-      # surv.alpha = 1,  # 移除：不再使用alpha参数，避免discrete alpha警告
       legend.title = legend_title_text,
-      legend.labs = NULL  # 使用默认标签，避免产生未知标签
+      legend.labs = NULL
     ))
     
     # 计算并标注中位生存时间
     if (input$show_median) {
-      median_surv <- extract_median_ci(fit_local)
+      median_surv <- stats_results()$median_surv
       if (!is.null(median_surv) && nrow(median_surv) > 0) {
-        median_surv$median_txt <- ifelse(is.finite(median_surv$median), formatC(median_surv$median, format = "f", digits = 2), "未达到")
+        median_surv$median_txt <- ifelse(is.finite(median_surv$median), formatC(median_surv$median, format = "f", digits = 2), "NR")
         median_surv$lower_txt <- ifelse(is.finite(median_surv$lower), formatC(median_surv$lower, format = "f", digits = 2), "NA")
         median_surv$upper_txt <- ifelse(is.finite(median_surv$upper), formatC(median_surv$upper, format = "f", digits = 2), "NA")
-        median_surv$label <- paste0(
-          median_surv$strata, ": 中位生存时间 ", median_surv$median_txt,
-          " (95%CI ", median_surv$lower_txt, "-", median_surv$upper_txt, ")"
+        
+        # 针对总体曲线（无分层）去除“all:”前缀
+        median_surv$label <- ifelse(
+          median_surv$strata == "all",
+          paste0("Median Survival Time: ", median_surv$median_txt, " (95%CI ", median_surv$lower_txt, "-", median_surv$upper_txt, ")"),
+          paste0(median_surv$strata, ": Median Survival Time: ", median_surv$median_txt, " (95%CI ", median_surv$lower_txt, "-", median_surv$upper_txt, ")")
         )
         
         # 确定标注位置
@@ -836,12 +938,10 @@ survival_analysis_server <- function(input, output, session, data) {
         n_groups <- nrow(median_surv)
         
         # 定义预设位置映射
-        if (preset == "auto") {
-          # 自动布局：右侧垂直排列，从0.95开始向下，根据分组数量动态调整行距
-          x_pos <- max(time_range) * 0.98
-          # 动态行距：根据分组数量压缩，最少留0.1的间距，最多到0.6
-          start_y <- 0.95
-          end_y <- max(0.6, 0.95 - (n_groups-1)*0.1)
+        if (preset == "auto" || preset == "bottom-left") {
+          x_pos <- min(time_range) + 0.02 * diff(time_range)
+          start_y <- 0.4
+          end_y <- max(0.05, 0.4 - (n_groups-1)*0.1)
           y_positions <- seq(start_y, end_y, length.out = n_groups)
         } else if (preset == "top-left") {
           x_pos <- min(time_range) + 0.02 * diff(time_range)
@@ -852,11 +952,6 @@ survival_analysis_server <- function(input, output, session, data) {
           x_pos <- max(time_range) * 0.98
           start_y <- 0.95
           end_y <- max(0.6, 0.95 - (n_groups-1)*0.1)
-          y_positions <- seq(start_y, end_y, length.out = n_groups)
-        } else if (preset == "bottom-left") {
-          x_pos <- min(time_range) + 0.02 * diff(time_range)
-          start_y <- 0.4
-          end_y <- max(0.05, 0.4 - (n_groups-1)*0.1)
           y_positions <- seq(start_y, end_y, length.out = n_groups)
         } else if (preset == "bottom-right") {
           x_pos <- max(time_range) * 0.98
@@ -880,7 +975,7 @@ survival_analysis_server <- function(input, output, session, data) {
         p$plot <- p$plot +
           geom_text(data = median_surv,
                     aes(x = x, y = y, label = label),
-                    hjust = ifelse(preset %in% c("top-left", "bottom-left"), 0, 1),
+                    hjust = ifelse(preset %in% c("top-left", "bottom-left", "auto"), 0, 1),
                     vjust = 0.5, size = input$stats_text_size / 3.2,
                     color = "black", fontface = "bold")
       }
@@ -889,138 +984,59 @@ survival_analysis_server <- function(input, output, session, data) {
     # 计算并显示统计量（P值/HR）
     if (input$show_stats) {
       # 计算log-rank检验P值
-      logrank_p <- tryCatch({
-        survdiff_obj <- survdiff(surv_obj() ~ data[[input$strata_var]], data = data)
-        pchisq(survdiff_obj$chisq, length(survdiff_obj$n) - 1, lower.tail = FALSE)
-      }, error = function(e) NA)
+      logrank_p <- stats_results()$logrank_p
       
       # 准备统计量文本
       stats_text <- ""
       if (!is.na(logrank_p)) {
-        stats_text <- paste0(stats_text, "Log-rank检验 P值 = ", formatC(logrank_p, format = "f", digits = 3))
+        stats_text <- paste0(stats_text, "Log-rank P = ", formatC(logrank_p, format = "f", digits = 3))
       }
       
-      # 如果存在分层变量，计算Cox回归HR（支持多分类和参考组选择）
-      if (input$strata_var != "None") {
-        strata_var <- data[[input$strata_var]]
-        strata_levels <- unique(strata_var)
-        n_levels <- length(strata_levels)
+      # 如果存在分层变量，获取Cox回归HR文本
+      if (!is.null(strata_var) && strata_var != "None") {
+        hr_lines <- stats_results()$hr_lines
         
-        # 确定参考组
-        reference <- input$hr_reference
-        if (is.null(reference) || reference == "auto") {
-          # 自动选择第一组作为参考
-          reference_level <- as.character(strata_levels[1])
-        } else {
-          reference_level <- reference
-        }
-        
-        # 重新编码因子变量，将参考组设为基线
-        strata_fac <- factor(strata_var)
-        if (reference_level %in% levels(strata_fac)) {
-          strata_fac <- relevel(strata_fac, ref = reference_level)
-        }
-        
-        # 拟合Cox模型
-        cox_fit <- tryCatch({
-          coxph(surv_obj() ~ strata_fac, data = data)
-        }, error = function(e) NULL)
-        
-        if (!is.null(cox_fit)) {
-          cox_summary <- summary(cox_fit)
-          n_coef <- nrow(cox_summary$coefficients)
-          
-          if (n_coef > 0) {
-            # 构建HR表格文本（新格式：组别vs参考组 HR=值 (95%CI: 下限-上限)）
-            hr_lines <- c()
-            # 标签映射
-            labels <- graphics_state$strata_labels
-            map_label <- function(x) {
-              # 如果x在labels中有直接映射，则使用
-              if (x %in% names(labels) && labels[[x]] != "") {
-                return(labels[[x]])
-              }
-              # 否则，尝试提取等号后面的部分
-              if (grepl("=", x)) {
-                extracted <- sub(".*=", "", x)
-                if (extracted %in% names(labels) && labels[[extracted]] != "") {
-                  return(labels[[extracted]])
-                }
-              }
-              # 如果都没有，返回原始x
-              return(x)
-            }
-            for (i in 1:n_coef) {
-              hr <- exp(cox_summary$coefficients[i, 1])
-              hr_lower <- exp(cox_summary$coefficients[i, 1] - 1.96 * cox_summary$coefficients[i, 3])
-              hr_upper <- exp(cox_summary$coefficients[i, 1] + 1.96 * cox_summary$coefficients[i, 3])
-              # 获取对比组名称（去掉因子前缀）
-              contrast_name <- rownames(cox_summary$coefficients)[i]
-              # 移除因子变量名前缀（例如"strata_fac"）
-              contrast_clean <- gsub("^.*?([^.]+)$", "\\1", contrast_name)  # 简单提取最后一个单词
-              # 如果前缀存在，尝试移除
-              if (grepl("strata_fac", contrast_name)) {
-                contrast_clean <- gsub("strata_fac", "", contrast_name)
-              }
-              # 应用标签映射
-              contrast_mapped <- map_label(contrast_clean)
-              reference_mapped <- map_label(reference_level)
-              # 构建新格式
-              hr_line <- paste0(contrast_mapped, " 对比 ", reference_mapped,
-                                "：HR = ", formatC(hr, format = "f", digits = 2),
-                                " (95%CI: ", formatC(hr_lower, format = "f", digits = 2), "-",
-                                formatC(hr_upper, format = "f", digits = 2), ")")
-              hr_lines <- c(hr_lines, hr_line)
-            }
-            
-            # 如果有HR结果，添加到统计量文本（每行单独一行，去掉Cox P值和标题）
-            if (length(hr_lines) > 0) {
-              # 如果已有log-rank P值，先加换行
-              if (stats_text != "") {
-                stats_text <- paste0(stats_text, "\n")
-              }
-              # 将HR行连接起来，每行用换行分隔
-              stats_text <- paste0(stats_text, paste(hr_lines, collapse = "\n"))
-            }
+        # 如果有HR结果，添加到统计量文本（每行单独一行）
+        if (length(hr_lines) > 0) {
+          # 如果已有log-rank P值，先加换行
+          if (stats_text != "") {
+            stats_text <- paste0(stats_text, "\n")
           }
+          # 将HR行连接起来，每行用换行分隔
+          stats_text <- paste0(stats_text, paste(hr_lines, collapse = "\n"))
         }
       }
       
-      # 确定统计量文本位置
-      preset <- input$text_position_preset
-      if (preset == "auto") {
-        # 默认左上角
-        stats_x <- min(time_range) + 0.02 * diff(time_range)
-        stats_y <- 0.95
-        hjust_val <- 0
-        vjust_val <- 1
-      } else if (preset == "top-left") {
-        stats_x <- min(time_range) + 0.02 * diff(time_range)
-        stats_y <- 0.95
-        hjust_val <- 0
-        vjust_val <- 1
-      } else if (preset == "top-right") {
-        stats_x <- max(time_range) * 0.98
-        stats_y <- 0.95
-        hjust_val <- 1
-        vjust_val <- 1
-      } else if (preset == "bottom-left") {
-        stats_x <- min(time_range) + 0.02 * diff(time_range)
-        stats_y <- 0.05
-        hjust_val <- 0
-        vjust_val <- 0
-      } else if (preset == "bottom-right") {
-        stats_x <- max(time_range) * 0.98
-        stats_y <- 0.05
-        hjust_val <- 1
-        vjust_val <- 0
-      } else if (preset == "custom") {
-        # 使用自定义坐标
-        stats_x <- min(time_range) + input$stats_x * diff(time_range)
-        stats_y <- input$stats_y
-        hjust_val <- ifelse(input$stats_x < 0.5, 0, 1)
-        vjust_val <- ifelse(input$stats_y < 0.5, 0, 1)
-      }
+    # 确定统计量文本位置
+    preset <- input$text_position_preset
+    if (preset == "auto" || preset == "bottom-left") {
+      # 默认左下角
+      stats_x <- min(time_range) + 0.02 * diff(time_range)
+      stats_y <- 0.05
+      hjust_val <- 0
+      vjust_val <- 0
+    } else if (preset == "top-left") {
+      stats_x <- min(time_range) + 0.02 * diff(time_range)
+      stats_y <- 0.95
+      hjust_val <- 0
+      vjust_val <- 1
+    } else if (preset == "top-right") {
+      stats_x <- max(time_range) * 0.98
+      stats_y <- 0.95
+      hjust_val <- 1
+      vjust_val <- 1
+    } else if (preset == "bottom-right") {
+      stats_x <- max(time_range) * 0.98
+      stats_y <- 0.05
+      hjust_val <- 1
+      vjust_val <- 0
+    } else if (preset == "custom") {
+      # 使用自定义坐标
+      stats_x <- min(time_range) + input$stats_x * diff(time_range)
+      stats_y <- input$stats_y
+      hjust_val <- ifelse(input$stats_x < 0.5, 0, 1)
+      vjust_val <- ifelse(input$stats_y < 0.5, 0, 1)
+    }
       
       # 将统计量文本添加到图形
       if (stats_text != "") {
@@ -1034,25 +1050,39 @@ survival_analysis_server <- function(input, output, session, data) {
     # 手动添加删失点，并生成单独的图例
     if (input$km_show_censor) {
       # 获取生存数据
-      surv_data <- surv_summary(fit())
+      surv_data <- surv_summary_data()
       
       # 只选择删失点
       censored_points <- surv_data[surv_data$n.censor > 0, ]
       
       if (nrow(censored_points) > 0) {
-        # 手动添加删失点，使用固定颜色和形状，但显示图例
+        # 如果存在分层变量，则对删失点进行颜色分层映射
+        if ("strata" %in% names(censored_points) && !is.null(strata_var) && strata_var != "None") {
+          p$plot <- p$plot +
+            geom_point(
+              data = censored_points,
+              aes(x = time, y = surv, color = strata, shape = "Censor"),
+              size = input$km_censor_size,
+              alpha = 1
+            )
+        } else {
+          p$plot <- p$plot +
+            geom_point(
+              data = censored_points,
+              aes(x = time, y = surv, shape = "Censor"),
+              size = input$km_censor_size,
+              color = "black",
+              alpha = 1
+            )
+        }
+        
         p$plot <- p$plot +
-          geom_point(
-            data = censored_points,
-            aes(x = time, y = surv, shape = "Censor"),
-            size = input$km_censor_size,
-            color = "black",  # 固定颜色，不映射
-            alpha = 1         # 固定透明度
-          ) +
           scale_shape_manual(
             name = "",
             values = c("Censor" = as.numeric(input$km_censor_shape))
-          )
+          ) +
+          guides(shape = guide_legend(position = "inside", override.aes = list(color = "black"))) +
+          theme(legend.position.inside = c(0.9, 0.9))
       }
     }
     
@@ -1133,19 +1163,18 @@ survival_analysis_server <- function(input, output, session, data) {
       formatted_xlab <- gsub("\\\\n", "\n", input$plot_xlab)
       p$plot <- p$plot + labs(x = formatted_xlab)
     } else {
-      p$plot <- p$plot + labs(x = input$km_time)
+      p$plot <- p$plot + labs(x = time_var_name)
     }
     
     if (!is.null(input$plot_ylab) && input$plot_ylab != "") {
       formatted_ylab <- gsub("\\\\n", "\n", input$plot_ylab)
       p$plot <- p$plot + labs(y = formatted_ylab)
     } else {
-      p$plot <- p$plot + labs(y = "生存概率")
+      p$plot <- p$plot + labs(y = "Survival Probability")
     }
     
 
 
-    # 组合图形（风险表处理）
     if (input$km_show_risktable && !is.null(p$table)) {
       p$table <- p$table +
         theme_minimal() +
@@ -1159,16 +1188,23 @@ survival_analysis_server <- function(input, output, session, data) {
           plot.margin = margin(0, 0, 0, 0, "pt"),
           axis.text.y = element_text(size = input$y_text_size)
         )
-      if (input$strata_var == "None") {
+      if (is.null(strata_var) || strata_var == "None") {
         overall_label <- trimws(input$overall_group_label %||% "all")
         if (!nzchar(overall_label)) overall_label <- "all"
         p$table <- p$table + scale_y_discrete(labels = function(x) rep(overall_label, length(x)))
       }
-      
-      # 创建图形列表
+    }
+    
+    p
+  })
+  
+  # 创建组合的静态生存曲线图
+  create_surv_plot <- function() {
+    p <- base_surv_plot()
+    
+    if (input$km_show_risktable && !is.null(p$table)) {
       plot_list <- list(p$plot, p$table)
       
-      # 如果有脚注，创建脚注文本并添加到图形列表最后
       if (!is.null(input$plot_caption) && input$plot_caption != "") {
         formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
         caption_plot <- ggplot() +
@@ -1182,7 +1218,6 @@ survival_analysis_server <- function(input, output, session, data) {
         rel_heights <- c(2, 0.5)
       }
       
-      # 组合图形
       combined_plot <- plot_grid(
         plotlist = plot_list,
         ncol = 1,
@@ -1193,7 +1228,6 @@ survival_analysis_server <- function(input, output, session, data) {
       
       combined_plot
     } else {
-      # 不显示风险表的情况
       if (!is.null(input$plot_caption) && input$plot_caption != "") {
         formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
         p$plot <- p$plot + labs(caption = formatted_caption) +
@@ -1203,141 +1237,32 @@ survival_analysis_server <- function(input, output, session, data) {
     }
   }
   
-  # 生成生存曲线图
+  # 生成静态生存曲线图
   output$survPlot <- renderPlot({
+    req(input$render_km_plot) # 确保有点击过生成按钮
     validate(need(!is.null(fit()), "请先完成变量设置并点击“生成图形”。"))
     create_surv_plot()
   }, height = 600)
   
-  # 创建专门的交互式生存曲线图（避免转换警告）
+  # 创建专门的交互式生存曲线图
   create_interactive_surv_plot <- function() {
-    req(fit(), filtered_data())
-    data <- filtered_data()
+    p <- base_surv_plot()$plot
     
-    # 时间范围设置
-    time_range <- if (!is.null(input$time_range)) {
-      input$time_range
-    } else {
-      time_var_name <- input$km_time
-      time_max <- max(data[[time_var_name]], na.rm = TRUE)
-      time_range_max <- time_max + 30  # 最大值 = 实际最大值 + 30
-      c(0, time_range_max)
-    }
-    
-    # 计算时间步长 - 使用自定义步长或自动计算
-    time_step <- if (!is.null(input$time_step) && !is.na(input$time_step) && input$time_step > 0) {
-      input$time_step
-    } else {
-      round((time_range[2] - time_range[1]) / 10)
-    }
-    
-    # 计算图例标题文本
-    legend_title_text <- ifelse(input$legend_title != "", input$legend_title,
-                               ifelse(input$strata_var != "None", input$strata_var, ""))
-    # 如果图例标题为空字符串，设置为NULL，避免产生空标签
-    if (legend_title_text == "") {
-      legend_title_text <- NULL
-    }
-    
-    # 创建生存曲线图 - 启用默认图例，禁用默认置信区间和删失点
-    p <- suppressWarnings(ggsurvplot(
-      fit(),
-      data = data,
-      risk.table = FALSE,  # 交互式图不显示风险表
-      conf.int = FALSE,  # 关键：禁用默认置信区间
-      pval = FALSE,
-      censor = FALSE,  # 关键：完全禁用默认删失点
-      xlim = time_range,
-      break.time.by = time_step,  # 使用自定义时间步长
-      ggtheme = theme_bw(),
-      palette = "Set1",
-      # surv.alpha = 1,  # 移除：不再使用alpha参数，避免discrete alpha警告
-      legend.title = legend_title_text,
-      legend.labs = NULL  # 使用默认标签，避免产生未知标签
-    ))$plot
-    
-    # 手动添加删失点，并生成单独的图例
-    if (input$km_show_censor) {
-      # 获取生存数据
-      surv_data <- surv_summary(fit())
-      
-      # 只选择删失点
-      censored_points <- surv_data[surv_data$n.censor > 0, ]
-      
-      if (nrow(censored_points) > 0) {
-        # 手动添加删失点，使用固定颜色和形状，但显示图例
-        p <- p +
-          geom_point(
-            data = censored_points,
-            aes(x = time, y = surv, shape = "Censor"),
-            size = input$km_censor_size,
-            color = "black",  # 固定颜色，不映射
-            alpha = 1         # 固定透明度
-          ) +
-          scale_shape_manual(
-            name = "",
-            values = c("Censor" = as.numeric(input$km_censor_shape))
-          )
+    # 交互式图不需要网格和复杂的自定义主题边框，但这里我们保留大部分原有设置
+    # 处理标题（如果之前未自定义，添加默认交互式标题）
+    if (is.null(input$plot_title) || input$plot_title == "") {
+      if (input$facet_var != "None" && !is.null(input$facet_value)) {
+        p <- p + labs(title = paste("Interactive Survival Plot -", input$facet_var, "=", input$facet_value))
+      } else {
+        p <- p + labs(title = "Interactive Survival Plot")
       }
     }
     
-    
-    # 修复图例和透明度警告
-    # 注意：颜色图例已经在ggsurvplot中通过legend.title设置，无需重复设置
-    # 确保形状图例正确（标题为空），并移除alpha图例
-    p <- p +
-      guides(
-        shape = guide_legend(title = ""),
-        alpha = "none",
-        size = "none",
-        linewidth = "none"
-      )
-    p <- p + theme(text = element_text(family = "sans"))
-    
-    # 移除任何可能存在的alpha美学映射
-    if ("alpha" %in% names(p$layers)) {
-      p$layers <- lapply(p$layers, function(layer) {
-        if ("alpha" %in% names(layer$aes_params)) {
-          layer$aes_params$alpha <- NULL
-        }
-        layer
-      })
-    }
-    
-    # 应用线条样式
-    p <- p +
-      update_geom_defaults("step", list(size = input$line_size, linetype = input$line_type))
-    
-    # 处理标题
-    if (!is.null(input$plot_title) && input$plot_title != "") {
-      formatted_title <- gsub("\\\\n", "\n", input$plot_title)
-      p <- p + labs(title = formatted_title)
-    } else if (input$facet_var != "None" && !is.null(input$facet_value)) {
-      p <- p + labs(title = paste("交互式生存分析曲线 -", input$facet_var, "=", input$facet_value))
-    } else {
-      p <- p + labs(title = "交互式生存分析曲线")
-    }
-    
-    # 处理脚注
+    # 处理脚注（直接加到主图）
     if (!is.null(input$plot_caption) && input$plot_caption != "") {
       formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
       p <- p + labs(caption = formatted_caption) +
         theme(plot.caption = element_text(hjust = 0, vjust = 1, size = 10))
-    }
-    
-    # 处理坐标轴标签
-    if (!is.null(input$plot_xlab) && input$plot_xlab != "") {
-      formatted_xlab <- gsub("\\\\n", "\n", input$plot_xlab)
-      p <- p + labs(x = formatted_xlab)
-    } else {
-      p <- p + labs(x = input$km_time)
-    }
-    
-    if (!is.null(input$plot_ylab) && input$plot_ylab != "") {
-      formatted_ylab <- gsub("\\\\n", "\n", input$plot_ylab)
-      p <- p + labs(y = formatted_ylab)
-    } else {
-      p <- p + labs(y = "生存概率")
     }
     
     return(p)
@@ -1345,7 +1270,8 @@ survival_analysis_server <- function(input, output, session, data) {
   
     # 交互式生存曲线图
   output$interactiveSurvPlot <- renderPlotly({
-    validate(need(!is.null(fit()) && !is.null(filtered_data()) && nrow(filtered_data()) > 0, "请先生成生存曲线后查看交互式图。"))
+    req(input$render_km_plot)
+    validate(need(!is.null(fit()), "请先生成生存曲线后查看交互式图。"))
     
     # 创建专门的交互式图形
     interactive_plot <- create_interactive_surv_plot()
@@ -1382,23 +1308,9 @@ survival_analysis_server <- function(input, output, session, data) {
     surv_df
   }
 
-  output$interactive_risk_table <- renderDT({
-    validate(need(!is.null(fit()), "请先生成生存曲线后查看风险表。"))
-    surv_df <- build_km_summary_df(fit(), input$time_range)
-    validate(need(!is.null(surv_df) && nrow(surv_df) > 0, "当前时间范围内无风险表数据。"))
-    DT::datatable(
-      surv_df,
-      options = list(
-        pageLength = 8,
-        scrollX = TRUE,
-        order = list(list(1, "asc"), list(0, "asc")),
-        columnDefs = list(list(className = "dt-center", targets = 0:7))
-      )
-    )
-  })
-  
   # 生存分析数据表
   output$km_data_table <- renderDT({
+    req(input$render_km_plot)
     validate(need(!is.null(fit()), "请先生成生存曲线后查看数据表。"))
     
     # 获取生存分析结果数据
@@ -1423,99 +1335,70 @@ survival_analysis_server <- function(input, output, session, data) {
   })
   
   output$survival_report <- renderUI({
-    validate(need(!is.null(fit()) && !is.null(filtered_data()) && nrow(filtered_data()) > 0, "请先生成生存曲线后查看统计报告。"))
-    validate(need(!is.null(input$km_time) && !is.null(input$km_status), "请先选择时间与状态变量。"))
-    data_local <- filtered_data()
+    req(input$render_km_plot)
+    data_local <- isolate(filtered_data())
+    validate(need(!is.null(fit()) && !is.null(data_local) && nrow(data_local) > 0, "请先生成生存曲线后查看统计报告。"))
+    validate(need(!is.null(graphics_state$km_time) && !is.null(graphics_state$km_status), "请先选择时间与状态变量。"))
+    
     fit_local <- fit()
     
     method_desc <- paste0(
       "当前采用 Kaplan-Meier 方法估计生存函数；删失定义为 ",
-      ifelse(input$km_censor_value == "0", "0=删失, 1=事件", "1=删失, 0=事件"),
+      ifelse(graphics_state$km_censor_value == "0", "0=删失, 1=事件", "1=删失, 0=事件"),
       "。"
     )
     
-    if (input$strata_var != "None") {
+    if (!is.null(graphics_state$km_strata) && graphics_state$km_strata != "None") {
       method_desc <- paste0(
         method_desc,
         " 分层变量为 ",
-        input$strata_var,
+        graphics_state$km_strata,
         "，比较各组生存曲线差异。"
       )
     } else {
       method_desc <- paste0(method_desc, " 未设置分层变量，输出总体生存曲线。")
     }
     
-    if (input$facet_var != "None" && !is.null(input$facet_value) && input$facet_value != "") {
+    if (!is.null(graphics_state$km_facet) && graphics_state$km_facet != "None" && !is.null(graphics_state$km_facet_values) && graphics_state$km_facet_values != "") {
       method_desc <- paste0(
         method_desc,
         " 当前分面筛选：",
-        input$facet_var,
+        graphics_state$km_facet,
         " = ",
-        input$facet_value,
+        graphics_state$km_facet_values,
         "。"
       )
     }
     
-    logrank_p <- NA
-    if (input$strata_var != "None" && input$strata_var %in% names(data_local)) {
-      logrank_p <- tryCatch({
-        sd <- survdiff(surv_obj() ~ data_local[[input$strata_var]], data = data_local)
-        pchisq(sd$chisq, length(sd$n) - 1, lower.tail = FALSE)
-      }, error = function(e) NA)
-    }
+    logrank_p <- stats_results()$logrank_p
     
-    med <- tryCatch(extract_median_ci(fit_local), error = function(e) NULL)
+    med <- stats_results()$median_surv
     median_lines <- character(0)
     if (!is.null(med) && nrow(med) > 0) {
       for (i in seq_len(nrow(med))) {
+        strata_prefix <- ifelse(med$strata[i] == "all", "", paste0(med$strata[i], "："))
         median_lines <- c(
           median_lines,
           paste0(
-            med$strata[i], "：中位生存时间 ",
-            ifelse(is.finite(med$median[i]), formatC(med$median[i], format = "f", digits = 2), "未达到"),
-            "（95%CI ",
+            strata_prefix, "Median Survival Time: ",
+            ifelse(is.finite(med$median[i]), formatC(med$median[i], format = "f", digits = 2), "NR"),
+            " (95%CI ",
             ifelse(is.finite(med$lower[i]), formatC(med$lower[i], format = "f", digits = 2), "NA"), " - ",
-            ifelse(is.finite(med$upper[i]), formatC(med$upper[i], format = "f", digits = 2), "NA"), "）"
+            ifelse(is.finite(med$upper[i]), formatC(med$upper[i], format = "f", digits = 2), "NA"), ")"
           )
         )
       }
     }
     
-    hr_lines <- character(0)
-    if (input$strata_var != "None" && input$strata_var %in% names(data_local)) {
-      cox_fit <- tryCatch({
-        strata_fac <- factor(data_local[[input$strata_var]])
-        coxph(surv_obj() ~ strata_fac, data = data_local)
-      }, error = function(e) NULL)
-      
-      if (!is.null(cox_fit)) {
-        csum <- summary(cox_fit)
-        if (!is.null(csum$coefficients) && nrow(csum$coefficients) > 0) {
-          for (i in seq_len(nrow(csum$coefficients))) {
-            hr <- exp(csum$coefficients[i, 1])
-            hr_low <- exp(csum$coefficients[i, 1] - 1.96 * csum$coefficients[i, 3])
-            hr_up <- exp(csum$coefficients[i, 1] + 1.96 * csum$coefficients[i, 3])
-            p_val <- csum$coefficients[i, 5]
-            hr_lines <- c(
-              hr_lines,
-              paste0(
-                rownames(csum$coefficients)[i], "：HR=", formatC(hr, format = "f", digits = 2),
-                "（95%CI ", formatC(hr_low, format = "f", digits = 2), " - ", formatC(hr_up, format = "f", digits = 2),
-                "，P=", formatC(p_val, format = "f", digits = 3), "）"
-              )
-            )
-          }
-        }
-      }
-    }
+    hr_lines <- stats_results()$hr_lines
     
     interpretation <- character(0)
     interpretation <- c(
       interpretation,
       paste0(
         "纳入样本量：", nrow(data_local),
-        "；时间变量：", input$km_time,
-        "；状态变量：", input$km_status, "。"
+        "；时间变量：", graphics_state$km_time,
+        "；状态变量：", graphics_state$km_status, "。"
       )
     )
     
@@ -1573,11 +1456,12 @@ survival_analysis_server <- function(input, output, session, data) {
   # 返回模块状态
   return(reactive({
     list(
-      time_var = input$km_time,
-      status_var = input$km_status,
-      strata_var = input$strata_var,
-      facet_var = input$facet_var,
-      facet_value = input$facet_value
+      time_var = graphics_state$km_time %||% input$km_time,
+      status_var = graphics_state$km_status %||% input$km_status,
+      km_censor_value = graphics_state$km_censor_value %||% input$km_censor_value,
+      strata_var = graphics_state$km_strata %||% input$strata_var,
+      facet_var = graphics_state$km_facet %||% input$facet_var,
+      facet_value = graphics_state$km_facet_values %||% input$facet_value
     )
   }))
 }

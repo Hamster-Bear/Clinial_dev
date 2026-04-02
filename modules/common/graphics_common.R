@@ -61,3 +61,39 @@ graphics_notify_error <- function(module_name, err) {
   msg <- if (inherits(err, "error")) conditionMessage(err) else as.character(err)
   showNotification(paste0(module_name, "生成错误: ", msg), type = "error")
 }
+
+graphics_progress_text <- function(module_name, detail = NULL, value = NULL) {
+  base <- paste0(module_name, "正在生成图形")
+  if (!is.null(detail) && nzchar(detail)) {
+    base <- paste0(base, "：", detail)
+  }
+  if (!is.null(value) && is.finite(value)) {
+    pct <- round(max(0, min(1, value)) * 100)
+    base <- paste0(base, " (", pct, "%)")
+  }
+  base
+}
+
+graphics_progress_start <- function(module_name) {
+  id <- paste0("graphics_progress_", gsub("[^A-Za-z0-9_]+", "_", module_name))
+  showNotification(
+    graphics_progress_text(module_name, detail = "初始化", value = 0),
+    type = "message",
+    duration = NULL,
+    id = id
+  )
+  id
+}
+
+graphics_progress_update <- function(progress_id, module_name, detail = NULL, value = NULL) {
+  showNotification(
+    graphics_progress_text(module_name, detail = detail, value = value),
+    type = "message",
+    duration = NULL,
+    id = progress_id
+  )
+}
+
+graphics_progress_end <- function(progress_id) {
+  removeNotification(progress_id)
+}
