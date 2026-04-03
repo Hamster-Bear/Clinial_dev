@@ -25,7 +25,7 @@ test_that("固定样例的 median/LCL/UCL 与基准一致", {
     status_vec <- ifelse(status_vec == min_status, 0, 1)
   }
   surv_obj <- Surv(df[[time_var]], status_vec)
-  fit <- survminer::surv_fit(surv_obj ~ 1, data = df)
+  fit <- survminer::surv_fit(surv_obj ~ 1, data = df, conf.type = "log-log")
   tbl <- summary(fit)$table
   if (is.null(dim(tbl))) {
     tbl <- t(as.matrix(tbl))
@@ -37,7 +37,7 @@ test_that("固定样例的 median/LCL/UCL 与基准一致", {
   lcl_val <- as.numeric(tbl[, "0.95LCL"])
   ucl_val <- as.numeric(tbl[, "0.95UCL"])
   expect_equal(median_val, 12)
-  expect_equal(lcl_val, 9)
+  expect_equal(lcl_val, 5)
   expect_true(is.na(ucl_val))
 })
 
@@ -56,6 +56,7 @@ test_that("KM 可复现代码包含 UI 同源关键步骤", {
   )
   expect_match(code, "km_censor_value <-")
   expect_match(code, "status_vec <- ifelse\\(status_vec == 1, 0")
+  expect_match(code, "conf.type = \"log-log\"")
   expect_match(code, "extract_median_ci <- function")
   expect_match(code, "median_df <- extract_median_ci\\(fit\\)")
 })

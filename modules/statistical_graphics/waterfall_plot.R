@@ -6,6 +6,10 @@ library(tidyr)
 library(cowplot)
 library(scales)
 
+.waterfall_symbol_choices <- function() {
+  c("★" = "★", "▲" = "▲", "●" = "●", "◆" = "◆", "■" = "■", "✕" = "✕", "✦" = "✦", "✚" = "✚", "⬟" = "⬟", "⬢" = "⬢", "◉" = "◉", "◈" = "◈")
+}
+
 waterfall_plot_ui <- function(id) {
   ns <- NS(id)
 
@@ -142,7 +146,7 @@ waterfall_plot_ui <- function(id) {
                         ),
                         uiOutput(ns("symbol_controls")),
                         fluidRow(
-                          column(6, colourpicker::colourInput(ns("symbol_text_color"), "符号颜色", value = "#1A1A1A", width = "100%")),
+                          column(6, colourpicker::colourInput(ns("symbol_text_color"), "默认符号颜色", value = "#1A1A1A", width = "100%")),
                           column(6, numericInput(ns("symbol_text_size"), "符号大小", value = 4, min = 2, max = 10, step = 0.2, width = "100%"))
                         )
                       )
@@ -164,6 +168,7 @@ waterfall_plot_ui <- function(id) {
                           selected = "Set3",
                           width = "100%"
                         ),
+                        uiOutput(ns("track_color_controls")),
                         fluidRow(
                           column(6, colourpicker::colourInput(ns("track_text_bg_color"), "轨道文本底色", value = "#F7F7F7", width = "100%")),
                           column(6, colourpicker::colourInput(ns("track_text_color"), "轨道文本颜色", value = "#1A1A1A", width = "100%"))
@@ -374,6 +379,46 @@ waterfall_plot_server <- function(input, output, session, data) {
     )
   })
 
+  output$track_color_controls <- renderUI({
+    req(input$tracks, data())
+    selected_tracks <- input$tracks %||% character(0)
+    selected_tracks <- selected_tracks[selected_tracks %in% names(data())]
+    if (length(selected_tracks) == 0) {
+      return(helpText("选择轨道变量后，可为“轨道名:值”逐项指定颜色。"))
+    }
+    track_mode_map <- setNames(
+      lapply(selected_tracks, function(tr) input[[paste0("track_mode_", digest::digest(tr, algo = "crc32"))]] %||% (input$track_mode %||% "color")),
+      selected_tracks
+    )
+    color_tracks <- graphics_filter_tracks_by_mode(selected_tracks, track_mode_map, "color")
+    if (length(color_tracks) == 0) {
+      return(helpText("当前所选轨道均为文本填充，无需颜色映射。"))
+    }
+    track_label_map <- setNames(make.unique(vapply(color_tracks, function(tr) get_var_label(data(), tr), character(1))), color_tracks)
+    key_list <- lapply(color_tracks, function(tr) {
+      vals <- unique(format_missing_vec(data()[[tr]]))
+      vals <- vals[!is.na(vals)]
+      paste0(track_label_map[[tr]], " : ", vals)
+    })
+    track_keys <- unique(unlist(key_list, use.names = FALSE))
+    track_keys <- head(track_keys, 30)
+    if (length(track_keys) == 0) {
+      return(helpText("当前轨道变量没有可用取值。"))
+    }
+    defaults <- setNames(palette_values(length(track_keys), input$track_palette %||% "hue"), track_keys)
+    tagList(
+      h5("轨道取值颜色映射"),
+      lapply(track_keys, function(key) {
+        colourpicker::colourInput(
+          session$ns(paste0("track_col_", digest::digest(key, algo = "crc32"))),
+          label = key,
+          value = defaults[[key]],
+          width = "100%"
+        )
+      })
+    )
+  })
+
   output$symbol_controls <- renderUI({
     req(data())
     if (is.null(input$symbol_by) || !nzchar(input$symbol_by) || !(input$symbol_by %in% names(data()))) {
@@ -383,16 +428,33 @@ waterfall_plot_server <- function(input, output, session, data) {
     symbol_levels <- symbol_levels[!is.na(symbol_levels) & nzchar(symbol_levels)]
     symbol_levels <- head(symbol_levels, 12)
     if (length(symbol_levels) == 0) return(NULL)
-    default_symbols <- c("★", "▲", "●", "◆", "■", "✕", "✦", "✚", "⬟", "⬢", "◉", "◈")
+    symbol_choices <- .waterfall_symbol_choices()
+    default_symbols <- unname(symbol_choices)[seq_len(length(symbol_levels))]
+    default_colors <- rep(input$symbol_text_color %||% "#1A1A1A", length(symbol_levels))
     tagList(
       h5("符号分组映射"),
       lapply(seq_along(symbol_levels), function(i) {
         lv <- symbol_levels[[i]]
-        textInput(
-          session$ns(paste0("symbol_lbl_", digest::digest(lv, algo = "crc32"))),
-          label = lv,
-          value = default_symbols[[i]],
-          width = "100%"
+        fluidRow(
+          column(
+            6,
+            selectInput(
+              session$ns(paste0("symbol_lbl_", digest::digest(lv, algo = "crc32"))),
+              label = lv,
+              choices = symbol_choices,
+              selected = default_symbols[[i]],
+              width = "100%"
+            )
+          ),
+          column(
+            6,
+            colourpicker::colourInput(
+              session$ns(paste0("symbol_col_", digest::digest(lv, algo = "crc32"))),
+              label = paste0(lv, " 颜色"),
+              value = default_colors[[i]],
+              width = "100%"
+            )
+          )
         )
       })
     )
@@ -687,11 +749,22 @@ waterfall_plot_server <- function(input, output, session, data) {
         symbol_levels <- unique(plot_df$.symbol_group)
         symbol_levels <- symbol_levels[!is.na(symbol_levels) & nzchar(symbol_levels)]
         if (length(symbol_levels) > 0) {
+          default_symbols <- unname(.waterfall_symbol_choices())
           symbol_map <- setNames(
             vapply(symbol_levels, function(lv) {
               id <- paste0("symbol_lbl_", digest::digest(lv, algo = "crc32"))
               lbl <- input[[id]]
-              if (is.null(lbl) || !nzchar(lbl)) "●" else lbl
+              idx <- match(lv, symbol_levels)
+              if (is.null(lbl) || !nzchar(lbl)) default_symbols[[idx]] else lbl
+            }, character(1)),
+            symbol_levels
+          )
+          symbol_color_defaults <- setNames(rep(input$symbol_text_color %||% "#1A1A1A", length(symbol_levels)), symbol_levels)
+          symbol_color_map <- setNames(
+            vapply(symbol_levels, function(lv) {
+              id <- paste0("symbol_col_", digest::digest(lv, algo = "crc32"))
+              val <- input[[id]]
+              if (is.null(val) || !nzchar(val)) symbol_color_defaults[[lv]] else val
             }, character(1)),
             symbol_levels
           )
@@ -700,6 +773,7 @@ waterfall_plot_server <- function(input, output, session, data) {
           symbol_df <- plot_df %>%
             mutate(
               .symbol_label = ifelse(!is.na(.symbol_group) & nzchar(.symbol_group), unname(symbol_map[.symbol_group]), ""),
+              .symbol_color = unname(symbol_color_map[.symbol_group]),
               .symbol_y = .value + ifelse(.value >= 0, symbol_offset, -symbol_offset)
             ) %>%
             filter(nzchar(.symbol_label))
@@ -707,11 +781,11 @@ waterfall_plot_server <- function(input, output, session, data) {
             p_main <- p_main +
               geom_text(
                 data = symbol_df,
-                aes(x = .subject_factor, y = .symbol_y, label = .symbol_label),
+                aes(x = .subject_factor, y = .symbol_y, label = .symbol_label, color = .symbol_group),
                 inherit.aes = FALSE,
-                color = input$symbol_text_color,
                 size = input$symbol_text_size
-              )
+              ) +
+              scale_color_manual(values = symbol_color_map, guide = "none")
           }
         }
       }
@@ -773,6 +847,13 @@ waterfall_plot_server <- function(input, output, session, data) {
           mutate(.track_legend_key = paste0(as.character(.track_name), " : ", .track_value))
         track_keys <- unique(color_track_df$.track_legend_key)
         track_colors <- setNames(palette_values(length(track_keys), input$track_palette %||% "hue"), track_keys)
+        if (length(track_keys) > 0) {
+          manual_track_colors <- setNames(
+            lapply(track_keys, function(key) input[[paste0("track_col_", digest::digest(key, algo = "crc32"))]]),
+            track_keys
+          )
+          track_colors <- graphics_override_colors(track_colors, manual_track_colors)
+        }
 
         compact_mode <- isTRUE(input$track_compact_mode)
         track_row_spacing_eff <- if (compact_mode) 0 else max(0, input$track_row_spacing %||% 0)

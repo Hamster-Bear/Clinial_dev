@@ -77,7 +77,7 @@ generate_graphics_repro_code <- function(fig_type, state = list(), data_name = "
           "surv_obj <- survival::Surv(time_vec, status_vec)",
           "formula_terms <- if (is.null(strata_var)) \"1\" else strata_var",
           "km_formula <- as.formula(paste(\"surv_obj ~\", formula_terms))",
-          "fit <- survminer::surv_fit(km_formula, data = df)",
+          "fit <- survminer::surv_fit(km_formula, data = df, conf.type = \"log-log\")",
           "extract_median_ci <- function(fit_obj) {",
           "  tbl <- summary(fit_obj)$table",
           "  if (is.null(dim(tbl))) {",

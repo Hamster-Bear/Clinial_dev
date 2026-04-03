@@ -97,3 +97,30 @@ graphics_progress_update <- function(progress_id, module_name, detail = NULL, va
 graphics_progress_end <- function(progress_id) {
   removeNotification(progress_id)
 }
+
+graphics_override_colors <- function(default_colors, manual_colors = NULL) {
+  out <- default_colors
+  if (length(out) == 0) return(out)
+  if (is.null(manual_colors) || length(manual_colors) == 0) return(out)
+  valid_keys <- intersect(names(out), names(manual_colors))
+  if (length(valid_keys) == 0) return(out)
+  for (k in valid_keys) {
+    v <- manual_colors[[k]]
+    if (is.null(v) || length(v) == 0) next
+    vv <- as.character(v[[1]])
+    if (!is.na(vv) && nzchar(trimws(vv))) {
+      out[[k]] <- vv
+    }
+  }
+  out
+}
+
+graphics_filter_tracks_by_mode <- function(track_names, mode_map = NULL, target_mode = "color") {
+  if (length(track_names) == 0) return(character(0))
+  if (is.null(mode_map) || length(mode_map) == 0) return(track_names)
+  out <- track_names[vapply(track_names, function(tr) {
+    mode <- mode_map[[tr]] %||% target_mode
+    identical(mode, target_mode)
+  }, logical(1))]
+  unname(out)
+}

@@ -84,7 +84,8 @@ swimmer_plot_ui <- function(id) {
                     ),
                     selectInput(ns("track_mode"), "轨道默认展示方式", choices = c("颜色填充" = "color", "文本填充" = "text"), selected = "color", width = "100%"),
                     checkboxInput(ns("show_tracks"), "显示下方分组轨道", TRUE),
-                    uiOutput(ns("track_mode_controls"))
+                    uiOutput(ns("track_mode_controls")),
+                    uiOutput(ns("track_color_controls"))
                   )
                 )
               )
@@ -688,6 +689,46 @@ swimmer_plot_server <- function(input, output, session, data) {
     )
   })
 
+  output$track_color_controls <- renderUI({
+    req(input$tracks, data())
+    selected_tracks <- input$tracks %||% character(0)
+    selected_tracks <- selected_tracks[selected_tracks %in% names(data())]
+    if (length(selected_tracks) == 0) {
+      return(helpText("选择轨道变量后，可为“轨道名:值”逐项指定颜色。"))
+    }
+    track_mode_map <- setNames(
+      lapply(selected_tracks, function(tr) input[[paste0("track_mode_", digest::digest(tr, algo = "crc32"))]] %||% (input$track_mode %||% "color")),
+      selected_tracks
+    )
+    color_tracks <- graphics_filter_tracks_by_mode(selected_tracks, track_mode_map, "color")
+    if (length(color_tracks) == 0) {
+      return(helpText("当前所选轨道均为文本填充，无需颜色映射。"))
+    }
+    track_label_map <- setNames(make.unique(vapply(color_tracks, function(tr) get_var_label(data(), tr), character(1))), color_tracks)
+    key_list <- lapply(color_tracks, function(tr) {
+      vals <- unique(format_missing_vec(data()[[tr]]))
+      vals <- vals[!is.na(vals)]
+      paste0(track_label_map[[tr]], " : ", vals)
+    })
+    track_keys <- unique(unlist(key_list, use.names = FALSE))
+    track_keys <- head(track_keys, 30)
+    if (length(track_keys) == 0) {
+      return(helpText("当前轨道变量没有可用取值。"))
+    }
+    defaults <- setNames(palette_values(length(track_keys), "Set3"), track_keys)
+    tagList(
+      h5("轨道取值颜色映射"),
+      lapply(track_keys, function(key) {
+        colourpicker::colourInput(
+          session$ns(paste0("track_col_", digest::digest(key, algo = "crc32"))),
+          label = key,
+          value = defaults[[key]],
+          width = "100%"
+        )
+      })
+    )
+  })
+
   final_plot <- reactiveVal(NULL)
   main_plot_obj <- reactiveVal(NULL)
   lane_data <- reactiveVal(NULL)
@@ -1225,6 +1266,13 @@ swimmer_plot_server <- function(input, output, session, data) {
           mutate(.track_legend_key = paste0(as.character(.track_name), " : ", .track_value))
         track_keys <- unique(color_track_df$.track_legend_key)
         track_colors <- setNames(palette_values(length(track_keys), "Set3"), track_keys)
+        if (length(track_keys) > 0) {
+          manual_track_colors <- setNames(
+            lapply(track_keys, function(key) input[[paste0("track_col_", digest::digest(key, algo = "crc32"))]]),
+            track_keys
+          )
+          track_colors <- graphics_override_colors(track_colors, manual_track_colors)
+        }
 
         compact_mode <- isTRUE(input$track_compact_mode)
         track_row_spacing_eff <- if (compact_mode) 0 else max(0, input$track_row_spacing %||% 0)
