@@ -1,17 +1,16 @@
-version: '3.8'
-name: autotfl-server
+name: hamster-analysis-server
 
 services:
   postgres:
     image: postgres:14-alpine
-    container_name: autotfl-postgres
+    container_name: hamster-analysis-postgres
     environment:
       POSTGRES_DB: autotfl
       POSTGRES_USER: autotfl_user
       POSTGRES_PASSWORD: ${DB_PASSWORD:-ChangeMe123!}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     volumes:
-      - ${DATA_ROOT:-/data/autotfl}/postgres:/var/lib/postgresql/data
+      - ${DATA_ROOT:-/data/hamster-analysis}/postgres:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
     restart: unless-stopped
@@ -21,21 +20,22 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - autotfl-network
+      - hamster-analysis-network
 
   redis:
     image: redis:7-alpine
-    container_name: autotfl-redis
+    container_name: hamster-analysis-redis
     command: redis-server --appendonly yes
     volumes:
-      - ${DATA_ROOT:-/data/autotfl}/redis:/data
+      - ${DATA_ROOT:-/data/hamster-analysis}/redis:/data
     restart: unless-stopped
     networks:
-      - autotfl-network
+      - hamster-analysis-network
 
   app:
     image: autotfl-shiny-app:latest
-    container_name: autotfl-shiny
+    pull_policy: never
+    container_name: hamster-analysis-shiny
     environment:
       POSTGRES_DB: autotfl
       POSTGRES_HOST: postgres
@@ -44,7 +44,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-ChangeMe123!}
       STORAGE_ROOT: ${APP_STORAGE_ROOT:-/app/data_storage}
     volumes:
-      - ${DATA_ROOT:-/data/autotfl}/storage:${APP_STORAGE_ROOT:-/app/data_storage}
+      - ${DATA_ROOT:-/data/hamster-analysis}/storage:${APP_STORAGE_ROOT:-/app/data_storage}
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,25 +52,25 @@ services:
       - "3838"
     restart: unless-stopped
     networks:
-      - autotfl-network
+      - hamster-analysis-network
 
   nginx:
     image: nginx:1.27-alpine
-    container_name: autotfl-nginx
+    container_name: hamster-analysis-nginx
     depends_on:
       - app
     volumes:
       - ./nginx/server_ssl.conf:/etc/nginx/conf.d/default.conf:ro
-      - ${CERT_ROOT:-/etc/autotfl/certs}/${SSL_CERT_FILE:-kyyin.xyz.pem}:/etc/nginx/certs/kyyin.xyz.pem:ro
-      - ${CERT_ROOT:-/etc/autotfl/certs}/${SSL_KEY_FILE:-kyyin.xyz.key}:/etc/nginx/certs/kyyin.xyz.key:ro
+      - ${CERT_ROOT:-/etc/hamster-analysis/certs}/${SSL_CERT_FILE:-kyyin.xyz.pem}:/etc/nginx/certs/kyyin.xyz.pem:ro
+      - ${CERT_ROOT:-/etc/hamster-analysis/certs}/${SSL_KEY_FILE:-kyyin.xyz.key}:/etc/nginx/certs/kyyin.xyz.key:ro
       - ./nginx/landing:/usr/share/nginx/html/landing:ro
     ports:
       - "80:80"
       - "443:443"
     restart: unless-stopped
     networks:
-      - autotfl-network
+      - hamster-analysis-network
 
 networks:
-  autotfl-network:
+  hamster-analysis-network:
     driver: bridge

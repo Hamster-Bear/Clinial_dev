@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AutoTFL 部署入口</title>
+  <link rel="stylesheet" href="/landing/style.css">
+</head>
+<body>
+  <main class="container">
+    <section class="card">
+      <h1>AutoTFL 医学数据分析平台</h1>
+      <p>当前服务已启用 HTTPS 反向代理，点击下方按钮进入应用。</p>
+      <a class="enter-btn" href="/app/">进入 AutoTFL</a>
+      <p class="tip">域名：kyyin.xyz / www.kyyin.xyz</p>
+    </section>
+  </main>
+</body>
+</html>

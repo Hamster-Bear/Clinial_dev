@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="iconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景圆形 -->
+  <circle cx="50" cy="50" r="45" fill="url(#iconGradient)" opacity="0.1"/>
+
+  <!-- 折线图 -->
+  <polyline points="20,60 35,40 50,50 65,30 80,45"
+            stroke="url(#iconGradient)"
+            stroke-width="4"
+            fill="none"
+            stroke-linecap="round"
+            stroke-linejoin="round"/>
+
+  <!-- 数据点 -->
+  <circle cx="20" cy="60" r="3" fill="#2563eb"/>
+  <circle cx="35" cy="40" r="3" fill="#2563eb"/>
+  <circle cx="50" cy="50" r="3" fill="#8b5cf6"/>
+  <circle cx="65" cy="30" r="3" fill="#8b5cf6"/>
+  <circle cx="80" cy="45" r="3" fill="#8b5cf6"/>
+
+  <!-- 柱状图 -->
+  <rect x="25" y="70" width="10" height="20" fill="#10b981" opacity="0.7"/>
+  <rect x="40" y="65" width="10" height="25" fill="#10b981" opacity="0.7"/>
+  <rect x="55" y="60" width="10" height="30" fill="#10b981" opacity="0.7"/>
+  <rect x="70" y="55" width="10" height="35" fill="#10b981" opacity="0.7"/>
+
+  <!-- 饼图切片 -->
+  <path d="M50,50 L50,20 A30,30 0 0,1 70,35 Z"
+        fill="#f59e0b"
+        opacity="0.7"/>
+  <path d="M50,50 L70,35 A30,30 0 0,1 45,65 Z"
+        fill="#ef4444"
+        opacity="0.7"/>
+  <path d="M50,50 L45,65 A30,30 0 0,1 30,40 Z"
+        fill="#8b5cf6"
+        opacity="0.7"/>
+  <path d="M50,50 L30,40 A30,30 0 0,1 50,20 Z"
+        fill="#10b981"
+        opacity="0.7"/>
+</svg>

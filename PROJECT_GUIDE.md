@@ -1,6 +1,6 @@
-# AutoTFL 项目全局开发与维护指南 (Project Guide)
+# Hamster Analysis 项目全局开发与维护指南 (Project Guide)
 
-欢迎来到 AutoTFL (Medical Data Analysis Suite) 开发指南。本文档作为整个项目的“灯塔”，极尽详细地说明了系统架构、模块功能、数据流转、统计学计算规范、部署方案及未来改进点，旨在帮助新老开发者快速上手、降低维护成本。
+欢迎来到 Hamster Analysis (数据分析平台集合) 开发指南。本文档作为整个项目的”灯塔”，极尽详细地说明了系统架构、模块功能、数据流转、统计学计算规范、部署方案及未来改进点，旨在帮助新老开发者快速上手、降低维护成本。
 
 ***
 
@@ -21,7 +21,7 @@
 
 ## 1. 项目简介与架构概览
 
-**AutoTFL** 是一个基于 R Shiny 构建的专业医学数据分析平台，提供从数据准备、探索分析、高级统计分析到可视化和专业表格导出（TFL: Tables, Figures, Listings）的完整工作流。
+**Hamster Analysis** 是一个数据分析平台集合，当前核心应用是 AutoTFL（基于 R Shiny 构建的专业医学数据分析平台），提供从数据准备、探索分析、高级统计分析到可视化和专业表格导出（TFL: Tables, Figures, Listings）的完整工作流。平台支持多应用扩展，通过统一的landing页面进行导航。
 
 ### 核心技术栈
 
@@ -40,7 +40,7 @@
 ## 2. 项目目录结构说明
 
 ```text
-AutoTFL/
+Hamster Analysis/
 ├── app.R                       # 主应用入口文件（组装 UI 与 Server 逻辑）
 ├── modules/                    # 所有的 Shiny 模块和业务逻辑
 │   ├── common/                 # 跨模块公共组件库（格式化、存储后端等）
@@ -373,8 +373,8 @@ AutoTFL 提供了高度兼容的部署方案，适配单机研发、内网服务
 
 ### 7.2 Docker 与 Docker Compose 部署（开发/联调）
 
-- **构建镜像**: 运行 `docker build -t autotfl-shiny-app:latest .`。Dockerfile 会将 `package/` 复制进容器并优先使用本地源码仓库安装依赖。
-- **一键启动（开发编排）**: 使用 `docker compose -f docker-compose.yml up -d --build`，系统将自动拉起 **Nginx (反向代理)**、**Shiny 应用容器**、**PostgreSQL 数据库** 与 **Redis 缓存服务**。
+- **构建镜像**: 运行 `docker build -t hamster-analysis-shiny-app:latest .`。Dockerfile 会将 `package/` 复制进容器并优先使用本地源码仓库安装依赖。
+- **一键启动（开发编排）**: 使用 `docker compose -f docker-compose.yml up -d --build`，系统将自动拉起 **Nginx (反向代理)**、**Shiny 应用容器**、**PostgreSQL 数据库** 与 **Redis 缓存服务**。- **本地测试编排**: 使用 `docker compose -f docker-compose.local.yml up -d --build`，系统将启动带有 Landing 页面的完整应用栈（端口 8080）。
 - **环境变量**: 建议在部署前通过系统环境变量设置 `DB_PASSWORD` 提升安全性。
 
 ### 7.3 阿里云 Ubuntu 22.04 生产部署（HTTPS 反向代理 + 离线镜像）
@@ -383,7 +383,7 @@ AutoTFL 提供了高度兼容的部署方案，适配单机研发、内网服务
 
 - 主编排：`docker-compose.server.yml`
 - 反向代理：`nginx/server_ssl.conf`
-- 首屏入口：`nginx/landing/index.html` + `nginx/landing/style.css`
+- 首屏入口：`nginx/landing/index.html` + `nginx/landing/style.css` + `nginx/landing/script.js`（数据分析主题页面，支持多应用导航）
 - 生产环境模板：`deploy/alicloud/env/.env.example`
 - 生产环境生成脚本：`deploy/alicloud/scripts/init_env.sh`
 - 离线部署脚本：`deploy/alicloud/scripts/deploy_from_tar.sh`
@@ -393,28 +393,30 @@ AutoTFL 提供了高度兼容的部署方案，适配单机研发、内网服务
 1. **根目录编排文件**
    - `docker-compose.server.yml`: 服务器编排入口，包含 `postgres`、`redis`、`app`、`nginx` 四服务。
    - 关键约定：
-     - 数据目录由 `DATA_ROOT` 控制（默认 `/data/autotfl`）。
-     - 证书目录由 `CERT_ROOT` 控制（建议 `/etc/autotfl/certs`）。
+     - 数据目录由 `DATA_ROOT` 控制（默认 `/data/hamster-analysis`）。
+     - 证书目录由 `CERT_ROOT` 控制（建议 `/etc/hamster-analysis/certs`）。
      - 证书文件名由 `SSL_CERT_FILE` / `SSL_KEY_FILE` 控制。
 2. **Nginx 文件**
    - `nginx/server_ssl.conf`: 域名 `kyyin.xyz` / `www.kyyin.xyz`，80 跳转 443，`/` 首屏静态页，`/app/` 进入 Shiny。
-   - `nginx/landing/index.html`: 部署入口页（不直接跳应用）。
+   - `nginx/landing/index.html`: 数据分析主题入口页，支持多应用导航（不直接跳应用）。
    - `nginx/landing/style.css`: 入口页样式。
+  - `nginx/landing/script.js`: 入口页交互脚本（图表、动画、导航）。
 3. **阿里云部署辅助目录（deploy/alicloud）**
    - `deploy/alicloud/env/.env.example`: 环境变量模板。
    - `deploy/alicloud/env/.env`: 生产环境变量实文件（由脚本生成，不入库）。
    - `deploy/alicloud/scripts/init_env.sh`: 自动生成 `.env` 并注入随机 `DB_PASSWORD`。
+   - `deploy/alicloud/scripts/setup_docker_mirror.sh`: 配置国内 Docker 镜像源，解决 `connection refused`。
    - `deploy/alicloud/scripts/deploy_from_tar.sh`: 导入 tar 镜像并执行 compose 启动。
 
 #### 7.3.2 服务器目录规划（最佳实践）
 
-1. **代码目录**：`/opt/autotfl/current`
-2. **证书目录**：`/etc/autotfl/certs`
-3. **持久化目录**：`/data/autotfl`
-   - `/data/autotfl/postgres`
-   - `/data/autotfl/redis`
-   - `/data/autotfl/storage`
-4. **环境变量文件**：`/opt/autotfl/current/deploy/alicloud/env/.env`
+1. **代码目录**：`/opt/hamster-analysis/current`
+2. **证书目录**：`/etc/hamster-analysis/certs`
+3. **持久化目录**：`/data/hamster-analysis`
+   - `/data/hamster-analysis/postgres`
+   - `/data/hamster-analysis/redis`
+   - `/data/hamster-analysis/storage`
+4. **环境变量文件**：`/opt/hamster-analysis/current/deploy/alicloud/env/.env`
 
 #### 7.3.3 .env 生成与使用
 
@@ -433,16 +435,24 @@ AutoTFL 提供了高度兼容的部署方案，适配单机研发、内网服务
 
 #### 7.3.4 离线镜像（tar）部署流程
 
-1. **本地构建镜像**：`docker build -t autotfl-shiny-app:server .`
-2. **本地导出镜像**：`docker save -o autotfl-shiny-app_server.tar autotfl-shiny-app:server`
-3. **上传 tar 到服务器并导入**：`docker load -i autotfl-shiny-app_server.tar`
-4. **执行部署脚本**：`bash deploy/alicloud/scripts/deploy_from_tar.sh autotfl-shiny-app_server.tar`
+1. **本地构建镜像**：`docker build -t autotfl-shiny-app:latest .`
+2. **本地导出镜像**：`docker save -o autotfl-shiny-app_latest.tar autotfl-shiny-app:latest`
+3. **（可选）打包基础环境镜像**：如果你是纯内网环境，需一并打包 `postgres:14-alpine`、`redis:7-alpine` 和 `nginx:1.27-alpine`。
+4. **上传 tar 到服务器并导入**：`docker load -i autotfl-shiny-app_latest.tar`
+5. **执行部署脚本**：`bash deploy/alicloud/scripts/deploy_from_tar.sh autotfl-shiny-app_latest.tar`
 
 #### 7.3.5 上线验收
 
 1. 访问 `https://kyyin.xyz` 与 `https://www.kyyin.xyz`，应先显示静态入口页。
 2. 点击“进入 AutoTFL”后进入 `/app/` 并完成页面与交互加载。
 3. 自签名证书在浏览器告警属于预期，正式环境建议替换为受信任证书。
+
+### 7.3.6 常见部署问题与排查 (Troubleshooting)
+
+1. **Docker Hub `connection refused` 错误**
+   - **现象**：执行 `docker compose up` 或 `docker pull` 时报错 `dial tcp ... connect: connection refused`。
+   - **原因**：国内阿里云服务器由于网络管制，无法直接连接 Docker 官方仓库。
+   - **解决方案**：执行内置加速配置脚本 `sudo bash deploy/alicloud/scripts/setup_docker_mirror.sh`。对于生产环境，**强烈建议使用离线 tar 导入**（详见 7.3.4）以彻底规避公网镜像源失效的风险。
 
 ### 7.4 部署辅助目录（deploy/alicloud）总览
 
@@ -456,6 +466,7 @@ deploy/alicloud/
 │   └── .env            # 运行期生成，不入库
 └── scripts/
     ├── init_env.sh
+    ├── setup_docker_mirror.sh # Docker 镜像加速源配置脚本（修复 connection refused）
     └── deploy_from_tar.sh
 ```
 

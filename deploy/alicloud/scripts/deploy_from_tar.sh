@@ -16,5 +16,5 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 docker load -i "$IMAGE_TAR"
-docker compose --env-file "$ENV_FILE" -f "$ROOT_DIR/docker-compose.server.yml" up -d
+docker compose --env-file "$ENV_FILE" -f "$ROOT_DIR/docker-compose.server.yml" up -d --pull never
 docker compose --env-file "$ENV_FILE" -f "$ROOT_DIR/docker-compose.server.yml" ps

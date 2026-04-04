@@ -1,0 +1,64 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 45%, #334155 100%);
+  color: #0f172a;
+}
+
+.container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 680px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 40px 36px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.25);
+  text-align: center;
+}
+
+.card h1 {
+  margin: 0 0 14px;
+  font-size: 30px;
+  line-height: 1.25;
+}
+
+.card p {
+  margin: 0 0 20px;
+  color: #334155;
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.enter-btn {
+  display: inline-block;
+  padding: 12px 30px;
+  background: #2563eb;
+  color: #ffffff;
+  text-decoration: none;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 16px;
+  transition: background 0.2s ease;
+}
+
+.enter-btn:hover {
+  background: #1d4ed8;
+}
+
+.tip {
+  margin-top: 18px;
+  font-size: 14px;
+  color: #64748b;
+}
