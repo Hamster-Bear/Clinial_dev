@@ -1,598 +1,487 @@
-# Hamster Analysis 项目全局开发与维护指南 (Project Guide)
-
-欢迎来到 Hamster Analysis (数据分析平台集合) 开发指南。本文档作为整个项目的”灯塔”，极尽详细地说明了系统架构、模块功能、数据流转、统计学计算规范、部署方案及未来改进点，旨在帮助新老开发者快速上手、降低维护成本。
-
-***
+# AutoTFL 项目指南
 
 ## 目录
 
-1. [项目简介与架构概览](#1-项目简介与架构概览)
-2. [项目目录结构说明](#2-项目目录结构说明)
-3. [核心模块 (Core Modules) 功能详解](#3-核心模块-core-modules-功能详解)
-4. [子模块 (Sub-Modules) 功能详解](#4-子模块-sub-modules-功能详解)
-5. [公共组件与共享工具 (Common Utils)](#5-公共组件与共享工具-common-utils)
-6. [数据格式与统计规范 (Data & Statistical Specs)](#6-数据格式与统计规范-data--statistical-specs)
-7. [部署与依赖管理指南 (Deployment & Dependencies)](#7-部署与依赖管理指南-deployment--dependencies)
-8. [未来改进点与路线图 (Future Improvements)](#8-未来改进点与路线图-future-improvements)
-9. [首席编程视角：架构治理与研发执行](#9-首席编程视角架构治理与研发执行)
-10. [首席运营视角：交付运营与增长闭环](#10-首席运营视角交付运营与增长闭环)
+1. [文档定位](#1-文档定位)
+2. [系统概览](#2-系统概览)
+3. [运行入口与部署形态](#3-运行入口与部署形态)
+4. [仓库目录结构](#4-仓库目录结构)
+5. [核心模块总览](#5-核心模块总览)
+6. [统计分析实现](#6-统计分析实现)
+7. [统计图形实现](#7-统计图形实现)
+8. [预设图表实现](#8-预设图表实现)
+9. [公共能力与共享层](#9-公共能力与共享层)
+10. [数据、存储与规范](#10-数据存储与规范)
+11. [测试与质量保障](#11-测试与质量保障)
+12. [当前未落地项与路线图](#12-当前未落地项与路线图)
+13. [研发治理约束](#13-研发治理约束)
+14. [交付与运营建议](#14-交付与运营建议)
 
-***
+## 1. 文档定位
 
-## 1. 项目简介与架构概览
+### 1.1 目标
 
-**Hamster Analysis** 是一个数据分析平台集合，当前核心应用是 AutoTFL（基于 R Shiny 构建的专业医学数据分析平台），提供从数据准备、探索分析、高级统计分析到可视化和专业表格导出（TFL: Tables, Figures, Listings）的完整工作流。平台支持多应用扩展，通过统一的landing页面进行导航。
+- 本文档用于说明 AutoTFL 当前仓库的真实实现，而不是理想设计草案。
+- 文档重点覆盖架构边界、模块职责、运行方式、统计口径、部署前置条件和维护约束。
+- 所有描述均以当前仓库文件、现有脚本和已存在测试为准；未落地能力单独放在“当前未落地项与路线图”。
 
-### 核心技术栈
+### 1.2 名称约定
 
-- **前端与交互**: Shiny, shinydashboard, shinyjs, shinyBS, bslib, reactable, plotly
-- **数据处理**: dplyr, tidyr, purrr, stringr, haven, readxl
-- **统计建模**: survival, broom, gtsummary
-- **存储与数据库**: DBI, RPostgres, pool
-- **报表导出**: gt, flextable, officer, rmarkdown
+| 名称 | 当前含义 | 备注 |
+| --- | --- | --- |
+| Hamster Analysis | 历史/平台级命名 | 仍出现在 Landing 页面与部分部署资源中 |
+| AutoTFL | 当前核心应用名 | 本仓库主要维护对象 |
+| Medical Data Analysis Suite | Shiny 运行时标题 | 出现在 `app.R` 的 dashboardHeader 中 |
 
-### 架构设计
+### 1.3 文档使用原则
 
-系统采用 **模块化 (Modular)** 架构，主控程序为 `app.R`，通过 `shinydashboard` 提供 UI 框架。功能被严格拆分到 `modules/` 目录下，各模块通过 Shiny 的 `moduleServer` 进行解耦通信。各步骤具有**状态依赖性**（例如，必须先完成“数据准备”才能解锁“探索与可视化”）。
+- 新增或修改功能时，先更新本文件中对应章节，再改代码或同步提交代码变更。
+- 本文件描述“当前已实现”，不把占位菜单、计划能力、外部设想写成既成事实。
+- 若其他文档与本文件冲突，以当前代码实现和本文件为准，并在后续文档清理中同步收敛。
 
-***
+## 2. 系统概览
 
-## 2. 项目目录结构说明
+### 2.1 产品定位
+
+- AutoTFL 是基于 R Shiny 的医学/临床数据分析应用，覆盖数据准备、探索性分析、统计分析、统计图形和预设 TFL 输出。
+- 系统当前是单仓库、单 Shiny 主应用架构，支持通过 Nginx Landing 页面包装为“平台入口”。
+- 主工作流依赖数据先进入 PostgreSQL 元数据层和本地/S3 数据存储层，再向下游分析与出图模块广播。
+
+### 2.2 核心技术栈
+
+| 分层 | 当前使用 |
+| --- | --- |
+| UI 与交互 | Shiny、shinydashboard、shinyjs、shinyBS、bslib、shinyWidgets、reactable、plotly |
+| 数据处理 | dplyr、tidyr、purrr、stringr、readxl、haven、vroom、memoise |
+| 统计分析 | survival、broom、gtsummary、rtables、tern、corrplot |
+| 导出能力 | gt、flextable、officer、rmarkdown、pagedown、r2rtf |
+| 基础设施 | PostgreSQL、Redis、Nginx、Docker Compose |
+
+### 2.3 架构摘要
+
+- 主入口为 `app.R`，负责加载依赖、source 模块、组装六大业务页签。
+- `modules/` 目录采用“路由层 + 子模块 + common 共享层”结构。
+- 数据元数据走 PostgreSQL；数据体通过 `modules/common/storage_backend.R` 落到本地目录或 S3。
+- 图形与统计模块普遍采用“UI 输入层、公共校验/格式层、分析执行层、导出层”的分层方式。
+
+### 2.4 六步主流程
+
+| 步骤 | 模块 | 作用 |
+| --- | --- | --- |
+| 1 | `database_manager.R` | 管理 workspace / folder / dataset 元数据，并负责数据入库登记 |
+| 2 | `data_preparation.R` | 上传、加载、筛选、预览、变量元数据整理 |
+| 3 | `exploratory_analysis.R` | 快速探索性图形分析 |
+| 4 | `statistical_analysis.R` | 统计分析总入口与结果导出 |
+| 5 | `statistical_graphics.R` | 统计图形总入口与图形导出 |
+| 6 | `tables.R` | 预设 Table / Figure / Listing 输出 |
+
+## 3. 运行入口与部署形态
+
+### 3.1 运行矩阵
+
+| 场景 | 入口 | 访问方式 | 说明 |
+| --- | --- | --- | --- |
+| 本地开发直跑 | `run_app.R` | 默认 `127.0.0.1:8109` | 自动检查依赖并直接运行 `app.R` |
+| 开发编排 | `docker-compose.yml` | `http://localhost` | Nginx 直接反代 Shiny 根路径，不带 Landing 页 |
+| 本地联调 | `docker-compose.local.yml` | `http://localhost:8080` | 含 Landing 页，应用入口为 `/app/` |
+| 服务器生产 | `docker-compose.server.yml` | `https://<domain>` | HTTPS + Landing 页，应用入口为 `/app/` |
+
+### 3.2 当前入口规则
+
+- `docker-compose.yml` 使用 `nginx/default.conf`，根路径 `/` 直接转发到 Shiny。
+- `docker-compose.local.yml` 使用 `nginx/local-test.conf`，根路径为 Landing 页，应用走 `/app/`。
+- `docker-compose.server.yml` 使用 `nginx/server_ssl.conf`，80 自动跳转 443，根路径为 Landing 页，应用走 `/app/`。
+
+### 3.3 当前部署边界
+
+- 当前仓库已实现 Docker Compose 部署链路。
+- 当前仓库未提供 Kubernetes Manifest、Helm Chart 或 Kustomize 配置，因此不应描述为“已支持 Kubernetes 生产部署”。
+- Redis 已进入编排层，但当前 Shiny 主应用代码未见显式 Redis 业务读写逻辑，现阶段更适合作为基础设施预留。
+
+### 3.4 依赖与离线仓库前置条件
+
+- `install_dependencies.R` 支持“本地离线仓库优先、在线镜像回退”。
+- `download_offline_packages.R` 用于预生成本地 `package/` 仓库及 `PACKAGES` 索引。
+- 当前仓库默认未提交 `package/` 目录；如果直接执行当前 `Dockerfile`，需要先生成 `package/`，否则 `COPY package /app/package` 会失败。
+- Windows 本地如需从源码构建依赖，仍建议准备 Rtools。
+
+### 3.5 生产环境关键变量
+
+| 变量 | 默认值 | 用途 |
+| --- | --- | --- |
+| `DB_PASSWORD` | 无安全默认值，部署时必须覆盖 | PostgreSQL 连接密码 |
+| `DATA_ROOT` | `/data/hamster-analysis` | 生产持久化根目录 |
+| `CERT_ROOT` | `/etc/hamster-analysis/certs` | 证书目录 |
+| `SSL_CERT_FILE` | `kyyin.xyz.pem` | 证书文件名 |
+| `SSL_KEY_FILE` | `kyyin.xyz.key` | 私钥文件名 |
+| `APP_STORAGE_ROOT` | `/app/data_storage` | 容器内数据体挂载目录 |
+
+## 4. 仓库目录结构
 
 ```text
-Hamster Analysis/
-├── app.R                       # 主应用入口文件（组装 UI 与 Server 逻辑）
-├── modules/                    # 所有的 Shiny 模块和业务逻辑
-│   ├── common/                 # 跨模块公共组件库（格式化、存储后端等）
+AutoTFL/
+├── app.R
+├── modules/
+│   ├── common/
 │   │   ├── analysis_format.R
 │   │   ├── analysis_shared.R
-│   │   ├── data_metadata.R
 │   │   ├── data_filter.R
+│   │   ├── data_metadata.R
+│   │   ├── graphics_common.R
 │   │   ├── graphics_repro.R
 │   │   ├── plot_export.R
 │   │   ├── storage_backend.R
 │   │   └── table_export.R
-│   ├── statistical_analysis/   # 统计分析具体的算法子模块（Cox, Logistic, ANOVA等）
-│   ├── statistical_graphics/   # 统计图形子模块（生存曲线、森林图等）
-│   │   ├── survival_analysis.R / forest_plot.R / correlation_matrix.R
-│   │   ├── boxplot.R / heatmap.R / combo_plot.R
-│   │   └── swimmer_plot.R / waterfall_plot.R
-│   ├── tables/                 # 预设图表子模块（表格+图形）
-│   ├── database_manager.R      # 主模块：数据库管理
-│   ├── data_preparation.R      # 主模块：数据导入与预处理
-│   ├── exploratory_analysis.R  # 主模块：探索性分析
-│   ├── statistical_analysis.R  # 主模块：统计分析路由分配
-│   ├── statistical_graphics.R  # 主模块：图形绘制路由分配
-│   └── tables.R                # 主模块：表格生成路由分配
-├── tests/                      # 单元测试和集成测试目录 (testthat)
-├── postgres/                   # 数据库初始化脚本和配置 (init.sql, postgresql.conf)
-├── nginx/                      # Nginx 反向代理配置
-├── Dockerfile                  # 生产环境 Docker 镜像构建配置
-├── docker-compose.yml          # 一键式全栈部署配置 (Nginx+Shiny+PostgreSQL+Redis)
-├── docker-compose1.yml         # 兼容/历史编排文件（保留）
-├── install_dependencies.R      # R 包依赖安装脚本
-├── run_app.R                   # 开发环境启动脚本
-├── run_app_test.ps1            # Windows/CI 启动测试脚本
-├── download_offline_packages.R # 离线包下载脚本（用于内网/断网部署）
-├── PROJECT_GUIDE.md            # 本文档（全局项目指南）
-├── README.md                   # 简明说明与快速启动指南
-├── AI prompt.md                # AI 输出格式规范文档
-└── style.css                   # 全局自定义 CSS 样式表
+│   ├── statistical_analysis/
+│   │   ├── anova.R
+│   │   ├── chisq.R
+│   │   ├── cox.R
+│   │   ├── desc.R
+│   │   ├── linear.R
+│   │   └── logistic.R
+│   ├── statistical_graphics/
+│   │   ├── boxplot.R
+│   │   ├── combo_plot.R
+│   │   ├── correlation_matrix.R
+│   │   ├── forest_plot.R
+│   │   ├── heatmap.R
+│   │   ├── spider_plot.R
+│   │   ├── survival_analysis.R
+│   │   ├── swimmer_plot.R
+│   │   └── waterfall_plot.R
+│   ├── statistical_graphics_ui/
+│   │   └── common_ui_shell.R
+│   ├── tables/
+│   │   ├── ae_sidebyside.R
+│   │   ├── listing_general.R
+│   │   ├── t_ae_soc_pt.R
+│   │   └── t_dm.R
+│   ├── data_preparation.R
+│   ├── database_manager.R
+│   ├── exploratory_analysis.R
+│   ├── statistical_analysis.R
+│   ├── statistical_graphics.R
+│   └── tables.R
+├── nginx/
+│   ├── landing/
+│   ├── default.conf
+│   ├── local-test.conf
+│   └── server_ssl.conf
+├── postgres/
+│   ├── init.sql
+│   └── postgresql.conf
+├── deploy/
+│   └── alicloud/
+├── tests/
+├── Dockerfile
+├── docker-compose.yml
+├── docker-compose.local.yml
+├── docker-compose.server.yml
+├── docker-compose1.yml
+├── download_offline_packages.R
+├── install_dependencies.R
+├── PROJECT_GUIDE.md
+├── run_app.R
+├── run_app_test.ps1
+└── style.css
 ```
 
-***
-
-## 3. 核心模块 (Core Modules) 功能详解
-
-主模块文件直接位于 `modules/` 目录下，分别对应侧边栏的 6 个核心步骤。
-
-### 3.1 数据库管理 (`database_manager.R`)
-
-- **功能**: 管理 PostgreSQL 数据库连接，维护 Workspaces（工作区）、Folders（文件夹）和 Datasets（数据集）的层级关系。
-- **职责**: 负责持久化存储业务元数据，依赖 `modules/common/storage_backend.R` 实现本地或 S3 数据体的存取。
-
-### 3.2 数据准备 (`data_preparation.R`)
-
-- **功能**: 数据清洗与输入。支持从本地上传 (.csv, .xlsx, .sav) 或从数据库提取。
-- **职责**: 智能识别变量类型，支持缺失值处理和匿名化。这是整个应用的数据源头，处理后的 `filtered_data` 将作为反应式值向下游所有模块广播。
-
-### 3.3 探索与可视化 (`exploratory_analysis.R`)
-
-- **功能**: 提供数据初探功能。
-- **职责**: 基于 Plotly 的动态图形交互。用户可自由将变量映射到 X轴、Y轴、颜色、分面等，系统自动适配散点图、箱线图、直方图或条形图。
-
-### 3.4 统计分析 (`statistical_analysis.R`)
-
-- **功能**: 统一的回归分析控制面板。
-- **职责**: 作为路由（Router），收集用户的模型选择（如 Cox, Logistic, Linear），并动态调用 `modules/statistical_analysis/` 下的子模块。
-
-### 3.5 统计图形 (`statistical_graphics.R`)
-
-- **功能**: 出版级图形生成器。
-- **职责**: 路由调用 `modules/statistical_graphics/` 下的子模块（生存曲线、森林图、热图等），支持高分辨率图片下载。
-
-### 3.6 预设图表 (`tables.R`)
-
-- **功能**: 临床研究常用模板的统一入口，覆盖 T/F/L（表格、图形、清单）。
-- **职责**: 统一路由 DM 表、AE 汇总表、通用 Listing 及 AE 对比图；按对象类型切换渲染与导出分支（表格分支 vs 图形分支）。
-
-***
-
-## 4. 子模块 (Sub-Modules) 功能详解与使用场景
-
-子模块位于各个子文件夹中，实现具体的统计、绘图和制表逻辑。以下对各模块的具体方法、应用场景及关键特性进行深入解读。
-
-### 4.1 `statistical_analysis/` (统计分析)
-
-本目录下的模块统一采用 `gtsummary` 引擎生成 SCI 级别的临床级统计表格，并依托公共模块处理复杂的亚组分析与模型控制。
-
-- **`cox.R`** **(Cox 比例风险回归模型)**
-  - **具体方法**: 使用 `survival::coxph` 进行生存数据建模。计算风险比 (HR, Hazard Ratio) 及 95% CI。全局模型假设通过 Schoenfeld 残差检验 (`cox.zph`) 自动评估。
-  - **使用场景**: 评估连续或分类协变量（如用药、年龄）对发生某事件（如死亡、复发）时间的影响。
-  - **关键特性**:
-    - 支持 **基线分层 (Model Strata)**：通过 `strata()` 进入公式，控制非比例风险混杂因素。
-    - 支持 **亚组交互 (Split)**：自动计算“协变量 × 亚组变量”的交互作用 P 值 (Interaction P-value)，而非简单的各组单独拟合。
-- **`logistic.R`** **(逻辑回归模型)**
-  - **具体方法**: 使用 `stats::glm(family = binomial())` 拟合二分类因变量，输出比值比 (OR, Odds Ratio) 及其 95% CI。
-  - **使用场景**: 评估各种因素对某二分类结局（如是否有效、是否发生不良反应）发生概率的影响。
-  - **关键特性**: 智能映射响应变量（自动选取或用户指定 `event_value` 为 1，其余为 0）；与 Cox 一致，支持亚组分析及交互项 P 值计算。
-- **`linear.R`** **(多元线性回归模型)**
-  - **具体方法**: 使用 `stats::lm` 建模，输出回归系数 (Beta) 及其 95% CI。
-  - **使用场景**: 探究多个自变量对连续型因变量（如血压、生化指标变化量）的线性影响。
-- **`desc.R`** **(描述性统计与差异分析)**
-  - **具体方法**: 使用 `gtsummary::tbl_summary`。自动识别变量类型（连续变量输出均值/标准差/中位数/四分位距，分类变量输出频数/百分比）。
-  - **使用场景**: 生成临床试验中经典的“表1” (Table 1)，即基线特征描述表。
-  - **关键特性**: 支持自定义多个“总计列” (Total Columns)，通过动态过滤数据并在底层通过 `tbl_merge` 实现高度灵活的分组汇总。
-- **`anova.R`** **&** **`chisq.RF`**
-  - **具体方法**: `anova.R` 执行方差分析；`chisq.R` 执行卡方检验及 CMH (Cochran-Mantel-Haenszel) 检验。
-  - **使用场景**: 分别用于连续型变量多组均值比较和分类变量多组构成比/分层率比较。
-
-### 4.2 `statistical_graphics/` (统计图形)
-
-专注于输出高质量、出版级别的统计图形，底层高度定制了 `ggplot2` 与 `plotly`，支持静态图与交互图双轨输出。
-
-- **`survival_analysis.R`** **(Kaplan-Meier 生存曲线)**
-  - **绘图逻辑**: 基于 `survival::survfit` 和 `survminer::ggsurvplot`。在处理复杂的标签映射与交互图时，手动剥离了 `ggsurvplot` 的底层 `ggplot` 对象，并重构了删失点（Censor）及文本标注逻辑，以消除渲染警告并完美兼容 `plotly`。
-  - **使用场景**: 直观展示不同治疗组/特征组的生存概率随时间的变化趋势。
-  - **关键特性**:
-    - 高度定制的统计标注：可任意拖拽或预设中位生存时间及 Log-rank P 值 / Cox HR 文本的位置。
-    - 交互状态解耦：变量下拉选择实时更新，生存拟合与统计计算仅在点击“生成图形”后执行，避免伪点击与选择闪回。
-    - 动态风险表 (Risk Table) 的组合与对齐输出仅用于静态图流程，交互图页默认不再渲染风险表。
-- **`forest_plot.R`** **(森林图)**
-  - **绘图逻辑**: 解析回归模型输出的 HR/OR 及置信区间数据，转换为标准森林图格式。
-  - **使用场景**: 直观展示多因素回归分析的结果，或亚组分析（Subgroup Analysis）中治疗效应的一致性。
-- **`correlation_matrix.R`** **(相关性热图)**
-  - **绘图逻辑**: 计算 Pearson 或 Spearman 相关系数矩阵。
-  - **使用场景**: 探索性分析阶段，快速发现多重共线性问题或变量间的潜在关联。
-- **`boxplot.R`** **/** **`heatmap.R`** **/** **`combo_plot.R`**
-  - **绘图逻辑**: 分别处理分布比较、矩阵热区展示与复合图层叠加。
-  - **使用场景**: 临床变量分布对比、模式识别、报告中多图组合展示。
-- **`swimmer_plot.R`** **/** **`waterfall_plot.R`** **/** **`spider_plot.R`** **/** **`survival_analysis.R`**
-  - **绘图逻辑**: 面向临床研究常见个体疗程轨迹与肿瘤负荷变化场景的专用图形实现。
-  - **使用场景**: 肿瘤学疗效展示、个体随访进展与治疗持续性解读。
-  - **关键特性**: 图例标题解析、位置枚举、图内/图外摆放与图内自定义锚点已统一抽到 common；Swimmer/Waterfall/Spider/Survival 当前均应优先复用这套公共图例能力。Swimmer 仍保留事件自绘辅助图例特例路径，但摆放与标题回退已统一走 common。另支持轨道区域按“轨道名:具体值”逐项指定颜色，并覆盖默认调色板分配；当轨道切换为文本填充时不再显示颜色映射控件。瀑布图柱符号分组支持按组分别指定具体符号与颜色，且该符号配置能力已抽到 common 公共组件，供泳道图事件符号配置复用。泳道图支持泳道颜色“分别指定”，未选择分组变量时自动回退到受试者ID逐项映射；事件颜色/符号分配的“分别指定”控件采用与“单一指定”一致的按模式弹出机制，并可自动在组合图底部追加基于变量标签的样式脚注。
-
-#### 4.2.1 UI 管理章节（生存分析）
-
-- **双状态模型**
-  - `view state`：承载临时输入（下拉当前选择、分层/分面、分面值），用于界面交互预览。
-  - `committed state`：仅在点击“生成图形”时写入，作为本次模型拟合、统计、图例、风险表与报告的唯一分析口径。
-- **触发机制**
-  - 非点击操作只更新 `view state`，不触发生存对象拟合与统计重算。
-  - 点击“生成图形”后统一提交参数并触发计算链路，避免伪点击和下拉闪回。
-- **展示一致性**
-  - 未分层时“总体分组标签”必须同时作用于主图图例、风险表、数据表与统计报告，不允许出现默认 `all/ALL` 残留。
-  - 生存曲线线条样式必须直接作用于当前图层，禁止依赖全局默认值修改。
-  - 生存分析必须接入统一尺寸配置，静态图、交互图与导出尺寸共用同一组参数，不允许模块内写死显示/导出尺寸。
-- **进度反馈**
-  - 点击“生成图形”必须显示可见进度提示，覆盖参数提交、模型拟合、统计计算、图形完成四阶段。
-  - 进度提示统一复用 `modules/common/graphics_common.R` 中的进度函数，禁止子模块各自定义提示样式与文案。
-- **测试契约**
-  - 固定保留 `shiny::testServer` 回归用例，验证“未点击生成时切筛选后下拉不闪回”。
-  - 任何输入同步逻辑改动都必须先通过该回归测试。
-  - 数据准备与模块内公共筛选必须复用同一套有效元数据逻辑（标签/类型/强制转换），禁止再维护分叉的判型与标签解析实现。
-  - 图形模块在变量/数据列刷新时，应优先保留当前仍然有效的用户选择；该回填策略优先复用 common 中的公共 helper，不在各模块重复手写分叉逻辑。
-  - KM 可复现代码必须与 UI 计算链路同源（含 `km_censor_value` 状态重编码与 `median/0.95LCL/0.95UCL` 提取逻辑）。
-  - KM 拟合与中位生存CI提取统一采用 `conf.type = "log-log"` 口径，R与对照系统需保持同一 CI 算法。
-  - 固定保留中位生存时间基准样例测试，自动校验 `median/LCL/UCL` 输出一致性。
-  - 生存选择解析函数在 `choices` 为空时必须优先回退 `default_value`，仅在默认值缺失时返回 `NULL`。
-
-#### 4.2.2 统计图形模块 C/D/E 优化策略与进度
-
-按 **C → D → E** 顺序执行，避免并行改动导致回归风险。
-
-- **C. 组件复用度低**
-  - 目标：抽离通用导出与尺寸配置，减少子模块重复代码。
-  - 动作：新增统一导出/尺寸公共组件；统一变量类型筛选工具；子模块仅保留业务绘图逻辑。
-  - 验收：导出行为一致，重复样板代码显著下降。
-- **D. 异常处理未标准化**
-  - 目标：统一“可见、可读、可定位”的错误反馈。
-  - 动作：`req()` 仅用于前置依赖；业务校验统一走 `validate(need(...))`；`tryCatch()` 仅做系统异常兜底。
-  - 验收：变量缺失/类型错误/空数据场景均返回一致提示，不再静默失败。
-- **E. 交互式兼容性瓶颈（KM 风险表）**
-  - 目标：交互主图与风险表同时可见且口径一致。
-  - 动作：交互 Tab 拆分为 `plotly` 主图 + 风险表（DT 或静态表）；统一使用同一 `fit()` 数据源并联动时间范围。
-  - 验收：交互图不丢风险表信息，图表与表格同步更新。
-
-**执行进度（持续更新）**
-
-| 项 | 状态  | 当前进展                                                                        | 下一步                                    |
-| - | --- | --------------------------------------------------------------------------- | -------------------------------------- |
-| C | 已完成 | 已新增 `graphics_common.R`，并在图形主模块接入；`boxplot/survival/swimmer` 已复用变量分类与尺寸解析能力 | 下一轮扩展到 forest/heatmap/correlation 等子模块 |
-| D | 已完成 | `boxplot/survival/swimmer` 关键输出已统一采用 `validate(need(...))`，形成可见错误提示         | 下一轮统一导出链路与错误文案字典                       |
-| E | 已完成 | KM 交互 Tab 已改为“交互主图 + 风险表”，风险表与 `time_range` 同步                              | 下一轮补充交互导出与版式优化                         |
-
-**更新规则**
-
-- 每完成一项（C/D/E）即更新本表“状态/当前进展/下一步”。
-- 每次仅保留最新进展，避免冗余历史描述。
-
-#### 4.2.3 统计图形 UI 整合方案（已确认）
-
-- **目标**
-  - 解决“单卡片选项过多、定位困难”的可用性问题。
-  - 在不改变现有功能与统计结果的前提下，提升配置效率与一致性。
-- **统一信息架构（IA）**
-  - 复杂图形模块统一为一级选项卡：`数据映射`、`分析参数`、`样式主题`、`输出与导出`、`统计报告`（按需显示）。
-  - 将高密度配置（如轨道、标注、图例、导出）从单卡拆分到对应选项卡，避免同屏堆叠。
-  - 保持“生成图形”入口位置一致，降低跨图形切换学习成本。
-  - **UI规范（强制）**：同一页签下所有“功能区卡片”必须并列放置（`fluidRow + column`）；且单页签并列功能区卡片最多 **4** 个，超出时必须合并为“子卡片”或“子切换”。
-  - **控件密度规则（强制）**：下拉框/数值框优先双列或多列并排，避免单控件独占整行；仅长文本、动态映射表、说明区允许全宽。
-  - **子页签继承规则（强制）**：子页签内部同样适用“并列功能区卡片+最多4卡片”规则，超出必须继续下沉为子卡片。
-  - **输出动作规范（强制）**：输出区域只保留动作控件，`生成图形`左对齐、`下载图形`右对齐；导出参数（格式、DPI、尺寸）统一放在`输出与导出`页签。
-- **术语约定（UI）**
-  - **一级页签**：数据映射 / 分析参数 / 样式主题 / 输出与导出 / 统计报告。
-  - **功能区卡片**：一级页签中承载同类配置的并列主卡片。
-  - **子卡片**：当功能区选项过多时，在卡片内部继续拆分的二级卡片。
-  - **子切换**：同一卡片内通过 `tabsetPanel` 切换细分配置（如“排序与轨道/显示与图例”）。
-  - **输出操作条**：输出区顶部动作条（左生成、右下载）。
-- **命名模板（建议统一）**
-  - 功能区卡片命名优先使用：`数据映射`、`显示与图例`、`坐标与尺寸`、`文本与脚注`、`颜色与配色`、`布局与比例`、`参考线与阈值`。
-  - 同类功能在不同模块中逐步收敛到同一标题，降低认知切换成本。
-- **公共函数（本任务相关）**
-  - `graphics_config_tabs_box()`：统一配置页签壳层。
-  - `graphics_export_size_controls_ui()`：统一导出参数控件（格式/DPI/尺寸）。
-  - `graphics_primary_action_button_ui()`：统一“生成图形”按钮样式。
-  - `get_numeric_vars()/get_categorical_vars()/get_time_vars()`：统一变量筛选工具。
-  - `resolve_plot_size_config()`：统一静态/交互/导出尺寸解析。
-  - `graphics_notify_success()/graphics_notify_error()`：统一成功/失败提示文案。
-- **模块化边界**
-  - UI 建议独立为专门层：`statistical_graphics_ui/*`（布局壳层 + 公共控件 + 子模块特有面板）。
-  - 现有 `statistical_graphics/*` 中 server 与统计逻辑保持不变，只做 UI 接线改造。
-- **技术路线决策**
-  - **当前采用 A（已确认）**：继续基于 Shiny 体系做 UI 重构与组件化，不更换后端。
-  - **后续评估 B**：在局部高复杂区域引入前端组件（嵌入式）以提升交互体验。
-  - **暂不采用 C**：当前阶段不做前后端完全分离重构。
-- **实施顺序**
-  - 先改 IA 与分组结构，再抽公共 UI 组件，最后逐步迁移高复杂模块（Survival / Forest / Swimmer / Waterfall）。
-  - 每轮迁移后进行一致性回归（变量映射、图形输出、导出、报告）。
-
-**4.2.2 执行进度（方案A）**
-
-| 阶段                                            | 状态  | 本轮结果                                                                                                          | 下一步                       |
-| --------------------------------------------- | --- | ------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| UI壳层组件                                        | 已完成 | 已新增通用配置选项卡容器，补充公共导出/尺寸与公共生成按钮组件；并完成默认折叠精细化（Survival/Forest展开，Swimmer/Waterfall折叠）                             | 下一轮持续巡检“单页签最多4个并列功能区卡片”规范 |
-| Survival UI整合                                 | 已完成 | 已按“并列功能区卡片”重排数据映射/分析参数/样式主题；过多选项拆入子卡片；输出区已统一为“左生成、右下载”动作条                                                         | 下一轮继续收敛子页签控件密度           |
-| Forest UI整合                                   | 已完成 | 样式主题已统一为4个并列功能区卡片（同排），超载内容下沉为子卡片；输出区保持“左生成、右下载”                                                             | 下一轮继续优化原始数据分析路径的分步引导      |
-| Swimmer/Waterfall UI整合                        | 已完成 | 已完成并列卡片迁移；过载区域拆分子卡片/子切换；导出参数保留在“输出与导出”；泳道图设置区残留“生成图形”已移除并统一到输出动作条（左生成、右下载）                 | 下一轮继续收敛子页签控件密度                 |
-| 其余模块一致化（Box/Heatmap/Correlation/Spider/Combo） | 已完成 | 已统一主操作按钮组件与文案；Box/Heatmap/Correlation已迁移到分组选项卡配置骨架并统一提示；Spider子页签已按并列卡片重构且设置区生成按钮已移至输出动作条；Combo输出动作条已统一“左生成、右下载”，导出参数归入配置区 | 下一轮继续收敛布局细节并统一导出异常提示 |
-
-**Swimmer / Waterfall 后续优化要点**
-
-- 图例定制优先复用 common 的公共 helper，避免各模块继续手写标题回退、外置拼接和图内叠加逻辑。
-- 事件/符号/轨道的“分别指定”控件继续按模式弹出，避免一次性展开造成页面过载；后续可统一抽成条件弹出 UI builder。
-- 图内图例已支持自定义 X/Y/宽高比例锚点；下一轮优先增加预设位置模板与碰撞规避，减少文本重叠与遮挡主图内容。
-- 自动脚注已接入样式映射说明；后续可把柱颜色分组、泳道颜色分组、轨道图变量说明统一纳入脚注模板配置，避免模块间文案漂移。
-
-**图例能力统一化要点**
-
-- 目前已接入 common 图例能力的模块：Survival、Spider、Waterfall、Swimmer；后续新增图例功能时应优先接入公共 UI 与公共 apply/helper，而不是模块内各自实现。
-- common 图例能力至少统一维护：标题回退、位置枚举、隐藏逻辑、四边/四角位置、图内锚点与辅助图例叠加。
-- 自绘图例（如 Swimmer 事件图例）允许保留特例内容构造，但摆放与标题解析仍必须走 common。
-- 后续应继续把 state/repro 对图例参数的承接补齐，避免 UI 与复现代码口径不一致。
-
-### 4.3 `tables/` (预设图表)
-
-聚焦于临床研究常见输出模板，统一管理表格与图形。当前实现为“单模块多引擎”：不同子模块按目标对象采用不同渲染与导出链路。
-
-- **`t_dm.R`** **(人口统计学和基线特征表)**
-  - **生成逻辑**: 基于 `gtsummary + gt` 生成 Demographic 风格表，支持变量类型自动识别与统计摘要格式化。
-  - **使用场景**: 基线特征汇总、分组对照、研究报告“表1”输出。
-- **`t_ae_soc_pt.R`** **(不良事件汇总表)**
-  - **生成逻辑**: 基于 `rtables/tern` 生成 SOC/PT 分层汇总结构，强调临床统计口径的一致性。
-  - **临床规范**: 支持按受试者维度的汇总思路，满足不良事件汇总展示需求。
-- **`listing_general.R`** **(通用 Listing)**
-  - **生成逻辑**: 基于 `rlistings/r2rtf` 生成可配置明细清单，支持审阅友好输出。
-  - **使用场景**: 数据核查、病例逐行审阅、监管审评材料准备。
-- **`ae_sidebyside.R`** **(AE 并列对比图)**
-  - **生成逻辑**: 基于 `ggplot2` 生成 TEAE/TRAE 并排对比图，属于图形分支而非纯表格分支。
-  - **使用场景**: 治疗组间不良事件结构差异的可视化对照展示。
-- **导出策略（当前版本）**
-  - 表格对象与图形对象采用不同导出格式集合：表格侧偏文档/排版导出，图形侧偏矢量/位图导出。
-
-### 5. 公共组件与共享工具 (Common Utils)
-
-位于 `modules/common/` 目录下，是保证全平台逻辑一致性和代码复用性的基石。
-
-- **`graphics_common.R`** **(图形公共函数库)**
-  - **核心函数**: `get_numeric_vars()/get_categorical_vars()/get_time_vars()`、`resolve_plot_size_config()`、`graphics_notify_success()/graphics_notify_error()`。
-  - **用途**: 统一变量筛选、尺寸解析、图形生成通知文案。
-- **`statistical_graphics_ui/common_ui_shell.R`** **(图形UI公共壳层)**
-  - **核心函数**: `graphics_config_tabs_box()`、`graphics_export_size_controls_ui()`、`graphics_primary_action_button_ui()`。
-  - **用途**: 统一配置页签壳层、导出参数区、主操作按钮样式与行为。
-
-- **`analysis_shared.R`** **(统计共享核心库)**
-  - **核心函数**:
-    - `build_unified_regression_table()`: **全新重构的核心引擎**。彻底摒弃了 `gtsummary` 在多级表头导出时的脆弱性，采用“手动组装扁平 Data.frame + 纯文本空格缩进”的策略，确保前端 HTML 与后端 Word/PDF 导出格式的 100% 一致。它统一接管了 Cox, Logistic, Linear 的模型切割、自定义总计列（Total Columns）组装及交互作用 P 值的独立列/行排版。
-    - `compute_interaction_p_map()`: 统一提取“预测变量 × 亚组变量”的交互项检验 P 值，确保口径一致。
-  - **调用关系**: 被所有回归分析子模块调用，是实现代码 DRY (Don't Repeat Yourself) 原则的典范。
-- **`analysis_format.R`** **(格式化与代码引擎)**
-  - **核心函数**:
-    - `format_p_value_regression()`: 强制所有 P 值符合 AMA 规范（如 `<0.001`）。
-    - `format_regression_stat()`: 统一学术界标准（HR/OR/Beta 保留两位小数，优雅处理稀疏数据导致的 NA 极值为 `—`）。
-    - `build_repro_code_template()`: 组装分段的 R 脚本字符串，将 UI 上的点击操作逆向工程为可复现的 R 代码供用户下载。
-- **`table_export.R`** **(表格导出器)**
-  - **核心函数**: `apply_sci_gt_style()` 统一给 `gt` 对象注入三线表边框、加粗表头及脚注样式。
-- **`storage_backend.R`** **(存储抽象层)**
-  - 抽象了本地文件系统与 S3 对象存储的底层接口，使得应用具备云原生平滑迁移能力。
-
-***
-
-## 6. 数据格式与统计规范 (Data & Statistical Specs)
-
-AutoTFL 对输入数据及输出结果有着严格的标准化要求，以下是开发时必须遵循的规范：
-
-### 6.1 变量命名与类型规范
-
-1. **命名**: 变量名应仅包含英文字母、数字和下划线，禁止空格与特殊符号。
-2. **类型**: 连续变量应为数值型 (`numeric`)；分类变量应为 `factor` 或 `character`；逻辑变量进入分析前必须统一转换为 0/1 或 Yes/No。
-
-### 6.2 回归分析变量选择规范
-
-1. **排他性**: 响应变量（Y）不得同时出现在预测变量（X）中。
-2. **互斥性**: 预测变量不得与亚组变量（Split）、分组变量、分层控制变量（Strata）重复；亚组变量与分组变量不得相同。
-3. **生存分析**: Cox 回归中的时间（Time）与状态（Status）变量不得进入协变量列表。
-
-### 6.3 P 值与效应量显示规范
-
-1. **风格**: 全部统一采用 AMA (American Medical Association) 风格。
-2. **缺失**: 缺失或无法计算的 P 值显示为 `NA`，无法计算的效应量（极值、稀疏）显示为 `—`。
-3. **阈值**: $P < 0.001$ 显示为 `<0.001`；$P > 0.99$ 显示为 `>0.99`；其余保留 3 位小数。
-4. **效应量**: `HR/OR/Beta (95% CI)`，点估计与置信区间严格保留 2 位小数以保持列对齐。
-
-### 6.4 亚组差异 P 值 (Interaction P-value) 规范
-
-**极其重要**：亚组差异 P 值的口径必须是 **“预测变量 × 亚组变量”的交互项检验 P 值 (Effect Modification)**，而非简单的亚组间均值差。
-
-1. **逻辑**: 无亚组变量时不显示该列/行。
-2. **计算**: 有列分组时，按列分组的子数据集独立计算，**绝不**共用全局 P 值。
-3. **展示**:
-   - **堆叠亚组展示 (无列分组)**：交互 P 值在当前变量的最后一个亚组底部，作为独立的斜体行 (`*P for interaction*`) 呈现。
-   - **并排分组展示 (有列分组)**：交互 P 值作为独立列 `P for interaction`，且仅在变量名的标题行或总体列中单次显示，杜绝各水平行重复显示。
-
-### 6.5 缺失值处理规范
-
-- 模型拟合按涉及变量的 `complete cases`（完全观测记录）计算有效样本量 $N$。
-- 缺失导致模型退化无法估计时，返回 `NA` 并在 UI 提示框中说明原因。
-
-***
-
-## 7. 部署与依赖管理指南 (Deployment & Dependencies)
-
-AutoTFL 提供了高度兼容的部署方案，适配单机研发、内网服务器及云原生 Kubernetes。
-
-### 7.1 依赖管理策略
-
-系统采用“本地离线包优先，在线镜像回退”的策略：
-
-- **`install_dependencies.R`**: 安装所需 R 包的主脚本。
-- **`download_offline_packages.R`**: 离线仓库维护脚本。在有网环境将依赖同步到 `package/` 目录，并自动生成 `PACKAGES` 索引；在无网部署环境由 `install_dependencies.R` 优先从本地仓库安装，再在线补齐缺失依赖。
-
-### 7.2 Docker 与 Docker Compose 部署（开发/联调）
-
-- **构建镜像**: 运行 `docker build -t hamster-analysis-shiny-app:latest .`。Dockerfile 会将 `package/` 复制进容器并优先使用本地源码仓库安装依赖。
-- **一键启动（开发编排）**: 使用 `docker compose -f docker-compose.yml up -d --build`，系统将自动拉起 **Nginx (反向代理)**、**Shiny 应用容器**、**PostgreSQL 数据库** 与 **Redis 缓存服务**。- **本地测试编排**: 使用 `docker compose -f docker-compose.local.yml up -d --build`，系统将启动带有 Landing 页面的完整应用栈（端口 8080）。
-- **环境变量**: 建议在部署前通过系统环境变量设置 `DB_PASSWORD` 提升安全性。
-
-### 7.3 阿里云 Ubuntu 22.04 生产部署（HTTPS 反向代理 + 离线镜像）
-
-当前仓库已形成阿里云可用部署链路：
-
-- 主编排：`docker-compose.server.yml`
-- 反向代理：`nginx/server_ssl.conf`
-- 首屏入口：`nginx/landing/index.html` + `nginx/landing/style.css` + `nginx/landing/script.js`（数据分析主题页面，支持多应用导航）
-- 生产环境模板：`deploy/alicloud/env/.env.example`
-- 生产环境生成脚本：`deploy/alicloud/scripts/init_env.sh`
-- 离线部署脚本：`deploy/alicloud/scripts/deploy_from_tar.sh`
-
-#### 7.3.1 文件位置与职责（必须文件）
-
-1. **根目录编排文件**
-   - `docker-compose.server.yml`: 服务器编排入口，包含 `postgres`、`redis`、`app`、`nginx` 四服务。
-   - 关键约定：
-     - 数据目录由 `DATA_ROOT` 控制（默认 `/data/hamster-analysis`）。
-     - 证书目录由 `CERT_ROOT` 控制（建议 `/etc/hamster-analysis/certs`）。
-     - 证书文件名由 `SSL_CERT_FILE` / `SSL_KEY_FILE` 控制。
-2. **Nginx 文件**
-   - `nginx/server_ssl.conf`: 域名 `kyyin.xyz` / `www.kyyin.xyz`，80 跳转 443，`/` 首屏静态页，`/app/` 进入 Shiny。
-   - `nginx/landing/index.html`: 数据分析主题入口页，支持多应用导航（不直接跳应用）。
-   - `nginx/landing/style.css`: 入口页样式。
-  - `nginx/landing/script.js`: 入口页交互脚本（图表、动画、导航）。
-3. **阿里云部署辅助目录（deploy/alicloud）**
-   - `deploy/alicloud/env/.env.example`: 环境变量模板。
-   - `deploy/alicloud/env/.env`: 生产环境变量实文件（由脚本生成，不入库）。
-   - `deploy/alicloud/scripts/init_env.sh`: 自动生成 `.env` 并注入随机 `DB_PASSWORD`。
-   - `deploy/alicloud/scripts/setup_docker_mirror.sh`: 配置国内 Docker 镜像源，解决 `connection refused`。
-   - `deploy/alicloud/scripts/deploy_from_tar.sh`: 导入 tar 镜像并执行 compose 启动。
-
-#### 7.3.2 服务器目录规划（最佳实践）
-
-1. **代码目录**：`/opt/hamster-analysis/current`
-2. **证书目录**：`/etc/hamster-analysis/certs`
-3. **持久化目录**：`/data/hamster-analysis`
-   - `/data/hamster-analysis/postgres`
-   - `/data/hamster-analysis/redis`
-   - `/data/hamster-analysis/storage`
-4. **环境变量文件**：`/opt/hamster-analysis/current/deploy/alicloud/env/.env`
-
-#### 7.3.3 .env 生成与使用
-
-1. 在服务器进入项目目录后执行：
-   - `bash deploy/alicloud/scripts/init_env.sh`
-2. 生成文件位置：
-   - `deploy/alicloud/env/.env`
-3. 按需调整以下字段：
-   - `DB_PASSWORD`
-   - `DATA_ROOT`
-   - `CERT_ROOT`
-   - `SSL_CERT_FILE`
-   - `SSL_KEY_FILE`
-4. 启动时显式指定 env 文件：
-   - `docker compose --env-file deploy/alicloud/env/.env -f docker-compose.server.yml up -d`
-
-#### 7.3.4 离线镜像（tar）部署流程
-
-1. **本地构建镜像**：`docker build -t autotfl-shiny-app:latest .`
-2. **本地导出镜像**：`docker save -o autotfl-shiny-app_latest.tar autotfl-shiny-app:latest`
-3. **（可选）打包基础环境镜像**：如果你是纯内网环境，需一并打包 `postgres:14-alpine`、`redis:7-alpine` 和 `nginx:1.27-alpine`。
-4. **上传 tar 到服务器并导入**：`docker load -i autotfl-shiny-app_latest.tar`
-5. **执行部署脚本**：`bash deploy/alicloud/scripts/deploy_from_tar.sh autotfl-shiny-app_latest.tar`
-
-#### 7.3.5 上线验收
-
-1. 访问 `https://kyyin.xyz` 与 `https://www.kyyin.xyz`，应先显示静态入口页。
-2. 点击“进入 AutoTFL”后进入 `/app/` 并完成页面与交互加载。
-3. 自签名证书在浏览器告警属于预期，正式环境建议替换为受信任证书。
-
-### 7.3.6 常见部署问题与排查 (Troubleshooting)
-
-1. **Docker Hub `connection refused` 错误**
-   - **现象**：执行 `docker compose up` 或 `docker pull` 时报错 `dial tcp ... connect: connection refused`。
-   - **原因**：国内阿里云服务器由于网络管制，无法直接连接 Docker 官方仓库。
-   - **解决方案**：执行内置加速配置脚本 `sudo bash deploy/alicloud/scripts/setup_docker_mirror.sh`。对于生产环境，**强烈建议使用离线 tar 导入**（详见 7.3.4）以彻底规避公网镜像源失效的风险。
-
-### 7.4 部署辅助目录（deploy/alicloud）总览
-
-```text
-deploy/alicloud/
-├── README.md
-├── certs/
-│   └── .gitkeep
-├── env/
-│   ├── .env.example
-│   └── .env            # 运行期生成，不入库
-└── scripts/
-    ├── init_env.sh
-    ├── setup_docker_mirror.sh # Docker 镜像加速源配置脚本（修复 connection refused）
-    └── deploy_from_tar.sh
-```
-
-### 7.5 Windows 快捷部署
-
-运行 `run_app.R` / `run_app_test.ps1`：
-
-- `run_app.R` 用于本地开发启动；`run_app_test.ps1` 用于自动化/测试场景启动验证。
-- 若使用 `package/` 源码仓库安装依赖，Windows 侧仍建议准备 Rtools 以提升兼容性。
-
-***
-
-## 8. 未来改进点与路线图 (Future Improvements)
-
-随着业务场景拓展，AutoTFL 拟在后续阶段实施以下改进：
-
-### 8.1 已完成升级（2026Q1）
-
-1. **回归参考组配置**: Cox/Logistic/Linear 已支持参考组选择与映射。
-2. **回归表引擎重构**: 已引入 `build_unified_regression_table` 作为统一表格引擎，并推动计算与渲染职责分离。
-3. **部署编排扩展**: Docker Compose 已升级为 Nginx + App + PostgreSQL + Redis 四服务结构。
-4. **测试覆盖增强**: 已补充解耦测试、稀疏数据测试与交互一致性测试。
-
-### 8.2 下一步重点（2026Q2+）
-
-1. **全局交互联合检验**: 为 Cox/Logistic/Linear 增加全局交互检验输出区，与局部比较 P 值联动展示。
-2. **高级方法落地**: 将“MMRM / 多重填补（MI）”从菜单占位推进到可运行分析链路。
-3. **声明式表头映射**: 引入模板字典配置，减少硬编码列名与人工维护成本。
-4. **防御性建模阀门**: 在建模前增加事件数/稀疏度预检查，提供“可解释失败”状态返回。
-5. **可复现代码沙盒**: 为导出代码内置最小可运行示例数据。
-6. 下一步可以把“随机不重复”加一个 随机种子输入 ，保证每次导出复现图符号分配一致。
-
-***
-
-## 9. 首席编程视角：架构治理与研发执行
-
-本节从首席编程（Chief Programmer / CTO）角度定义项目的技术治理框架，目标是让 AutoTFL 在功能持续扩展时仍保持可维护、可测试、可迁移。
-
-### 9.1 架构治理原则
-
-1. **先稳定共享内核，再扩展功能外层**: `modules/common/` 属于一级核心资产，新增统计方法应优先复用共享函数，禁止在子模块复制交互 P 值、P 值格式化、表格拼接逻辑。
-2. **保持“路由层薄、计算层厚”**: `modules/statistical_analysis.R`、`modules/statistical_graphics.R` 仅负责参数路由，不承载复杂统计计算。
-3. **UI 与计算解耦**: 推进 `compute_*()` 与 `render_*()` 分层，先输出结构化元数据，再执行视图渲染，避免巨型过程式函数持续膨胀。
-
-### 9.2 工程质量红线
-
-1. **回归模型输入校验必须统一走公共校验器**（如 `validate_regression_inputs`），不得在各模块形成隐式规则分叉。
-2. **亚组差异 P 值口径不得变体化**：始终基于交互项检验，不接受“组内 P 值替代交互 P 值”的实现。
-3. **导出一致性优先级高于局部 UI 漂亮性**：前端展示与 Word/PDF 导出结果需保持语义一致、字段一致、顺序一致。
-4. **新增模块必须附最小测试用例**：至少覆盖成功路径、缺失值路径、样本不足路径三类场景。
-
-### 9.3 研发流程建议（单人/小团队可执行版）
-
-1. **变更分级**:
-   - A级（高风险）：公共模块、统计口径、导出逻辑变更，必须先更新文档再改代码。
-   - B级（中风险）：子模块新增参数或新图形类型，必须补充回归测试。
-   - C级（低风险）：文案、样式、小交互微调，可快速发布。
-2. **发布前检查清单**:
-   - 统计口径一致性检查（Cox/Logistic/Linear）
-   - 导出格式一致性检查（页面与离线导出）
-   - Docker Compose 健康性检查（PostgreSQL、Redis、App、Nginx）
-3. **技术债管理**: 每月固定一次“公共模块债务清理窗口”，优先清理重复逻辑、硬编码列名、不可复用拼接代码。
-
-### 9.4 下一阶段技术里程碑
-
-1. 完成 `build_unified_regression_table` 的计算层/渲染层拆分。
-2. 为交互项计算与列分组展开建立声明式配置（模板字典化）。
-3. 建立回归测试基线数据集，覆盖常见临床统计场景（生存、二分类、连续变量、AE 汇总）。
-4. 为关键模块增加性能基准（大样本下建模耗时、导出耗时、首屏渲染耗时）。
-
-***
-
-## 10. 首席运营视角：交付运营与增长闭环
-
-本节从首席运营（COO）角度定义交付、服务、运营与商业闭环，目标是保证“可卖、可交付、可续费”。
-
-### 10.1 交付模式分层
-
-1. **本地交付（研究环境）**: 适合单研究者与离线场景，强调安装简易与数据可控。
-2. **容器交付（团队环境）**: 通过 `docker-compose.yml` 统一交付 Nginx + App + PostgreSQL + Redis，降低环境漂移风险。
-3. **企业交付（内网/合规）**: 采用离线包仓库策略与私有镜像仓库，满足弱网与内网隔离要求。
-
-### 10.2 运维与服务质量指标
-
-1. **可用性指标**: 应用可访问率、关键页面错误率、数据库连接失败率。
-2. **性能指标**: 首次分析响应时延、导出任务成功率、峰值并发下平均响应时间。
-3. **稳定性指标**: 容器重启频次、异常告警修复时长、版本回滚次数。
-4. **数据安全指标**: 异常访问拦截、备份成功率、恢复演练通过率。
-
-### 10.3 运营闭环（功能到收入）
-
-1. **需求闭环**: 用户反馈进入需求池后，按“高频+高价值+低实现成本”优先级排序。
-2. **交付闭环**: 每次版本发布同步更新 `PROJECT_GUIDE.md`、`README.md` 和部署说明，减少交付沟通损耗。
-3. **价值闭环**: 以“分析效率提升、错误率下降、导出可复现性提升”作为核心价值指标，支撑续费与扩容。
-4. **客户成功闭环**: 建立典型临床场景模板（如生存分析模板、AE 表模板），降低新用户上手门槛。
-
-### 10.4 运营风险与应对
-
-1. **单点人员风险**: 通过文档化、模板化和自动化测试降低知识集中风险。
-2. **环境差异风险**: 强制生产交付走容器化路径，弱化“本机可运行但线上失败”问题。
-3. **统计口径争议风险**: 将核心统计口径写入项目规范并在 UI 文案中显式提示。
-4. **扩展失控风险**: 严格执行模块准入标准，新功能必须说明业务价值、维护成本与淘汰策略。
-
-### 10.5 运营优先级建议（未来两个迭代）
-
-1. 优先完成“高频功能模板化”与“常见报错标准化提示”。
-2. 建立轻量运维看板：服务状态、错误日志、导出任务统计。
-3. 发布面向客户成功的“场景化操作手册”，与本指南形成“开发版 + 业务版”双文档体系。
-
-***
-
-*文档更新于：2026-03*
+### 4.1 目录使用约定
+
+- `modules/common/` 只放跨模块共享逻辑，不放单一图形或单一统计方法的专属实现。
+- `modules/statistical_graphics_ui/` 用于图形 UI 壳层与公共控件，和 `modules/statistical_graphics/` 的 server/分析逻辑分离。
+- `tests/` 为统一测试目录，新增测试文件必须放在这里。
+- `deploy/alicloud/` 只存放生产部署辅助资源，不承载应用业务逻辑。
+
+## 5. 核心模块总览
+
+### 5.1 主入口
+
+| 文件 | 当前职责 | 关键说明 |
+| --- | --- | --- |
+| `app.R` | 加载依赖、source 模块、定义 dashboard UI 与 server | 六个侧边栏页签都在这里挂载 |
+| `run_app.R` | 本地启动脚本 | 先执行依赖检查，再启动 `app.R` |
+| `install_dependencies.R` | 依赖安装脚本 | 支持本地离线仓库优先、在线镜像回退 |
+
+### 5.2 业务模块
+
+| 模块 | 主要职责 | 当前状态 |
+| --- | --- | --- |
+| `database_manager.R` | 管理工作区、文件夹、数据集，支持单文件上传、批量上传、按服务器目录导入 | 已实现 |
+| `data_preparation.R` | 上传或从数据库加载数据，做高级筛选、列选择、数据预览和概览卡片 | 已实现 |
+| `exploratory_analysis.R` | 提供基础探索图形与变量映射交互 | 已实现 |
+| `statistical_analysis.R` | 统计分析总入口，路由到描述性统计、回归、组间比较等子模块 | 已实现 |
+| `statistical_graphics.R` | 图形总入口，路由到生存图、森林图、泳道图等子模块 | 已实现 |
+| `tables.R` | 预设表格/图形/Listing 总入口 | 已实现 |
+
+### 5.3 数据流摘要
+
+1. 数据通过数据库管理模块或数据准备模块进入系统。
+2. 元数据通过 PostgreSQL 中的 workspaces / folders / datasets 管理。
+3. 数据体通过 `storage_backend.R` 保存到本地 `RDS` 或 S3。
+4. `data_metadata.R` 与 `data_filter.R` 统一变量标签、类型和筛选逻辑。
+5. 下游统计分析、图形和预设图表消费经过筛选后的数据。
+
+## 6. 统计分析实现
+
+### 6.1 模块定位
+
+- `statistical_analysis.R` 是统计分析总入口，不仅仅是“回归面板”。
+- 当前实际已接入描述性统计、Cox、Logistic、Linear、ANOVA、卡方和 CMH。
+- `MMRM` 与 `多重填补（MI）` 当前仍是菜单占位项，不应视为已交付功能。
+
+### 6.2 子模块清单
+
+| 文件 | 功能 | 当前实现要点 |
+| --- | --- | --- |
+| `desc.R` | 描述性统计 | 基于 `gtsummary` 生成汇总表，支持总计列扩展 |
+| `cox.R` | Cox 回归 | 使用 `survival::coxph`，支持 strata、split、列分组 |
+| `logistic.R` | Logistic 回归 | 使用 `stats::glm(family = binomial())`，支持事件值映射 |
+| `linear.R` | 线性回归 | 使用 `stats::lm`，支持多预测变量和列分组 |
+| `anova.R` | 方差分析 | 连续变量组间比较 |
+| `chisq.R` | 卡方 / CMH | 分类变量组间比较与分层检验 |
+
+### 6.3 当前共享引擎
+
+| 文件 | 核心职责 | 当前作用 |
+| --- | --- | --- |
+| `analysis_shared.R` | 回归公共校验、交互项 P 值计算、统一结果整理 | Cox / Logistic / Linear 共享核心 |
+| `analysis_format.R` | 数值格式化、统计值格式化、复现代码模板 | 控制结果显示和导出文案 |
+| `table_export.R` | `gt` 风格注入与导出辅助 | 统一表格样式与 P 值显示 |
+
+### 6.4 统计分析当前约束
+
+- 回归模块已经不适合再概括为“统一采用 gtsummary 引擎”。
+- 当前更准确的说法是：描述性统计仍以 `gtsummary` 为主，Cox/Logistic/Linear 的结果表已显著依赖共享回归表引擎和公共格式层。
+- 响应变量不能同时作为预测变量；预测变量不能与 split / facet / strata 重复；这部分由 `validate_regression_inputs()` 统一控制。
+
+### 6.5 非标准列名支持
+
+- 变量名推荐使用英文、数字和下划线，便于跨工具协作。
+- 当前代码已考虑含空格或特殊字符的列名场景，回归公式需要通过反引号安全包装。
+- 因此，文档不再把“禁止空格与特殊符号”写成硬性实现约束，而是保留为数据治理建议。
+
+## 7. 统计图形实现
+
+### 7.1 模块定位
+
+- `statistical_graphics.R` 是统计图形总路由。
+- 当前图形模块采用“公共能力 + 子模块逻辑”模式，逐步把 UI 壳层、尺寸配置、图例能力和导出参数抽到共享层。
+
+### 7.2 子模块清单
+
+| 文件 | 图形类型 | 当前说明 |
+| --- | --- | --- |
+| `survival_analysis.R` | Kaplan-Meier 生存曲线 | 支持静态图、交互图、风险表、统计报告和复现代码 |
+| `forest_plot.R` | 森林图 | 用于回归结果或亚组一致性展示 |
+| `correlation_matrix.R` | 相关矩阵图 | 支持相关性探索 |
+| `boxplot.R` | 箱线图 | 用于组间分布比较 |
+| `heatmap.R` | 热图 | 用于矩阵热区展示 |
+| `combo_plot.R` | 组合图 | 复合图层展示 |
+| `spider_plot.R` | Spider 图 | 肿瘤负荷/时间变化 |
+| `swimmer_plot.R` | Swimmer 图 | 疗程轨迹与事件展示 |
+| `waterfall_plot.R` | Waterfall 图 | 个体疗效下降/上升幅度展示 |
+
+### 7.3 共享图形能力
+
+| 能力 | 当前来源 | 说明 |
+| --- | --- | --- |
+| 尺寸解析 | `graphics_common.R` | 统一静态图、交互图和导出尺寸解析 |
+| 图形通知 | `graphics_common.R` | 统一成功/失败提示 |
+| 复现代码 | `graphics_repro.R` | 为图形模块生成可复现代码片段 |
+| UI 壳层 | `statistical_graphics_ui/common_ui_shell.R` | 统一页签容器、导出控件、主按钮样式 |
+| 导出 | `plot_export.R` | 图形导出辅助能力 |
+
+### 7.4 生存分析当前实现口径
+
+| 主题 | 当前实现 |
+| --- | --- |
+| 状态管理 | 采用 view state 与 committed state 分离，只有点击“生成图形”才提交分析参数 |
+| 风险表 | 风险表主要用于静态图组合输出；交互页并不是“Plotly + 风险表”同页布局 |
+| 交互页 | 当前以交互主图和单独结果页签为主 |
+| 尺寸配置 | 已接入统一尺寸接口，不在模块内写死静态/交互/导出尺寸 |
+| 测试覆盖 | 已有选择解析、中位生存时间基线、view/committed 状态等测试 |
+
+### 7.5 图例与样式当前状态
+
+- Survival、Spider、Waterfall、Swimmer 已逐步接入 common 图例能力。
+- Swimmer 保留事件图例的自绘特例，但标题解析与摆放逻辑应继续优先复用 common。
+- Waterfall 与 Swimmer 的符号/颜色分别指定能力已经存在，但仍属于高复杂 UI，后续应继续抽象公共组件。
+
+## 8. 预设图表实现
+
+### 8.1 模块定位
+
+- `tables.R` 统一管理临床研究常用模板。
+- 当前既包含传统表格，也包含图形型输出，因此它是“预设输出总入口”，不是单纯的表格模块。
+
+### 8.2 子模块清单
+
+| 文件 | 类型 | 当前说明 |
+| --- | --- | --- |
+| `t_dm.R` | Table | 人口统计学和基线特征表 |
+| `t_ae_soc_pt.R` | Table | 不良事件 SOC/PT 汇总 |
+| `listing_general.R` | Listing | 通用审阅明细清单 |
+| `ae_sidebyside.R` | Figure | AE 并列对比图 |
+
+### 8.3 当前引擎边界
+
+- `t_dm.R` 以 `gtsummary + gt` 为主。
+- `t_ae_soc_pt.R` 依赖 `rtables / tern`。
+- `listing_general.R` 依赖 `rlistings / r2rtf`。
+- `ae_sidebyside.R` 走 `ggplot2` 图形分支，导出策略与表格分支不同。
+
+## 9. 公共能力与共享层
+
+### 9.1 公共文件清单
+
+| 文件 | 当前职责 |
+| --- | --- |
+| `data_metadata.R` | 统一变量标签、类型推断、元数据回写 |
+| `data_filter.R` | 统一筛选 UI / server 与变量过滤行为 |
+| `analysis_shared.R` | 统一回归校验和结果组装 |
+| `analysis_format.R` | 统一统计值、P 值、复现代码模板 |
+| `graphics_common.R` | 统一图形变量筛选、尺寸和通知 |
+| `graphics_repro.R` | 图形复现代码 |
+| `plot_export.R` | 图形导出 |
+| `table_export.R` | 表格导出与样式注入 |
+| `storage_backend.R` | 本地 / S3 数据存储抽象 |
+
+### 9.2 当前共享层原则
+
+- 共享层优先维护“统计口径、格式、元数据、导出、存储”这类跨模块不应分叉的逻辑。
+- 子模块遇到公共需求时先扩展 common，再决定是否保留少量局部特例。
+- 修改共享层时必须同步检查回归模块、图形模块和导出路径是否受影响。
+
+## 10. 数据、存储与规范
+
+### 10.1 数据输入来源
+
+| 入口 | 当前支持 |
+| --- | --- |
+| 本地文件上传 | `.csv`、`.xlsx`、`.xls`、`.sas7bdat`、`.sav`、`.dta`、`.por` |
+| 数据库加载 | 从 PostgreSQL 中按 workspace / folder / dataset 选择已登记数据集 |
+| 服务器目录导入 | `database_manager.R` 支持按服务器绝对路径导入工作区 |
+| 批量导入 | `database_manager.R` 支持多文件批量保存 |
+
+### 10.2 存储架构
+
+| 层级 | 当前实现 |
+| --- | --- |
+| 元数据 | PostgreSQL 表 `workspaces`、`folders`、`datasets` |
+| 数据体 | 本地 `RDS` 文件或 S3 对象 |
+| 存储切换 | 通过 `STORAGE_BACKEND` 控制 `local` / `s3` |
+| S3 前置条件 | 必须安装 `aws.s3`，并设置 `STORAGE_S3_BUCKET` |
+
+### 10.3 当前统计显示规范
+
+| 项目 | 当前规则 |
+| --- | --- |
+| P 值风格 | AMA 风格 |
+| 极小 P 值 | `<0.001` |
+| 极大 P 值 | `>0.99` |
+| 无法计算 P 值 | 显示为 `—` |
+| 无法计算效应量 | 显示为 `—` |
+| 效应量保留位数 | `HR / OR / Beta` 及其 95% CI 通常保留 2 位小数 |
+
+### 10.4 回归变量约束
+
+- 响应变量不得同时出现在预测变量中。
+- 预测变量不得与 split、facet、model strata 重复。
+- split 与 facet 不能相同。
+- Cox 分析中的时间变量和状态变量不应进入协变量集合。
+- 交互 P 值口径统一为“预测变量 × 亚组变量”的交互项检验，不用组内 P 值替代。
+
+### 10.5 缺失值处理
+
+- 模型拟合基于分析所需字段的 complete cases。
+- 结果无法估计时，前端应返回可见错误或占位值，不做静默失败。
+- 表格和导出层必须保持与前端同一占位口径。
+
+## 11. 测试与质量保障
+
+### 11.1 当前测试范围
+
+`tests/` 目录当前已覆盖以下主题：
+
+- 回归分析输入校验、稀疏数据和前后端一致性。
+- 数据元数据一致性与标签映射。
+- 生存分析中位生存时间、选择解析、view/committed 状态。
+- 图形公共进度、图例/颜色覆盖与 Waterfall 符号选择。
+- 计算层与渲染层解耦相关回归。
+
+### 11.2 当前测试契约
+
+- 新增功能或修改现有逻辑时，测试文件统一放在 `tests/`。
+- 共享层改动至少要补一条可回归的最小测试。
+- 图形或统计口径改动优先补“同口径断言”，避免只测 UI 是否渲染成功。
+
+### 11.3 当前缺口
+
+- 尚未形成完整的部署文档自动校验。
+- 尚未建立文档与实现的一致性自动巡检脚本。
+- `MMRM`、`MI` 等占位菜单没有对应测试，因为尚未落地。
+
+## 12. 当前未落地项与路线图
+
+### 12.1 已确认但未落地
+
+| 项目 | 当前状态 | 说明 |
+| --- | --- | --- |
+| MMRM | 占位 | 菜单可见，分析链路未实现 |
+| 多重填补（MI） | 占位 | 菜单可见，分析链路未实现 |
+| Kubernetes 部署 | 未提供 | 仓库中暂无相关编排或清单 |
+
+### 12.2 下一步优先方向
+
+1. 继续增强共享层，减少图形子模块与回归子模块的重复逻辑。
+2. 把高复杂图例、符号和样式配置进一步抽象成可复用组件。
+3. 为部署文档、运行入口和关键环境变量增加自动检查。
+4. 在高级方法真正落地后，再补充对应章节与测试。
+
+## 13. 研发治理约束
+
+### 13.1 架构红线
+
+- 路由层保持轻量，不在 `statistical_analysis.R` 与 `statistical_graphics.R` 内堆叠复杂计算。
+- 公共统计口径优先沉淀到 common 层，不允许多个子模块各自维护变体。
+- 导出结果与页面结果保持同一语义、同一字段、同一排序逻辑。
+
+### 13.2 文档与测试红线
+
+- 改实现必须同步改文档；改统计口径必须同步补测试。
+- 新增测试文件统一进入 `tests/`，不新建 `test/` 目录。
+- 共享层变更优先补回归测试，再做模块级功能扩展。
+
+### 13.3 共享层优先级
+
+1. `data_metadata.R` / `data_filter.R`：保证变量标签、类型、筛选逻辑一致。
+2. `analysis_shared.R` / `analysis_format.R`：保证统计表口径与显示一致。
+3. `graphics_common.R` / `common_ui_shell.R`：保证图形模块体验一致。
+4. `storage_backend.R`：保证数据读写介质切换时业务模块无感。
+
+## 14. 交付与运营建议
+
+### 14.1 交付形态建议
+
+- 单机研究环境优先使用 `run_app.R`。
+- 团队联调优先使用 `docker-compose.local.yml`。
+- 生产或演示环境优先使用 `docker-compose.server.yml`，并通过 Landing 页承接 `/app/`。
+
+### 14.2 运维关注点
+
+- 先确认 PostgreSQL 可用，再排查应用加载问题。
+- 证书路径、数据根目录和镜像可用性是生产部署的前三个前置条件。
+- 若采用离线部署，必须提前准备应用镜像及基础环境镜像。
+
+### 14.3 当前文档维护建议
+
+- `PROJECT_GUIDE.md` 负责“全局开发事实”。
+- 部署细节文档应与 `deploy/alicloud/README.md` 同步清理，避免路径和流程分叉。
+- 后续可新增轻量文档巡检脚本，校验关键文件、compose 文件和入口 URL 是否与本文档一致。
+
+---
+
+文档校验基线：2026-04-07  
+校验范围：仓库结构、核心模块、部署编排、共享层、测试目录  
+状态说明：本文仅记录当前仓库已实现或已明确暴露的能力
