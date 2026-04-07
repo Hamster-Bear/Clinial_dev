@@ -89,8 +89,7 @@ spider_plot_ui <- function(id) {
                   fluidRow(
                     column(6, textInput(ns("plot_xlab"), "X轴标签", value = "时间", width = "100%")),
                     column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "较基线变化(%)", width = "100%"))
-                  ),
-                  textInput(ns("legend_title"), "图例标题", value = "", width = "100%")
+                  )
                 ),
                 tabPanel(
                   "配色与比例",
@@ -104,10 +103,8 @@ spider_plot_ui <- function(id) {
                         tags$div(
                           class = "panel-body",
                           checkboxInput(ns("show_legend"), "显示图例", TRUE),
-                          fluidRow(
-                            column(6, selectInput(ns("legend_position"), "图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%")),
-                            column(6, selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"))
-                          ),
+                          graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "outer", default_position = "right"),
+                          selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
                           checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
                           checkboxInput(ns("show_points"), "显示测量点", FALSE),
                           checkboxInput(ns("show_end_labels"), "显示末次标签", FALSE),
@@ -410,13 +407,17 @@ spider_plot_server <- function(input, output, session, data) {
             caption = input$plot_caption %||% "",
             x = ifelse(nzchar(input$plot_xlab %||% ""), input$plot_xlab, ifelse(time_mode == "categorical", "时间序列", "时间")),
             y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "较基线变化(%)"),
-            color = ifelse(nzchar(input$legend_title %||% ""), input$legend_title, input$line_color_by)
+            color = graphics_resolve_legend_title(input$legend_title, input$line_color_by)
           ) +
           theme_minimal(base_size = input$base_font_size, base_family = "sans") +
           theme(
-            legend.position = if (isTRUE(input$show_legend)) (input$legend_position %||% "right") else "none",
             panel.grid.minor = element_blank()
           )
+        p <- graphics_apply_legend_theme(
+          p,
+          show_legend = isTRUE(input$show_legend),
+          position = input$legend_position %||% "right"
+        )
       } else {
         p <- ggplot(plot_df, aes(x = .time_plot, y = .value, group = .subject_id, text = .tooltip)) +
           geom_line(linewidth = input$line_size, alpha = input$line_alpha, linetype = input$line_linetype %||% "solid", color = line_single_color) +
@@ -461,9 +462,13 @@ spider_plot_server <- function(input, output, session, data) {
         p <- p +
           theme_classic(base_size = input$base_font_size, base_family = "sans") +
           theme(
-            axis.line = element_line(colour = "black", arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed")),
-            legend.position = if (isTRUE(input$show_legend)) (input$legend_position %||% "right") else "none"
+            axis.line = element_line(colour = "black", arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"))
           )
+        p <- graphics_apply_legend_theme(
+          p,
+          show_legend = isTRUE(input$show_legend) && isTRUE(line_has_group),
+          position = input$legend_position %||% "right"
+        )
       }
 
       if (isTRUE(input$show_points)) {

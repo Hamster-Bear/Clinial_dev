@@ -7,7 +7,7 @@ library(cowplot)
 library(scales)
 
 .waterfall_symbol_choices <- function() {
-  c("★" = "★", "▲" = "▲", "●" = "●", "◆" = "◆", "■" = "■", "✕" = "✕", "✦" = "✦", "✚" = "✚", "⬟" = "⬟", "⬢" = "⬢", "◉" = "◉", "◈" = "◈")
+  graphics_text_symbol_choices()
 }
 
 waterfall_plot_ui <- function(id) {
@@ -64,8 +64,9 @@ waterfall_plot_ui <- function(id) {
                         checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
                         selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
                         checkboxInput(ns("show_legend"), "显示图例", TRUE),
-                        selectInput(ns("main_legend_position"), "主图图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%"),
-                        selectInput(ns("track_legend_position"), "轨道图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%")
+                        checkboxInput(ns("auto_mapping_caption"), "自动追加样式脚注", TRUE),
+                        selectInput(ns("main_legend_position"), "主图图例位置", choices = graphics_legend_position_choices("outer"), selected = "right", width = "100%"),
+                        selectInput(ns("track_legend_position"), "轨道图例位置", choices = graphics_legend_position_choices("outer"), selected = "right", width = "100%")
                       )
                     )
                   )
@@ -428,35 +429,15 @@ waterfall_plot_server <- function(input, output, session, data) {
     symbol_levels <- symbol_levels[!is.na(symbol_levels) & nzchar(symbol_levels)]
     symbol_levels <- head(symbol_levels, 12)
     if (length(symbol_levels) == 0) return(NULL)
-    symbol_choices <- .waterfall_symbol_choices()
-    default_symbols <- unname(symbol_choices)[seq_len(length(symbol_levels))]
     default_colors <- rep(input$symbol_text_color %||% "#1A1A1A", length(symbol_levels))
-    tagList(
-      h5("符号分组映射"),
-      lapply(seq_along(symbol_levels), function(i) {
-        lv <- symbol_levels[[i]]
-        fluidRow(
-          column(
-            6,
-            selectInput(
-              session$ns(paste0("symbol_lbl_", digest::digest(lv, algo = "crc32"))),
-              label = lv,
-              choices = symbol_choices,
-              selected = default_symbols[[i]],
-              width = "100%"
-            )
-          ),
-          column(
-            6,
-            colourpicker::colourInput(
-              session$ns(paste0("symbol_col_", digest::digest(lv, algo = "crc32"))),
-              label = paste0(lv, " 颜色"),
-              value = default_colors[[i]],
-              width = "100%"
-            )
-          )
-        )
-      })
+    graphics_group_symbol_controls_ui(
+      session = session,
+      levels = symbol_levels,
+      symbol_input_prefix = "symbol_lbl_",
+      color_input_prefix = "symbol_col_",
+      symbol_choices = .waterfall_symbol_choices(),
+      default_colors = default_colors,
+      title = "符号分组映射"
     )
   })
 
@@ -474,41 +455,10 @@ waterfall_plot_server <- function(input, output, session, data) {
     value_candidates <- c("PCHG", "CHG_PCT", "PERCENT_CHANGE", "CHANGE_PCT", "PERCENT", "chg", "pct_change")
     group_candidates <- c("BOR", "AVALC", "TRT", "TRTA", "ARM", "COHORT", "GROUP")
 
-    selected_subject <- isolate(input$subject_id)
-    if (is.null(selected_subject) || !nzchar(selected_subject) || !(selected_subject %in% all_vars)) {
-      selected_subject <- graphics_state$subject_id
-      if (is.null(selected_subject) || !(selected_subject %in% all_vars)) {
-        selected_subject <- pick_first(subject_candidates, all_vars)
-      }
-    }
-
-    selected_value <- isolate(input$value_var)
-    if (is.null(selected_value) || !nzchar(selected_value) || !(selected_value %in% numeric_vars)) {
-      selected_value <- graphics_state$value_var
-      if (is.null(selected_value) || !(selected_value %in% numeric_vars)) {
-        selected_value <- pick_first(value_candidates, numeric_vars)
-      }
-      if (is.null(selected_value) && length(numeric_vars) > 0) {
-        selected_value <- numeric_vars[[1]]
-      }
-    }
-
-    selected_color <- isolate(input$bar_color_by)
-    if (is.null(selected_color) || !(selected_color %in% c("", all_vars))) {
-      selected_color <- graphics_state$bar_color_by
-      if (is.null(selected_color) || !(selected_color %in% c("", all_vars))) {
-        selected_color <- pick_first(group_candidates, setdiff(all_vars, c(selected_subject, selected_value)))
-        if (is.null(selected_color)) selected_color <- ""
-      }
-    }
-
-    selected_symbol <- isolate(input$symbol_by)
-    if (is.null(selected_symbol) || !(selected_symbol %in% c("", all_vars))) {
-      selected_symbol <- graphics_state$symbol_by
-      if (is.null(selected_symbol) || !(selected_symbol %in% c("", all_vars))) {
-        selected_symbol <- ""
-      }
-    }
+    selected_subject <- graphics_remember_choice(isolate(input$subject_id), graphics_state$subject_id, all_vars, pick_first(subject_candidates, all_vars))
+    selected_value <- graphics_remember_choice(isolate(input$value_var), graphics_state$value_var, numeric_vars, pick_first(value_candidates, numeric_vars) %||% (numeric_vars[[1]] %||% NULL))
+    selected_color <- graphics_remember_choice(isolate(input$bar_color_by), graphics_state$bar_color_by, all_vars, pick_first(group_candidates, setdiff(all_vars, c(selected_subject, selected_value))) %||% "", allow_empty = TRUE)
+    selected_symbol <- graphics_remember_choice(isolate(input$symbol_by), graphics_state$symbol_by, all_vars, "", allow_empty = TRUE)
 
     selected_tracks <- isolate(input$tracks)
     if (is.null(selected_tracks) || length(selected_tracks) == 0) {
@@ -694,7 +644,8 @@ waterfall_plot_server <- function(input, output, session, data) {
       }
 
       x_axis_title <- if (nzchar(input$plot_xlab %||% "")) input$plot_xlab else "受试者"
-      legend_title <- if (nzchar(input$legend_title %||% "")) input$legend_title else ifelse(nzchar(input$bar_color_by %||% ""), input$bar_color_by, "分组")
+      legend_title <- graphics_resolve_legend_title(input$legend_title, get_var_label(df, input$bar_color_by), "分组")
+      auto_caption_lines <- character(0)
 
       p_main <- ggplot(plot_df, aes(x = .subject_factor, y = .value, fill = .bar_color, text = .tooltip)) +
         geom_col(width = input$bar_width, color = input$bar_border_color) +
@@ -702,7 +653,6 @@ waterfall_plot_server <- function(input, output, session, data) {
         labs(
           title = ifelse(nzchar(input$plot_title %||% ""), input$plot_title, "瀑布图"),
           subtitle = input$plot_subtitle %||% "",
-          caption = input$plot_caption %||% "",
           x = x_axis_title,
           y = y_axis_title,
           fill = legend_title
@@ -711,8 +661,7 @@ waterfall_plot_server <- function(input, output, session, data) {
         theme(
           axis.text.x = if (isTRUE(input$show_subject_labels)) element_text(angle = 90, vjust = 0.5, hjust = 1) else element_blank(),
           axis.ticks.x = if (isTRUE(input$show_subject_labels)) element_line() else element_blank(),
-          panel.grid.major.x = element_blank(),
-          legend.position = if (isTRUE(input$show_legend)) (input$main_legend_position %||% "right") else "none"
+          panel.grid.major.x = element_blank()
         )
 
       group_levels <- unique(plot_df$.bar_color)
@@ -746,6 +695,9 @@ waterfall_plot_server <- function(input, output, session, data) {
       }
 
       if (isTRUE(input$show_symbols) && !is.null(input$symbol_by) && nzchar(input$symbol_by)) {
+        if (isTRUE(input$auto_mapping_caption)) {
+          auto_caption_lines <- c(auto_caption_lines, graphics_mapping_caption_line(get_var_label(df, input$symbol_by), "柱符号"))
+        }
         symbol_levels <- unique(plot_df$.symbol_group)
         symbol_levels <- symbol_levels[!is.na(symbol_levels) & nzchar(symbol_levels)]
         if (length(symbol_levels) > 0) {
@@ -815,17 +767,24 @@ waterfall_plot_server <- function(input, output, session, data) {
           theme(
             axis.text.x = if (isTRUE(input$show_subject_labels)) element_text(angle = 90, vjust = 0.5, hjust = 1) else element_blank(),
             axis.ticks.x = if (isTRUE(input$show_subject_labels)) element_line() else element_blank(),
-            legend.position = if (isTRUE(input$show_legend)) (input$main_legend_position %||% "right") else "none",
             plot.margin = margin(10, 20, 14, 16)
           ) +
           coord_cartesian(clip = "off") +
           annotate("segment", x = 0.5, xend = n_x + 0.55, y = y_axis_base, yend = y_axis_base, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black") +
           annotate("segment", x = 0.5, xend = 0.5, y = y_axis_base, yend = y_axis_top, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black")
       }
+      p_main <- graphics_apply_legend_theme(
+        p_main,
+        show_legend = isTRUE(input$show_legend),
+        position = input$main_legend_position %||% "right"
+      )
 
       if (is.null(track_df) || !isTRUE(input$show_tracks)) {
         p_combined <- p_main
       } else {
+        if (isTRUE(input$auto_mapping_caption) && length(selected_tracks) > 0) {
+          auto_caption_lines <- c(auto_caption_lines, paste0("轨道图显示变量：", paste(vapply(selected_tracks, function(tr) get_var_label(df, tr), character(1)), collapse = "、"), "。"))
+        }
         track_mode_map <- setNames(
           vapply(selected_tracks, function(tr) {
             id <- paste0("track_mode_", digest::digest(tr, algo = "crc32"))
@@ -874,15 +833,19 @@ waterfall_plot_server <- function(input, output, session, data) {
           p_track <- p_track + scale_fill_manual(values = track_colors)
         }
         p_track <- p_track +
-          labs(x = NULL, y = NULL, fill = ifelse(nzchar(input$track_legend_title %||% ""), input$track_legend_title, "轨道分组")) +
+          labs(x = NULL, y = NULL, fill = graphics_resolve_legend_title(input$track_legend_title, "轨道分组")) +
           scale_y_discrete(expand = expansion(add = c(track_row_spacing_eff, track_row_spacing_eff))) +
           theme_minimal(base_size = max(9, input$base_font_size - 1), base_family = "sans") +
           theme(
             axis.text.x = element_blank(),
             axis.ticks.x = element_blank(),
-            panel.grid = element_blank(),
-            legend.position = if (isTRUE(input$show_legend) && nrow(color_track_df) > 0) (input$track_legend_position %||% "right") else "none"
+            panel.grid = element_blank()
           )
+        p_track <- graphics_apply_legend_theme(
+          p_track,
+          show_legend = isTRUE(input$show_legend) && nrow(color_track_df) > 0,
+          position = input$track_legend_position %||% "right"
+        )
 
         track_n <- length(unique(as.character(track_df$.track_name)))
         main_rel_h <- 1
@@ -897,6 +860,12 @@ waterfall_plot_server <- function(input, output, session, data) {
           axis = "lr"
         )
       }
+
+      p_combined <- graphics_append_bottom_caption(
+        p_combined,
+        graphics_compose_caption(input$plot_caption %||% "", auto_caption_lines),
+        base_font_size = input$base_font_size %||% 12
+      )
 
       final_plot(p_combined)
       main_plot_obj(p_main)

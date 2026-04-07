@@ -194,12 +194,7 @@ survival_analysis_ui <- function(id) {
                                     column(4, numericInput(ns("stats_text_size"), "统计标注字号", value = 10, min = 6, max = 20, step = 1, width = "100%"))
                                   ),
                                   numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1, width = "100%"),
-                                  fluidRow(
-                                    column(6, selectInput(ns("legend_position"), "图例位置",
-                                                          choices = c("top-right", "top", "top-left", "left", "right", "bottom-left", "bottom", "bottom-right", "none"),
-                                                          selected = "top-right", width = "100%")),
-                                    column(6, textInput(ns("legend_title"), "图例标题", value = "", placeholder = "留空不显示", width = "100%"))
-                                  ),
+                                  graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "corners_none", default_position = "top-right"),
                                   conditionalPanel(
                                     condition = paste0("input['", ns("strata_var"), "'] == 'None'"),
                                     textInput(ns("overall_group_label"), "总体分组标签", value = "all", width = "100%"),
@@ -1011,7 +1006,7 @@ survival_analysis_server <- function(input, output, session, data) {
     } else {
       fit_local <- fit()
     }
-    legend_title_text <- if (!is.null(params$legend_title) && nzchar(trimws(params$legend_title))) trimws(params$legend_title) else ""
+    legend_title_text <- graphics_resolve_legend_title(params$legend_title, "", "")
     legend_labs <- .extract_survival_legend_labs(fit_local, strata_var, params$strata_labels, overall_label)
     p <- suppressWarnings(ggsurvplot(
       fit_local,
@@ -1134,15 +1129,11 @@ survival_analysis_server <- function(input, output, session, data) {
         axis.text = element_text(size = params$axis_text_size),
         legend.text = element_text(size = params$legend_text_size)
       )
-    if (params$legend_position == "none") {
-      p$plot <- p$plot + theme(legend.position = "none")
-    } else if (params$legend_position %in% c("top", "bottom", "left", "right")) {
-      p$plot <- p$plot + theme(legend.position = params$legend_position)
-    } else {
-      pos_map <- list("top-left" = c(0, 1), "top-right" = c(1, 1), "bottom-left" = c(0, 0), "bottom-right" = c(1, 0))
-      pos <- pos_map[[params$legend_position]]
-      if (!is.null(pos)) p$plot <- p$plot + theme(legend.position = pos, legend.justification = pos)
-    }
+    p$plot <- graphics_apply_legend_theme(
+      p$plot,
+      show_legend = !identical(params$legend_position, "none"),
+      position = params$legend_position
+    )
     if (!is.null(input$plot_title) && input$plot_title != "") {
       p$plot <- p$plot + labs(title = gsub("\\\\n", "\n", input$plot_title))
     }

@@ -4,81 +4,19 @@
 library(shiny)
 library(dplyr)
 library(shinyWidgets)
+source("modules/common/data_metadata.R")
 
 # ==============================================================================
 # 辅助函数 (复制自 data_preparation.R)
 # ==============================================================================
 
 # 判断变量类型
-determine_var_type <- function(x) {
-  if (is.numeric(x)) {
-    return("numeric")
-  } else if (is.factor(x) || (is.character(x) && length(unique(x[!is.na(x)])) <= 20)) {
-    return("factor")
-  } else if (inherits(x, "Date") || inherits(x, "POSIXct") || inherits(x, "POSIXlt")) {
-    return("date")
-  } else {
-    return("text")
-  }
-}
+determine_var_type <- function(x) metadata_determine_var_type(x)
 
 # 安全计算数值范围
-safe_numeric_range <- function(var_data) {
-  valid_data <- var_data[!is.na(var_data)]
-  if (length(valid_data) == 0) return(list(min = 0.0, max = 1.0))
-  
-  min_val <- tryCatch({
-    result <- min(valid_data, na.rm = TRUE)
-    if (length(result) == 0 || is.na(result) || !is.finite(result)) 0.0 else as.numeric(result)
-  }, error = function(e) 0.0)
-  
-  max_val <- tryCatch({
-    result <- max(valid_data, na.rm = TRUE)
-    if (length(result) == 0 || is.na(result) || !is.finite(result)) 1.0 else as.numeric(result)
-  }, error = function(e) 1.0)
-  
-  if (min_val > max_val) {
-    temp <- min_val
-    min_val <- max_val
-    max_val <- temp + 1
-  }
-  
-  if (!is.finite(min_val)) min_val <- 0.0
-  if (!is.finite(max_val)) max_val <- 1.0
-  
-  return(list(min = min_val, max = max_val))
-}
+safe_numeric_range <- function(var_data) metadata_safe_numeric_range(var_data)
 
-coerce_var_data <- function(x, var_type) {
-  if (var_type == "numeric") {
-    return(suppressWarnings(as.numeric(x)))
-  }
-  if (var_type == "date") {
-    if (inherits(x, "Date")) {
-      return(x)
-    }
-    if (inherits(x, "POSIXct") || inherits(x, "POSIXlt")) {
-      return(as.Date(x))
-    }
-    x_chr <- as.character(x)
-    parsed <- tryCatch(
-      suppressWarnings(as.Date(
-        x_chr,
-        tryFormats = c(
-          "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d",
-          "%Y%m%d", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S",
-          "%d/%m/%Y", "%m/%d/%Y"
-        )
-      )),
-      error = function(e) as.Date(rep(NA_character_, length(x_chr)))
-    )
-    return(parsed)
-  }
-  if (var_type == "factor") {
-    return(as.character(x))
-  }
-  as.character(x)
-}
+coerce_var_data <- function(x, var_type) metadata_coerce_var_data(x, var_type)
 
 # ==============================================================================
 # 模块 UI
@@ -158,6 +96,12 @@ data_filter_server <- function(id, data) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     apply_tick <- reactiveVal(1)
+    get_df_metadata <- reactive({
+      req(data())
+      metadata_get_table(data = data())
+    })
+    get_var_label <- function(df, var_name) metadata_get_var_label(var_name, df[[var_name]], metadata = get_df_metadata())
+    get_var_type <- function(df, var_name) metadata_get_var_type(var_name, df[[var_name]], metadata = get_df_metadata())
     
     format_filter_conditions <- function(df, selected_vars) {
       if (is.null(selected_vars) || length(selected_vars) == 0) {
@@ -168,29 +112,30 @@ data_filter_server <- function(id, data) {
         if (!(var_name %in% names(df))) {
           next
         }
-        var_type <- determine_var_type(df[[var_name]])
+        var_label <- get_var_label(df, var_name)
+        var_type <- get_var_type(df, var_name)
         item <- NULL
         if (var_type == "numeric") {
           min_val <- input[[paste0("num_min_", var_name)]]
           max_val <- input[[paste0("num_max_", var_name)]]
           if (!is.null(min_val) && !is.null(max_val)) {
-            item <- paste0(var_name, " 数值[", min_val, ", ", max_val, "]")
+            item <- paste0(var_label, " 数值[", min_val, ", ", max_val, "]")
           }
         } else if (var_type == "factor") {
           vals <- input[[paste0("cat_values_", var_name)]]
           if (!is.null(vals) && length(vals) > 0) {
-            item <- paste0(var_name, " 分类{", paste(vals, collapse = ", "), "}")
+            item <- paste0(var_label, " 分类{", paste(vals, collapse = ", "), "}")
           }
         } else if (var_type == "date") {
           start_date <- input[[paste0("date_start_", var_name)]]
           end_date <- input[[paste0("date_end_", var_name)]]
           if (!is.null(start_date) && !is.null(end_date)) {
-            item <- paste0(var_name, " 日期[", as.character(start_date), ", ", as.character(end_date), "]")
+            item <- paste0(var_label, " 日期[", as.character(start_date), ", ", as.character(end_date), "]")
           }
         } else {
           txt <- input[[paste0("text_search_", var_name)]]
           if (!is.null(txt) && nzchar(trimws(txt))) {
-            item <- paste0(var_name, " 文本包含\"", txt, "\"")
+            item <- paste0(var_label, " 文本包含\"", txt, "\"")
           }
         }
         if (var_type != "factor") {
@@ -198,7 +143,7 @@ data_filter_server <- function(id, data) {
           if (!is.null(na_filter_val) && na_filter_val != "all") {
             na_text <- if (na_filter_val == "exclude") "排除空值" else "仅空值"
             if (is.null(item)) {
-              item <- paste0(var_name, " ", na_text)
+              item <- paste0(var_label, " ", na_text)
             } else {
               item <- paste0(item, " + ", na_text)
             }
@@ -217,7 +162,7 @@ data_filter_server <- function(id, data) {
     # 监听数据变化，更新变量选择列表
     observeEvent(data(), {
       req(data())
-      updateSelectizeInput(session, "selected_var", choices = names(data()), server = TRUE)
+      updateSelectizeInput(session, "selected_var", choices = metadata_build_column_choices(data(), metadata = get_df_metadata()), server = TRUE)
     })
     
     # 动态生成筛选控件
@@ -229,14 +174,15 @@ data_filter_server <- function(id, data) {
       if (length(selected_vars) == 0) return(NULL)
       
       controls <- lapply(selected_vars, function(var_name) {
-        var_type <- determine_var_type(df[[var_name]])
+        var_label <- get_var_label(df, var_name)
+        var_type <- get_var_type(df, var_name)
         var_data <- coerce_var_data(df[[var_name]], var_type)
         
         div(
           class = "filter-group",
           style = "border: 1px solid #ddd; padding: 8px; margin: 3px; border-radius: 4px; background-color: #f8f9fa; display: inline-block; vertical-align: top; width: 280px; margin-right: 8px;",
           
-          h5(paste(var_name, "(", var_type, ")"), style = "margin-top: 0; color: #333; font-size: 13px;"),
+          h5(if (!identical(var_label, var_name)) paste0(var_name, " [", var_label, "] (", var_type, ")") else paste0(var_name, " (", var_type, ")"), style = "margin-top: 0; color: #333; font-size: 13px;"),
           if (var_type != "factor") {
             radioButtons(ns(paste0("na_filter_", var_name)),
                         "空值筛选:",
@@ -320,7 +266,7 @@ data_filter_server <- function(id, data) {
         }
         step <- 1 / max(1, length(selected_vars))
         for (var_name in selected_vars) {
-          var_type <- determine_var_type(df[[var_name]])
+          var_type <- get_var_type(df, var_name)
           var_data <- coerce_var_data(df[[var_name]], var_type)
           if (var_type != "factor") {
             na_filter_val <- input[[paste0("na_filter_", var_name)]]
@@ -391,7 +337,7 @@ data_filter_server <- function(id, data) {
           }
           incProgress(step)
         }
-        df
+        metadata_attach_to_data(df, metadata = get_df_metadata())
       })
     })
     

@@ -27,6 +27,7 @@ invisible(lapply(required_packages, function(pkg) {
 
 # 加载所有模块
 source("modules/common/storage_backend.R")
+source("modules/common/data_metadata.R")
 source("modules/data_preparation.R")
 source("modules/database_manager.R")
 source("modules/exploratory_analysis.R")

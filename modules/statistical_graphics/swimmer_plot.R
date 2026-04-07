@@ -118,8 +118,8 @@ swimmer_plot_ui <- function(id) {
                         class = "panel-body",
                         checkboxInput(ns("show_legend"), "显示图例", TRUE),
                         fluidRow(
-                          column(6, selectInput(ns("main_legend_position"), "主图图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%")),
-                          column(6, selectInput(ns("track_legend_position"), "轨道图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%"))
+                          column(6, selectInput(ns("main_legend_position"), "主图图例位置", choices = graphics_legend_position_choices("outer"), selected = "right", width = "100%")),
+                          column(6, selectInput(ns("track_legend_position"), "轨道图例位置", choices = graphics_legend_position_choices("outer"), selected = "right", width = "100%"))
                         ),
                         checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
                         checkboxInput(ns("show_subject_labels"), "显示受试者标签", TRUE),
@@ -172,8 +172,20 @@ swimmer_plot_ui <- function(id) {
                           selected = "Set1",
                           width = "100%"
                         ),
+                        checkboxInput(ns("auto_mapping_caption"), "自动追加样式脚注", TRUE),
                         textInput(ns("event_legend_title"), "事件图例层标题(可选)", value = "", width = "100%"),
-                        selectInput(ns("event_legend_position"), "事件图例位置", choices = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom"), selected = "right", width = "100%")
+                        selectInput(ns("event_legend_position"), "事件图例位置", choices = graphics_legend_position_choices("aux"), selected = "right", width = "100%"),
+                        conditionalPanel(
+                          condition = sprintf("input['%s'] === 'inside_bottom_right' || input['%s'] === 'inside_custom'", ns("event_legend_position"), ns("event_legend_position")),
+                          fluidRow(
+                            column(6, sliderInput(ns("event_legend_x_ratio"), "图例X比例", min = 0, max = 1, value = 0.72, step = 0.01, width = "100%")),
+                            column(6, sliderInput(ns("event_legend_y_ratio"), "图例Y比例", min = 0, max = 1, value = 0.03, step = 0.01, width = "100%"))
+                          ),
+                          fluidRow(
+                            column(6, sliderInput(ns("event_legend_width_ratio"), "图例宽度比例", min = 0.1, max = 0.6, value = 0.26, step = 0.01, width = "100%")),
+                            column(6, sliderInput(ns("event_legend_height_ratio"), "图例高度比例", min = 0.1, max = 0.6, value = 0.28, step = 0.01, width = "100%"))
+                          )
+                        )
                       )
                     )
                   ),
@@ -204,7 +216,8 @@ swimmer_plot_ui <- function(id) {
                           choices = c("默认Hue" = "hue", "Set2" = "Set2", "Set3" = "Set3", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"),
                           selected = "Set2",
                           width = "100%"
-                        )
+                        ),
+                        selectInput(ns("lane_color_mode"), "泳道颜色分配", choices = c("调色板自动" = "palette", "分别指定" = "manual_each"), selected = "palette", width = "100%")
                       )
                     )
                   ),
@@ -319,7 +332,7 @@ swimmer_plot_server <- function(input, output, session, data) {
     if (n <= length(base_vals)) return(base_vals[seq_len(n)])
     grDevices::colorRampPalette(base_vals)(n)
   }
-  shape_choice_values <- c("X" = 4, "实心圆" = 16, "空心圆" = 1, "实心方块" = 15, "空心方块" = 0, "实心三角" = 17, "空心三角" = 2, "菱形" = 18, "加号" = 3, "星号" = 8)
+  shape_choice_values <- graphics_shape_choice_values()
 
   pick_first <- function(candidates, choices) {
     m <- candidates[candidates %in% choices]
@@ -419,12 +432,12 @@ swimmer_plot_server <- function(input, output, session, data) {
       if (is.null(current_time)) current_time <- state_get(i, "event_time", NULL)
       if (is.null(current_type)) current_type <- state_get(i, "event_type", NULL)
       if (is.null(current_label)) current_label <- state_get(i, "event_label", NULL)
-      if (is.null(current_time)) current_time <- ""
-      if (is.null(current_type)) current_type <- ""
-      if (is.null(current_label)) current_label <- ""
-      updateSelectizeInput(session, id_time, choices = c("无" = "", time_vars), selected = ifelse(is.null(current_time), "", current_time), server = TRUE)
-      updateSelectizeInput(session, id_type, choices = c("无" = "", all_vars), selected = ifelse(is.null(current_type), "", current_type), server = TRUE)
-      updateSelectizeInput(session, id_label, choices = c("无" = "", all_vars), selected = ifelse(is.null(current_label), "", current_label), server = TRUE)
+      current_time <- graphics_remember_choice(current_time, state_get(i, "event_time", NULL), time_vars, pick_first(event_time_candidates, time_vars) %||% "", allow_empty = TRUE)
+      current_type <- graphics_remember_choice(current_type, state_get(i, "event_type", NULL), all_vars, pick_first(event_type_candidates, all_vars) %||% "", allow_empty = TRUE)
+      current_label <- graphics_remember_choice(current_label, state_get(i, "event_label", NULL), all_vars, pick_first(event_label_candidates, all_vars) %||% "", allow_empty = TRUE)
+      updateSelectizeInput(session, id_time, choices = c("无" = "", time_vars), selected = current_time %||% "", server = TRUE)
+      updateSelectizeInput(session, id_type, choices = c("无" = "", all_vars), selected = current_type %||% "", server = TRUE)
+      updateSelectizeInput(session, id_label, choices = c("无" = "", all_vars), selected = current_label %||% "", server = TRUE)
     }
   }
 
@@ -447,11 +460,7 @@ swimmer_plot_server <- function(input, output, session, data) {
     event_type_candidates <- c("EVENT", "EVENT_TYPE", "BOR", "STATUS", "RESPONSE", "event_type")
     event_label_candidates <- c("EVENT_LABEL", "LABEL", "EVENT_TEXT", "AVALC", "event_label")
 
-    selected_subject <- isolate(input$subject_id)
-    if (is.null(selected_subject) || !nzchar(selected_subject) || !(selected_subject %in% all_vars)) {
-      selected_subject <- graphics_state$subject_id
-      if (is.null(selected_subject) || !(selected_subject %in% all_vars)) selected_subject <- pick_first(subject_candidates, all_vars)
-    }
+    selected_subject <- graphics_remember_choice(isolate(input$subject_id), graphics_state$subject_id, all_vars, pick_first(subject_candidates, all_vars))
 
     selected_lane_mode <- isolate(input$lane_time_mode)
     if (is.null(selected_lane_mode) || !(selected_lane_mode %in% c("start_end", "duration"))) {
@@ -486,23 +495,9 @@ swimmer_plot_server <- function(input, output, session, data) {
       selected_lane_mode <- "duration"
     }
 
-    selected_color <- isolate(input$lane_color_by)
-    if (is.null(selected_color) || !(selected_color %in% c("", all_vars))) {
-      selected_color <- graphics_state$lane_color_by
-      if (is.null(selected_color) || !(selected_color %in% c("", all_vars))) {
-        selected_color <- pick_first(color_candidates, setdiff(all_vars, c(selected_subject, selected_start, selected_end)))
-        if (is.null(selected_color)) selected_color <- ""
-      }
-    }
+    selected_color <- graphics_remember_choice(isolate(input$lane_color_by), graphics_state$lane_color_by, all_vars, pick_first(color_candidates, setdiff(all_vars, c(selected_subject, selected_start, selected_end))) %||% "", allow_empty = TRUE)
 
-    selected_ongoing <- isolate(input$ongoing_var)
-    if (is.null(selected_ongoing) || !(selected_ongoing %in% c("", all_vars))) {
-      selected_ongoing <- graphics_state$ongoing_var
-      if (is.null(selected_ongoing) || !(selected_ongoing %in% c("", all_vars))) {
-        selected_ongoing <- pick_first(ongoing_candidates, all_vars)
-        if (is.null(selected_ongoing)) selected_ongoing <- ""
-      }
-    }
+    selected_ongoing <- graphics_remember_choice(isolate(input$ongoing_var), graphics_state$ongoing_var, all_vars, pick_first(ongoing_candidates, all_vars) %||% "", allow_empty = TRUE)
 
     selected_tracks <- isolate(input$tracks)
     if (is.null(selected_tracks) || length(selected_tracks) == 0) selected_tracks <- graphics_state$tracks
@@ -609,16 +604,20 @@ swimmer_plot_server <- function(input, output, session, data) {
 
   output$lane_color_controls <- renderUI({
     req(data())
-    if (is.null(input$lane_color_by) || !nzchar(input$lane_color_by) || !(input$lane_color_by %in% names(data()))) {
-      return(helpText("选择泳道颜色分组后，可在此为每个分组自定义颜色。"))
+    if (!identical(input$lane_color_mode %||% "palette", "manual_each")) {
+      return(NULL)
     }
-    levels <- unique(as.character(data()[[input$lane_color_by]]))
+    lane_color_source <- graphics_resolve_mapping_var(input$lane_color_by, input$subject_id, names(data()), enable_fallback = TRUE)
+    if (is.null(lane_color_source) || !nzchar(lane_color_source) || !(lane_color_source %in% names(data()))) {
+      return(helpText("请选择受试者ID或泳道颜色分组后再设置分别指定颜色。"))
+    }
+    levels <- unique(as.character(data()[[lane_color_source]]))
     levels <- levels[!is.na(levels) & nzchar(levels)]
     levels <- head(levels, 12)
     if (length(levels) == 0) return(helpText("当前分组变量没有可用水平。"))
     defaults <- palette_values(length(levels), input$lane_palette %||% "hue")
     tagList(
-      h5("泳道分组颜色"),
+      h5(if (!is.null(input$lane_color_by) && nzchar(input$lane_color_by)) "泳道分组颜色" else "受试者泳道颜色"),
       lapply(seq_along(levels), function(i) {
         lv <- levels[[i]]
         colourpicker::colourInput(
@@ -646,23 +645,62 @@ swimmer_plot_server <- function(input, output, session, data) {
         color_mode_default <- state_get(i, "event_grp_color_mode", "random_unique")
         symbol_mode_default <- state_get(i, "event_grp_symbol_mode", "random_unique")
         shape_default <- state_get(i, "event_grp_shape", default_shapes[[i]])
-        fluidRow(
-          column(3, selectInput(session$ns(paste0("event_grp_color_mode_", i)), label = paste0(legend_title, " 颜色分配"), choices = c("随机且不重复" = "random_unique", "单一指定" = "single"), selected = color_mode_default, width = "100%")),
-          column(
-            3,
-            conditionalPanel(
-              condition = sprintf("input['%s'] === 'single'", session$ns(paste0("event_grp_color_mode_", i))),
-              colourpicker::colourInput(session$ns(paste0("event_grp_col_", i)), label = paste0(legend_title, " 指定颜色"), value = color_default, width = "100%")
+        event_type_var <- input[[paste0("event_type_", i)]] %||% state_get(i, "event_type", "")
+        event_levels <- if (!is.null(event_type_var) && nzchar(event_type_var) && event_type_var %in% names(data())) {
+          vals <- unique(as.character(data()[[event_type_var]]))
+          vals[!is.na(vals) & nzchar(vals)]
+        } else {
+          character(0)
+        }
+        tagList(
+          fluidRow(
+            column(3, selectInput(session$ns(paste0("event_grp_color_mode_", i)), label = paste0(legend_title, " 颜色分配"), choices = c("随机且不重复" = "random_unique", "单一指定" = "single", "分别指定" = "manual_each"), selected = color_mode_default, width = "100%")),
+            column(
+              3,
+              conditionalPanel(
+                condition = sprintf("input['%s'] === 'single'", session$ns(paste0("event_grp_color_mode_", i))),
+                colourpicker::colourInput(session$ns(paste0("event_grp_col_", i)), label = paste0(legend_title, " 指定颜色"), value = color_default, width = "100%")
+              )
+            ),
+            column(3, selectInput(session$ns(paste0("event_grp_symbol_mode_", i)), label = paste0(legend_title, " 符号分配"), choices = c("随机且不重复" = "random_unique", "单一指定" = "single", "分别指定" = "manual_each"), selected = symbol_mode_default, width = "100%")),
+            column(
+              3,
+              conditionalPanel(
+                condition = sprintf("input['%s'] === 'single'", session$ns(paste0("event_grp_symbol_mode_", i))),
+                selectInput(session$ns(paste0("event_grp_shape_", i)), label = paste0(legend_title, " 指定符号"), choices = shape_choice_values, selected = shape_default, width = "100%")
+              )
             )
           ),
-          column(3, selectInput(session$ns(paste0("event_grp_symbol_mode_", i)), label = paste0(legend_title, " 符号分配"), choices = c("随机且不重复" = "random_unique", "单一指定" = "single"), selected = symbol_mode_default, width = "100%")),
-          column(
-            3,
-            conditionalPanel(
-              condition = sprintf("input['%s'] === 'single'", session$ns(paste0("event_grp_symbol_mode_", i))),
-              selectInput(session$ns(paste0("event_grp_shape_", i)), label = paste0(legend_title, " 指定符号"), choices = shape_choice_values, selected = shape_default, width = "100%")
+          if (length(event_levels) > 0) {
+            tagList(
+              conditionalPanel(
+                condition = sprintf("input['%s'] === 'manual_each'", session$ns(paste0("event_grp_color_mode_", i))),
+                graphics_group_symbol_controls_ui(
+                  session = session,
+                  levels = event_levels,
+                  color_input_prefix = paste0("event_grp_col_each_", i, "_"),
+                  default_colors = rep(color_default, length(event_levels)),
+                  title = paste0(legend_title, " 颜色分别指定"),
+                  color_label_suffix = "颜色",
+                  show_symbol = FALSE,
+                  show_color = TRUE
+                )
+              ),
+              conditionalPanel(
+                condition = sprintf("input['%s'] === 'manual_each'", session$ns(paste0("event_grp_symbol_mode_", i))),
+                graphics_group_symbol_controls_ui(
+                  session = session,
+                  levels = event_levels,
+                  symbol_input_prefix = paste0("event_grp_shape_each_", i, "_"),
+                  symbol_choices = shape_choice_values,
+                  default_symbols = as.numeric(rep(unname(shape_choice_values), length.out = length(event_levels))),
+                  title = paste0(legend_title, " 符号分别指定"),
+                  show_symbol = TRUE,
+                  show_color = FALSE
+                )
+              )
             )
-          )
+          }
         )
       })
     )
@@ -751,7 +789,13 @@ swimmer_plot_server <- function(input, output, session, data) {
 
     tryCatch({
       df <- data()
-      lane_has_group <- nzchar(input$lane_color_by %||% "") && input$lane_color_by %in% names(df)
+      lane_color_source <- graphics_resolve_mapping_var(
+        input$lane_color_by,
+        input$subject_id,
+        names(df),
+        enable_fallback = identical(input$lane_color_mode %||% "palette", "manual_each")
+      )
+      lane_has_group <- !is.null(lane_color_source) && nzchar(lane_color_source) && lane_color_source %in% names(df)
       use_duration_mode <- identical(input$lane_time_mode %||% "start_end", "duration")
       if (use_duration_mode) {
         req(input$duration_var)
@@ -766,7 +810,7 @@ swimmer_plot_server <- function(input, output, session, data) {
       track_label_map <- setNames(make.unique(vapply(selected_tracks, function(tr) get_var_label(df, tr), character(1))), selected_tracks)
 
       lane_time_cols <- if (use_duration_mode) c(input$duration_var) else c(input$start_time, input$end_time)
-      lane_cols <- unique(c(input$subject_id, lane_time_cols, input$lane_color_by, input$ongoing_var, selected_tracks))
+      lane_cols <- unique(c(input$subject_id, lane_time_cols, lane_color_source, input$ongoing_var, selected_tracks))
       lane_cols <- lane_cols[nzchar(lane_cols)]
       lane_cols <- lane_cols[lane_cols %in% names(df)]
       lane_df <- df[, lane_cols, drop = FALSE]
@@ -778,8 +822,8 @@ swimmer_plot_server <- function(input, output, session, data) {
         names(lane_df)[names(lane_df) == input$start_time] <- ".start"
         names(lane_df)[names(lane_df) == input$end_time] <- ".end"
       }
-      if (nzchar(input$lane_color_by %||% "") && input$lane_color_by %in% names(df)) {
-        names(lane_df)[names(lane_df) == input$lane_color_by] <- ".lane_group"
+      if (!is.null(lane_color_source) && nzchar(lane_color_source) && lane_color_source %in% names(df)) {
+        names(lane_df)[names(lane_df) == lane_color_source] <- ".lane_group"
       } else {
         lane_df$.lane_group <- "全部受试者"
       }
@@ -995,12 +1039,18 @@ swimmer_plot_server <- function(input, output, session, data) {
 
       lane_levels <- unique(lane_df$.lane_group)
       lane_colors <- setNames(palette_values(length(lane_levels), input$lane_palette %||% "hue"), lane_levels)
-      for (lv in lane_levels) {
-        id <- paste0("lane_col_", digest::digest(lv, algo = "crc32"))
-        if (!is.null(input[[id]]) && nzchar(input[[id]])) lane_colors[[lv]] <- input[[id]]
+      if (identical(input$lane_color_mode %||% "palette", "manual_each")) {
+        for (lv in lane_levels) {
+          id <- paste0("lane_col_", digest::digest(lv, algo = "crc32"))
+          if (!is.null(input[[id]]) && nzchar(input[[id]])) lane_colors[[lv]] <- input[[id]]
+        }
       }
       lane_single_color <- lane_colors[[1]] %||% "#4E79A7"
       has_event_data <- !is.null(event_df) && nrow(event_df) > 0
+      auto_caption_lines <- character(0)
+      if (isTRUE(input$auto_mapping_caption) && isTRUE(lane_has_group) && identical(input$lane_color_mode %||% "palette", "manual_each")) {
+        auto_caption_lines <- c(auto_caption_lines, graphics_mapping_caption_line(get_var_label(data(), lane_color_source), "泳道颜色"))
+      }
 
       if (isTRUE(lane_has_group)) {
         if (isTRUE(has_event_data)) {
@@ -1016,7 +1066,6 @@ swimmer_plot_server <- function(input, output, session, data) {
             labs(
               title = ifelse(nzchar(input$plot_title %||% ""), input$plot_title, "泳道图"),
               subtitle = input$plot_subtitle %||% "",
-              caption = input$plot_caption %||% "",
               x = ifelse(nzchar(input$plot_xlab %||% ""), input$plot_xlab, "时间"),
               y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "受试者")
             ) +
@@ -1024,8 +1073,7 @@ swimmer_plot_server <- function(input, output, session, data) {
             theme(
               panel.grid.major.y = element_blank(),
               axis.text.y = if (isTRUE(input$show_subject_labels)) element_text() else element_blank(),
-              axis.ticks.y = if (isTRUE(input$show_subject_labels)) element_line() else element_blank(),
-              legend.position = if (isTRUE(input$show_legend)) (input$event_legend_position %||% "right") else "none"
+              axis.ticks.y = if (isTRUE(input$show_subject_labels)) element_line() else element_blank()
             )
         } else {
           p_main <- ggplot(lane_df, aes(y = .subject_factor, text = .tooltip_lane)) +
@@ -1039,17 +1087,15 @@ swimmer_plot_server <- function(input, output, session, data) {
             labs(
               title = ifelse(nzchar(input$plot_title %||% ""), input$plot_title, "泳道图"),
               subtitle = input$plot_subtitle %||% "",
-              caption = input$plot_caption %||% "",
               x = ifelse(nzchar(input$plot_xlab %||% ""), input$plot_xlab, "时间"),
               y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "受试者"),
-              color = ifelse(nzchar(input$lane_legend_title %||% ""), input$lane_legend_title, input$lane_color_by)
+              color = graphics_resolve_legend_title(input$lane_legend_title, get_var_label(data(), lane_color_source %||% input$subject_id))
             ) +
             theme_minimal(base_size = input$base_font_size, base_family = "sans") +
             theme(
               panel.grid.major.y = element_blank(),
               axis.text.y = if (isTRUE(input$show_subject_labels)) element_text() else element_blank(),
-              axis.ticks.y = if (isTRUE(input$show_subject_labels)) element_line() else element_blank(),
-              legend.position = if (isTRUE(input$show_legend)) (input$main_legend_position %||% "right") else "none"
+              axis.ticks.y = if (isTRUE(input$show_subject_labels)) element_line() else element_blank()
             )
         }
       } else {
@@ -1064,7 +1110,6 @@ swimmer_plot_server <- function(input, output, session, data) {
           labs(
             title = ifelse(nzchar(input$plot_title %||% ""), input$plot_title, "泳道图"),
             subtitle = input$plot_subtitle %||% "",
-            caption = input$plot_caption %||% "",
             x = ifelse(nzchar(input$plot_xlab %||% ""), input$plot_xlab, "时间"),
             y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "受试者")
           ) +
@@ -1072,11 +1117,16 @@ swimmer_plot_server <- function(input, output, session, data) {
           theme(
             panel.grid.major.y = element_blank(),
             axis.text.y = if (isTRUE(input$show_subject_labels)) element_text() else element_blank(),
-            axis.ticks.y = if (isTRUE(input$show_subject_labels)) element_line() else element_blank(),
-            legend.position = if (isTRUE(input$show_legend)) (input$main_legend_position %||% "right") else "none"
+            axis.ticks.y = if (isTRUE(input$show_subject_labels)) element_line() else element_blank()
           ) +
           guides(color = "none")
       }
+
+      p_main <- graphics_apply_legend_theme(
+        p_main,
+        show_legend = isTRUE(input$show_legend) && !isTRUE(has_event_data) && isTRUE(lane_has_group),
+        position = input$main_legend_position %||% "right"
+      )
 
       x_break_step <- suppressWarnings(as.numeric(input$x_break_step %||% 0))
       if (!is.na(x_break_step) && x_break_step > 0) {
@@ -1113,9 +1163,12 @@ swimmer_plot_server <- function(input, output, session, data) {
         for (k in seq_along(event_keys)) {
           idx <- key_info$.event_group_index[[k]]
           color_mode_i <- input[[paste0("event_grp_color_mode_", idx)]] %||% "random_unique"
-          id <- paste0("event_grp_col_", idx)
-          if (identical(color_mode_i, "single") && !is.null(input[[id]]) && nzchar(input[[id]])) {
-            event_colors_by_key[[event_keys[[k]]]] <- input[[id]]
+          if (identical(color_mode_i, "single")) {
+            id <- paste0("event_grp_col_", idx)
+            if (!is.null(input[[id]]) && nzchar(input[[id]])) event_colors_by_key[[event_keys[[k]]]] <- input[[id]]
+          } else if (identical(color_mode_i, "manual_each")) {
+            id <- paste0("event_grp_col_each_", idx, "_", digest::digest(key_info$.event_type[[k]], algo = "crc32"))
+            if (!is.null(input[[id]]) && nzchar(input[[id]])) event_colors_by_key[[event_keys[[k]]]] <- input[[id]]
           }
         }
         shape_pool <- unique(as.numeric(unname(shape_choice_values)))
@@ -1134,6 +1187,24 @@ swimmer_plot_server <- function(input, output, session, data) {
             if (is.na(chosen)) chosen <- shape_pool_ordered[[((k - 1) %% length(shape_pool_ordered)) + 1]]
             event_shapes_by_key[[event_keys[[k]]]] <- chosen
             used_shapes <- c(used_shapes, chosen)
+          } else if (identical(mode_i, "manual_each")) {
+            chosen <- suppressWarnings(as.numeric(input[[paste0("event_grp_shape_each_", idx, "_", digest::digest(key_info$.event_type[[k]], algo = "crc32"))]]))
+            if (is.na(chosen)) chosen <- shape_pool_ordered[[((k - 1) %% length(shape_pool_ordered)) + 1]]
+            event_shapes_by_key[[event_keys[[k]]]] <- chosen
+            used_shapes <- c(used_shapes, chosen)
+          }
+        }
+        if (isTRUE(input$auto_mapping_caption)) {
+          for (idx in unique(key_info$.event_group_index)) {
+            event_type_var_i <- input[[paste0("event_type_", idx)]] %||% state_get(idx, "event_type", "")
+            if (!is.null(event_type_var_i) && nzchar(event_type_var_i) && event_type_var_i %in% names(data())) {
+              if (identical(input[[paste0("event_grp_color_mode_", idx)]] %||% "random_unique", "manual_each")) {
+                auto_caption_lines <- c(auto_caption_lines, graphics_mapping_caption_line(get_var_label(data(), event_type_var_i), "事件颜色"))
+              }
+              if (identical(input[[paste0("event_grp_symbol_mode_", idx)]] %||% "random_unique", "manual_each")) {
+                auto_caption_lines <- c(auto_caption_lines, graphics_mapping_caption_line(get_var_label(data(), event_type_var_i), "事件符号"))
+              }
+            }
           }
         }
         for (k in seq_along(event_keys)) {
@@ -1293,15 +1364,19 @@ swimmer_plot_server <- function(input, output, session, data) {
           p_track <- p_track + scale_fill_manual(values = track_colors)
         }
         p_track <- p_track +
-          labs(x = NULL, y = NULL, fill = ifelse(nzchar(input$track_legend_title %||% ""), input$track_legend_title, "轨道分组")) +
+          labs(x = NULL, y = NULL, fill = graphics_resolve_legend_title(input$track_legend_title, "轨道分组")) +
           scale_y_discrete(expand = expansion(add = c(track_row_spacing_eff, track_row_spacing_eff))) +
           theme_minimal(base_size = max(9, input$base_font_size - 1), base_family = "sans") +
           theme(
             axis.text.x = element_blank(),
             axis.ticks.x = element_blank(),
-            panel.grid = element_blank(),
-            legend.position = if (isTRUE(input$show_legend) && nrow(color_track_df) > 0) (input$track_legend_position %||% "right") else "none"
+            panel.grid = element_blank()
           )
+        p_track <- graphics_apply_legend_theme(
+          p_track,
+          show_legend = isTRUE(input$show_legend) && nrow(color_track_df) > 0,
+          position = input$track_legend_position %||% "right"
+        )
 
         track_n <- length(unique(as.character(track_df$.track_name)))
         main_rel_h <- 1
@@ -1318,7 +1393,7 @@ swimmer_plot_server <- function(input, output, session, data) {
       }
 
       if (isTRUE(input$show_legend) && !is.null(event_legend_df) && nrow(event_legend_df) > 0) {
-        legend_title <- trimws(input$event_legend_title %||% "")
+        legend_title <- graphics_resolve_legend_title(input$event_legend_title, "", "")
         group_levels <- unique(event_legend_df$.group[order(event_legend_df$.group_index)])
         legend_rows_list <- lapply(seq_along(group_levels), function(gidx) {
           g <- group_levels[[gidx]]
@@ -1383,17 +1458,28 @@ swimmer_plot_server <- function(input, output, session, data) {
           p_event_legend <- p_event_legend + ggtitle(legend_title)
         }
         legend_pos <- input$event_legend_position %||% "right"
-        if (legend_pos == "left") {
-          p_combined <- cowplot::plot_grid(p_event_legend, p_combined, ncol = 2, rel_widths = c(0.35, 1), align = "h", axis = "tb")
-        } else if (legend_pos == "top") {
-          p_combined <- cowplot::plot_grid(p_event_legend, p_combined, ncol = 1, rel_heights = c(0.35, 1), align = "v", axis = "lr")
-        } else if (legend_pos == "bottom") {
-          p_combined <- cowplot::plot_grid(p_combined, p_event_legend, ncol = 1, rel_heights = c(1, 0.35), align = "v", axis = "lr")
-        } else {
-          p_combined <- cowplot::plot_grid(p_combined, p_event_legend, ncol = 2, rel_widths = c(1, 0.35), align = "h", axis = "tb")
-        }
+        p_combined <- graphics_place_aux_legend(
+          p_combined,
+          p_event_legend,
+          position = legend_pos,
+          outside_ratio = 0.35,
+          inside_anchor = c(
+            input$event_legend_x_ratio %||% 0.72,
+            input$event_legend_y_ratio %||% 0.03,
+            input$event_legend_width_ratio %||% 0.26,
+            input$event_legend_height_ratio %||% 0.28
+          )
+        )
       }
 
+      if (isTRUE(input$auto_mapping_caption) && isTRUE(input$show_tracks) && length(selected_tracks) > 0) {
+        auto_caption_lines <- c(auto_caption_lines, paste0("轨道图显示变量：", paste(unname(track_label_map[selected_tracks]), collapse = "、"), "。"))
+      }
+      p_combined <- graphics_append_bottom_caption(
+        p_combined,
+        graphics_compose_caption(input$plot_caption %||% "", auto_caption_lines),
+        base_font_size = input$base_font_size %||% 12
+      )
       final_plot(p_combined)
       main_plot_obj(p_main)
       lane_data(lane_df)

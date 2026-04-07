@@ -305,98 +305,18 @@ get_column_def_cached <- memoise(function(col_name, col_data) {
 
 # 判断变量类型
 determine_var_type <- function(x) {
-  if (is.numeric(x)) {
-    return("numeric")
-  } else if (is.factor(x) || (is.character(x) && length(unique(x[!is.na(x)])) <= 20)) {
-    return("factor")
-  } else if (inherits(x, "Date") || inherits(x, "POSIXct") || inherits(x, "POSIXlt")) {
-    return("date")
-  } else {
-    return("text")
-  }
+  metadata_determine_var_type(x)
 }
 
-valid_var_types <- c("numeric", "factor", "date", "text")
+valid_var_types <- metadata_valid_var_types
 
 coerce_var_data <- function(x, var_type) {
-  if (var_type == "numeric") {
-    return(suppressWarnings(as.numeric(x)))
-  }
-  if (var_type == "date") {
-    if (inherits(x, "Date")) {
-      return(x)
-    }
-    if (inherits(x, "POSIXct") || inherits(x, "POSIXlt")) {
-      return(as.Date(x))
-    }
-    x_chr <- as.character(x)
-    parsed <- tryCatch(
-      suppressWarnings(as.Date(
-        x_chr,
-        tryFormats = c(
-          "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d",
-          "%Y%m%d", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S",
-          "%d/%m/%Y", "%m/%d/%Y"
-        )
-      )),
-      error = function(e) as.Date(rep(NA_character_, length(x_chr)))
-    )
-    return(parsed)
-  }
-  if (var_type == "factor") {
-    return(as.character(x))
-  }
-  as.character(x)
+  metadata_coerce_var_data(x, var_type)
 }
 
 # 安全计算数值范围 - 处理全空值的情况
 safe_numeric_range <- function(var_data) {
-  # 过滤出非空值
-  valid_data <- var_data[!is.na(var_data)]
-  
-  # 如果没有有效数据，返回默认范围
-  if (length(valid_data) == 0) {
-    return(list(min = 0.0, max = 1.0))
-  }
-  
-  # 尝试计算最小值
-  min_val <- tryCatch({
-    result <- min(valid_data, na.rm = TRUE)
-    # 确保结果是标量且有限
-    if (length(result) == 0 || is.na(result) || !is.finite(result)) {
-      0.0
-    } else {
-      as.numeric(result)
-    }
-  }, error = function(e) {
-    0.0
-  })
-  
-  # 尝试计算最大值
-  max_val <- tryCatch({
-    result <- max(valid_data, na.rm = TRUE)
-    # 确保结果是标量且有限
-    if (length(result) == 0 || is.na(result) || !is.finite(result)) {
-      1.0
-    } else {
-      as.numeric(result)
-    }
-  }, error = function(e) {
-    1.0
-  })
-  
-  # 确保最小值不大于最大值
-  if (min_val > max_val) {
-    temp <- min_val
-    min_val <- max_val
-    max_val <- temp + 1
-  }
-  
-  # 最终检查确保值是有限的
-  if (!is.finite(min_val)) min_val <- 0.0
-  if (!is.finite(max_val)) max_val <- 1.0
-  
-  return(list(min = min_val, max = max_val))
+  metadata_safe_numeric_range(var_data)
 }
 
 # 数据准备服务器逻辑
@@ -614,36 +534,15 @@ data_preparation_server <- function(id) {
   refresh_db_folder_choices("")
   refresh_db_dataset_choices("", root_folder_token)
   get_var_label <- function(var_name, var_data) {
-    label_overrides <- var_label_overrides()
-    if (var_name %in% names(label_overrides) && nzchar(trimws(label_overrides[[var_name]]))) {
-      return(trimws(label_overrides[[var_name]]))
-    }
-    var_label <- attr(var_data, "label")
-    if (!is.null(var_label) && nzchar(trimws(as.character(var_label)))) {
-      return(trimws(as.character(var_label)))
-    }
-    var_name
+    metadata_get_var_label(var_name, var_data, label_overrides = var_label_overrides(), data = data_store())
   }
   
   get_effective_var_type <- function(var_name, var_data) {
-    type_overrides <- var_type_overrides()
-    if (var_name %in% names(type_overrides) && type_overrides[[var_name]] %in% valid_var_types) {
-      return(type_overrides[[var_name]])
-    }
-    determine_var_type(var_data)
+    metadata_get_var_type(var_name, var_data, type_overrides = var_type_overrides(), data = data_store())
   }
   
   build_column_choices <- function(data) {
-    vars <- names(data)
-    labels <- vapply(vars, function(var_name) {
-      var_label <- get_var_label(var_name, data[[var_name]])
-      if (!identical(var_label, var_name)) {
-        paste0(var_name, " | ", var_label)
-      } else {
-        var_name
-      }
-    }, character(1))
-    setNames(vars, labels)
+    metadata_build_column_choices(data, label_overrides = var_label_overrides())
   }
   
   remove_named_value <- function(x, key) {
@@ -667,7 +566,8 @@ data_preparation_server <- function(id) {
       var_name <- vars[[idx]]
       raw_var_data <- data[[var_name]]
       auto_type <- determine_var_type(raw_var_data)
-      typed_data <- coerce_var_data(raw_var_data, auto_type)
+      effective_type <- get_effective_var_type(var_name, raw_var_data)
+      typed_data <- coerce_var_data(raw_var_data, effective_type)
       na_rate <- if (length(typed_data) == 0) 0 else round(mean(is.na(typed_data)) * 100, 2)
       unique_count <- length(unique(typed_data[!is.na(typed_data)]))
       sample_values <- unique(as.character(typed_data[!is.na(typed_data)]))
@@ -696,6 +596,7 @@ data_preparation_server <- function(id) {
       info_rows[[idx]] <- data.frame(
         变量名 = var_name,
         自动类型 = auto_type,
+        当前类型 = effective_type,
         缺失率值 = na_rate,
         唯一值数 = unique_count,
         示例值 = sample_preview,
@@ -1400,7 +1301,7 @@ data_preparation_server <- function(id) {
     filter_time <- Sys.time() - filter_start_time
     performance_metrics$filter_time <- filter_time
     incProgress(0.2, detail = "完成")
-    data
+    metadata_attach_to_data(data, type_overrides = var_type_overrides(), label_overrides = var_label_overrides())
     })
   })
   
@@ -1412,18 +1313,7 @@ data_preparation_server <- function(id) {
     if ("行号" %in% names(data)) {
       data <- data %>% select(-`行号`)
     }
-    label_values <- var_label_overrides()
-    if (length(label_values) > 0) {
-      for (var_name in names(label_values)) {
-        if (var_name %in% names(data)) {
-          label_text <- trimws(as.character(label_values[[var_name]]))
-          if (nzchar(label_text)) {
-            attr(data[[var_name]], "label") <- label_text
-          }
-        }
-      }
-    }
-    data
+    metadata_attach_to_data(data, type_overrides = var_type_overrides(), label_overrides = var_label_overrides())
   })
   
   # 显示数据表 - 优化渲染性能
