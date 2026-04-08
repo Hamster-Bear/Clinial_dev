@@ -3,533 +3,157 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hamster Analysis - 数据分析平台集合</title>
-
-    <!-- Google Fonts -->
+    <title>Hamster Analysis</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-
-    <!-- Font Awesome -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <!-- 主样式 -->
     <link rel="stylesheet" href="/landing/style.css">
-
-    <!-- 主脚本（延迟加载） -->
     <script src="/landing/script.js" defer></script>
-
-    <!-- 主题颜色meta -->
-    <meta name="theme-color" content="#2563eb">
-    <meta name="description" content="Hamster Analysis - 专业数据分析平台集合，提供医学数据分析、可视化报告和统计建模服务">
-
-    <!-- Favicon -->
+    <meta name="theme-color" content="#f97316">
+    <meta name="description" content="Hamster Analysis 是医学数据分析应用入口。当前已上线应用为 AutoTFL。">
     <link rel="icon" type="image/svg+xml" href="/landing/assets/images/favicon.svg">
-    <link rel="alternate icon" href="/landing/assets/images/favicon.ico">
 </head>
 <body>
-    <!-- 浏览器兼容性提示 -->
     <noscript>
-        <div style="position: fixed; top: 0; left: 0; right: 0; background: #ef4444; color: white; padding: 1rem; text-align: center; z-index: 9999;">
-            <strong>JavaScript已禁用</strong> - 此页面需要JavaScript才能正常运行。请启用JavaScript以获得完整体验。
+        <div style="position: fixed; top: 0; left: 0; right: 0; background: #b91c1c; color: white; padding: 1rem; text-align: center; z-index: 9999;">
+            <strong>JavaScript 已禁用</strong>，页面中的导航与图表示例将无法正常工作。
         </div>
     </noscript>
-
-    <!-- 旧浏览器提示（通过JavaScript添加） -->
-    <div id="browserWarning" style="display: none; position: fixed; top: 0; left: 0; right: 0; background: #f59e0b; color: #1e293b; padding: 1rem; text-align: center; z-index: 9998;">
-        <strong>浏览器兼容性提示</strong> - 您的浏览器版本较旧，部分功能可能无法正常使用。建议使用最新版本的Chrome、Firefox、Safari或Edge。
-        <button onclick="document.getElementById('browserWarning').style.display='none'" style="margin-left: 1rem; background: transparent; border: 1px solid #1e293b; color: #1e293b; padding: 0.25rem 0.75rem; border-radius: 0.25rem; cursor: pointer;">×</button>
-    </div>
-
-    <!-- 导航栏 -->
-    <header class="navbar">
-        <div class="container">
-            <div class="navbar-brand">
-                <a href="/" class="logo">
-                    <i class="fas fa-chart-line"></i>
-                    <span>Hamster Analysis</span>
+    <div class="page-shell">
+        <header class="navbar">
+            <div class="container navbar-inner">
+                <a href="#hero" class="logo">
+                    <span class="logo-mark"><i class="fas fa-code-branch"></i></span>
+                    <span class="logo-text">
+                        <strong>Hamster Analysis</strong>
+                        <span>Applications</span>
+                    </span>
                 </a>
+                <nav class="navbar-menu" aria-label="主导航">
+                    <a href="/landing/autotfl.html" class="nav-link">AutoTFL 子页</a>
+                    <a href="#entry" class="nav-link">访问入口</a>
+                    <a href="/app/" class="nav-link primary">进入 AutoTFL</a>
+                </nav>
+                <button class="navbar-toggle" type="button" aria-label="打开菜单">
+                    <i class="fas fa-bars"></i>
+                </button>
             </div>
-            <nav class="navbar-menu">
-                <a href="#features" class="nav-link">平台特性</a>
-                <a href="#visualization" class="nav-link">数据可视化</a>
-                <a href="#technology" class="nav-link">技术栈</a>
-                <a href="#apps" class="nav-link">应用导航</a>
-                <a href="/app/" class="nav-link primary">进入 AutoTFL</a>
-            </nav>
-            <button class="navbar-toggle" aria-label="菜单">
-                <i class="fas fa-bars"></i>
-            </button>
-        </div>
-    </header>
-
-    <!-- 主内容 -->
-    <main>
-        <!-- Hero区域 -->
-        <section class="hero">
-            <div class="container">
-                <div class="hero-content">
-                    <h1 class="hero-title">Hamster Analysis</h1>
-                    <p class="hero-subtitle">专业数据分析平台集合 · 智能决策支持系统</p>
-                    <p class="hero-description">
-                        我们提供从数据准备、探索分析、高级统计建模到可视化报告的一站式解决方案，助力科研与商业决策。
-                    </p>
-                    <div class="hero-actions">
-                        <a href="#apps" class="btn btn-primary">
-                            <i class="fas fa-rocket"></i>
-                            探索平台应用
-                        </a>
-                        <a href="#features" class="btn btn-outline">
-                            <i class="fas fa-star"></i>
-                            了解特性
-                        </a>
-                    </div>
-                </div>
-                <div class="hero-visual">
-                    <div class="data-flow-animation">
-                        <div class="data-node" style="--delay: 0"></div>
-                        <div class="data-node" style="--delay: 1"></div>
-                        <div class="data-node" style="--delay: 2"></div>
-                        <div class="data-node" style="--delay: 3"></div>
-                        <div class="data-node" style="--delay: 4"></div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- 应用导航区 -->
-        <section id="apps" class="section apps-section">
-            <div class="container">
-                <div class="section-header">
-                    <h2 class="section-title">平台应用导航</h2>
-                    <p class="section-subtitle">选择您需要的数据分析平台</p>
-                </div>
-                <div class="apps-grid">
-                    <!-- AutoTFL应用卡片 -->
-                    <div class="app-card featured">
-                        <div class="app-card-icon">
-                            <i class="fas fa-stethoscope"></i>
-                        </div>
-                        <div class="app-card-content">
-                            <h3 class="app-card-title">AutoTFL</h3>
-                            <p class="app-card-description">
-                                专业医学数据分析平台，支持临床试验数据管理、生存分析、统计建模和TFL报告生成。
-                            </p>
-                            <div class="app-card-meta">
-                                <span class="app-card-tag">医学研究</span>
-                                <span class="app-card-tag">临床试验</span>
-                                <span class="app-card-tag">统计分析</span>
-                            </div>
-                        </div>
-                        <div class="app-card-actions">
-                            <a href="/app/" class="btn btn-primary btn-block">
-                                <i class="fas fa-external-link-alt"></i>
-                                进入应用
+        </header>
+        <main>
+            <section id="hero" class="hero">
+                <div class="container hero-grid">
+                    <div class="hero-copy hero-copy-simple reveal">
+                        <span class="eyebrow">Hamster Analysis</span>
+                        <h1 class="hero-title">专业的医学数据分析平台。</h1>
+                        <p class="hero-description">
+                            专为临床研究打造的在线统计工作台。当前已上线核心应用：AutoTFL。
+                        </p>
+                        <div class="hero-actions">
+                            <a href="/landing/autotfl.html" class="btn btn-secondary">
+                                <i class="fas fa-arrow-right"></i>
+                                了解 AutoTFL
+                            </a>
+                            <a href="/app/" class="btn btn-primary">
+                                <i class="fas fa-arrow-up-right-from-square"></i>
+                                进入工作台
                             </a>
                         </div>
-                    </div>
-
-                    <!-- 预留应用卡片1 -->
-                    <div class="app-card coming-soon">
-                        <div class="app-card-icon">
-                            <i class="fas fa-chart-bar"></i>
-                        </div>
-                        <div class="app-card-content">
-                            <h3 class="app-card-title">商业智能分析</h3>
-                            <p class="app-card-description">
-                                企业级商业智能平台，提供数据仪表盘、KPI监控、预测分析和报表自动化。
-                            </p>
-                            <div class="app-card-meta">
-                                <span class="app-card-tag">商业分析</span>
-                                <span class="app-card-tag">预测建模</span>
-                                <span class="app-card-tag">数据仪表盘</span>
-                            </div>
-                        </div>
-                        <div class="app-card-actions">
-                            <button class="btn btn-outline btn-block" disabled>
-                                <i class="fas fa-clock"></i>
-                                即将推出
-                            </button>
+                        <div class="hero-tags">
+                            <span class="info-chip">开箱即用</span>
+                            <span class="info-chip">极简工作流</span>
+                            <span class="info-chip">交付级结果</span>
                         </div>
                     </div>
-
-                    <!-- 预留应用卡片2 -->
-                    <div class="app-card in-development">
-                        <div class="app-card-icon">
-                            <i class="fas fa-dna"></i>
-                        </div>
-                        <div class="app-card-content">
-                            <h3 class="app-card-title">基因组数据分析</h3>
-                            <p class="app-card-description">
-                                生物信息学分析平台，支持基因组测序数据处理、差异表达分析和通路富集分析。
-                            </p>
-                            <div class="app-card-meta">
-                                <span class="app-card-tag">生物信息学</span>
-                                <span class="app-card-tag">基因组学</span>
-                                <span class="app-card-tag">差异表达</span>
-                            </div>
-                        </div>
-                        <div class="app-card-actions">
-                            <button class="btn btn-outline btn-block" disabled>
-                                <i class="fas fa-code-branch"></i>
-                                开发中
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 预留应用卡片3 -->
-                    <div class="app-card planned">
-                        <div class="app-card-icon">
-                            <i class="fas fa-brain"></i>
-                        </div>
-                        <div class="app-card-content">
-                            <h3 class="app-card-title">机器学习平台</h3>
-                            <p class="app-card-description">
-                                自动化机器学习平台，提供特征工程、模型训练、超参数优化和模型部署功能。
-                            </p>
-                            <div class="app-card-meta">
-                                <span class="app-card-tag">机器学习</span>
-                                <span class="app-card-tag">深度学习</span>
-                                <span class="app-card-tag">模型部署</span>
-                            </div>
-                        </div>
-                        <div class="app-card-actions">
-                            <button class="btn btn-outline btn-block" disabled>
-                                <i class="fas fa-lightbulb"></i>
-                                规划中
-                            </button>
+                    <div class="platform-hero-card reveal">
+                        <span class="hero-card-label">Current App</span>
+                        <h2>AutoTFL</h2>
+                        <p>自动化生成临床统计表、图形与预设 TFL。</p>
+                        <div class="platform-mini-actions">
+                            <a href="/landing/autotfl.html" class="text-link">功能详情</a>
+                            <a href="/app/" class="text-link">立即使用</a>
                         </div>
                     </div>
                 </div>
-            </div>
-        </section>
-
-        <!-- 平台特性展示区 -->
-        <section id="features" class="section features-section">
-            <div class="container">
-                <div class="section-header">
-                    <h2 class="section-title">核心平台特性</h2>
-                    <p class="section-subtitle">专业数据分析，助力科学决策</p>
-                </div>
-                <div class="features-grid">
-                    <div class="feature-card">
-                        <div class="feature-card-icon">
-                            <i class="fas fa-bolt"></i>
-                        </div>
-                        <h3 class="feature-card-title">实时统计分析</h3>
-                        <p class="feature-card-description">
-                            支持多种统计模型（Cox回归、逻辑回归、线性回归、方差分析等），实时计算并生成专业统计报告。
-                        </p>
+            </section>
+            <section id="entry" class="section entry-section">
+                <div class="container">
+                    <div class="section-header reveal">
+                        <span class="eyebrow">开启使用</span>
+                        <h2 class="section-title">准备好提升分析效率了吗？</h2>
+                        <p class="section-subtitle">选择查看详细功能，或直接进入工作空间。</p>
                     </div>
-                    <div class="feature-card">
-                        <div class="feature-card-icon">
-                            <i class="fas fa-file-export"></i>
+                    <div class="entry-card reveal">
+                        <div class="entry-copy">
+                            <span class="eyebrow eyebrow-light">Start Now</span>
+                            <h2 class="entry-title">高效驱动临床研究数据交付。</h2>
+                            <p class="entry-description">从数据导入到报告导出，在 AutoTFL 中获得流畅的分析体验。</p>
                         </div>
-                        <h3 class="feature-card-title">可视化报告导出</h3>
-                        <p class="feature-card-description">
-                            支持多种格式导出（PDF、Word、Excel、HTML），图表支持高分辨率PNG/SVG格式，满足出版级要求。
-                        </p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-card-icon">
-                            <i class="fas fa-shield-alt"></i>
-                        </div>
-                        <h3 class="feature-card-title">数据安全合规</h3>
-                        <p class="feature-card-description">
-                            数据本地化存储，支持数据匿名化处理，符合医疗数据安全规范（HIPAA/GDPR兼容）。
-                        </p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-card-icon">
-                            <i class="fas fa-exchange-alt"></i>
-                        </div>
-                        <h3 class="feature-card-title">多格式支持</h3>
-                        <p class="feature-card-description">
-                            支持CSV、Excel、SPSS、SAS等多种数据格式导入，兼容临床数据标准（CDISC SDTM/ADaM）。
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- 数据可视化预览区 -->
-        <section id="visualization" class="section visualization-section">
-            <div class="container">
-                <div class="section-header">
-                    <h2 class="section-title">数据可视化预览</h2>
-                    <p class="section-subtitle">交互式图表展示数据分析能力</p>
-                </div>
-                <div class="chart-controls">
-                    <div class="chart-tabs">
-                        <button class="chart-tab active" data-chart="line">
-                            <i class="fas fa-chart-line"></i>
-                            趋势分析
-                        </button>
-                        <button class="chart-tab" data-chart="bar">
-                            <i class="fas fa-chart-bar"></i>
-                            对比分析
-                        </button>
-                        <button class="chart-tab" data-chart="pie">
-                            <i class="fas fa-chart-pie"></i>
-                            分布分析
-                        </button>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <div class="chart-wrapper">
-                        <canvas id="demoChart" width="800" height="400"></canvas>
-                    </div>
-                    <div class="chart-info">
-                        <h4 class="chart-title">模拟数据分析</h4>
-                        <p class="chart-description">
-                            此图表展示平台的数据可视化能力。实际应用中，您可以将自己的数据导入进行交互式分析。
-                        </p>
-                        <div class="chart-stats">
-                            <div class="stat-item">
-                                <span class="stat-label">数据点</span>
-                                <span class="stat-value" id="dataPoints">0</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">更新时间</span>
-                                <span class="stat-value" id="updateTime">--:--:--</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- 技术栈展示区 -->
-        <section id="technology" class="section technology-section">
-            <div class="container">
-                <div class="section-header">
-                    <h2 class="section-title">技术架构与优势</h2>
-                    <p class="section-subtitle">现代化技术栈，稳定可靠</p>
-                </div>
-                <div class="tech-stack">
-                    <div class="tech-item">
-                        <div class="tech-icon">
-                            <i class="fab fa-r-project"></i>
-                        </div>
-                        <div class="tech-content">
-                            <h4 class="tech-title">R语言生态</h4>
-                            <p class="tech-description">丰富的统计包和可视化库，提供专业级数据分析能力</p>
-                        </div>
-                    </div>
-                    <div class="tech-item">
-                        <div class="tech-icon">
-                            <i class="fas fa-cube"></i>
-                        </div>
-                        <div class="tech-content">
-                            <h4 class="tech-title">Shiny框架</h4>
-                            <p class="tech-description">交互式Web应用框架，支持复杂的数据分析工作流</p>
-                        </div>
-                    </div>
-                    <div class="tech-item">
-                        <div class="tech-icon">
-                            <i class="fas fa-database"></i>
-                        </div>
-                        <div class="tech-content">
-                            <h4 class="tech-title">PostgreSQL</h4>
-                            <p class="tech-description">企业级关系数据库，支持复杂查询和事务处理</p>
-                        </div>
-                    </div>
-                    <div class="tech-item">
-                        <div class="tech-icon">
-                            <i class="fab fa-docker"></i>
-                        </div>
-                        <div class="tech-content">
-                            <h4 class="tech-title">Docker容器化</h4>
-                            <p class="tech-description">一致的部署环境，支持快速扩展和迁移</p>
-                        </div>
-                    </div>
-                    <div class="tech-item">
-                        <div class="tech-icon">
-                            <i class="fas fa-server"></i>
-                        </div>
-                        <div class="tech-content">
-                            <h4 class="tech-title">Nginx反向代理</h4>
-                            <p class="tech-description">高性能Web服务器，支持负载均衡和SSL加密</p>
-                        </div>
-                    </div>
-                    <div class="tech-item">
-                        <div class="tech-icon">
-                            <i class="fas fa-shield-alt"></i>
-                        </div>
-                        <div class="tech-content">
-                            <h4 class="tech-title">Redis缓存</h4>
-                            <p class="tech-description">内存数据存储，提升应用响应速度和并发能力</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- 统计信息区 -->
-        <section class="section stats-section">
-            <div class="container">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-database"></i>
-                        </div>
-                        <div class="stat-content">
-                            <h3 class="stat-value" data-count="1500000">0</h3>
-                            <p class="stat-label">已处理数据条数</p>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-file-alt"></i>
-                        </div>
-                        <div class="stat-content">
-                            <h3 class="stat-value" data-count="2300">0</h3>
-                            <p class="stat-label">生成分析报告</p>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-users"></i>
-                        </div>
-                        <div class="stat-content">
-                            <h3 class="stat-value" data-count="98">0</h3>
-                            <p class="stat-label">用户满意度</p>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-clock"></i>
-                        </div>
-                        <div class="stat-content">
-                            <h3 class="stat-value" data-count="99">0</h3>
-                            <p class="stat-label">系统可用性</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- 入口区域 -->
-        <section class="section entry-section">
-            <div class="container">
-                <div class="entry-card">
-                    <div class="entry-content">
-                        <h2 class="entry-title">准备好开始数据分析了吗？</h2>
-                        <p class="entry-description">
-                            立即体验 Hamster Analysis 平台的强大功能。专业的数据分析工具，助力您的科研与决策。
-                        </p>
                         <div class="entry-actions">
-                            <a href="/app/" class="btn btn-primary btn-lg">
-                                <i class="fas fa-play-circle"></i>
-                                进入 AutoTFL 医学数据分析平台
+                            <a href="/landing/autotfl.html" class="btn btn-secondary">
+                                <i class="fas fa-book-open"></i>
+                                了解 AutoTFL
+                            </a>
+                            <a href="/app/" class="btn btn-contrast">
+                                <i class="fas fa-arrow-up-right-from-square"></i>
+                                进入工作台
                             </a>
                         </div>
-                        <div class="entry-info">
-                            <p class="info-item">
-                                <i class="fas fa-globe"></i>
-                                域名：kyyin.xyz / www.kyyin.xyz
-                            </p>
-                            <p class="info-item">
-                                <i class="fas fa-lock"></i>
-                                启用 HTTPS 安全连接
-                            </p>
-                            <p class="info-item">
-                                <i class="fas fa-server"></i>
-                                服务器状态：<span class="status-indicator active">在线</span>
-                            </p>
-                        </div>
                     </div>
                 </div>
-            </div>
-        </section>
-    </main>
-
-    <!-- 页脚 -->
-    <footer class="footer">
-        <div class="container">
-            <div class="footer-content">
+            </section>
+        </main>
+        <footer class="footer">
+            <div class="container footer-grid">
                 <div class="footer-brand">
-                    <a href="/" class="logo">
-                        <i class="fas fa-chart-line"></i>
-                        <span>Hamster Analysis</span>
+                    <a href="#hero" class="logo">
+                        <span class="logo-mark"><i class="fas fa-code-branch"></i></span>
+                        <span class="logo-text">
+                            <strong>Hamster Analysis</strong>
+                            <span>Applications</span>
+                        </span>
                     </a>
-                    <p class="footer-description">
-                        专业数据分析平台集合，提供从数据准备到可视化报告的完整解决方案。
-                    </p>
+                    <p class="footer-description">专业、高效的临床数据分析解决方案。</p>
                 </div>
-                <div class="footer-links">
-                    <div class="footer-column">
-                        <h4 class="footer-title">平台</h4>
-                        <a href="#apps" class="footer-link">应用导航</a>
-                        <a href="#features" class="footer-link">平台特性</a>
-                        <a href="#technology" class="footer-link">技术栈</a>
-                        <a href="#visualization" class="footer-link">数据可视化</a>
-                    </div>
-                    <div class="footer-column">
-                        <h4 class="footer-title">资源</h4>
-                        <a href="/app/" class="footer-link">AutoTFL 应用</a>
-                        <a href="#" class="footer-link">使用文档</a>
-                        <a href="#" class="footer-link">API 文档</a>
-                        <a href="#" class="footer-link">示例数据</a>
-                    </div>
-                    <div class="footer-column">
-                        <h4 class="footer-title">支持</h4>
-                        <a href="#" class="footer-link">帮助中心</a>
-                        <a href="#" class="footer-link">常见问题</a>
-                        <a href="#" class="footer-link">联系支持</a>
-                        <a href="#" class="footer-link">服务状态</a>
-                    </div>
+                <div class="footer-column">
+                    <h3>内容导航</h3>
+                    <a href="#entry">访问入口</a>
+                    <a href="/landing/autotfl.html">AutoTFL 子页</a>
+                </div>
+                <div class="footer-column">
+                    <h3>访问入口</h3>
+                    <a href="/app/">进入 AutoTFL</a>
+                    <a href="/landing/autotfl.html">查看 AutoTFL 介绍</a>
+                    <a href="#hero">返回顶部</a>
                 </div>
             </div>
-            <div class="footer-bottom">
-                <p class="copyright">
-                    &copy; 2026 Hamster Analysis. 保留所有权利。
-                </p>
-                <div class="footer-social">
-                    <a href="#" class="social-link" aria-label="GitHub">
-                        <i class="fab fa-github"></i>
-                    </a>
-                    <a href="#" class="social-link" aria-label="Twitter">
-                        <i class="fab fa-twitter"></i>
-                    </a>
-                    <a href="#" class="social-link" aria-label="LinkedIn">
-                        <i class="fab fa-linkedin"></i>
-                    </a>
-                    <a href="#" class="social-link" aria-label="Email">
-                        <i class="fas fa-envelope"></i>
-                    </a>
-                </div>
+            <div class="container footer-bottom">
+                <p>© 2026 Hamster Analysis. 当前已上线应用为 AutoTFL。</p>
             </div>
-        </div>
-    </footer>
-
-    <!-- 加载指示器 -->
-    <div class="loading-overlay" id="loadingOverlay">
+        </footer>
+    </div>
+    <div class="loading-overlay" id="loadingOverlay" aria-hidden="true">
         <div class="loading-spinner">
             <div class="spinner"></div>
-            <p>正在加载数据分析平台...</p>
+            <p>正在进入 AutoTFL...</p>
         </div>
     </div>
-
-    <!-- 移动端菜单 -->
-    <div class="mobile-menu" id="mobileMenu">
+    <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
         <div class="mobile-menu-header">
-            <a href="/" class="logo">
-                <i class="fas fa-chart-line"></i>
-                <span>Hamster Analysis</span>
+            <a href="#hero" class="logo">
+                <span class="logo-mark"><i class="fas fa-code-branch"></i></span>
+                <span class="logo-text">
+                    <strong>Hamster Analysis</strong>
+                    <span>Applications</span>
+                </span>
             </a>
-            <button class="mobile-menu-close" id="closeMobileMenu">
+            <button class="mobile-menu-close" id="closeMobileMenu" type="button" aria-label="关闭菜单">
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <nav class="mobile-menu-nav">
-            <a href="#features" class="mobile-nav-link">平台特性</a>
-            <a href="#visualization" class="mobile-nav-link">数据可视化</a>
-            <a href="#technology" class="mobile-nav-link">技术栈</a>
-            <a href="#apps" class="mobile-nav-link">应用导航</a>
+        <nav class="mobile-menu-nav" aria-label="移动端导航">
+            <a href="/landing/autotfl.html" class="mobile-nav-link">AutoTFL 子页</a>
+            <a href="#entry" class="mobile-nav-link">访问入口</a>
             <a href="/app/" class="mobile-nav-link primary">进入 AutoTFL</a>
         </nav>
     </div>

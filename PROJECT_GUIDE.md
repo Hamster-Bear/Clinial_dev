@@ -29,9 +29,9 @@
 
 | 名称 | 当前含义 | 备注 |
 | --- | --- | --- |
-| Hamster Analysis | 历史/平台级命名 | 仍出现在 Landing 页面与部分部署资源中 |
-| AutoTFL | 当前核心应用名 | 本仓库主要维护对象 |
-| Medical Data Analysis Suite | Shiny 运行时标题 | 出现在 `app.R` 的 dashboardHeader 中 |
+| Hamster Analysis | 平台级命名 | 当前用于 Landing 页与部分部署资源，承载平台入口语义 |
+| AutoTFL | 当前核心应用名 | 当前已上线并由 Hamster Analysis Landing 页承载入口的主应用 |
+| Hamster Analysis · AutoTFL | 当前应用页头与浏览器标题 | 已用于 `app.R` 的 dashboardHeader 与浏览器标题 |
 
 ### 1.3 文档使用原则
 
@@ -91,6 +91,10 @@
 - `docker-compose.yml` 使用 `nginx/default.conf`，根路径 `/` 直接转发到 Shiny。
 - `docker-compose.local.yml` 使用 `nginx/local-test.conf`，根路径为 Landing 页，应用走 `/app/`。
 - `docker-compose.server.yml` 使用 `nginx/server_ssl.conf`，80 自动跳转 443，根路径为 Landing 页，应用走 `/app/`。
+- 当前 Landing 页使用 Hamster Analysis 平台口径，对外说明平台定位；AutoTFL 作为当前已上线应用，通过 `/app/` 提供实际分析能力。
+- `nginx/landing/index.html` 只保留平台入口与最短访问路径，不在主页展开 AutoTFL 细节。
+- `nginx/landing/autotfl.html` 单独承接 AutoTFL 的功能产出、使用指南与结果示意；文案风格继续保持少字、高识别。
+- 本地联调 Landing 页的静态资源在 `local-test.conf` 中已设置 no-store/no-cache，减少浏览器缓存导致的“re-up 后页面看起来未更新”问题。
 
 ### 3.3 当前部署边界
 
@@ -164,6 +168,11 @@ AutoTFL/
 │   └── tables.R
 ├── nginx/
 │   ├── landing/
+│   │   ├── index.html
+│   │   ├── autotfl.html
+│   │   ├── style.css
+│   │   ├── script.js
+│   │   └── assets/
 │   ├── default.conf
 │   ├── local-test.conf
 │   └── server_ssl.conf
@@ -191,6 +200,9 @@ AutoTFL/
 - `modules/common/` 只放跨模块共享逻辑，不放单一图形或单一统计方法的专属实现。
 - `modules/statistical_graphics_ui/` 用于图形 UI 壳层与公共控件，和 `modules/statistical_graphics/` 的 server/分析逻辑分离。
 - `tests/` 为统一测试目录，新增测试文件必须放在这里。
+- `nginx/landing/index.html` 作为平台主 Landing，保持精简，只负责入口说明与跳转。
+- `nginx/landing/autotfl.html` 作为 AutoTFL 子页，承接功能产出、使用指南与结果示意。
+- `nginx/landing/style.css` 与 `nginx/landing/script.js` 为主 Landing 和 AutoTFL 子页共享静态资源，改动时需同时验证两页。
 - `deploy/alicloud/` 只存放生产部署辅助资源，不承载应用业务逻辑。
 
 ## 5. 核心模块总览
@@ -479,6 +491,9 @@ AutoTFL/
 - `PROJECT_GUIDE.md` 负责“全局开发事实”。
 - 部署细节文档应与 `deploy/alicloud/README.md` 同步清理，避免路径和流程分叉。
 - 后续可新增轻量文档巡检脚本，校验关键文件、compose 文件和入口 URL 是否与本文档一致。
+- Landing 页文案与视觉改版时，应同步核对平台名与应用名层级、入口 URL、未落地项说明和功能边界，避免再次出现实现与对外叙事脱节。
+- 主 Landing 改版时优先检查是否仍然足够精简，避免把 AutoTFL 详细内容重新堆回 `index.html`。
+- Landing 页如强调 AutoTFL，应优先说明“能产出什么”“如何开始使用”和“从哪里进入”，避免引入技术栈宣传、兼容性提示或抽象分层说明；应用页头与浏览器标题应统一为 `Hamster Analysis · AutoTFL`。
 
 ---
 

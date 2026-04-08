@@ -41,7 +41,7 @@ ui <- dashboardPage(
   
   # 头部
   dashboardHeader(
-    title = "Medical Data Analysis Suite",
+    title = "Hamster Analysis · AutoTFL",
     titleWidth = 300,
     dropdownMenu(
       type = "notifications",
@@ -100,6 +100,7 @@ ui <- dashboardPage(
   dashboardBody(
     useShinyjs(),
     tags$head(
+      tags$title("Hamster Analysis · AutoTFL"),
       tags$link(rel = "stylesheet", type = "text/css", href = "style.css"),
       tags$script(HTML("
         $(document).on('shiny:connected', function() {
