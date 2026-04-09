@@ -47,6 +47,8 @@ services:
       POSTGRES_USER: autotfl_user
       POSTGRES_PASSWORD: ${DB_PASSWORD:-ChangeMe123!}
       STORAGE_ROOT: /app/data_storage
+      APP_ADMIN_USERNAME: ${APP_ADMIN_USERNAME:-}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
     volumes:
       - app_data_storage:/app/data_storage
     depends_on:

@@ -320,9 +320,10 @@ safe_numeric_range <- function(var_data) {
 }
 
 # 数据准备服务器逻辑
-data_preparation_server <- function(id) {
+data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
   moduleServer(id, function(input, output, session) {
   ns <- session$ns
+  `%||%` <- function(x, y) if (is.null(x)) y else x
   
   # 数据存储
   data_store <- reactiveVal()
@@ -342,51 +343,49 @@ data_preparation_server <- function(id) {
   filter_profile_cache <- reactiveVal(list())
   base_var_info_cache <- reactiveVal(data.frame())
   root_folder_token <- "__ROOT__"
-  pg_pool <- tryCatch(
-    dbPool(
-      drv = RPostgres::Postgres(),
-      dbname = Sys.getenv("POSTGRES_DB", "autotfl"),
-      host = Sys.getenv("POSTGRES_HOST", "localhost"),
-      port = as.integer(Sys.getenv("POSTGRES_PORT", "5432")),
-      user = Sys.getenv("POSTGRES_USER", "autotfl_user"),
-      password = Sys.getenv("POSTGRES_PASSWORD", "ChangeMe123!")
-    ),
-    error = function(e) NULL
-  )
-  onStop(function() {
-    if (!is.null(pg_pool)) {
-      poolClose(pg_pool)
+  pool <- if (is.null(pg_pool)) {
+    tryCatch(auth_create_pool(), error = function(e) NULL)
+  } else {
+    pg_pool
+  }
+  if (is.null(pg_pool)) {
+    onStop(function() {
+      if (!is.null(pool)) {
+        poolClose(pool)
+      }
+    })
+  }
+  if (!is.null(pool)) {
+    tryCatch(auth_ensure_schema(pool), error = function(e) NULL)
+  }
+
+  get_current_user <- function() {
+    if (is.null(current_user)) {
+      return(NULL)
     }
-  })
-  
-  empty_registry <- function() {
-    list(
-      workspaces = data.frame(id = character(0), name = character(0), created_at = as.POSIXct(character(0)), stringsAsFactors = FALSE),
-      folders = data.frame(id = character(0), workspace_id = character(0), name = character(0), created_at = as.POSIXct(character(0)), stringsAsFactors = FALSE),
-      datasets = data.frame(
-        id = character(0), workspace_id = character(0), folder_id = character(0), name = character(0),
-        file_name = character(0), data_path = character(0), nrow = numeric(0), ncol = numeric(0),
-        created_at = as.POSIXct(character(0)), stringsAsFactors = FALSE
-      )
-    )
+    current_user()
+  }
+
+  require_logged_in <- function() {
+    if (!is.null(get_current_user())) {
+      return(TRUE)
+    }
+    showNotification("请先登录后再加载数据库数据集", type = "warning")
+    FALSE
   }
   
   load_registry <- function() {
-    if (is.null(pg_pool)) {
-      return(empty_registry())
+    if (is.null(pool)) {
+      return(auth_empty_registry())
     }
     tryCatch({
-      reg <- list(
-        workspaces = dbGetQuery(pg_pool, "SELECT * FROM workspaces ORDER BY created_at DESC"),
-        folders = dbGetQuery(pg_pool, "SELECT * FROM folders ORDER BY created_at DESC"),
-        datasets = dbGetQuery(pg_pool, "SELECT * FROM datasets ORDER BY created_at DESC")
-      )
-      if (is.null(reg$workspaces) || !is.data.frame(reg$workspaces)) reg$workspaces <- empty_registry()$workspaces
-      if (is.null(reg$folders) || !is.data.frame(reg$folders)) reg$folders <- empty_registry()$folders
-      if (is.null(reg$datasets) || !is.data.frame(reg$datasets)) reg$datasets <- empty_registry()$datasets
-      reg
+      user <- get_current_user()
+      if (is.null(user)) {
+        return(auth_empty_registry())
+      }
+      service_registry_load(pool, user = user)
     }, error = function(e) {
-      empty_registry()
+      auth_empty_registry()
     })
   }
   
@@ -471,8 +470,8 @@ data_preparation_server <- function(id) {
     mapped_path <- map_data_path_to_storage_root(raw_path, storage_root)
     if (!identical(mapped_path, raw_path) && file.exists(mapped_path)) {
       tryCatch({
-        if (!is.null(pg_pool)) {
-          dbExecute(pg_pool, "UPDATE datasets SET data_path = $1 WHERE id = $2", params = list(mapped_path, ds_row$id[[1]]))
+        if (!is.null(pool)) {
+          dbExecute(pool, "UPDATE datasets SET data_path = $1 WHERE id = $2", params = list(mapped_path, ds_row$id[[1]]))
         }
       }, error = function(e) NULL)
       return(mapped_path)
@@ -481,8 +480,8 @@ data_preparation_server <- function(id) {
     fallback_path <- file.path(storage_root, ds_row$workspace_id[[1]], folder_id, paste0(ds_row$id[[1]], ".rds"))
     if (file.exists(fallback_path)) {
       tryCatch({
-        if (!is.null(pg_pool) && !identical(fallback_path, raw_path)) {
-          dbExecute(pg_pool, "UPDATE datasets SET data_path = $1 WHERE id = $2", params = list(fallback_path, ds_row$id[[1]]))
+        if (!is.null(pool) && !identical(fallback_path, raw_path)) {
+          dbExecute(pool, "UPDATE datasets SET data_path = $1 WHERE id = $2", params = list(fallback_path, ds_row$id[[1]]))
         }
       }, error = function(e) NULL)
       return(fallback_path)
@@ -496,8 +495,8 @@ data_preparation_server <- function(id) {
     if (length(matched_paths) > 0 && file.exists(matched_paths[[1]])) {
       resolved_path <- matched_paths[[1]]
       tryCatch({
-        if (!is.null(pg_pool) && !identical(resolved_path, raw_path)) {
-          dbExecute(pg_pool, "UPDATE datasets SET data_path = $1 WHERE id = $2", params = list(resolved_path, ds_row$id[[1]]))
+        if (!is.null(pool) && !identical(resolved_path, raw_path)) {
+          dbExecute(pool, "UPDATE datasets SET data_path = $1 WHERE id = $2", params = list(resolved_path, ds_row$id[[1]]))
         }
       }, error = function(e) NULL)
       return(resolved_path)
@@ -533,6 +532,16 @@ data_preparation_server <- function(id) {
   refresh_db_workspace_choices()
   refresh_db_folder_choices("")
   refresh_db_dataset_choices("", root_folder_token)
+  observe({
+    if (!is.null(current_user)) {
+      current_user()
+    }
+    workspace_id <- input$db_workspace_select %||% ""
+    folder_id <- input$db_folder_select %||% root_folder_token
+    refresh_db_workspace_choices()
+    refresh_db_folder_choices(workspace_id)
+    refresh_db_dataset_choices(workspace_id, folder_id)
+  })
   get_var_label <- function(var_name, var_data) {
     metadata_get_var_label(var_name, var_data, label_overrides = var_label_overrides(), data = data_store())
   }
@@ -743,6 +752,9 @@ data_preparation_server <- function(id) {
   }, ignoreNULL = FALSE)
   
   observeEvent(input$db_load_dataset, {
+    if (!require_logged_in()) {
+      return()
+    }
     dataset_id <- input$db_dataset_select
     if (is.null(dataset_id) || dataset_id == "") {
       showNotification("请先选择数据库数据集", type = "warning")

@@ -108,8 +108,7 @@ database_manager_ui <- function(id) {
         actionButton(ns("save_batch_datasets"), "批量保存到当前目录", class = "btn-primary", width = "100%"),
         br(),
         br(),
-        textInput(ns("workspace_path"), "从本地文件夹导入数据空间", placeholder = "请输入服务器上的文件夹绝对路径"),
-        actionButton(ns("import_workspace_path"), "导入文件夹为数据空间", class = "btn-info", width = "100%")
+        uiOutput(ns("server_import_section"))
       )
     ),
     fluidRow(
@@ -126,23 +125,16 @@ database_manager_ui <- function(id) {
   )
 }
 
-database_manager_server <- function(id) {
+database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   moduleServer(id, function(input, output, session) {
-  
-  # 数据库连接池
-  # 优先使用环境变量，默认连接到本地 Docker 容器
-  pool <- dbPool(
-    drv = RPostgres::Postgres(),
-    dbname = Sys.getenv("POSTGRES_DB", "autotfl"),
-    host = Sys.getenv("POSTGRES_HOST", "localhost"), # 默认localhost方便调试，生产环境应为 'postgres'
-    port = as.integer(Sys.getenv("POSTGRES_PORT", "5432")),
-    user = Sys.getenv("POSTGRES_USER", "autotfl_user"),
-    password = Sys.getenv("POSTGRES_PASSWORD", "ChangeMe123!")
-  )
-  
-  onStop(function() {
-    poolClose(pool)
-  })
+  `%||%` <- function(x, y) if (is.null(x)) y else x
+  pool <- if (is.null(pg_pool)) auth_create_pool() else pg_pool
+  if (is.null(pg_pool)) {
+    onStop(function() {
+      poolClose(pool)
+    })
+  }
+  auth_ensure_schema(pool)
 
   storage_root <- normalizePath(
     Sys.getenv("STORAGE_ROOT", "data_storage"),
@@ -151,7 +143,6 @@ database_manager_server <- function(id) {
   )
   dir.create(storage_root, recursive = TRUE, showWarnings = FALSE)
   
-  # 不再使用 registry.rds
   registry_version <- reactiveVal(as.numeric(Sys.time()))
   root_folder_token <- "__ROOT__"
   supported_ext <- c("csv", "xlsx", "xls", "sas7bdat", "sav", "dta", "por")
@@ -163,22 +154,59 @@ database_manager_server <- function(id) {
     folder_id
   }
   
-  # 从数据库加载注册表信息
+  get_current_user <- function() {
+    if (is.null(current_user)) {
+      return(NULL)
+    }
+    current_user()
+  }
+
+  is_current_admin <- function() {
+    isTRUE(get_current_user()$is_admin)
+  }
+
+  require_logged_in <- function() {
+    if (!is.null(get_current_user())) {
+      return(TRUE)
+    }
+    showNotification("请先登录后再使用数据库管理功能", type = "warning")
+    FALSE
+  }
+
+  require_admin <- function() {
+    if (!require_logged_in()) {
+      return(FALSE)
+    }
+    if (is_current_admin()) {
+      return(TRUE)
+    }
+    showNotification("该功能仅系统管理员可用", type = "error")
+    FALSE
+  }
+
+  require_workspace_access <- function(workspace_id) {
+    user <- get_current_user()
+    if (is.null(user)) {
+      showNotification("请先登录", type = "warning")
+      return(FALSE)
+    }
+    if (auth_user_can_access_workspace(pool, user$id, isTRUE(user$is_admin), workspace_id)) {
+      return(TRUE)
+    }
+    showNotification("当前账号无权访问该数据空间", type = "error")
+    FALSE
+  }
+
   load_registry <- function() {
     tryCatch({
-      list(
-        workspaces = dbGetQuery(pool, "SELECT * FROM workspaces"),
-        folders = dbGetQuery(pool, "SELECT * FROM folders"),
-        datasets = dbGetQuery(pool, "SELECT * FROM datasets")
-      )
+      user <- get_current_user()
+      if (is.null(user)) {
+        return(auth_empty_registry())
+      }
+      service_registry_load(pool, user = user)
     }, error = function(e) {
-      # 如果表不存在或连接失败，返回空结构防止报错
       warning(paste("Database load failed:", e$message))
-      list(
-        workspaces = data.frame(id=character(), name=character(), created_at=as.POSIXct(character())),
-        folders = data.frame(id=character(), workspace_id=character(), name=character(), created_at=as.POSIXct(character())),
-        datasets = data.frame(id=character(), workspace_id=character(), folder_id=character(), name=character(), file_name=character(), data_path=character(), nrow=numeric(), ncol=numeric(), created_at=as.POSIXct(character()))
-      )
+      auth_empty_registry()
     })
   }
   
@@ -304,12 +332,51 @@ database_manager_server <- function(id) {
     updateSelectInput(session, "dataset_select", choices = ds_choices)
   }
   
+  output$server_import_section <- renderUI({
+    user <- get_current_user()
+    if (is.null(user)) {
+      return(tags$small("请先登录后再使用数据库管理功能。"))
+    }
+    if (!isTRUE(user$is_admin)) {
+      return(tags$small("服务器目录导入仅系统管理员可用。"))
+    }
+    tagList(
+      textInput(session$ns("workspace_path"), "从服务器目录导入数据空间", placeholder = "请输入服务器或容器可见的绝对路径"),
+      tags$small("当前仅支持导入部署机器可见目录，不支持直接读取浏览器所在电脑的本地文件夹。"),
+      tags$small("该入口当前仅面向系统管理员开放；多用户能力落地前不面向普通用户开放。"),
+      actionButton(session$ns("import_workspace_path"), "导入文件夹为数据空间", class = "btn-info", width = "100%")
+    )
+  })
+
   refresh_workspace_choices()
   refresh_folder_choices("")
   refresh_dataset_choices("", root_folder_token)
+
+  observe({
+    if (!is.null(current_user)) {
+      current_user()
+    }
+    registry_version()
+    if (is.null(get_current_user())) {
+      updateSelectInput(session, "workspace_select", choices = character(0), selected = "")
+      refresh_folder_choices("")
+      refresh_dataset_choices("", root_folder_token)
+      return(invisible(NULL))
+    }
+    reg <- load_registry()
+    ws_ids <- reg$workspaces$id %||% character(0)
+    selected_workspace <- input$workspace_select %||% ""
+    if (!nzchar(selected_workspace) || !(selected_workspace %in% ws_ids)) {
+      selected_workspace <- if (length(ws_ids) > 0) ws_ids[[1]] else ""
+    }
+    refresh_workspace_choices()
+    updateSelectInput(session, "workspace_select", selected = selected_workspace)
+    refresh_folder_choices(selected_workspace)
+    refresh_dataset_choices(selected_workspace, root_folder_token)
+  })
   
   output$db_overview_cards <- renderUI({
-    registry_version() # Trigger update
+    registry_version()
     reg <- load_registry()
     ws_count <- nrow(reg$workspaces)
     fd_count <- nrow(reg$folders)
@@ -332,8 +399,6 @@ database_manager_server <- function(id) {
     if (nrow(ws) == 0) {
       return(div(class = "db-tree", span("暂无结构数据，请先创建数据空间与数据集。")))
     }
-    
-    # 辅助函数：处理NULL/NA值
     safe_get <- function(x, default = "") if(is.na(x) || is.null(x)) default else x
     
     workspace_nodes <- lapply(seq_len(nrow(ws)), function(i) {
@@ -411,6 +476,9 @@ database_manager_server <- function(id) {
   })
   
   observeEvent(input$create_workspace, {
+    if (!require_logged_in()) {
+      return()
+    }
     workspace_name <- trimws(input$workspace_name)
     if (!nzchar(workspace_name)) {
       showNotification("请输入数据空间名称", type = "warning")
@@ -423,11 +491,13 @@ database_manager_server <- function(id) {
       return()
     }
     
-    workspace_id <- paste0("ws_", as.integer(as.numeric(Sys.time())), "_", sample(1000:9999, 1))
+    workspace_id <- auth_generate_id("ws")
+    user <- get_current_user()
     
     tryCatch({
-      dbExecute(pool, "INSERT INTO workspaces (id, name, created_at) VALUES ($1, $2, NOW())", 
-                params = list(workspace_id, workspace_name))
+      dbExecute(pool, "INSERT INTO workspaces (id, name, owner_user_id, created_at) VALUES ($1, $2, $3, NOW())", 
+                params = list(workspace_id, workspace_name, user$id))
+      auth_ensure_workspace_membership(pool, workspace_id, user$id, role = "owner")
       registry_version(as.numeric(Sys.time()))
       refresh_workspace_choices()
       updateSelectInput(session, "workspace_select", selected = workspace_id)
@@ -450,13 +520,13 @@ database_manager_server <- function(id) {
       showNotification("请先选择要删除的数据空间", type = "warning")
       return()
     }
-    
-    # 获取需要删除的文件路径
+    if (!require_workspace_access(workspace_id)) {
+      return()
+    }
     ds_to_remove <- dbGetQuery(pool, "SELECT data_path FROM datasets WHERE workspace_id = $1", params = list(workspace_id))
     remove_dataset_files(ds_to_remove)
     
     tryCatch({
-      # Cascade delete handles datasets and folders if set up in DB, but let's be safe
       dbExecute(pool, "DELETE FROM workspaces WHERE id = $1", params = list(workspace_id))
       
       ws_dir <- file.path(storage_root, workspace_id)
@@ -486,6 +556,9 @@ database_manager_server <- function(id) {
       showNotification("请输入文件夹名称", type = "warning")
       return()
     }
+    if (!require_workspace_access(workspace_id)) {
+      return()
+    }
     
     existing <- dbGetQuery(pool, "SELECT id FROM folders WHERE workspace_id = $1 AND name = $2", params = list(workspace_id, folder_name))
     if (nrow(existing) > 0) {
@@ -493,7 +566,7 @@ database_manager_server <- function(id) {
       return()
     }
     
-    folder_id <- paste0("fd_", as.integer(as.numeric(Sys.time())), "_", sample(1000:9999, 1))
+    folder_id <- auth_generate_id("fd")
     
     tryCatch({
       dbExecute(pool, "INSERT INTO folders (id, workspace_id, name, created_at) VALUES ($1, $2, $3, NOW())",
@@ -529,6 +602,9 @@ database_manager_server <- function(id) {
       showNotification("根目录不能删除，请选择具体文件夹", type = "warning")
       return()
     }
+    if (!require_workspace_access(workspace_id)) {
+      return()
+    }
     
     ds_to_remove <- dbGetQuery(pool, "SELECT data_path FROM datasets WHERE workspace_id = $1 AND folder_id = $2", params = list(workspace_id, folder_id))
     remove_dataset_files(ds_to_remove)
@@ -559,9 +635,15 @@ database_manager_server <- function(id) {
   
   observeEvent(input$save_dataset, {
     req(input$file)
+    if (!require_logged_in()) {
+      return()
+    }
     workspace_id <- input$workspace_select
     if (is.null(workspace_id) || workspace_id == "") {
       showNotification("请先创建并选择数据空间", type = "warning")
+      return()
+    }
+    if (!require_workspace_access(workspace_id)) {
       return()
     }
     folder_id <- ifelse(is.null(input$folder_select), root_folder_token, input$folder_select)
@@ -591,9 +673,15 @@ database_manager_server <- function(id) {
   
   observeEvent(input$save_batch_datasets, {
     req(input$batch_files)
+    if (!require_logged_in()) {
+      return()
+    }
     workspace_id <- input$workspace_select
     if (is.null(workspace_id) || workspace_id == "") {
       showNotification("请先创建并选择数据空间", type = "warning")
+      return()
+    }
+    if (!require_workspace_access(workspace_id)) {
       return()
     }
     folder_id <- ifelse(is.null(input$folder_select), root_folder_token, input$folder_select)
@@ -648,6 +736,9 @@ database_manager_server <- function(id) {
   })
   
   observeEvent(input$import_workspace_path, {
+    if (!require_admin()) {
+      return()
+    }
     path_input <- trimws(input$workspace_path)
     if (!nzchar(path_input)) {
       showNotification("请输入文件夹路径", type = "warning")
@@ -668,8 +759,10 @@ database_manager_server <- function(id) {
       return()
     }
     
-    workspace_id <- paste0("ws_", as.integer(as.numeric(Sys.time())), "_", sample(1000:9999, 1))
-    dbExecute(pool, "INSERT INTO workspaces (id, name, created_at) VALUES ($1, $2, NOW())", params = list(workspace_id, workspace_name))
+    workspace_id <- auth_generate_id("ws")
+    user <- get_current_user()
+    dbExecute(pool, "INSERT INTO workspaces (id, name, owner_user_id, created_at) VALUES ($1, $2, $3, NOW())", params = list(workspace_id, workspace_name, user$id))
+    auth_ensure_workspace_membership(pool, workspace_id, user$id, role = "owner")
     
     abs_root <- normalizePath(path_input, winslash = "/", mustWork = TRUE)
     all_files <- list.files(abs_root, recursive = TRUE, full.names = TRUE, include.dirs = FALSE)
@@ -691,7 +784,7 @@ database_manager_server <- function(id) {
         
         if (length(unique_dirs) > 0) {
           for (rel_dir in unique_dirs) {
-            folder_id <- paste0("fd_", as.integer(as.numeric(Sys.time())), "_", sample(1000:9999, 1))
+            folder_id <- auth_generate_id("fd")
             dbExecute(pool, "INSERT INTO folders (id, workspace_id, name, created_at) VALUES ($1, $2, $3, NOW())", 
                       params = list(folder_id, workspace_id, rel_dir))
             dir_map[[rel_dir]] <- folder_id
@@ -754,10 +847,13 @@ database_manager_server <- function(id) {
       return()
     }
     
-    ds <- dbGetQuery(pool, "SELECT data_path FROM datasets WHERE id = $1", params = list(dataset_id))
+    ds <- dbGetQuery(pool, "SELECT id, workspace_id, data_path FROM datasets WHERE id = $1", params = list(dataset_id))
     
     if (nrow(ds) == 0) {
       showNotification("数据集不存在", type = "warning")
+      return()
+    }
+    if (!require_workspace_access(ds$workspace_id[[1]])) {
       return()
     }
     
