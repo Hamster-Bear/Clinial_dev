@@ -5,8 +5,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 ENV_DIR="$ROOT_DIR/deploy/alicloud/env"
 EXAMPLE_FILE="$ENV_DIR/.env.example"
 TARGET_FILE="$ENV_DIR/.env"
+APPS_DIR="$ROOT_DIR/apps"
 
 mkdir -p "$ENV_DIR"
+mkdir -p "$APPS_DIR"
 
 if [[ ! -f "$TARGET_FILE" ]]; then
   cp "$EXAMPLE_FILE" "$TARGET_FILE"

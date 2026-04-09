@@ -42,78 +42,21 @@
    shiny::runApp("app.R")
    ```
 
-### 方法三：使用 Docker 容器部署
+### 方法三：部署入口摘要
 
-本项目提供了 Docker 支持，可以快速构建和运行应用容器。
+Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README 只保留入口摘要：
 
-#### 1. 构建 Docker 镜像
+| 场景 | 入口 | 访问方式 | 详细说明 |
+| --- | --- | --- | --- |
+| 本地开发直跑 | `run_app.R` | 默认 `http://127.0.0.1:8109` | 适合单机开发与问题定位 |
+| 基础 Docker Compose | `docker-compose.yml` | `http://localhost` | 适合基础开发编排 |
+| 本地联调 | `docker-compose.local.yml` | `http://localhost:8080` | 含 Landing 页，应用入口为 `/app/` |
+| 服务器生产 | `docker-compose.server.yml` | `https://<domain>` | 需要证书、镜像与 `.env` |
 
-使用提供的构建脚本，在项目根目录下执行：
+#### 详细文档入口
 
-**Linux/macOS:**
-```bash
-./build_docker_image.sh
-```
-
-**Windows:**
-```bat
-build_docker_image.bat
-```
-
-如果 Windows 批处理脚本出现乱码或闪退，可以使用 PowerShell 脚本（推荐）：
-```powershell
-.\build_docker_image.ps1
-```
-
-脚本会提示您输入：
-- 镜像名称（默认为 `autotfl-shiny-app`）
-- 镜像标签（默认为 `latest`）
-- 容器映射端口（默认为 `3838`）
-
-构建完成后，镜像将保存在本地 Docker 环境中。
-
-#### 2. 运行容器
-
-使用以下命令运行容器（将 `PORT` 替换为之前设置的端口）：
-```bash
-docker run -p PORT:3838 autotfl-shiny-app:latest
-```
-
-应用将在容器内启动，并可通过浏览器访问 `http://localhost:PORT`。
-
-#### 3. 使用更新后的构建脚本
-
-构建脚本已更新，支持交互式输入镜像名和端口。您也可以直接使用 Docker 命令构建：
-```bash
-docker build -t your-image-name:your-tag .
-```
-
-更多详细信息请参考项目根目录下的 `Dockerfile` 和构建脚本。
-
-### 方法四：使用 Docker Compose 一键部署（Nginx + Shiny + PostgreSQL）
-
-1. 在项目根目录设置数据库密码环境变量（可选，未设置时使用默认值）：
-```powershell
-$env:DB_PASSWORD="YourStrongPassword"
-```
-
-2. 构建并启动全部服务：
-```bash
-docker compose up -d --build
-```
-
-3. 访问应用：
-- 浏览器打开 `http://localhost`
-
-4. 查看服务状态：
-```bash
-docker compose ps
-```
-
-5. 停止服务：
-```bash
-docker compose down
-```
+- 部署细节、镜像构建与保存、目录结构、挂载关系、环境变量、服务器流程：`DEPLOYMENT_GUIDE.md`
+- 项目架构、模块职责、部署矩阵与实现边界：`PROJECT_GUIDE.md`
 
 ## 依赖管理
 
@@ -129,28 +72,29 @@ docker compose down
 - 自动检查依赖并安装缺失包
 - 加载所有必需的包
 - 启动Shiny应用
-- 设置默认端口(8100)和主机(127.0.0.1)
+- 设置默认端口(8109)和主机(127.0.0.1)
 
 ## 项目结构
 
+完整目录结构、模块职责与部署边界请参考 `PROJECT_GUIDE.md`。README 只保留最小入口摘要：
+
 ```
 AutoTFL/
-├── app.R                 # 主应用文件
-├── install_dependencies.R # 依赖安装脚本
-├── run_app.R            # 应用启动脚本
-├── README.md            # 项目说明文档
-├── style.css            # 自定义样式文件
-├── sample_data.csv      # 示例数据文件
+├── app.R
+├── install_dependencies.R
+├── run_app.R
+├── README.md
+├── PROJECT_GUIDE.md
+├── DEPLOYMENT_GUIDE.md
+├── Dockerfile
+├── docker-compose.yml
+├── docker-compose.local.yml
+├── docker-compose.server.yml
 ├── modules/
-│   └── statistical_analysis.R # 统计分析模块
-└── docs/                # 设计文档
-    ├── project_structure.md
-    ├── package_dependencies.md
-    ├── app_design.md
-    ├── data_upload_design.md
-    ├── variable_type_system.md
-    ├── data_anonymization.md
-    ├── enhancements.md
+├── nginx/
+├── postgres/
+├── deploy/
+└── tests/
 ```
 
 ## 更新依赖

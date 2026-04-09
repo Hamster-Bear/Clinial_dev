@@ -30,4 +30,8 @@ test/tmp_*.R
 # local package cache for offline deployment
 package/
 
+# local offline image bundles
+apps/**
+!apps/.gitkeep
+
 商业化/
