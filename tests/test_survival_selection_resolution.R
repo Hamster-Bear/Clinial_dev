@@ -1,4 +1,5 @@
 library(testthat)
+library(shiny)
 
 source(file.path("..", "modules", "statistical_graphics", "survival_analysis.R"))
 

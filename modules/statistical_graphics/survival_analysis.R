@@ -16,20 +16,46 @@ library(cowplot)
   choices[1]
 }
 
+.survival_strata_label_input_id <- function(value) {
+  paste0("strata_label_", digest::digest(as.character(value %||% ""), algo = "crc32"))
+}
+
+.strip_survival_strata_value <- function(strata_name, strata_var = NULL) {
+  label <- as.character(strata_name %||% "all")
+  if (!nzchar(label)) return(label)
+  if (!is.null(strata_var) && nzchar(strata_var)) {
+    prefixes <- c(
+      paste0(strata_var, "="),
+      paste0("`", strata_var, "`=")
+    )
+    for (prefix in prefixes) {
+      if (startsWith(label, prefix)) {
+        return(substr(label, nchar(prefix) + 1, nchar(label)))
+      }
+    }
+  }
+  label
+}
+
 .format_survival_group_label <- function(strata_name, strata_var = NULL, strata_labels = list(), overall_label = "all") {
   label <- as.character(strata_name %||% "all")
   if (!nzchar(label) || identical(tolower(label), "all")) return(overall_label %||% "all")
-  if (!is.null(strata_var) && nzchar(strata_var)) {
-    prefix <- paste0(strata_var, "=")
-    if (startsWith(label, prefix)) {
-      label <- substr(label, nchar(prefix) + 1, nchar(label))
-    }
-  }
-  if (grepl("=", label, fixed = TRUE)) {
-    label <- sub("^.*=", "", label)
-  }
+  label <- .strip_survival_strata_value(label, strata_var)
   mapped <- strata_labels[[label]]
   if (!is.null(mapped) && nzchar(trimws(mapped))) trimws(mapped) else label
+}
+
+.build_survival_strata_labeler <- function(strata_var = NULL, strata_labels = list(), overall_label = "all") {
+  force(strata_var)
+  force(strata_labels)
+  force(overall_label)
+  function(x) {
+    vapply(
+      x,
+      function(val) .format_survival_group_label(val, strata_var, strata_labels, overall_label),
+      character(1)
+    )
+  }
 }
 
 .extract_survival_legend_labs <- function(fit_obj, strata_var = NULL, strata_labels = list(), overall_label = "all") {
@@ -39,6 +65,183 @@ library(cowplot)
     function(x) .format_survival_group_label(x, strata_var, strata_labels, overall_label),
     character(1)
   )
+}
+
+.extract_survival_legend_breaks <- function(fit_obj, strata_var = NULL, overall_label = "all") {
+  if (is.null(fit_obj$strata)) return(overall_label %||% "all")
+  as.character(names(fit_obj$strata))
+}
+
+.build_survival_legend_colors <- function(breaks, palette_name = "Set1") {
+  breaks <- as.character(breaks %||% character(0))
+  if (length(breaks) == 0) return(setNames(character(0), character(0)))
+  if (requireNamespace("RColorBrewer", quietly = TRUE) && palette_name %in% rownames(RColorBrewer::brewer.pal.info)) {
+    max_n <- RColorBrewer::brewer.pal.info[palette_name, "maxcolors"]
+    base_vals <- RColorBrewer::brewer.pal(max(3, min(max_n, length(breaks))), palette_name)
+    vals <- rep(base_vals, length.out = length(breaks))
+  } else {
+    vals <- scales::hue_pal()(length(breaks))
+  }
+  stats::setNames(vals, breaks)
+}
+
+.resolve_survival_legend_colors <- function(plot_obj, raw_breaks, display_breaks) {
+  raw_breaks <- as.character(raw_breaks %||% character(0))
+  display_breaks <- as.character(display_breaks %||% character(0))
+  if (length(display_breaks) == 0) return(setNames(character(0), character(0)))
+  scale_obj <- plot_obj$scales$get_scales("colour")
+  if (is.null(scale_obj)) scale_obj <- plot_obj$scales$get_scales("color")
+  mapped <- tryCatch({
+    if (is.null(scale_obj) || length(raw_breaks) == 0) return(NULL)
+    as.character(scale_obj$map(raw_breaks))
+  }, error = function(e) NULL)
+  if (is.null(mapped) || length(mapped) != length(display_breaks) || any(is.na(mapped) | !nzchar(mapped))) {
+    mapped <- scales::hue_pal()(length(display_breaks))
+  }
+  stats::setNames(mapped, display_breaks)
+}
+
+.resolve_survival_censor_legend_layout <- function(position = "right") {
+  if (identical(position, "none")) {
+    return(list(position = "none", anchor = NULL))
+  }
+  if (position %in% c("right", "left", "top", "bottom")) {
+    return(list(position = position, anchor = NULL))
+  }
+  anchor_map <- list(
+    "top-right" = graphics_resolve_inside_anchor(0.72, 0.58, 0.24, 0.22),
+    "top-left" = graphics_resolve_inside_anchor(0.02, 0.58, 0.24, 0.22),
+    "bottom-left" = graphics_resolve_inside_anchor(0.02, 0.03, 0.24, 0.22),
+    "bottom-right" = graphics_resolve_inside_anchor(0.72, 0.03, 0.24, 0.22)
+  )
+  list(
+    position = if (position %in% names(anchor_map)) "inside_custom" else "right",
+    anchor = anchor_map[[position]] %||% NULL
+  )
+}
+
+.resolve_survival_censor_shape_value <- function(shape_value, fallback = 3) {
+  resolved <- suppressWarnings(as.numeric(shape_value %||% fallback))
+  if (is.na(resolved) || !is.finite(resolved)) fallback else resolved
+}
+
+.build_survival_legend_rows <- function(labels, row_gap = 0.55) {
+  labels <- as.character(labels %||% character(0))
+  labels <- labels[nzchar(labels)]
+  if (length(labels) == 0) {
+    return(data.frame(label = character(0), y = numeric(0), stringsAsFactors = FALSE))
+  }
+  gap <- suppressWarnings(as.numeric(row_gap %||% 0.55))
+  if (is.na(gap) || !is.finite(gap) || gap <= 0) gap <- 0.55
+  data.frame(
+    label = labels,
+    y = rev(seq(1, by = gap, length.out = length(labels))),
+    stringsAsFactors = FALSE
+  )
+}
+
+.build_survival_censor_legend_plot <- function(labels, colors, shape_value = 3, title = "Censor", base_font_size = 10) {
+  labels <- as.character(labels %||% character(0))
+  labels <- labels[nzchar(labels)]
+  if (length(labels) == 0) return(NULL)
+  color_vals <- unname(colors[labels])
+  if (length(color_vals) != length(labels) || any(is.na(color_vals) | !nzchar(color_vals))) {
+    return(NULL)
+  }
+  legend_df <- .build_survival_legend_rows(labels, row_gap = 0.55)
+  legend_df$color <- color_vals
+  shape_value <- .resolve_survival_censor_shape_value(shape_value)
+  ggplot(legend_df, aes(y = y)) +
+    geom_point(aes(x = 0.10), shape = shape_value, size = max(2, base_font_size * 0.22), stroke = 0.7, color = legend_df$color) +
+    geom_text(aes(x = 0.17, label = label), hjust = 0, size = max(3, base_font_size * 0.24), family = "sans") +
+    scale_y_continuous(limits = c(min(legend_df$y) - 0.25, max(legend_df$y) + 0.25), expand = c(0, 0)) +
+    coord_cartesian(xlim = c(0, 1), clip = "off") +
+    theme_void(base_family = "sans") +
+    theme(
+      plot.title = element_text(size = max(10, base_font_size), face = "bold", hjust = 0, margin = margin(0, 0, 2, 0)),
+      plot.margin = margin(2, 4, 2, 4)
+    ) +
+    ggtitle(title)
+}
+
+.build_survival_line_legend_plot <- function(labels, colors, title = "", line_size = 0.6, line_type = "solid", base_font_size = 10) {
+  labels <- as.character(labels %||% character(0))
+  labels <- labels[nzchar(labels)]
+  if (length(labels) == 0) return(NULL)
+  color_vals <- unname(colors[labels])
+  if (length(color_vals) != length(labels) || any(is.na(color_vals) | !nzchar(color_vals))) {
+    return(NULL)
+  }
+  legend_df <- .build_survival_legend_rows(labels, row_gap = 0.55)
+  legend_df$color <- color_vals
+  plot_obj <- ggplot(legend_df, aes(y = y)) +
+    geom_segment(
+      aes(x = 0.04, xend = 0.16, yend = y),
+      linewidth = line_size,
+      linetype = line_type,
+      color = legend_df$color
+    ) +
+    geom_text(aes(x = 0.22, label = label), hjust = 0, size = max(3, base_font_size * 0.24), family = "sans") +
+    scale_y_continuous(limits = c(min(legend_df$y) - 0.25, max(legend_df$y) + 0.25), expand = c(0, 0)) +
+    coord_cartesian(xlim = c(0, 1), clip = "off") +
+    theme_void(base_family = "sans") +
+    theme(
+      plot.title = element_text(size = max(10, base_font_size), face = "bold", hjust = 0, margin = margin(0, 0, 2, 0)),
+      plot.margin = margin(2, 4, 2, 4)
+    )
+  if (nzchar(trimws(title %||% ""))) {
+    plot_obj <- plot_obj + ggtitle(title)
+  }
+  plot_obj
+}
+
+.compose_survival_static_legend <- function(main_legend_plot = NULL, censor_legend_plot = NULL, legend_position = "right") {
+  if (identical(legend_position, "none")) {
+    return(list(legend_plot = NULL, layout = .resolve_survival_censor_legend_layout("none")))
+  }
+  legend_plot <- main_legend_plot
+  if (!is.null(censor_legend_plot)) {
+    if (is.null(legend_plot)) {
+      legend_plot <- censor_legend_plot
+    } else {
+      spacer <- ggplot() + theme_void() + theme(plot.margin = margin(0, 0, 0, 0))
+      legend_plot <- cowplot::plot_grid(
+        legend_plot,
+        spacer,
+        censor_legend_plot,
+        ncol = 1,
+        align = "v",
+        axis = "lr",
+        rel_heights = c(1, 0.08, 0.72)
+      )
+    }
+  }
+  list(
+    legend_plot = legend_plot,
+    layout = .resolve_survival_censor_legend_layout(legend_position)
+  )
+}
+
+.format_survival_p_value <- function(p) {
+  if (exists("format_p_value_ama", mode = "function")) {
+    return(format_p_value_ama(p))
+  }
+  val <- suppressWarnings(as.numeric(p))
+  if (is.na(val)) return("—")
+  if (val < 0.001) return("<0.001")
+  if (val > 0.99) return(">0.99")
+  sprintf("%.3f", val)
+}
+
+.compose_survival_p_text <- function(prefix, p, with_spaces = TRUE) {
+  formatted <- .format_survival_p_value(p)
+  if (!nzchar(formatted) || identical(formatted, "—")) return(NULL)
+  operator <- if (startsWith(formatted, "<") || startsWith(formatted, ">")) "" else "="
+  if (with_spaces) {
+    pieces <- c(prefix, operator, formatted)
+    return(paste(pieces[nzchar(pieces)], collapse = " "))
+  }
+  paste0(prefix, operator, formatted)
 }
 
 .apply_survival_line_style <- function(plot_obj, line_size, line_type) {
@@ -521,7 +724,7 @@ survival_analysis_server <- function(input, output, session, data) {
           h5("为每个分层值设置自定义标签"),
           p("留空则使用原始值"),
           lapply(strata_values_char, function(val) {
-            textInput(ns(paste0("strata_label_", val)),
+            textInput(ns(.survival_strata_label_input_id(val)),
                      label = paste("值:", val),
                      value = "",
                      placeholder = val)
@@ -580,7 +783,7 @@ survival_analysis_server <- function(input, output, session, data) {
           strata_values_char <- as.character(strata_values)
           strata_values_char <- strata_values_char[strata_values_char != ""]
           for (val in strata_values_char) {
-            input_name <- paste0("strata_label_", val)
+            input_name <- .survival_strata_label_input_id(val)
             if (!is.null(input[[input_name]])) {
               strata_labels[[val]] <- input[[input_name]]
             }
@@ -878,12 +1081,9 @@ survival_analysis_server <- function(input, output, session, data) {
         if (!is.null(csum$coefficients) && nrow(csum$coefficients) > 0) {
           labels <- params$strata_labels
           map_label <- function(x) {
-            if (x %in% names(labels) && labels[[x]] != "") return(labels[[x]])
-            if (grepl("=", x)) {
-              ext <- sub(".*=", "", x)
-              if (ext %in% names(labels) && labels[[ext]] != "") return(labels[[ext]])
-            }
-            return(x)
+            stripped <- .strip_survival_strata_value(x, strata_var)
+            if (stripped %in% names(labels) && labels[[stripped]] != "") return(labels[[stripped]])
+            stripped
           }
           
           for (i in seq_len(nrow(csum$coefficients))) {
@@ -903,7 +1103,7 @@ survival_analysis_server <- function(input, output, session, data) {
                               ": HR = ", formatC(hr, format = "f", digits = 2),
                               " (95%CI: ", formatC(hr_low, format = "f", digits = 2), "-",
                               formatC(hr_up, format = "f", digits = 2), ")",
-                              ", P = ", formatC(p_val, format = "f", digits = 3))
+                              ", ", .compose_survival_p_text("P", p_val))
             res$hr_lines <- c(res$hr_lines, hr_line)
           }
         }
@@ -1007,7 +1207,9 @@ survival_analysis_server <- function(input, output, session, data) {
       fit_local <- fit()
     }
     legend_title_text <- graphics_resolve_legend_title(params$legend_title, "", "")
+    legend_breaks <- .extract_survival_legend_breaks(fit_local, strata_var, overall_label)
     legend_labs <- .extract_survival_legend_labs(fit_local, strata_var, params$strata_labels, overall_label)
+    risk_table_labeler <- .build_survival_strata_labeler(strata_var, params$strata_labels, overall_label)
     p <- suppressWarnings(ggsurvplot(
       fit_local,
       data = plot_data,
@@ -1022,6 +1224,8 @@ survival_analysis_server <- function(input, output, session, data) {
       legend.title = legend_title_text,
       legend.labs = legend_labs
     ))
+    legend_colors_raw <- .resolve_survival_legend_colors(p$plot, legend_breaks, legend_breaks)
+    main_legend_colors <- stats::setNames(unname(legend_colors_raw[legend_breaks]), legend_labs)
     if (params$show_median) {
       median_surv <- stats_results()$median_surv
       if (!is.null(median_surv) && nrow(median_surv) > 0) {
@@ -1073,7 +1277,7 @@ survival_analysis_server <- function(input, output, session, data) {
     if (params$show_stats) {
       logrank_p <- stats_results()$logrank_p
       stats_text <- ""
-      if (!is.na(logrank_p)) stats_text <- paste0("Log-rank P = ", formatC(logrank_p, format = "f", digits = 3))
+      if (!is.na(logrank_p)) stats_text <- .compose_survival_p_text("Log-rank P", logrank_p)
       if (!is.null(strata_var) && strata_var != "None") {
         hr_lines <- stats_results()$hr_lines
         if (length(hr_lines) > 0) {
@@ -1101,22 +1305,83 @@ survival_analysis_server <- function(input, output, session, data) {
           annotate("text", x = stats_x, y = stats_y, label = stats_text, hjust = hjust_val, vjust = vjust_val, size = params$stats_text_size / 3.2, color = "black", fontface = "bold")
       }
     }
+    censor_legend_plot <- NULL
     if (input$km_show_censor) {
-      surv_data <- surv_summary_data()
+      surv_data <- surv_summary(fit_local)
       censored_points <- surv_data[surv_data$n.censor > 0, ]
       if (nrow(censored_points) > 0) {
         if ("strata" %in% names(censored_points) && !is.null(strata_var) && strata_var != "None") {
-          p$plot <- p$plot + geom_point(data = censored_points, aes(x = time, y = surv, color = strata, shape = "Censor"), size = params$km_censor_size, alpha = 1)
+          censored_points$strata_display <- vapply(
+            as.character(censored_points$strata),
+            function(x) .format_survival_group_label(x, strata_var, params$strata_labels, overall_label),
+            character(1)
+          )
+          censor_pairs <- unique(data.frame(
+            raw = as.character(censored_points$strata),
+            display = as.character(censored_points$strata_display),
+            stringsAsFactors = FALSE
+          ))
+          censor_pairs <- censor_pairs[match(legend_labs, censor_pairs$display, nomatch = 0), , drop = FALSE]
+          if (nrow(censor_pairs) == 0) {
+            censor_pairs <- unique(data.frame(
+              raw = as.character(censored_points$strata),
+              display = as.character(censored_points$strata_display),
+              stringsAsFactors = FALSE
+            ))
+          }
+          censor_breaks <- censor_pairs$display
+          censor_colors <- stats::setNames(unname(legend_colors_raw[censor_pairs$raw]), censor_breaks)
+          if (length(censor_colors) != length(censor_breaks) || any(is.na(censor_colors) | !nzchar(censor_colors))) {
+            censor_colors <- .resolve_survival_legend_colors(p$plot, censor_pairs$raw, censor_breaks)
+          }
+          p$plot <- p$plot +
+            geom_point(
+              data = censored_points,
+              aes(x = time, y = surv, color = strata),
+              shape = .resolve_survival_censor_shape_value(params$km_censor_shape),
+              size = params$km_censor_size,
+              alpha = 1,
+              inherit.aes = FALSE,
+              show.legend = FALSE
+            )
+          censor_legend_plot <- .build_survival_censor_legend_plot(
+            labels = censor_breaks,
+            colors = censor_colors,
+            shape_value = as.numeric(params$km_censor_shape),
+            title = "Censor",
+            base_font_size = params$legend_text_size
+          )
         } else {
-          p$plot <- p$plot + geom_point(data = censored_points, aes(x = time, y = surv, shape = "Censor"), size = params$km_censor_size, color = "black", alpha = 1)
+          censor_label <- overall_label %||% "all"
+          censored_points$censor_label <- censor_label
+          p$plot <- p$plot +
+            geom_point(
+              data = censored_points,
+              aes(x = time, y = surv),
+              shape = .resolve_survival_censor_shape_value(params$km_censor_shape),
+              size = params$km_censor_size,
+              color = "black",
+              alpha = 1,
+              inherit.aes = FALSE,
+              show.legend = FALSE
+            )
+          censor_legend_plot <- .build_survival_censor_legend_plot(
+            labels = censor_label,
+            colors = stats::setNames("black", censor_label),
+            shape_value = as.numeric(params$km_censor_shape),
+            title = "Censor",
+            base_font_size = params$legend_text_size
+          )
         }
-        p$plot <- p$plot +
-          scale_shape_manual(name = "", values = c("Censor" = as.numeric(params$km_censor_shape))) +
-          guides(shape = guide_legend(position = "inside", override.aes = list(color = "black"))) +
-          theme(legend.position.inside = c(0.9, 0.9))
       }
     }
-    p$plot <- p$plot + guides(shape = guide_legend(title = ""), alpha = "none", size = "none", linewidth = "none")
+    p$plot <- p$plot + guides(
+      colour = guide_legend(order = 1),
+      shape = "none",
+      alpha = "none",
+      size = "none",
+      linewidth = "none"
+    )
     p$plot <- .apply_survival_line_style(p$plot, params$km_line_size, params$km_line_type)
     if (!params$show_grid) {
       p$plot <- p$plot + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
@@ -1129,11 +1394,6 @@ survival_analysis_server <- function(input, output, session, data) {
         axis.text = element_text(size = params$axis_text_size),
         legend.text = element_text(size = params$legend_text_size)
       )
-    p$plot <- graphics_apply_legend_theme(
-      p$plot,
-      show_legend = !identical(params$legend_position, "none"),
-      position = params$legend_position
-    )
     if (!is.null(input$plot_title) && input$plot_title != "") {
       p$plot <- p$plot + labs(title = gsub("\\\\n", "\n", input$plot_title))
     }
@@ -1160,10 +1420,12 @@ survival_analysis_server <- function(input, output, session, data) {
           plot.margin = margin(0, 0, 0, 0, "pt"),
           axis.text.y = element_text(size = params$y_text_size)
         )
-      if (is.null(strata_var) || strata_var == "None") {
-        p$table <- p$table + scale_y_discrete(labels = function(x) rep(overall_label, length(x)))
-      }
+      p$table <- p$table + scale_y_discrete(labels = risk_table_labeler)
     }
+    p$main_legend_labels <- unname(legend_labs)
+    p$main_legend_colors <- main_legend_colors
+    p$main_legend_title <- legend_title_text
+    p$censor_legend_plot <- censor_legend_plot
     p
   })
   
@@ -1172,6 +1434,20 @@ survival_analysis_server <- function(input, output, session, data) {
     params <- committed_params()
     req(params)
     p <- base_surv_plot()
+    p$plot <- p$plot + theme(legend.position = "none")
+    main_legend_plot <- .build_survival_line_legend_plot(
+      labels = p$main_legend_labels,
+      colors = p$main_legend_colors,
+      title = p$main_legend_title,
+      line_size = params$km_line_size,
+      line_type = params$km_line_type,
+      base_font_size = params$legend_text_size
+    )
+    legend_bundle <- .compose_survival_static_legend(
+      main_legend_plot = main_legend_plot,
+      censor_legend_plot = p$censor_legend_plot,
+      legend_position = params$legend_position
+    )
     
     if (params$km_show_risktable && !is.null(p$table)) {
       plot_list <- list(p$plot, p$table)
@@ -1196,13 +1472,30 @@ survival_analysis_server <- function(input, output, session, data) {
         axis = "lr",
         rel_heights = rel_heights
       )
-      
+      if (!is.null(legend_bundle$legend_plot) && !identical(legend_bundle$layout$position, "none")) {
+        combined_plot <- graphics_place_aux_legend(
+          combined_plot,
+          legend_bundle$legend_plot,
+          position = legend_bundle$layout$position,
+          outside_ratio = 0.32,
+          inside_anchor = legend_bundle$layout$anchor %||% c(0.72, 0.03, 0.26, 0.26)
+        )
+      }
       combined_plot
     } else {
       if (!is.null(input$plot_caption) && input$plot_caption != "") {
         formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
         p$plot <- p$plot + labs(caption = formatted_caption) +
           theme(plot.caption = element_text(hjust = 0, vjust = 1, size = input$caption_size))
+      }
+      if (!is.null(legend_bundle$legend_plot) && !identical(legend_bundle$layout$position, "none")) {
+        p$plot <- graphics_place_aux_legend(
+          p$plot,
+          legend_bundle$legend_plot,
+          position = legend_bundle$layout$position,
+          outside_ratio = 0.32,
+          inside_anchor = legend_bundle$layout$anchor %||% c(0.72, 0.03, 0.26, 0.26)
+        )
       }
       p$plot
     }
@@ -1235,6 +1528,11 @@ survival_analysis_server <- function(input, output, session, data) {
     params <- committed_params()
     req(params)
     p <- base_surv_plot()$plot
+    p <- graphics_apply_legend_theme(
+      p,
+      show_legend = !identical(params$legend_position, "none"),
+      position = params$legend_position
+    )
     
     # 交互式图不需要网格和复杂的自定义主题边框，但这里我们保留大部分原有设置
     # 处理标题（如果之前未自定义，添加默认交互式标题）
@@ -1398,10 +1696,11 @@ survival_analysis_server <- function(input, output, session, data) {
     )
     
     if (!is.na(logrank_p)) {
+      logrank_text <- .compose_survival_p_text("Log-rank 检验 P值", logrank_p, with_spaces = FALSE)
       if (logrank_p < 0.05) {
-        interpretation <- c(interpretation, paste0("Log-rank 检验 P值=", formatC(logrank_p, format = "f", digits = 3), "，提示组间生存曲线差异具有统计学意义。"))
+        interpretation <- c(interpretation, paste0(logrank_text, "，提示组间生存曲线差异具有统计学意义。"))
       } else {
-        interpretation <- c(interpretation, paste0("Log-rank 检验 P值=", formatC(logrank_p, format = "f", digits = 3), "，未见组间生存曲线显著差异。"))
+        interpretation <- c(interpretation, paste0(logrank_text, "，未见组间生存曲线显著差异。"))
       }
     }
     

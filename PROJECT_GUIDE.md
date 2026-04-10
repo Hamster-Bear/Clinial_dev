@@ -356,9 +356,12 @@ AutoTFL/
 | --- | --- |
 | 状态管理 | 采用 view state 与 committed state 分离，只有点击“生成图形”才提交分析参数 |
 | 风险表 | 风险表主要用于静态图组合输出；交互页并不是“Plotly + 风险表”同页布局 |
+| 分层标签 | 主图图例、删失图例、统计文本、风险表与数据表统一复用同一标签格式化链路；比较符号及原始值中的 `=`, `>=`, `<` 必须原样保留并可映射自定义标签 |
+| 删失图例 | 交互图中的主图分组图例优先复用 `ggsurvplot` 默认图例能力，仅负责标题与标签定制；静态图则统一改为辅助图例方案：主图分组图例与删失图例都以独立辅助图例绘制，其中 Censor 图例在分层场景下使用 `Censor` 标题并按分组显示与曲线上实际删失点一致的形状和颜色。曲线上的删失点形状在所有分组中统一取自 `km_censor_shape`，不能因分组再次映射为圆形/三角等离散形状；静态图中主图分组图例固定在前、Censor 图例固定在后，且通过 common 的 inside-anchor/aux-legend 摆放抽象控制紧凑间距与定位，避免重复图例、原始 `变量=取值` 文本泄漏、颜色失配与 `Ignoring unknown labels` 警告 |
+| P值格式 | Log-rank 与生存分析内联 P 值统一采用 AMA 风格：`<0.001`、`>0.99` 或三位小数，避免 `P=0.000` |
 | 交互页 | 当前以交互主图和单独结果页签为主 |
 | 尺寸配置 | 已接入统一尺寸接口，不在模块内写死静态/交互/导出尺寸 |
-| 测试覆盖 | 已有选择解析、中位生存时间基线、view/committed 状态等测试 |
+| 测试覆盖 | 已有选择解析、中位生存时间基线、view/committed 状态测试，并新增显示契约测试覆盖比较符号/等号标签、Cox 标签映射、删失图例颜色链路、辅助图例布局、删失符号一致性与 P 值格式 |
 
 ### 7.5 图例与样式当前状态
 
@@ -410,6 +413,29 @@ AutoTFL/
 - 共享层优先维护“统计口径、格式、元数据、导出、存储”这类跨模块不应分叉的逻辑。
 - 子模块遇到公共需求时先扩展 common，再决定是否保留少量局部特例。
 - 修改共享层时必须同步检查回归模块、图形模块和导出路径是否受影响。
+
+### 9.3 当前可复用函数清单
+
+| 主题 | 文件 | 当前可复用函数 | 当前约束 |
+| --- | --- | --- | --- |
+| 图例标题与位置枚举 | `graphics_common.R` | `graphics_resolve_legend_title()`、`graphics_legend_position_choices()`、`graphics_legend_controls_ui()` | 图例标题统一走 `custom > fallback > default`；位置值只能来自 common 枚举，子模块不得自造私有位置字符串 |
+| 图例锚点与辅助图例摆放 | `graphics_common.R` | `graphics_resolve_inside_anchor()`、`graphics_place_aux_legend()`、`graphics_apply_legend_theme()` | 图内锚点必须先归一化；辅助图例优先复用 common 摆放；隐藏图例统一使用 `"none"` |
+| 图形尺寸解析 | `graphics_common.R` | `resolve_plot_size_config()` | 静态图、交互图、导出尺寸统一从 common 解析；模块内不得各自硬编码三套尺寸 |
+| 图形说明文字 | `graphics_common.R` | `graphics_mapping_caption_line()`、`graphics_compose_caption()`、`graphics_append_bottom_caption()` | caption 统一由 common 拼接，禁止模块内再拼第二套底部说明逻辑 |
+| 元数据标签与类型 | `data_metadata.R` | `metadata_get_var_label()`、`metadata_get_var_type()`、`metadata_build_column_choices()`、`metadata_attach_to_data()` | 标签解析顺序固定为 `override > metadata表 > 列label > var_name`；元数据变更后必须重新回写到数据对象 |
+| 元数据底层推断 | `data_metadata.R` | `metadata_determine_var_type()`、`metadata_coerce_var_data()`、`metadata_safe_numeric_range()` | 字符变量低基数判定与日期/数值转换规则统一由 common 维护，子模块不得各写一套推断逻辑 |
+| 统计格式化与复现模板 | `analysis_format.R` | `format_p_value_regression()`、`format_regression_stat()`、`build_repro_code_template()` | 回归统计值、缺失占位符、复现代码模板统一走 common，禁止模块各自维护格式 |
+| 图形复现代码 | `graphics_repro.R` | `graphics_quote_value()`、`graphics_quote_vector()`、`generate_graphics_repro_code()` | 图形复现代码输入必须来自 committed 状态快照；新增图形类型时必须补 common 入口分支 |
+| 表格样式与导出 | `table_export.R` | `format_p_value_ama()`、`normalize_footnotes()`、`extract_table_dataframe()`、`apply_sci_gt_style()` | P 值显示、脚注清洗、gt 风格统一由 common 注入，禁止模块私有化导出样式 |
+| 图形导出 | `plot_export.R` | `build_plot_export_filename()`、`save_plot_export()` | 导出文件名与支持格式统一由 common 维护；业务模块不得扩展不一致的私有导出参数 |
+| 存储抽象 | `storage_backend.R` | `storage_backend_get()`、`storage_data_key_build()`、`storage_save_dataset()`、`storage_load_dataset()`、`storage_delete_dataset()` | 数据体读写删除统一走 common；业务模块不得拼接本地/S3 细节路径 |
+
+### 9.4 后续开发收紧声明
+
+- 发现图例、尺寸、P 值、标签、元数据、导出、存储需求时，先搜索 `modules/common/` 是否已有对应抽象；已有则必须复用，不得平行新建实现。
+- 若现有 common 抽象只差少量参数或枚举，应优先扩展 common 函数签名，不得在子模块包一层同义变体长期并存。
+- 子模块允许存在的特例，只限表现层细节且必须在指南中明确说明边界；一旦第二个模块需要同类能力，必须上提到 common。
+- 新增或改动 common 函数时，至少同步更新本指南中的“可复用函数清单”和相关测试，确保后续开发按同一契约收紧。
 
 ## 10. 数据、存储与规范
 
@@ -525,12 +551,14 @@ AutoTFL/
 - 路由层保持轻量，不在 `statistical_analysis.R` 与 `statistical_graphics.R` 内堆叠复杂计算。
 - 公共统计口径优先沉淀到 common 层，不允许多个子模块各自维护变体。
 - 导出结果与页面结果保持同一语义、同一字段、同一排序逻辑。
+- 新需求落地前先检索 common 抽象；若 common 已覆盖，不允许在子模块重写同义逻辑。
 
 ### 13.2 文档与测试红线
 
 - 改实现必须同步改文档；改统计口径必须同步补测试。
 - 新增测试文件统一进入 `tests/`，不新建 `test/` 目录。
 - 共享层变更优先补回归测试，再做模块级功能扩展。
+- 共享层新增或扩展函数时，必须同步更新 `PROJECT_GUIDE.md` 中的共享函数清单与使用约束。
 
 ### 13.3 共享层优先级
 
