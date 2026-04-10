@@ -44,6 +44,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-ChangeMe123!}
       STORAGE_ROOT: ${APP_STORAGE_ROOT:-/app/data_storage}
       APP_ADMIN_USERNAME: ${APP_ADMIN_USERNAME:-}
+      APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL:-}
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
     volumes:
       - ${DATA_ROOT:-/data/hamster-analysis}/storage:${APP_STORAGE_ROOT:-/app/data_storage}

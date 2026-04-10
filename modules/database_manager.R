@@ -37,89 +37,183 @@ database_manager_ui <- function(id) {
           cursor: pointer;
           outline: none;
         }
+        .db-page-note {
+          color: #5f6b7a;
+          line-height: 1.7;
+        }
+        .db-context-card {
+          margin-top: 12px;
+          padding: 14px 16px;
+          border-radius: 10px;
+          background: #f7fbff;
+          border: 1px solid #d9ecf7;
+        }
+        .db-context-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 10px;
+        }
+        .db-context-item {
+          padding: 10px 12px;
+          border-radius: 8px;
+          background: #ffffff;
+          border: 1px solid #e5eef5;
+        }
+        .db-context-label {
+          display: block;
+          font-size: 12px;
+          color: #7b8794;
+          margin-bottom: 4px;
+        }
+        .db-context-value {
+          display: block;
+          font-size: 14px;
+          font-weight: 600;
+          color: #1f2d3d;
+        }
+        .db-form-note {
+          color: #6b7785;
+          font-size: 12px;
+          line-height: 1.6;
+          margin-top: 8px;
+          margin-bottom: 10px;
+        }
       "))
     ),
     fluidRow(
       box(
         width = 12,
-        title = "数据库管理 (PostgreSQL Powered)",
+        title = "数据空间工作台",
         status = "primary",
         solidHeader = TRUE,
-        fluidRow(
-          column(
-            width = 4,
-            selectInput(
-              ns("workspace_select"),
-              "选择数据空间",
-              choices = character(0)
-            ),
-            textInput(ns("workspace_name"), "新建数据空间", placeholder = "请输入数据空间名"),
-            fluidRow(
-              column(6, actionButton(ns("create_workspace"), "创建空间", class = "btn-primary", width = "100%")),
-              column(6, actionButton(ns("delete_workspace"), "删除空间", class = "btn-danger", width = "100%"))
-            )
-          ),
-          column(
-            width = 4,
-            selectInput(
-              ns("folder_select"),
-              "选择文件夹",
-              choices = c("根目录" = "__ROOT__")
-            ),
-            textInput(ns("folder_name"), "新建文件夹", placeholder = "请输入文件夹名"),
-            fluidRow(
-              column(6, actionButton(ns("create_folder"), "创建文件夹", class = "btn-info", width = "100%")),
-              column(6, actionButton(ns("delete_folder"), "删除文件夹", class = "btn-warning", width = "100%"))
-            )
-          ),
-          column(
-            width = 4,
-            selectInput(
-              ns("dataset_select"),
-              "选择数据集",
-              choices = character(0)
-            ),
-            textInput(ns("dataset_name"), "数据集名称", placeholder = "为空则默认使用上传文件名"),
-            fluidRow(
-              column(12, actionButton(ns("delete_dataset"), "删除数据集", class = "btn-danger", width = "100%"))
-            )
-          )
+        div(
+          class = "db-page-note",
+          "在这里完成数据空间、目录与数据集的组织管理。阶段二将资源整理、上传导入与结构总览拆成不同区域，减少单屏操作拥挤。"
         ),
-        br(),
-        fileInput(
-          ns("file"),
-          "上传数据文件 (CSV/Excel/SAS/SPSS)",
-          accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
-          buttonLabel = "浏览文件",
-          placeholder = "请选择一个文件进行上传",
-          multiple = FALSE
-        ),
-        actionButton(ns("save_dataset"), "上传后保存到当前目录", class = "btn-success", width = "100%"),
-        br(),
-        br(),
-        fileInput(
-          ns("batch_files"),
-          "批量上传数据文件",
-          accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
-          buttonLabel = "选择多个文件",
-          placeholder = "请选择多个文件进行批量上传",
-          multiple = TRUE
-        ),
-        actionButton(ns("save_batch_datasets"), "批量保存到当前目录", class = "btn-primary", width = "100%"),
-        br(),
-        br(),
-        uiOutput(ns("server_import_section"))
+        uiOutput(ns("db_context_summary"))
       )
     ),
     fluidRow(
-      box(
+      tabBox(
         width = 12,
-        title = "数据库结构总览",
-        status = "info",
-        solidHeader = TRUE,
-        uiOutput(ns("db_overview_cards")),
-        br(),
-        uiOutput(ns("db_structure_tree"))
+        id = ns("db_workspace_tabs"),
+        title = "数据库管理区块",
+        tabPanel(
+          "空间与目录",
+          fluidRow(
+            column(
+              width = 4,
+              box(
+                width = 12,
+                title = "数据空间",
+                status = "primary",
+                solidHeader = TRUE,
+                selectInput(
+                  ns("workspace_select"),
+                  "当前数据空间",
+                  choices = character(0)
+                ),
+                textInput(ns("workspace_name"), "新建数据空间名称", placeholder = "请输入数据空间名称"),
+                div(class = "db-form-note", "创建后会自动把当前登录用户设为负责人；删除数据空间仅允许负责人或管理员执行。"),
+                fluidRow(
+                  column(6, actionButton(ns("create_workspace"), "创建空间", class = "btn-primary", width = "100%")),
+                  column(6, actionButton(ns("delete_workspace"), "删除空间", class = "btn-danger", width = "100%"))
+                )
+              )
+            ),
+            column(
+              width = 4,
+              box(
+                width = 12,
+                title = "目录管理",
+                status = "info",
+                solidHeader = TRUE,
+                selectInput(
+                  ns("folder_select"),
+                  "当前目录",
+                  choices = c("根目录" = "__ROOT__")
+                ),
+                textInput(ns("folder_name"), "新建目录名称", placeholder = "请输入目录名称"),
+                div(class = "db-form-note", "目录只在当前数据空间下生效；根目录下的数据集会直接展示在空间级结构中。"),
+                fluidRow(
+                  column(6, actionButton(ns("create_folder"), "创建目录", class = "btn-info", width = "100%")),
+                  column(6, actionButton(ns("delete_folder"), "删除目录", class = "btn-warning", width = "100%"))
+                )
+              )
+            ),
+            column(
+              width = 4,
+              box(
+                width = 12,
+                title = "数据集管理",
+                status = "warning",
+                solidHeader = TRUE,
+                selectInput(
+                  ns("dataset_select"),
+                  "当前数据集",
+                  choices = character(0)
+                ),
+                textInput(ns("dataset_name"), "保存时显示名称", placeholder = "为空则默认使用上传文件名"),
+                div(class = "db-form-note", "上传时可以覆盖显示名称；删除仅影响当前数据空间内选中的数据集。"),
+                fluidRow(
+                  column(12, actionButton(ns("delete_dataset"), "删除数据集", class = "btn-danger", width = "100%"))
+                )
+              )
+            )
+          )
+        ),
+        tabPanel(
+          "上传与导入",
+          fluidRow(
+            column(
+              width = 6,
+              box(
+                width = 12,
+                title = "单文件上传",
+                status = "success",
+                solidHeader = TRUE,
+                fileInput(
+                  ns("file"),
+                  "上传数据文件 (CSV/Excel/SAS/SPSS)",
+                  accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
+                  buttonLabel = "浏览文件",
+                  placeholder = "请选择一个文件进行上传",
+                  multiple = FALSE
+                ),
+                div(class = "db-form-note", "适合逐个整理数据集名称与目录归属。"),
+                actionButton(ns("save_dataset"), "上传并保存到当前目录", class = "btn-success", width = "100%")
+              )
+            ),
+            column(
+              width = 6,
+              box(
+                width = 12,
+                title = "批量导入",
+                status = "primary",
+                solidHeader = TRUE,
+                fileInput(
+                  ns("batch_files"),
+                  "批量上传数据文件",
+                  accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
+                  buttonLabel = "选择多个文件",
+                  placeholder = "请选择多个文件进行批量上传",
+                  multiple = TRUE
+                ),
+                div(class = "db-form-note", "适合初始化当前目录下的一批数据集。服务器目录导入仅对系统管理员开放。"),
+                actionButton(ns("save_batch_datasets"), "批量保存到当前目录", class = "btn-primary", width = "100%"),
+                br(),
+                br(),
+                uiOutput(ns("server_import_section"))
+              )
+            )
+          )
+        ),
+        tabPanel(
+          "结构总览",
+          uiOutput(ns("db_overview_cards")),
+          br(),
+          uiOutput(ns("db_structure_tree"))
+        )
       )
     )
   )
@@ -158,7 +252,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     if (is.null(current_user)) {
       return(NULL)
     }
-    current_user()
+    isolate(current_user())
   }
 
   is_current_admin <- function() {
@@ -194,6 +288,19 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       return(TRUE)
     }
     showNotification("当前账号无权访问该数据空间", type = "error")
+    FALSE
+  }
+
+  require_workspace_manage <- function(workspace_id) {
+    user <- get_current_user()
+    if (is.null(user)) {
+      showNotification("请先登录", type = "warning")
+      return(FALSE)
+    }
+    if (service_can_manage_workspace(pool, workspace_id, user)) {
+      return(TRUE)
+    }
+    showNotification("当前账号无权管理该数据空间", type = "error")
     FALSE
   }
 
@@ -374,6 +481,66 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     refresh_folder_choices(selected_workspace)
     refresh_dataset_choices(selected_workspace, root_folder_token)
   })
+
+  output$db_context_summary <- renderUI({
+    registry_version()
+    reg <- load_registry()
+    selected_workspace <- input$workspace_select %||% ""
+    selected_folder <- input$folder_select %||% root_folder_token
+    selected_dataset <- input$dataset_select %||% ""
+    workspace_label <- "未选择"
+    if (nzchar(selected_workspace) && nrow(reg$workspaces) > 0) {
+      workspace_match <- reg$workspaces[reg$workspaces$id == selected_workspace, , drop = FALSE]
+      if (nrow(workspace_match) > 0) {
+        workspace_label <- workspace_match$name[[1]] %||% selected_workspace
+      }
+    }
+    folder_label <- "根目录"
+    if (nzchar(selected_folder) && !identical(selected_folder, root_folder_token) && nrow(reg$folders) > 0) {
+      folder_match <- reg$folders[reg$folders$id == selected_folder, , drop = FALSE]
+      if (nrow(folder_match) > 0) {
+        folder_label <- folder_match$name[[1]] %||% selected_folder
+      }
+    }
+    dataset_label <- "未选择"
+    if (nzchar(selected_dataset) && nrow(reg$datasets) > 0) {
+      dataset_match <- reg$datasets[reg$datasets$id == selected_dataset, , drop = FALSE]
+      if (nrow(dataset_match) > 0) {
+        dataset_label <- dataset_match$name[[1]] %||% selected_dataset
+      }
+    }
+    manage_label <- "当前仅读写权限未知"
+    user <- get_current_user()
+    if (!is.null(user) && nzchar(selected_workspace)) {
+      manage_label <- if (service_can_manage_workspace(pool, selected_workspace, user)) "可管理当前数据空间" else "仅可访问当前数据空间"
+    }
+    div(
+      class = "db-context-card",
+      div(
+        class = "db-context-grid",
+        div(
+          class = "db-context-item",
+          span(class = "db-context-label", "当前数据空间"),
+          span(class = "db-context-value", workspace_label)
+        ),
+        div(
+          class = "db-context-item",
+          span(class = "db-context-label", "当前目录"),
+          span(class = "db-context-value", folder_label)
+        ),
+        div(
+          class = "db-context-item",
+          span(class = "db-context-label", "当前数据集"),
+          span(class = "db-context-value", dataset_label)
+        ),
+        div(
+          class = "db-context-item",
+          span(class = "db-context-label", "当前权限状态"),
+          span(class = "db-context-value", manage_label)
+        )
+      )
+    )
+  })
   
   output$db_overview_cards <- renderUI({
     registry_version()
@@ -479,28 +646,14 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     if (!require_logged_in()) {
       return()
     }
-    workspace_name <- trimws(input$workspace_name)
-    if (!nzchar(workspace_name)) {
-      showNotification("请输入数据空间名称", type = "warning")
-      return()
-    }
-    
-    existing <- dbGetQuery(pool, "SELECT id FROM workspaces WHERE name = $1", params = list(workspace_name))
-    if (nrow(existing) > 0) {
-      showNotification("数据空间名称已存在", type = "warning")
-      return()
-    }
-    
-    workspace_id <- auth_generate_id("ws")
+    workspace_name <- input$workspace_name
     user <- get_current_user()
     
     tryCatch({
-      dbExecute(pool, "INSERT INTO workspaces (id, name, owner_user_id, created_at) VALUES ($1, $2, $3, NOW())", 
-                params = list(workspace_id, workspace_name, user$id))
-      auth_ensure_workspace_membership(pool, workspace_id, user$id, role = "owner")
+      workspace_result <- service_create_workspace(pool, workspace_name, user$id)
       registry_version(as.numeric(Sys.time()))
       refresh_workspace_choices()
-      updateSelectInput(session, "workspace_select", selected = workspace_id)
+      updateSelectInput(session, "workspace_select", selected = workspace_result$id)
       updateTextInput(session, "workspace_name", value = "")
       showNotification("数据空间创建成功", type = "message")
     }, error = function(e) {
@@ -520,14 +673,14 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       showNotification("请先选择要删除的数据空间", type = "warning")
       return()
     }
-    if (!require_workspace_access(workspace_id)) {
+    if (!require_workspace_manage(workspace_id)) {
       return()
     }
     ds_to_remove <- dbGetQuery(pool, "SELECT data_path FROM datasets WHERE workspace_id = $1", params = list(workspace_id))
     remove_dataset_files(ds_to_remove)
     
     tryCatch({
-      dbExecute(pool, "DELETE FROM workspaces WHERE id = $1", params = list(workspace_id))
+      service_delete_workspace(pool, workspace_id, acting_user = get_current_user())
       
       ws_dir <- file.path(storage_root, workspace_id)
       if (dir.exists(ws_dir)) {
@@ -753,16 +906,18 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       workspace_name <- basename(normalizePath(path_input, winslash = "/", mustWork = TRUE))
     }
     
-    existing <- dbGetQuery(pool, "SELECT id FROM workspaces WHERE name = $1", params = list(workspace_name))
-    if (nrow(existing) > 0) {
-      showNotification("数据空间名称已存在，请修改名称后再导入", type = "warning")
+    user <- get_current_user()
+    workspace_result <- tryCatch(
+      service_create_workspace(pool, workspace_name, user$id),
+      error = function(e) {
+        showNotification(paste("导入失败:", e$message), type = "error")
+        NULL
+      }
+    )
+    if (is.null(workspace_result)) {
       return()
     }
-    
-    workspace_id <- auth_generate_id("ws")
-    user <- get_current_user()
-    dbExecute(pool, "INSERT INTO workspaces (id, name, owner_user_id, created_at) VALUES ($1, $2, $3, NOW())", params = list(workspace_id, workspace_name, user$id))
-    auth_ensure_workspace_membership(pool, workspace_id, user$id, role = "owner")
+    workspace_id <- workspace_result$id
     
     abs_root <- normalizePath(path_input, winslash = "/", mustWork = TRUE)
     all_files <- list.files(abs_root, recursive = TRUE, full.names = TRUE, include.dirs = FALSE)

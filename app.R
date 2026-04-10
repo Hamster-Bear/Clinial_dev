@@ -30,9 +30,11 @@ source("modules/common/storage_backend.R")
 source("modules/common/data_metadata.R")
 source("modules/common/auth.R")
 source("modules/common/account_service.R")
+source("modules/auth_manager.R")
 source("modules/data_preparation.R")
 source("modules/database_manager.R")
 source("modules/admin_manager.R")
+source("modules/workspace_access_manager.R")
 source("modules/exploratory_analysis.R")
 source("modules/statistical_analysis.R")
 source("modules/statistical_graphics.R")
@@ -46,7 +48,8 @@ ui <- dashboardPage(
   ),
   dashboardSidebar(
     width = 300,
-    uiOutput("sidebar_content")
+    uiOutput("sidebar_content"),
+    uiOutput("sidebar_user_panel")
   ),
   dashboardBody(
     useShinyjs(),
@@ -80,25 +83,63 @@ ui <- dashboardPage(
           text-align: center;
           box-shadow: 0 10px 30px rgba(0,0,0,0.18);
         }
-        .top-user-panel {
-          position: fixed;
-          top: 58px;
-          right: 18px;
-          z-index: 2000;
-          min-width: 240px;
-          padding: 12px 14px;
+        .sidebar-user-card {
+          margin: 12px;
+          padding: 14px 14px 12px;
           border-radius: 10px;
-          background: rgba(255,255,255,0.96);
-          box-shadow: 0 8px 24px rgba(0,0,0,0.16);
+          background: rgba(255, 255, 255, 0.08);
+          color: #ffffff;
         }
-        .top-user-panel .user-name {
+        .sidebar-user-card-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
+        }
+        .sidebar-user-name {
           font-weight: 700;
-          margin-bottom: 4px;
+          font-size: 15px;
+          color: #ffffff;
         }
-        .top-user-panel .user-meta {
-          color: #666666;
+        .sidebar-user-role {
+          margin-top: 4px;
+          color: #f39c12;
           font-size: 12px;
-          margin-bottom: 10px;
+          font-weight: 600;
+        }
+        .sidebar-user-meta {
+          margin-top: 6px;
+          color: rgba(255,255,255,0.82);
+          font-size: 12px;
+          word-break: break-all;
+        }
+        .sidebar-user-summary {
+          margin-top: 10px;
+          color: rgba(255,255,255,0.9);
+          font-size: 12px;
+          line-height: 1.5;
+        }
+        .sidebar-user-actions {
+          margin-top: 12px;
+        }
+        .sidebar-user-actions a {
+          color: #ffffff !important;
+          display: inline-block;
+          padding: 6px 10px;
+          border-radius: 6px;
+          background: rgba(255,255,255,0.12);
+        }
+        .sidebar-user-quick-entry {
+          padding: 4px 10px !important;
+          border-radius: 999px !important;
+          border: none !important;
+          background: #3c8dbc !important;
+          color: #ffffff !important;
+          font-size: 12px !important;
+          white-space: nowrap;
+        }
+        section.sidebar li[data-value='access_manage'] {
+          display: none !important;
         }
       ")),
       tags$script(HTML("
@@ -136,7 +177,6 @@ ui <- dashboardPage(
         tags$div(style = "margin-top: 12px;", "正在加载...")
       )
     ),
-    uiOutput("top_right_user_panel"),
     uiOutput("body_content")
   )
 )
@@ -186,6 +226,9 @@ server <- function(input, output, session) {
       ))
     }
     allowed_tabs <- c("db_manage", "data_prep", "explore", "stats", "plots", "tables")
+    if (!isTRUE(user$is_admin)) {
+      allowed_tabs <- append(allowed_tabs, "access_manage", after = 1)
+    }
     if (isTRUE(user$is_admin)) {
       allowed_tabs <- c(allowed_tabs, "admin")
     }
@@ -196,115 +239,90 @@ server <- function(input, output, session) {
     sidebarMenu(
       id = "tabs",
       selected = selected_tab,
-      menuItem("1. 数据库管理",
+      menuItem("数据空间",
                tabName = "db_manage",
                icon = icon("database"),
-               badgeLabel = "第一步",
+               badgeLabel = "管理",
                badgeColor = "blue"),
-      menuItem("2. 数据准备",
+      if (!isTRUE(user$is_admin)) menuItem("我的权限管理", tabName = "access_manage", icon = icon("key")),
+      menuItem("数据准备",
                tabName = "data_prep",
                icon = icon("upload"),
-               badgeLabel = "第二步",
+               badgeLabel = "处理",
                badgeColor = "blue"),
-      menuItem("3. 探索与可视化",
+      menuItem("探索与可视化",
                tabName = "explore",
                icon = icon("bar-chart"),
                badgeLabel = "可访问",
                badgeColor = "green"),
-      menuItem("4. 统计分析",
+      menuItem("统计分析",
                tabName = "stats",
                icon = icon("table"),
                badgeLabel = "可访问",
                badgeColor = "green"),
-      menuItem("5. 统计图形",
+      menuItem("统计图形",
                tabName = "plots",
                icon = icon("line-chart"),
                badgeLabel = "可访问",
                badgeColor = "green"),
-      menuItem("6. 预设图表",
+      menuItem("预设图表",
                tabName = "tables",
                icon = icon("table"),
                badgeLabel = "可访问",
                badgeColor = "green"),
-      if (isTRUE(user$is_admin)) menuItem("7. 管理员", tabName = "admin", icon = icon("users"), badgeLabel = "管理", badgeColor = "red")
+      if (isTRUE(user$is_admin)) menuItem("系统管理", tabName = "admin", icon = icon("users"), badgeLabel = "管理", badgeColor = "red")
     )
   })
 
-  output$top_right_user_panel <- renderUI({
+  output$sidebar_user_panel <- renderUI({
     user <- current_user()
     if (is.null(user)) {
       return(NULL)
     }
+    manageable_df <- service_list_manageable_workspaces(pg_pool, user)
+    manageable_count <- nrow(manageable_df)
+    accessible_count <- length(auth_accessible_workspace_ids(pg_pool, user$id, isTRUE(user$is_admin)))
     div(
-      class = "top-user-panel",
+      class = "sidebar-user-card",
       div(
-        class = "user-name",
-        user$username,
-        if (isTRUE(user$is_admin)) tags$span(style = "margin-left: 8px; color: #dd4b39;", "管理员")
+        class = "sidebar-user-card-header",
+        div(
+          div(class = "sidebar-user-name", user$username),
+          if (isTRUE(user$is_admin)) div(class = "sidebar-user-role", "系统管理员")
+        ),
+        if (!isTRUE(user$is_admin) && manageable_count > 0) {
+          actionButton("open_access_manage", "权限管理", icon = icon("key"), class = "sidebar-user-quick-entry")
+        }
       ),
-      div(class = "user-meta", if (nzchar(user$email %||% "")) user$email else "未设置邮箱"),
-      actionButton("logout_submit", "退出登录", class = "btn-default btn-sm", width = "100%")
+      div(class = "sidebar-user-meta", if (nzchar(user$email %||% "")) user$email else "未设置邮箱"),
+      div(
+        class = "sidebar-user-summary",
+        paste0("我创建并可管理的数据空间: ", manageable_count),
+        br(),
+        paste0("当前可访问的数据空间: ", accessible_count)
+      ),
+      div(class = "sidebar-user-actions", actionLink("logout_submit", "退出登录"))
     )
   })
 
   output$body_content <- renderUI({
     user <- current_user()
     if (is.null(user)) {
-      return(
-        tabItems(
-          tabItem(
-            tabName = "login",
-            fluidRow(
-              box(
-                width = 6,
-                title = "登录",
-                status = "primary",
-                solidHeader = TRUE,
-                textInput("login_identity", "用户名或邮箱", placeholder = "请输入用户名或邮箱"),
-                passwordInput("login_password", "密码", placeholder = "请输入密码"),
-                actionButton("login_submit", "登录", class = "btn-primary", width = "100%")
-              ),
-              box(
-                width = 6,
-                title = "当前工具声明",
-                status = "warning",
-                solidHeader = TRUE,
-                p("当前工具暂不负责数据安全；数据传到服务端后不保证安全，请使用方自行妥善保管数据。"),
-                p("如需更高的数据隔离或运行保障，可提供独立部署服务。")
-              )
-            )
-          ),
-          tabItem(
-            tabName = "register",
-            fluidRow(
-              box(
-                width = 8,
-                title = "注册",
-                status = "info",
-                solidHeader = TRUE,
-                textInput("register_username", "用户名", placeholder = "3-32 位小写字母、数字、下划线、点或中划线"),
-                textInput("register_email", "邮箱", placeholder = "后续可用于协作授权与找回流程"),
-                passwordInput("register_password", "密码", placeholder = "至少 8 位"),
-                passwordInput("register_password_confirm", "确认密码", placeholder = "请再次输入密码"),
-                actionButton("register_submit", "注册", class = "btn-info", width = "100%"),
-                br(),
-                br(),
-                tags$small("当前先加入邮箱字段与格式校验，暂未接入真实邮箱验证与邮件发送服务。")
-              )
-            )
-          )
-        )
-      )
+      return(do.call(tabItems, as.list(auth_manager_tabs("auth"))))
     }
-    tabItems(
+    tab_nodes <- list(
       tabItem(tabName = "db_manage", database_manager_ui("db_manage")),
+      tabItem(tabName = "access_manage", workspace_access_manager_ui("access_manage")),
       tabItem(tabName = "data_prep", data_preparation_ui("data_prep")),
       tabItem(tabName = "explore", exploratory_analysis_ui("explore")),
       tabItem(tabName = "stats", statistical_analysis_ui("stats")),
       tabItem(tabName = "plots", statistical_graphics_ui("plots")),
-      tabItem(tabName = "tables", tables_ui("tables")),
-      if (isTRUE(user$is_admin)) tabItem(tabName = "admin", admin_manager_ui("admin"))
+      tabItem(tabName = "tables", tables_ui("tables"))
     )
+    if (isTRUE(user$is_admin)) {
+      tab_nodes <- c(tab_nodes, list(tabItem(tabName = "admin", admin_manager_ui("admin"))))
+    }
+    do.call(tabItems, tab_nodes)
   })
 
   observe({
@@ -313,52 +331,20 @@ server <- function(input, output, session) {
     }
   })
 
-  observeEvent(input$register_submit, {
-    session$sendCustomMessage("hamster-loading", list(action = "show"))
-    on.exit(session$sendCustomMessage("hamster-loading", list(action = "hide")), add = TRUE)
-    username <- input$register_username %||% ""
-    email <- input$register_email %||% ""
-    password <- input$register_password %||% ""
-    password_confirm <- input$register_password_confirm %||% ""
-    if (!identical(password, password_confirm)) {
-      showNotification("两次输入的密码不一致", type = "warning")
-      return()
+  auth_manager_server(
+    "auth",
+    pg_pool = pg_pool,
+    on_login = function(user) {
+      current_user(user)
+      filtered_data(NULL)
+    },
+    goto_tab = function(tab_name) {
+      updateTabItems(session, "tabs", tab_name)
+    },
+    send_loading = function(action) {
+      session$sendCustomMessage("hamster-loading", list(action = action))
     }
-    result <- tryCatch(
-      auth_register_user(pg_pool, username, email, password),
-      error = function(e) list(success = FALSE, message = paste0("注册失败：", e$message), user = NULL)
-    )
-    if (!isTRUE(result$success)) {
-      showNotification(result$message, type = "error")
-      return()
-    }
-    updateTextInput(session, "register_username", value = "")
-    updateTextInput(session, "register_email", value = "")
-    updateTextInput(session, "register_password", value = "")
-    updateTextInput(session, "register_password_confirm", value = "")
-    updateTextInput(session, "login_identity", value = auth_normalize_email(email))
-    updateTabItems(session, "tabs", "login")
-    showNotification(result$message, type = "message")
-  })
-
-  observeEvent(input$login_submit, {
-    session$sendCustomMessage("hamster-loading", list(action = "show"))
-    on.exit(session$sendCustomMessage("hamster-loading", list(action = "hide")), add = TRUE)
-    result <- tryCatch(
-      auth_authenticate_user(pg_pool, input$login_identity %||% "", input$login_password %||% ""),
-      error = function(e) list(success = FALSE, message = paste0("登录失败：", e$message), user = NULL)
-    )
-    if (!isTRUE(result$success)) {
-      showNotification(result$message, type = "error")
-      return()
-    }
-    current_user(result$user)
-    filtered_data(NULL)
-    updateTextInput(session, "login_password", value = "")
-    updateTextInput(session, "login_identity", value = "")
-    updateTabItems(session, "tabs", "db_manage")
-    showNotification(result$message, type = "message")
-  })
+  )
 
   observeEvent(input$logout_submit, {
     current_user(NULL)
@@ -367,7 +353,12 @@ server <- function(input, output, session) {
     showNotification("已退出登录", type = "message")
   })
 
+  observeEvent(input$open_access_manage, {
+    updateTabItems(session, "tabs", "access_manage")
+  })
+
   database_manager_server("db_manage", pg_pool = pg_pool, current_user = current_user)
+  workspace_access_manager_server("access_manage", pg_pool = pg_pool, current_user = current_user)
   data_prep_module <- data_preparation_server("data_prep", pg_pool = pg_pool, current_user = current_user)
   admin_manager_server("admin", pg_pool = pg_pool, current_user = current_user)
 

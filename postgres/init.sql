@@ -45,6 +45,19 @@ CREATE TABLE IF NOT EXISTS workspace_memberships (
     UNIQUE(workspace_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS workspace_invites (
+    id VARCHAR(50) PRIMARY KEY,
+    workspace_id VARCHAR(50) NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    invited_email VARCHAR(255) NOT NULL,
+    target_role VARCHAR(20) NOT NULL DEFAULT 'viewer',
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    created_by_user_id VARCHAR(50),
+    claimed_user_id VARCHAR(50),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    claimed_at TIMESTAMP WITH TIME ZONE,
+    UNIQUE(workspace_id, invited_email)
+);
+
 CREATE INDEX IF NOT EXISTS idx_workspaces_owner_user ON workspaces(owner_user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email);
 CREATE INDEX IF NOT EXISTS idx_folders_workspace ON folders(workspace_id);
@@ -52,3 +65,5 @@ CREATE INDEX IF NOT EXISTS idx_datasets_workspace ON datasets(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_datasets_folder ON datasets(folder_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_memberships_workspace ON workspace_memberships(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_memberships_user ON workspace_memberships(user_id);
+CREATE INDEX IF NOT EXISTS idx_workspace_invites_workspace ON workspace_invites(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_workspace_invites_email ON workspace_invites(invited_email);

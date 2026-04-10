@@ -183,6 +183,23 @@ auth_ensure_schema <- function(pool) {
       ")"
     )
   )
+  DBI::dbExecute(
+    pool,
+    paste(
+      "CREATE TABLE IF NOT EXISTS workspace_invites (",
+      "id VARCHAR(50) PRIMARY KEY,",
+      "workspace_id VARCHAR(50) NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,",
+      "invited_email VARCHAR(255) NOT NULL,",
+      "target_role VARCHAR(20) NOT NULL DEFAULT 'viewer',",
+      "status VARCHAR(20) NOT NULL DEFAULT 'pending',",
+      "created_by_user_id VARCHAR(50),",
+      "claimed_user_id VARCHAR(50),",
+      "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,",
+      "claimed_at TIMESTAMP WITH TIME ZONE,",
+      "UNIQUE(workspace_id, invited_email)",
+      ")"
+    )
+  )
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_workspaces_owner_user ON workspaces(owner_user_id)")
   DBI::dbExecute(pool, "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email)")
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_folders_workspace ON folders(workspace_id)")
@@ -190,6 +207,8 @@ auth_ensure_schema <- function(pool) {
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_datasets_folder ON datasets(folder_id)")
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_workspace_memberships_workspace ON workspace_memberships(workspace_id)")
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_workspace_memberships_user ON workspace_memberships(user_id)")
+  DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_workspace_invites_workspace ON workspace_invites(workspace_id)")
+  DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_workspace_invites_email ON workspace_invites(invited_email)")
 }
 
 auth_get_user_by_username <- function(pool, username) {
@@ -314,6 +333,7 @@ auth_authenticate_user <- function(pool, identity, password) {
 
 auth_ensure_bootstrap_admin <- function(pool) {
   username <- auth_normalize_username(Sys.getenv("APP_ADMIN_USERNAME", ""))
+  email <- auth_normalize_email(Sys.getenv("APP_ADMIN_EMAIL", ""))
   password <- Sys.getenv("APP_ADMIN_PASSWORD", "")
   if (!nzchar(username) || !nzchar(password)) {
     return(invisible(NULL))
@@ -321,6 +341,18 @@ auth_ensure_bootstrap_admin <- function(pool) {
   existing <- auth_get_user_by_username(pool, username)
   if (nrow(existing) > 0) {
     return(invisible(NULL))
+  }
+  if (nzchar(email)) {
+    email_error <- auth_validate_email(email)
+    if (!is.null(email_error)) {
+      return(invisible(NULL))
+    }
+    existing_email <- auth_get_user_by_email(pool, email)
+    if (nrow(existing_email) > 0) {
+      return(invisible(NULL))
+    }
+  } else {
+    email <- NULL
   }
   password_error <- auth_validate_password(password)
   if (!is.null(password_error)) {
@@ -331,9 +363,9 @@ auth_ensure_bootstrap_admin <- function(pool) {
     pool,
     paste(
       "INSERT INTO users (id, username, email, password_salt, password_hash, is_admin, status, created_at)",
-      "VALUES ($1, $2, NULL, $3, $4, TRUE, 'active', NOW())"
+      "VALUES ($1, $2, $3, $4, $5, TRUE, 'active', NOW())"
     ),
-    params = list(auth_generate_id("usr"), username, salt, auth_hash_password(password, salt))
+    params = list(auth_generate_id("usr"), username, email, salt, auth_hash_password(password, salt))
   )
   invisible(NULL)
 }

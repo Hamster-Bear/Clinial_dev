@@ -172,15 +172,21 @@ AutoTFL/
 | `STORAGE_BACKEND`                                                                         | 存储后端，`local` 或 `s3` |
 | `STORAGE_S3_BUCKET`                                                                       | S3 模式下的桶名           |
 | `APP_ADMIN_USERNAME`                                                                      | 可选的预置管理员用户名        |
+| `APP_ADMIN_EMAIL`                                                                         | 可选的预置管理员邮箱         |
 | `APP_ADMIN_PASSWORD`                                                                      | 可选的预置管理员密码         |
 
 ### 4.6 当前访问控制与导入边界
 
 - 当前 `/app/` 已带应用层自注册、登录、退出与 workspace 级权限控制。
 - 登录支持用户名或邮箱；注册阶段会保存邮箱并做格式校验，但当前尚未接入真实邮箱验证。
+- 当前用户信息与退出入口稳定显示在侧边栏卡片中；普通用户的权限管理快捷入口也合并在该卡片内。
 - 未登录状态下仅显示登录/注册入口，不展示业务工作台侧边栏。
 - 非管理员用户默认按个人空间隔离；管理员可访问全部 workspace。
-- 当前已提供管理员操作入口，可为已有 workspace 绑定 owner、分配 membership，并停用用户账号。
+- 当前已提供管理员操作入口；workspace、membership、invite 与 owner 迁移能力统一下沉到 service 层。
+- workspace 创建与删除也统一通过 `account_service.R` 收口，部署后的数据库管理页不再直接拼装 owner / membership 初始化逻辑。
+- 普通用户可对自己拥有的数据空间进行权限管理，且授权、撤销与 owner 迁移统一通过邮箱输入完成。
+- 管理员页保持独立系统入口，不并入侧边栏用户卡片；系统级负责人绑定、协作授权与账号状态调整继续集中在管理员页。
+- 权限预览表统一改为业务中文列名；数据库管理页按“空间与目录 / 上传与导入 / 结构总览”三段重组。
 - 数据库管理中的“服务器目录导入数据空间”仅适用于部署机器或容器可见的绝对路径，不支持直接读取浏览器用户电脑上的本地文件夹，且该入口应只对系统管理员开放。
 - 当前仓库未实现 ZIP 数据空间导入；部署说明和对外口径不得把该能力写成既成事实。
 
@@ -190,7 +196,16 @@ AutoTFL/
 - 如需更高的数据隔离或运行保障，应优先提供独立部署服务。
 - 当前多用户实现为：支持自注册、保留系统管理员账号、默认按个人隔离，并预留后续按组织和项目扩展隔离的能力。
 - 数据权限首期落到 workspace 级别；部署与对外说明中不得把更细粒度权限写成已落地能力。
-- 若设置 `APP_ADMIN_USERNAME` 与 `APP_ADMIN_PASSWORD`，应用启动时会预置管理员账号；否则首个注册用户自动成为管理员。
+- 若设置 `APP_ADMIN_USERNAME`、`APP_ADMIN_EMAIL` 与 `APP_ADMIN_PASSWORD`，应用启动时会预置管理员账号；否则首个注册用户自动成为管理员。
+
+### 4.8 当前阶段风险与优化建议
+
+- 技术风险：部署侧当前仍以 workspace 级别做主要权限边界，`viewer` / `editor` 的写操作差异需要继续补齐。
+- 维护风险：邮箱邀请链路尚未接入真实邮箱验证、过期时间与审计日志，生产协作场景需要额外控制；普通用户与管理员入口的交互规范也需要同步维护。
+- 项目风险：owner 自助授权会提升协作效率，但也放大误授权与误迁移带来的运维成本。
+- 立即可做：为 service 层增加 PostgreSQL 集成回归，并在部署前把管理员账号、邮箱配置和测试库连通性纳入检查清单，同时验证阶段二数据库管理新布局的可达性。
+- 中长期建议：补齐邮箱验证、邀请有效期、审计日志和组织级 / 项目级共享模型。
+- 工具链建议：将 `tests/` 回归、文档守卫和环境变量自检串入 pre-commit 或 CI，减少部署前口径漂移。
 
 ## 5. 方案 A：本地直接运行
 
@@ -200,13 +215,21 @@ AutoTFL/
 - 快速验证本地修改。
 - 不需要 Nginx、Landing 页和 HTTPS。
 
+### 5.2 测试环境变量
+
+- `run_app_test.ps1` 会读取 `.env.test`；可先从 `.env.test.example` 复制。
+- `run_app_test.ps1` 会读取 `SHINY_PORT`；若未设置则默认占用检查与启动 `8109`。
+- 若数据库由 `docker-compose1.yml` 拉起，应用应连接 `localhost:55432`，而不是默认的 `5432`。
+- 当前测试环境管理员示例为 `APP_ADMIN_USERNAME=admin`、`APP_ADMIN_EMAIL=admin@example.com`、`APP_ADMIN_PASSWORD=admin123`。
+
 ### 5.2 启动链路
 
-1. 执行 `run_app.R`。
+1. 执行 `run_app_test.ps1`。
 2. 脚本检查 `app.R` 和 `install_dependencies.R` 是否存在。
-3. 脚本调用 `install_dependencies.R` 安装/校验依赖。
-4. 脚本设置 `SHINY_PORT` 与 `SHINY_HOST`。
-5. 通过 `shiny::runApp("app.R")` 启动应用。
+3. 脚本加载 `.env.test` 并打印 PostgreSQL、管理员账号与 `SHINY_PORT` 参数。
+4. 若目标 `SHINY_PORT` 已被占用，脚本会强制关闭占用进程并确认端口已释放。
+5. 脚本调用 `run_app.R`，由其继续安装/校验依赖并设置 `SHINY_PORT` 与 `SHINY_HOST`。
+6. 通过 `shiny::runApp("app.R")` 启动应用。
 
 ### 5.3 当前默认地址
 

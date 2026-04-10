@@ -3,6 +3,67 @@ param(
   [string]$RScriptPath = "E:\R-4.5.2\bin\Rscript.exe"
 )
 
+function Resolve-ShinyPort {
+  param(
+    [string]$RawPort
+  )
+
+  if ([string]::IsNullOrWhiteSpace($RawPort)) {
+    return 8109
+  }
+
+  $parsedPort = 0
+  if (-not [int]::TryParse($RawPort, [ref]$parsedPort) -or $parsedPort -le 0 -or $parsedPort -gt 65535) {
+    Write-Host "SHINY_PORT 无效: $RawPort，回退为 8109" -ForegroundColor Yellow
+    return 8109
+  }
+
+  return $parsedPort
+}
+
+function Get-PortOwningProcesses {
+  param(
+    [int]$Port
+  )
+
+  @(Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue |
+    Where-Object { $_.OwningProcess -gt 0 } |
+    Select-Object -ExpandProperty OwningProcess -Unique)
+}
+
+function Stop-ProcessesByPort {
+  param(
+    [int]$Port
+  )
+
+  $processIds = Get-PortOwningProcesses -Port $Port
+  if ($processIds.Count -eq 0) {
+    Write-Host "端口 $Port 未被占用"
+    return
+  }
+
+  Write-Host "检测到端口 $Port 已被占用，准备强制关闭相关进程..." -ForegroundColor Yellow
+  foreach ($processId in $processIds) {
+    try {
+      $process = Get-Process -Id $processId -ErrorAction Stop
+      Write-Host ("停止进程 PID={0} Name={1}" -f $process.Id, $process.ProcessName)
+      Stop-Process -Id $processId -Force -ErrorAction Stop
+    } catch {
+      Write-Host ("无法停止端口 {0} 对应进程 PID={1}: {2}" -f $Port, $processId, $_.Exception.Message) -ForegroundColor Red
+      exit 1
+    }
+  }
+
+  Start-Sleep -Seconds 1
+  $remainingProcessIds = Get-PortOwningProcesses -Port $Port
+  if ($remainingProcessIds.Count -gt 0) {
+    Write-Host ("端口 {0} 仍被占用，剩余 PID: {1}" -f $Port, ($remainingProcessIds -join ", ")) -ForegroundColor Red
+    exit 1
+  }
+
+  Write-Host "端口 $Port 已释放"
+}
+
 if (-not (Test-Path $EnvFile)) {
   Write-Host "未找到环境文件: $EnvFile"
   Write-Host "请先复制 .env.test.example 为 .env.test 并填写参数"
@@ -19,12 +80,23 @@ Get-Content $EnvFile | ForEach-Object {
   [System.Environment]::SetEnvironmentVariable($key, $val, "Process")
 }
 
+$shinyPort = Resolve-ShinyPort -RawPort $env:SHINY_PORT
+
 Write-Host "当前测试环境参数:"
 Write-Host "POSTGRES_HOST=$env:POSTGRES_HOST"
 Write-Host "POSTGRES_PORT=$env:POSTGRES_PORT"
 Write-Host "POSTGRES_DB=$env:POSTGRES_DB"
 Write-Host "POSTGRES_USER=$env:POSTGRES_USER"
+Write-Host "APP_ADMIN_USERNAME=$env:APP_ADMIN_USERNAME"
+Write-Host "APP_ADMIN_EMAIL=$env:APP_ADMIN_EMAIL"
+Write-Host "SHINY_PORT=$shinyPort"
 Write-Host "Rscript=$RScriptPath"
+
+if ($env:POSTGRES_HOST -eq "localhost" -and $env:POSTGRES_PORT -eq "5432" -and (Test-Path "docker-compose1.yml")) {
+  Write-Host "警告: 若数据库由 docker-compose1.yml 拉起，请将 POSTGRES_PORT 改为 55432" -ForegroundColor Yellow
+}
+
+Stop-ProcessesByPort -Port $shinyPort
 
 & $RScriptPath "run_app.R"
 exit $LASTEXITCODE

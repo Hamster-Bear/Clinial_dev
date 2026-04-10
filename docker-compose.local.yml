@@ -48,6 +48,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-ChangeMe123!}
       STORAGE_ROOT: /app/data_storage
       APP_ADMIN_USERNAME: ${APP_ADMIN_USERNAME:-}
+      APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL:-}
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
     volumes:
       - app_data_storage:/app/data_storage

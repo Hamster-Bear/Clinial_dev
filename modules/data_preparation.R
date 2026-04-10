@@ -363,7 +363,7 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
     if (is.null(current_user)) {
       return(NULL)
     }
-    current_user()
+    isolate(current_user())
   }
 
   require_logged_in <- function() {

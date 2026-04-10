@@ -10,7 +10,43 @@ source(file.path(project_root, "modules", "common", "auth.R"))
 source(file.path(project_root, "modules", "common", "account_service.R"))
 
 test_that("管理员服务层对非法输入有防御", {
+  expect_equal(service_normalize_workspace_name("  demo  "), "demo")
+  expect_error(service_normalize_workspace_name("   "), "请输入数据空间名称")
+  expect_equal(service_label_workspace_role("viewer"), "只读成员")
+  expect_equal(service_label_invite_status("pending"), "待领取")
+  expect_equal(service_label_user_status("inactive"), "停用")
+  expect_equal(service_normalize_role("viewer"), "viewer")
+  expect_error(service_normalize_role("bad_role"), "不支持的成员角色")
+  expect_error(service_normalize_role("owner", allow_owner = FALSE), "不支持的成员角色")
+  expect_error(service_create_workspace(NULL, "demo", ""), "缺少数据空间负责人")
+  expect_error(service_delete_workspace(NULL, ""), "缺少数据空间信息")
   expect_error(service_assign_workspace_owner(NULL, "", ""), "缺少数据空间或负责人信息")
   expect_error(service_upsert_workspace_membership(NULL, "ws_1", "usr_1", "bad_role"), "不支持的成员角色")
   expect_error(service_set_user_status(NULL, "usr_1", "disabled"), "不支持的账号状态")
+})
+
+test_that("预览表格字段使用面向界面的中文名称", {
+  memberships <- data.frame(
+    username = "alice",
+    email = "alice@example.com",
+    role = "editor",
+    status = "active",
+    created_at = "2026-04-10 12:00:00",
+    stringsAsFactors = FALSE
+  )
+  invites <- data.frame(
+    invited_email = "bob@example.com",
+    target_role = "viewer",
+    status = "pending",
+    claimed_username = "",
+    created_at = "2026-04-10 12:00:00",
+    claimed_at = "",
+    stringsAsFactors = FALSE
+  )
+  membership_preview <- service_membership_preview_df(memberships)
+  invite_preview <- service_invite_preview_df(invites)
+  expect_equal(names(membership_preview), c("成员账号", "联系邮箱", "协作权限", "账号状态", "加入时间"))
+  expect_equal(names(invite_preview), c("受邀邮箱", "待授权限", "邀请状态", "领取账号", "发起时间", "领取时间"))
+  expect_equal(membership_preview$协作权限[[1]], "可编辑成员")
+  expect_equal(invite_preview$邀请状态[[1]], "待领取")
 })
