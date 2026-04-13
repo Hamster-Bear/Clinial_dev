@@ -120,9 +120,18 @@ spider_plot_ui <- function(id) {
                             column(6, numericInput(ns("x_break_step"), "X轴刻度步长", value = 0, min = 0, step = 0.1, width = "100%"))
                           ),
                           fluidRow(
-                            column(6, numericInput(ns("y_breaks_n"), "Y轴刻度数量", value = 9, min = 4, max = 20, step = 1, width = "100%")),
-                            column(6, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%"))
-                          )
+                            column(4, numericInput(ns("y_breaks_n"), "Y轴刻度数量", value = 9, min = 4, max = 20, step = 1, width = "100%")),
+                            column(4, numericInput(ns("y_break_step"), "Y轴刻度步长", value = 0, min = 0, step = 0.1, width = "100%")),
+                            column(4, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%"))
+                          ),
+                          fluidRow(
+                              column(6, checkboxInput(ns("use_percent_label"), "Y轴显示百分比", TRUE)),
+                              column(6, conditionalPanel(
+                                condition = paste0("input['", ns("use_percent_label"), "'] == true"),
+                                checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
+                              ))
+                            ),
+                            numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 1, min = 0, max = 5, step = 1, width = "100%")
                         )
                       )
                     ),
@@ -391,7 +400,16 @@ spider_plot_server <- function(input, output, session, data) {
         "<br>变化值: ", formatC(plot_df$.value, format = "f", digits = 2), "%"
       )
 
-      y_breaks_fun <- scales::breaks_pretty(n = input$y_breaks_n %||% 9)
+      if (!is.null(input$y_break_step) && input$y_break_step > 0) {
+        y_breaks_fun <- function(x) seq(floor(min(x, na.rm=TRUE) / input$y_break_step) * input$y_break_step, ceiling(max(x, na.rm=TRUE) / input$y_break_step) * input$y_break_step, by = input$y_break_step)
+      } else {
+        y_breaks_fun <- scales::breaks_pretty(n = input$y_breaks_n %||% 9)
+      }
+      y_labels_fun <- if (isTRUE(input$use_percent_label)) {
+        graphics_format_percent_labels(show_percent_sign = isTRUE(input$y_show_percent_sign %||% TRUE), scale_factor = 1, decimals = input$y_decimals %||% 1)
+      } else {
+        graphics_format_number_labels(decimals = input$y_decimals %||% 1)
+      }
       line_levels <- unique(plot_df$.line_group)
       line_colors <- setNames(palette_values(length(line_levels), input$line_palette %||% "Set1"), line_levels)
       line_single_color <- line_colors[[1]] %||% "#4E79A7"
@@ -400,7 +418,7 @@ spider_plot_server <- function(input, output, session, data) {
         p <- ggplot(plot_df, aes(x = .time_plot, y = .value, group = .subject_id, text = .tooltip, color = .line_group)) +
           geom_line(linewidth = input$line_size, alpha = input$line_alpha, linetype = input$line_linetype %||% "solid") +
           scale_color_manual(values = line_colors) +
-          scale_y_continuous(breaks = y_breaks_fun, labels = label_number(accuracy = 0.1, suffix = "%")) +
+          scale_y_continuous(breaks = y_breaks_fun, labels = y_labels_fun) +
           labs(
             title = ifelse(nzchar(input$plot_title %||% ""), input$plot_title, "蜘蛛图"),
             subtitle = input$plot_subtitle %||% "",
@@ -421,7 +439,7 @@ spider_plot_server <- function(input, output, session, data) {
       } else {
         p <- ggplot(plot_df, aes(x = .time_plot, y = .value, group = .subject_id, text = .tooltip)) +
           geom_line(linewidth = input$line_size, alpha = input$line_alpha, linetype = input$line_linetype %||% "solid", color = line_single_color) +
-          scale_y_continuous(breaks = y_breaks_fun, labels = label_number(accuracy = 0.1, suffix = "%")) +
+          scale_y_continuous(breaks = y_breaks_fun, labels = y_labels_fun) +
           labs(
             title = ifelse(nzchar(input$plot_title %||% ""), input$plot_title, "蜘蛛图"),
             subtitle = input$plot_subtitle %||% "",
@@ -460,10 +478,8 @@ spider_plot_server <- function(input, output, session, data) {
 
       if ((input$axis_style %||% "default") == "classic_arrow") {
         p <- p +
-          theme_classic(base_size = input$base_font_size, base_family = "sans") +
-          theme(
-            axis.line = element_line(colour = "black", arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"))
-          )
+          theme_classic(base_size = input$base_font_size, base_family = "sans")
+        p <- graphics_apply_axis_style(p, "classic_arrow", arrow_size = 0.12)
         p <- graphics_apply_legend_theme(
           p,
           show_legend = isTRUE(input$show_legend) && isTRUE(line_has_group),

@@ -175,16 +175,14 @@ swimmer_plot_ui <- function(id) {
                         checkboxInput(ns("auto_mapping_caption"), "自动追加样式脚注", TRUE),
                         textInput(ns("event_legend_title"), "事件图例层标题(可选)", value = "", width = "100%"),
                         selectInput(ns("event_legend_position"), "事件图例位置", choices = graphics_legend_position_choices("aux"), selected = "right", width = "100%"),
-                        conditionalPanel(
-                          condition = sprintf("input['%s'] === 'inside_bottom_right' || input['%s'] === 'inside_custom'", ns("event_legend_position"), ns("event_legend_position")),
-                          fluidRow(
-                            column(6, sliderInput(ns("event_legend_x_ratio"), "图例X比例", min = 0, max = 1, value = 0.72, step = 0.01, width = "100%")),
-                            column(6, sliderInput(ns("event_legend_y_ratio"), "图例Y比例", min = 0, max = 1, value = 0.03, step = 0.01, width = "100%"))
-                          ),
-                          fluidRow(
-                            column(6, sliderInput(ns("event_legend_width_ratio"), "图例宽度比例", min = 0.1, max = 0.6, value = 0.26, step = 0.01, width = "100%")),
-                            column(6, sliderInput(ns("event_legend_height_ratio"), "图例高度比例", min = 0.1, max = 0.6, value = 0.28, step = 0.01, width = "100%"))
-                          )
+                        graphics_aux_legend_anchor_controls_ui(
+                          ns,
+                          position_id = "event_legend_position",
+                          x_ratio_id = "event_legend_x_ratio",
+                          y_ratio_id = "event_legend_y_ratio",
+                          width_ratio_id = "event_legend_width_ratio",
+                          height_ratio_id = "event_legend_height_ratio",
+                          default_anchor = c(0.95, 0.85, 0.13, 0.14)
                         )
                       )
                     )

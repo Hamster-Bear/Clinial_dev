@@ -242,6 +242,7 @@ graphics_resolve_legend_title <- function(custom_title = NULL, fallback_title = 
 graphics_legend_position_choices <- function(kind = "outer") {
   switch(
     kind,
+    "corners_aux_none" = c("右上" = "top-right", "顶部" = "top", "左上" = "top-left", "左侧" = "left", "右侧" = "right", "左下" = "bottom-left", "底部" = "bottom", "右下" = "bottom-right", "图内自定义" = "inside_custom", "隐藏" = "none"),
     "corners_none" = c("右上" = "top-right", "顶部" = "top", "左上" = "top-left", "左侧" = "left", "右侧" = "right", "左下" = "bottom-left", "底部" = "bottom", "右下" = "bottom-right", "隐藏" = "none"),
     "aux" = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom", "图内右下" = "inside_bottom_right", "图内自定义" = "inside_custom"),
     "outer_none" = c("右侧" = "right", "左侧" = "left", "顶部" = "top", "底部" = "bottom", "隐藏" = "none"),
@@ -270,7 +271,139 @@ graphics_resolve_inside_anchor <- function(x_ratio = 0.72, y_ratio = 0.03, width
   c(x_ratio, y_ratio, width_ratio, height_ratio)
 }
 
-graphics_place_aux_legend <- function(plot_obj, legend_plot = NULL, position = "right", outside_ratio = 0.35, inside_anchor = c(0.72, 0.03, 0.26, 0.28)) {
+graphics_aux_legend_anchor_controls_ui <- function(ns, position_id, x_ratio_id = "legend_x_ratio", y_ratio_id = "legend_y_ratio", width_ratio_id = "legend_width_ratio", height_ratio_id = "legend_height_ratio", default_anchor = c(0.95, 0.85, 0.13, 0.14), condition_positions = c("inside_bottom_right", "inside_custom"), x_label = "图例X比例", y_label = "图例Y比例", width_label = "图例宽度比例", height_label = "图例高度比例", include_size = TRUE, header = NULL) {
+  default_anchor <- as.numeric(default_anchor %||% c(0.95, 0.85, 0.13, 0.14))
+  if (length(default_anchor) < 4 || any(is.na(default_anchor))) {
+    default_anchor <- c(0.95, 0.85, 0.13, 0.14)
+  }
+  position_conditions <- paste(sprintf("input['%s'] === '%s'", ns(position_id), condition_positions), collapse = " || ")
+  ui_parts <- Filter(Negate(is.null), list(
+    if (!is.null(header) && nzchar(header)) shiny::tags$div(style = "margin-bottom: 6px; font-weight: 600;", header),
+    shiny::fluidRow(
+      shiny::column(6, shiny::sliderInput(ns(x_ratio_id), x_label, min = 0, max = 1, value = default_anchor[[1]], step = 0.01, width = "100%")),
+      shiny::column(6, shiny::sliderInput(ns(y_ratio_id), y_label, min = 0, max = 1, value = default_anchor[[2]], step = 0.01, width = "100%"))
+    )
+  ))
+  if (isTRUE(include_size)) {
+    ui_parts <- c(
+      ui_parts,
+      list(
+        shiny::fluidRow(
+          shiny::column(6, shiny::sliderInput(ns(width_ratio_id), width_label, min = 0.1, max = 0.6, value = default_anchor[[3]], step = 0.01, width = "100%")),
+          shiny::column(6, shiny::sliderInput(ns(height_ratio_id), height_label, min = 0.1, max = 0.6, value = default_anchor[[4]], step = 0.01, width = "100%"))
+        )
+      )
+    )
+  }
+  do.call(shiny::conditionalPanel, c(list(condition = position_conditions), ui_parts))
+}
+
+graphics_aux_legend_compact_defaults <- list(
+  row_gap = 1,
+  plot_margin_pt = c(1, 3, 1, 3),
+  title_margin_bottom = 1,
+  inter_legend_spacer = 0.03,
+  secondary_rel_height = 0.68
+)
+
+graphics_build_legend_rows <- function(labels, row_gap = graphics_aux_legend_compact_defaults$row_gap) {
+  labels <- as.character(labels %||% character(0))
+  labels <- labels[nzchar(labels)]
+  if (length(labels) == 0) {
+    return(data.frame(label = character(0), y = numeric(0), stringsAsFactors = FALSE))
+  }
+  gap <- suppressWarnings(as.numeric(row_gap %||% graphics_aux_legend_compact_defaults$row_gap))
+  if (is.na(gap) || !is.finite(gap) || gap <= 0) gap <- graphics_aux_legend_compact_defaults$row_gap
+  data.frame(
+    label = labels,
+    y = rev(seq(1, by = gap, length.out = length(labels))),
+    stringsAsFactors = FALSE
+  )
+}
+
+graphics_build_point_legend_plot <- function(labels, colors, shape_value = 3, title = "", base_font_size = 10, row_gap = graphics_aux_legend_compact_defaults$row_gap, text_x = 0.17, point_x = 0.10, xlim = c(0, 1), compact_spec = graphics_aux_legend_compact_defaults) {
+  labels <- as.character(labels %||% character(0))
+  labels <- labels[nzchar(labels)]
+  if (length(labels) == 0) return(NULL)
+  color_vals <- unname(colors[labels])
+  if (length(color_vals) != length(labels) || any(is.na(color_vals) | !nzchar(color_vals))) return(NULL)
+  legend_df <- graphics_build_legend_rows(labels, row_gap = row_gap)
+  legend_df$color <- color_vals
+  
+  y_max <- max(legend_df$y) + (row_gap / 2)
+  y_min <- min(legend_df$y) - (row_gap / 2)
+  
+  plot_obj <- ggplot2::ggplot(legend_df, ggplot2::aes(y = y)) +
+    ggplot2::geom_point(ggplot2::aes(x = point_x), shape = shape_value, size = max(2, base_font_size * 0.22), stroke = 0.7, color = legend_df$color) +
+    ggplot2::geom_text(ggplot2::aes(x = text_x, label = label), hjust = 0, size = max(3, base_font_size * 0.24), family = "sans") +
+    ggplot2::scale_y_continuous(limits = c(y_min, y_max), expand = c(0, 0)) +
+    ggplot2::coord_cartesian(xlim = xlim, clip = "off") +
+    ggplot2::theme_void(base_family = "sans") +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(size = max(10, base_font_size), face = "bold", hjust = 0, margin = ggplot2::margin(0, 0, compact_spec$title_margin_bottom, 0)),
+      plot.margin = do.call(ggplot2::margin, as.list(compact_spec$plot_margin_pt))
+    )
+  if (nzchar(trimws(title %||% ""))) {
+    plot_obj <- plot_obj + ggplot2::ggtitle(title)
+  }
+  plot_obj
+}
+
+graphics_build_line_legend_plot <- function(labels, colors, title = "", line_size = 0.6, line_type = "solid", base_font_size = 10, row_gap = graphics_aux_legend_compact_defaults$row_gap, line_x = c(0.03, 0.10), text_x = 0.17, xlim = c(0, 1), compact_spec = graphics_aux_legend_compact_defaults) {
+  labels <- as.character(labels %||% character(0))
+  labels <- labels[nzchar(labels)]
+  if (length(labels) == 0) return(NULL)
+  color_vals <- unname(colors[labels])
+  if (length(color_vals) != length(labels) || any(is.na(color_vals) | !nzchar(color_vals))) return(NULL)
+  legend_df <- graphics_build_legend_rows(labels, row_gap = row_gap)
+  legend_df$color <- color_vals
+  
+  y_max <- max(legend_df$y) + (row_gap / 2)
+  y_min <- min(legend_df$y) - (row_gap / 2)
+  
+  plot_obj <- ggplot2::ggplot(legend_df, ggplot2::aes(y = y)) +
+    ggplot2::geom_segment(
+      ggplot2::aes(x = line_x[[1]], xend = line_x[[2]], yend = y),
+      linewidth = line_size,
+      linetype = line_type,
+      color = legend_df$color
+    ) +
+    ggplot2::geom_text(ggplot2::aes(x = text_x, label = label), hjust = 0, size = max(3, base_font_size * 0.24), family = "sans") +
+    ggplot2::scale_y_continuous(limits = c(y_min, y_max), expand = c(0, 0)) +
+    ggplot2::coord_cartesian(xlim = xlim, clip = "off") +
+    ggplot2::theme_void(base_family = "sans") +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(size = max(10, base_font_size), face = "bold", hjust = 0, margin = ggplot2::margin(0, 0, compact_spec$title_margin_bottom, 0)),
+      plot.margin = do.call(ggplot2::margin, as.list(compact_spec$plot_margin_pt))
+    )
+  if (nzchar(trimws(title %||% ""))) {
+    plot_obj <- plot_obj + ggplot2::ggtitle(title)
+  }
+  plot_obj
+}
+
+graphics_compose_stacked_legends <- function(primary_plot = NULL, secondary_plot = NULL, compact_spec = graphics_aux_legend_compact_defaults, primary_rows = 1, secondary_rows = 1) {
+  legend_plot <- primary_plot
+  if (!is.null(secondary_plot)) {
+    if (is.null(legend_plot)) {
+      legend_plot <- secondary_plot
+    } else {
+      spacer <- ggplot2::ggplot() + ggplot2::theme_void() + ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, 0))
+      legend_plot <- cowplot::plot_grid(
+        legend_plot,
+        spacer,
+        secondary_plot,
+        ncol = 1,
+        align = "v",
+        axis = "lr",
+        rel_heights = c(primary_rows, compact_spec$inter_legend_spacer, secondary_rows)
+      )
+    }
+  }
+  legend_plot
+}
+
+graphics_place_aux_legend <- function(plot_obj, legend_plot = NULL, position = "right", outside_ratio = 0.35, inside_anchor = c(0.95, 0.85, 0.13, 0.14)) {
   if (is.null(legend_plot)) return(plot_obj)
   if (identical(position, "inside_bottom_right") || identical(position, "inside_custom")) {
     anchor <- graphics_resolve_inside_anchor(
@@ -297,7 +430,7 @@ graphics_place_aux_legend <- function(plot_obj, legend_plot = NULL, position = "
   cowplot::plot_grid(plot_obj, legend_plot, ncol = 2, rel_widths = c(1, outside_ratio), align = "h", axis = "tb")
 }
 
-graphics_apply_legend_theme <- function(plot_obj, show_legend = TRUE, position = "right", inside_anchor = c(0.72, 0.03, 0.26, 0.28)) {
+graphics_apply_legend_theme <- function(plot_obj, show_legend = TRUE, position = "right", inside_anchor = c(0.95, 0.85, 0.13, 0.14)) {
   if (!isTRUE(show_legend) || identical(position, "none")) {
     return(plot_obj + ggplot2::theme(legend.position = "none"))
   }
@@ -321,4 +454,31 @@ graphics_apply_legend_theme <- function(plot_obj, show_legend = TRUE, position =
     return(plot_obj + ggplot2::theme(legend.position = "inside", legend.position.inside = legend_pos, legend.justification = legend_just))
   }
   plot_obj
+}
+
+graphics_apply_axis_style <- function(plot_obj, axis_style = "default", arrow_size = 0.15) {
+  if (identical(axis_style, "classic_arrow")) {
+    plot_obj <- plot_obj + ggplot2::theme(
+      axis.line = ggplot2::element_line(colour = "black", arrow = ggplot2::arrow(length = ggplot2::unit(arrow_size, "inches"), type = "closed"))
+    )
+  } else {
+    plot_obj <- plot_obj + ggplot2::theme(
+      axis.line = ggplot2::element_line(colour = "black")
+    )
+  }
+  plot_obj
+}
+
+graphics_format_percent_labels <- function(show_percent_sign = TRUE, scale_factor = 100, decimals = 1) {
+  acc <- if (!is.null(decimals) && !is.na(decimals) && decimals >= 0) 10^(-decimals) else 0.1
+  if (isTRUE(show_percent_sign)) {
+    scales::label_number(accuracy = acc, suffix = "%", scale = scale_factor)
+  } else {
+    scales::label_number(accuracy = acc, scale = scale_factor)
+  }
+}
+
+graphics_format_number_labels <- function(decimals = 1) {
+  acc <- if (!is.null(decimals) && !is.na(decimals) && decimals >= 0) 10^(-decimals) else 0.1
+  scales::label_number(accuracy = acc)
 }

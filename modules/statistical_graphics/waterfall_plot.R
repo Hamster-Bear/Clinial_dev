@@ -60,7 +60,14 @@ waterfall_plot_ui <- function(id) {
                         br(),
                         checkboxInput(ns("show_symbols"), "显示柱符号分组", TRUE),
                         checkboxInput(ns("show_subject_labels"), "显示受试者标签", FALSE),
-                        checkboxInput(ns("use_percent_label"), "Y轴默认显示百分比", TRUE),
+                        fluidRow(
+                          column(6, checkboxInput(ns("use_percent_label"), "Y轴默认显示百分比", TRUE)),
+                          column(6, conditionalPanel(
+                            condition = paste0("input['", ns("use_percent_label"), "'] == true"),
+                            checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
+                          ))
+                        ),
+                        numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 1, min = 0, max = 5, step = 1, width = "100%"),
                         checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
                         selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
                         checkboxInput(ns("show_legend"), "显示图例", TRUE),
@@ -196,8 +203,9 @@ waterfall_plot_ui <- function(id) {
                       tags$div(
                         class = "panel-body",
                         fluidRow(
-                          column(6, numericInput(ns("y_breaks_n"), "Y轴刻度数量", value = 9, min = 4, max = 20, step = 1, width = "100%")),
-                          column(6, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%"))
+                          column(4, numericInput(ns("y_breaks_n"), "Y轴刻度数量", value = 9, min = 4, max = 20, step = 1, width = "100%")),
+                          column(4, numericInput(ns("y_break_step"), "Y轴刻度步长", value = 0, min = 0, step = 0.1, width = "100%")),
+                          column(4, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%"))
                         ),
                         sliderInput(ns("track_rel_height"), "下方表格占比", min = 0.5, max = 4, value = 0.5, step = 0.1, width = "100%")
                       )
@@ -679,17 +687,22 @@ waterfall_plot_server <- function(input, output, session, data) {
         p_main <- p_main + scale_fill_manual(values = color_vals)
       }
 
-      y_breaks_fun <- scales::breaks_pretty(n = input$y_breaks_n %||% 9)
+      if (!is.null(input$y_break_step) && input$y_break_step > 0) {
+        y_breaks_fun <- function(x) seq(floor(min(x, na.rm=TRUE) / input$y_break_step) * input$y_break_step, ceiling(max(x, na.rm=TRUE) / input$y_break_step) * input$y_break_step, by = input$y_break_step)
+      } else {
+        y_breaks_fun <- scales::breaks_pretty(n = input$y_breaks_n %||% 9)
+      }
+      
       if (isTRUE(input$use_percent_label)) {
         p_main <- p_main + scale_y_continuous(
           breaks = y_breaks_fun,
-          labels = label_number(accuracy = 0.1, suffix = "%"),
+          labels = graphics_format_percent_labels(show_percent_sign = isTRUE(input$y_show_percent_sign %||% TRUE), scale_factor = 1, decimals = input$y_decimals %||% 1),
           expand = expansion(mult = c(0.02, 0.12))
         )
       } else {
         p_main <- p_main + scale_y_continuous(
           breaks = y_breaks_fun,
-          labels = label_number(accuracy = 0.1),
+          labels = graphics_format_number_labels(decimals = input$y_decimals %||% 1),
           expand = expansion(mult = c(0.02, 0.12))
         )
       }
@@ -772,6 +785,10 @@ waterfall_plot_server <- function(input, output, session, data) {
           coord_cartesian(clip = "off") +
           annotate("segment", x = 0.5, xend = n_x + 0.55, y = y_axis_base, yend = y_axis_base, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black") +
           annotate("segment", x = 0.5, xend = 0.5, y = y_axis_base, yend = y_axis_top, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black")
+      } else {
+        p_main <- p_main + theme(
+          axis.line = element_line(colour = "black")
+        )
       }
       p_main <- graphics_apply_legend_theme(
         p_main,

@@ -119,6 +119,8 @@ test_that("graphics_legend_position_choices 提供统一位置枚举", {
   expect_true(all(c("right", "left", "top", "bottom") %in% unname(outer)))
   corners <- graphics_legend_position_choices("corners_none")
   expect_true(all(c("top-right", "bottom-right", "none") %in% unname(corners)))
+  corners_aux <- graphics_legend_position_choices("corners_aux_none")
+  expect_true(all(c("top-right", "inside_custom", "none") %in% unname(corners_aux)))
   aux <- graphics_legend_position_choices("aux")
   expect_true(all(c("inside_bottom_right", "inside_custom") %in% unname(aux)))
 })
@@ -128,6 +130,51 @@ test_that("graphics_legend_controls_ui 生成统一图例控件", {
   ns <- shiny::NS("legend")
   ui <- graphics_legend_controls_ui(ns, position_kind = "outer")
   expect_s3_class(ui, "shiny.tag")
+})
+
+test_that("graphics_aux_legend_anchor_controls_ui 生成统一比例滑条控件", {
+  skip_if_not_installed("shiny")
+  ns <- shiny::NS("legend")
+  ui <- graphics_aux_legend_anchor_controls_ui(ns, position_id = "legend_position")
+  expect_s3_class(ui, "shiny.tag")
+  compact_ui <- graphics_aux_legend_anchor_controls_ui(
+    ns,
+    position_id = "text_position_preset",
+    x_ratio_id = "stats_x",
+    y_ratio_id = "stats_y",
+    include_size = FALSE,
+    condition_positions = "custom"
+  )
+  expect_s3_class(compact_ui, "shiny.tag")
+})
+
+test_that("graphics 辅助图例绘制器支持点线图例与堆叠组合", {
+  point_legend <- graphics_build_point_legend_plot(
+    labels = c("A", "B"),
+    colors = c(A = "#E41A1C", B = "#377EB8"),
+    shape_value = 124,
+    title = "Censor"
+  )
+  line_legend <- graphics_build_line_legend_plot(
+    labels = c("A", "B"),
+    colors = c(A = "#E41A1C", B = "#377EB8"),
+    title = "Arm"
+  )
+  stacked <- graphics_compose_stacked_legends(line_legend, point_legend)
+  expect_s3_class(point_legend, "ggplot")
+  expect_s3_class(line_legend, "ggplot")
+  expect_false(is.null(stacked))
+})
+
+test_that("graphics 辅助图例统一使用紧凑因子间距规则", {
+  rows <- graphics_build_legend_rows(c("A", "B", "C"))
+  expect_equal(round(diff(rows$y), 2), c(-0.36, -0.36))
+  expect_equal(graphics_aux_legend_compact_defaults$row_gap, 0.36)
+  point_legend <- graphics_build_point_legend_plot(c("A", "B"), c(A = "#E41A1C", B = "#377EB8"))
+  line_legend <- graphics_build_line_legend_plot(c("A", "B"), c(A = "#E41A1C", B = "#377EB8"))
+  point_y <- ggplot2::ggplot_build(point_legend)$data[[1]]$y
+  line_y <- ggplot2::ggplot_build(line_legend)$data[[1]]$y
+  expect_equal(point_y, line_y)
 })
 
 test_that("graphics_place_aux_legend 支持图内右下角叠加", {

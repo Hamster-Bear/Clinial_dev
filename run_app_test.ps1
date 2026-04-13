@@ -44,13 +44,22 @@ function Stop-ProcessesByPort {
 
   Write-Host "检测到端口 $Port 已被占用，准备强制关闭相关进程..." -ForegroundColor Yellow
   foreach ($processId in $processIds) {
+    $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+    if ($null -eq $process) {
+      Write-Host ("进程 PID={0} 已不存在，跳过。" -f $processId) -ForegroundColor DarkGray
+      continue
+    }
+
     try {
-      $process = Get-Process -Id $processId -ErrorAction Stop
       Write-Host ("停止进程 PID={0} Name={1}" -f $process.Id, $process.ProcessName)
       Stop-Process -Id $processId -Force -ErrorAction Stop
     } catch {
-      Write-Host ("无法停止端口 {0} 对应进程 PID={1}: {2}" -f $Port, $processId, $_.Exception.Message) -ForegroundColor Red
-      exit 1
+      if ($_.Exception.Message -match "Cannot find a process|找不到具有进程标识符") {
+        Write-Host ("进程 PID={0} 已不存在，跳过。" -f $processId) -ForegroundColor DarkGray
+      } else {
+        Write-Host ("无法停止端口 {0} 对应进程 PID={1}: {2}" -f $Port, $processId, $_.Exception.Message) -ForegroundColor Red
+        exit 1
+      }
     }
   }
 

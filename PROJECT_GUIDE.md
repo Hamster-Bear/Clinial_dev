@@ -357,7 +357,9 @@ AutoTFL/
 | 状态管理 | 采用 view state 与 committed state 分离，只有点击“生成图形”才提交分析参数 |
 | 风险表 | 风险表主要用于静态图组合输出；交互页并不是“Plotly + 风险表”同页布局 |
 | 分层标签 | 主图图例、删失图例、统计文本、风险表与数据表统一复用同一标签格式化链路；比较符号及原始值中的 `=`, `>=`, `<` 必须原样保留并可映射自定义标签 |
-| 删失图例 | 交互图中的主图分组图例优先复用 `ggsurvplot` 默认图例能力，仅负责标题与标签定制；静态图则统一改为辅助图例方案：主图分组图例与删失图例都以独立辅助图例绘制，其中 Censor 图例在分层场景下使用 `Censor` 标题并按分组显示与曲线上实际删失点一致的形状和颜色。曲线上的删失点形状在所有分组中统一取自 `km_censor_shape`，不能因分组再次映射为圆形/三角等离散形状；静态图中主图分组图例固定在前、Censor 图例固定在后，且通过 common 的 inside-anchor/aux-legend 摆放抽象控制紧凑间距与定位，避免重复图例、原始 `变量=取值` 文本泄漏、颜色失配与 `Ignoring unknown labels` 警告 |
+| 删失图例 | 交互图中的主图分组图例优先复用 `ggsurvplot` 默认图例能力，仅负责标题与标签定制；静态图则统一改为辅助图例方案：主图分组图例与删失图例都以 common 图例绘制器生成并组合，其中 Censor 图例在分层场景下必须优先复用主图最终 legend 颜色，确保删失符号颜色与曲线颜色一致。曲线上的删失点形状在所有分组中统一取自 `km_censor_shape`，不能因分组再次映射为圆形/三角等离散形状；静态图中主图分组图例固定在前、Censor 图例固定在后，且通过 common 的 inside-anchor/aux-legend 摆放抽象和公共 ratio 滑条控件控制紧凑间距与定位；图例自定义滑轨初始化值统一为 `X/Y/宽/高 = 0.95/0.85/0.13/0.14`，避免重复图例、原始 `变量=取值` 文本泄漏、颜色失配与 `Ignoring unknown labels` 警告 |
+| 统计文本 | 各组中位生存时间文本改为自由编辑标签，默认使用 `mPFS`，并统一左对齐；其组间距与 Cox 多组文本块保持一致的紧凑行距。统计文本自定义坐标统一复用 common 的比例坐标控件；统计报告中三组以上时需明确 Log-rank 为全局检验，只表示至少一组与其他组存在差异，不代表所有两两比较均显著 |
+| 坐标轴默认值 | X 轴标签默认填入 `Duration`，除非用户显式改写 |
 | P值格式 | Log-rank 与生存分析内联 P 值统一采用 AMA 风格：`<0.001`、`>0.99` 或三位小数，避免 `P=0.000` |
 | 交互页 | 当前以交互主图和单独结果页签为主 |
 | 尺寸配置 | 已接入统一尺寸接口，不在模块内写死静态/交互/导出尺寸 |
@@ -366,7 +368,7 @@ AutoTFL/
 ### 7.5 图例与样式当前状态
 
 - Survival、Spider、Waterfall、Swimmer 已逐步接入 common 图例能力。
-- Swimmer 保留事件图例的自绘特例，但标题解析与摆放逻辑应继续优先复用 common。
+- Swimmer 保留事件图例的自绘特例，但标题解析、inside-anchor 摆放与 ratio 滑条控件应继续优先复用 common。
 - Waterfall 与 Swimmer 的符号/颜色分别指定能力已经存在，但仍属于高复杂 UI，后续应继续抽象公共组件。
 
 ## 8. 预设图表实现
@@ -419,7 +421,8 @@ AutoTFL/
 | 主题 | 文件 | 当前可复用函数 | 当前约束 |
 | --- | --- | --- | --- |
 | 图例标题与位置枚举 | `graphics_common.R` | `graphics_resolve_legend_title()`、`graphics_legend_position_choices()`、`graphics_legend_controls_ui()` | 图例标题统一走 `custom > fallback > default`；位置值只能来自 common 枚举，子模块不得自造私有位置字符串 |
-| 图例锚点与辅助图例摆放 | `graphics_common.R` | `graphics_resolve_inside_anchor()`、`graphics_place_aux_legend()`、`graphics_apply_legend_theme()` | 图内锚点必须先归一化；辅助图例优先复用 common 摆放；隐藏图例统一使用 `"none"` |
+| 图例锚点、ratio 滑条与辅助图例摆放 | `graphics_common.R` | `graphics_resolve_inside_anchor()`、`graphics_aux_legend_anchor_controls_ui()`、`graphics_place_aux_legend()`、`graphics_apply_legend_theme()` | 图内锚点必须先归一化；辅助图例位置、统计文本自定义坐标与 x/y/width/height ratio 控件优先复用 common；隐藏图例统一使用 `"none"` |
+| 辅助图例绘制器 | `graphics_common.R` | `graphics_aux_legend_compact_defaults`、`graphics_build_legend_rows()`、`graphics_build_point_legend_plot()`、`graphics_build_line_legend_plot()`、`graphics_compose_stacked_legends()` | 自绘辅助图例的行距、标题间距、外边距、组间 spacer 统一由 common 控制；收紧通用规则为所有图例的每个因子之间保持约一个字符大小的间距，且线条图例与删失图例必须复用同一 row-gap 约束；模块内不得再复制一套 legend painter |
 | 图形尺寸解析 | `graphics_common.R` | `resolve_plot_size_config()` | 静态图、交互图、导出尺寸统一从 common 解析；模块内不得各自硬编码三套尺寸 |
 | 图形说明文字 | `graphics_common.R` | `graphics_mapping_caption_line()`、`graphics_compose_caption()`、`graphics_append_bottom_caption()` | caption 统一由 common 拼接，禁止模块内再拼第二套底部说明逻辑 |
 | 元数据标签与类型 | `data_metadata.R` | `metadata_get_var_label()`、`metadata_get_var_type()`、`metadata_build_column_choices()`、`metadata_attach_to_data()` | 标签解析顺序固定为 `override > metadata表 > 列label > var_name`；元数据变更后必须重新回写到数据对象 |
@@ -518,7 +521,7 @@ AutoTFL/
 - 共享层改动至少要补一条可回归的最小测试。
 - 图形或统计口径改动优先补“同口径断言”，避免只测 UI 是否渲染成功。
 - `run_app_test.ps1` 依赖 `.env.test`；仓库当前提供 `.env.test.example` 作为测试环境变量模板。若数据库由 `docker-compose1.yml` 拉起，测试端口应使用 `55432`。
-- `run_app_test.ps1` 启动前会读取 `SHINY_PORT`（未设置时默认为 `8109`）；若该端口已被占用，脚本会强制关闭占用进程后再拉起应用。
+- `run_app_test.ps1` 启动前会读取 `SHINY_PORT`（未设置时默认为 `8109`）；若该端口已被占用，脚本会强制关闭占用进程后再拉起应用（且会妥善处理进程在检测后已自行退出的并发情况）。
 
 ### 11.3 当前缺口
 

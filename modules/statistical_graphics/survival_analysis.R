@@ -67,6 +67,15 @@ library(cowplot)
   )
 }
 
+.survival_aux_legend_compact_spec <- utils::modifyList(
+  graphics_aux_legend_compact_defaults,
+  list(
+    row_gap = 1,
+    secondary_rel_height = 0.68,
+    default_inside_anchor = c(0.95, 0.85, 0.13, 0.14)
+  )
+)
+
 .extract_survival_legend_breaks <- function(fit_obj, strata_var = NULL, overall_label = "all") {
   if (is.null(fit_obj$strata)) return(overall_label %||% "all")
   as.character(names(fit_obj$strata))
@@ -101,12 +110,20 @@ library(cowplot)
   stats::setNames(mapped, display_breaks)
 }
 
-.resolve_survival_censor_legend_layout <- function(position = "right") {
+.resolve_survival_censor_legend_layout <- function(position = "right", inside_anchor = NULL) {
   if (identical(position, "none")) {
     return(list(position = "none", anchor = NULL))
   }
   if (position %in% c("right", "left", "top", "bottom")) {
     return(list(position = position, anchor = NULL))
+  }
+  if (identical(position, "inside_custom")) {
+    return(list(position = "inside_custom", anchor = graphics_resolve_inside_anchor(
+      x_ratio = (inside_anchor %||% .survival_aux_legend_compact_spec$default_inside_anchor)[[1]],
+      y_ratio = (inside_anchor %||% .survival_aux_legend_compact_spec$default_inside_anchor)[[2]],
+      width_ratio = (inside_anchor %||% .survival_aux_legend_compact_spec$default_inside_anchor)[[3]],
+      height_ratio = (inside_anchor %||% .survival_aux_legend_compact_spec$default_inside_anchor)[[4]]
+    )))
   }
   anchor_map <- list(
     "top-right" = graphics_resolve_inside_anchor(0.72, 0.58, 0.24, 0.22),
@@ -125,101 +142,111 @@ library(cowplot)
   if (is.na(resolved) || !is.finite(resolved)) fallback else resolved
 }
 
-.build_survival_legend_rows <- function(labels, row_gap = 0.55) {
-  labels <- as.character(labels %||% character(0))
-  labels <- labels[nzchar(labels)]
-  if (length(labels) == 0) {
-    return(data.frame(label = character(0), y = numeric(0), stringsAsFactors = FALSE))
-  }
-  gap <- suppressWarnings(as.numeric(row_gap %||% 0.55))
-  if (is.na(gap) || !is.finite(gap) || gap <= 0) gap <- 0.55
-  data.frame(
-    label = labels,
-    y = rev(seq(1, by = gap, length.out = length(labels))),
-    stringsAsFactors = FALSE
+.build_survival_legend_rows <- function(labels, row_gap = .survival_aux_legend_compact_spec$row_gap) {
+  graphics_build_legend_rows(labels, row_gap = row_gap)
+}
+
+.build_survival_censor_legend_plot <- function(labels, colors, shape_value = 3, title = "Censor", base_font_size = 10, row_gap = 1.0) {
+  graphics_build_point_legend_plot(
+    labels = labels,
+    colors = colors,
+    shape_value = .resolve_survival_censor_shape_value(shape_value),
+    title = title,
+    base_font_size = base_font_size,
+    row_gap = row_gap,
+    compact_spec = .survival_aux_legend_compact_spec
   )
 }
 
-.build_survival_censor_legend_plot <- function(labels, colors, shape_value = 3, title = "Censor", base_font_size = 10) {
-  labels <- as.character(labels %||% character(0))
-  labels <- labels[nzchar(labels)]
-  if (length(labels) == 0) return(NULL)
-  color_vals <- unname(colors[labels])
-  if (length(color_vals) != length(labels) || any(is.na(color_vals) | !nzchar(color_vals))) {
-    return(NULL)
-  }
-  legend_df <- .build_survival_legend_rows(labels, row_gap = 0.55)
-  legend_df$color <- color_vals
-  shape_value <- .resolve_survival_censor_shape_value(shape_value)
-  ggplot(legend_df, aes(y = y)) +
-    geom_point(aes(x = 0.10), shape = shape_value, size = max(2, base_font_size * 0.22), stroke = 0.7, color = legend_df$color) +
-    geom_text(aes(x = 0.17, label = label), hjust = 0, size = max(3, base_font_size * 0.24), family = "sans") +
-    scale_y_continuous(limits = c(min(legend_df$y) - 0.25, max(legend_df$y) + 0.25), expand = c(0, 0)) +
-    coord_cartesian(xlim = c(0, 1), clip = "off") +
-    theme_void(base_family = "sans") +
-    theme(
-      plot.title = element_text(size = max(10, base_font_size), face = "bold", hjust = 0, margin = margin(0, 0, 2, 0)),
-      plot.margin = margin(2, 4, 2, 4)
-    ) +
-    ggtitle(title)
+.build_survival_line_legend_plot <- function(labels, colors, title = "", line_size = 0.6, line_type = "solid", base_font_size = 10, row_gap = 1.0) {
+  graphics_build_line_legend_plot(
+    labels = labels,
+    colors = colors,
+    title = title,
+    line_size = line_size,
+    line_type = line_type,
+    base_font_size = base_font_size,
+    row_gap = row_gap,
+    compact_spec = .survival_aux_legend_compact_spec
+  )
 }
 
-.build_survival_line_legend_plot <- function(labels, colors, title = "", line_size = 0.6, line_type = "solid", base_font_size = 10) {
-  labels <- as.character(labels %||% character(0))
-  labels <- labels[nzchar(labels)]
-  if (length(labels) == 0) return(NULL)
-  color_vals <- unname(colors[labels])
-  if (length(color_vals) != length(labels) || any(is.na(color_vals) | !nzchar(color_vals))) {
-    return(NULL)
-  }
-  legend_df <- .build_survival_legend_rows(labels, row_gap = 0.55)
-  legend_df$color <- color_vals
-  plot_obj <- ggplot(legend_df, aes(y = y)) +
-    geom_segment(
-      aes(x = 0.04, xend = 0.16, yend = y),
-      linewidth = line_size,
-      linetype = line_type,
-      color = legend_df$color
-    ) +
-    geom_text(aes(x = 0.22, label = label), hjust = 0, size = max(3, base_font_size * 0.24), family = "sans") +
-    scale_y_continuous(limits = c(min(legend_df$y) - 0.25, max(legend_df$y) + 0.25), expand = c(0, 0)) +
-    coord_cartesian(xlim = c(0, 1), clip = "off") +
-    theme_void(base_family = "sans") +
-    theme(
-      plot.title = element_text(size = max(10, base_font_size), face = "bold", hjust = 0, margin = margin(0, 0, 2, 0)),
-      plot.margin = margin(2, 4, 2, 4)
-    )
-  if (nzchar(trimws(title %||% ""))) {
-    plot_obj <- plot_obj + ggtitle(title)
-  }
-  plot_obj
-}
-
-.compose_survival_static_legend <- function(main_legend_plot = NULL, censor_legend_plot = NULL, legend_position = "right") {
+.compose_survival_static_legend <- function(main_legend_plot = NULL, censor_legend_plot = NULL, legend_position = "right", inside_anchor = NULL, primary_rows = 1, secondary_rows = 1) {
   if (identical(legend_position, "none")) {
-    return(list(legend_plot = NULL, layout = .resolve_survival_censor_legend_layout("none")))
+    return(list(legend_plot = NULL, layout = .resolve_survival_censor_legend_layout("none", inside_anchor = inside_anchor)))
   }
-  legend_plot <- main_legend_plot
-  if (!is.null(censor_legend_plot)) {
-    if (is.null(legend_plot)) {
-      legend_plot <- censor_legend_plot
-    } else {
-      spacer <- ggplot() + theme_void() + theme(plot.margin = margin(0, 0, 0, 0))
-      legend_plot <- cowplot::plot_grid(
-        legend_plot,
-        spacer,
-        censor_legend_plot,
-        ncol = 1,
-        align = "v",
-        axis = "lr",
-        rel_heights = c(1, 0.08, 0.72)
-      )
-    }
-  }
+  legend_plot <- graphics_compose_stacked_legends(
+    primary_plot = main_legend_plot,
+    secondary_plot = censor_legend_plot,
+    compact_spec = .survival_aux_legend_compact_spec,
+    primary_rows = primary_rows,
+    secondary_rows = secondary_rows
+  )
   list(
     legend_plot = legend_plot,
-    layout = .resolve_survival_censor_legend_layout(legend_position)
+    layout = .resolve_survival_censor_legend_layout(legend_position, inside_anchor = inside_anchor)
   )
+}
+
+.survival_annotation_line_gap <- function() {
+  0.055
+}
+
+.build_survival_annotation_y_positions <- function(start_y, n_groups, lower_bound, gap = .survival_annotation_line_gap()) {
+  if (is.null(n_groups) || n_groups <= 0) return(numeric(0))
+  gap <- suppressWarnings(as.numeric(gap %||% .survival_annotation_line_gap()))
+  if (is.na(gap) || !is.finite(gap) || gap <= 0) gap <- .survival_annotation_line_gap()
+  seq(start_y, max(lower_bound, start_y - (n_groups - 1) * gap), length.out = n_groups)
+}
+
+.survival_median_text_hjust <- function() {
+  0
+}
+
+.build_survival_logrank_interpretation <- function(logrank_p, n_groups = 0) {
+  if (is.na(logrank_p)) return(character(0))
+  logrank_text <- .compose_survival_p_text("Log-rank 检验 P值", logrank_p, with_spaces = FALSE)
+  result_line <- if (logrank_p < 0.05) {
+    paste0(logrank_text, "，提示组间生存曲线差异具有统计学意义。")
+  } else {
+    paste0(logrank_text, "，未见组间生存曲线显著差异。")
+  }
+  if (isTRUE(n_groups > 3)) {
+    return(c(
+      result_line,
+      "当前为多组全局 Log-rank 检验；显著时仅表示至少一组生存曲线与其他组存在差异，不代表所有两两组别均显著，需结合 Cox 参考组比较或后续两两比较解释。"
+    ))
+  }
+  result_line
+}
+
+.resolve_survival_median_label <- function(label_value = NULL, fallback = "mPFS") {
+  label_value <- trimws(as.character(label_value %||% fallback))
+  if (!nzchar(label_value)) fallback else label_value
+}
+
+.resolve_survival_censor_point_colors <- function(raw_strata, display_strata, main_legend_colors = NULL, fallback_colors = NULL) {
+  display_strata <- as.character(display_strata %||% character(0))
+  raw_strata <- as.character(raw_strata %||% character(0))
+  color_vals <- unname((main_legend_colors %||% character(0))[display_strata])
+  if (length(color_vals) != length(display_strata)) {
+    color_vals <- rep(NA_character_, length(display_strata))
+  }
+  if (!is.null(fallback_colors) && length(fallback_colors) > 0) {
+    fallback_vals <- unname(fallback_colors[raw_strata])
+    replace_idx <- is.na(color_vals) | !nzchar(color_vals)
+    color_vals[replace_idx] <- fallback_vals[replace_idx]
+  }
+  color_vals
+}
+
+.build_survival_median_summary_label <- function(display_strata, median_label, median_txt, lower_txt, upper_txt, overall_label = "all") {
+  prefix <- .resolve_survival_median_label(median_label)
+  stats_part <- paste0(prefix, ": ", median_txt, " (95%CI ", lower_txt, "-", upper_txt, ")")
+  if (!nzchar(display_strata) || identical(display_strata, overall_label)) {
+    return(stats_part)
+  }
+  paste0(display_strata, ": ", stats_part)
 }
 
 .format_survival_p_value <- function(p) {
@@ -256,9 +283,324 @@ library(cowplot)
   plot_obj
 }
 
+.build_survival_mapping_tab <- function(ns) {
+  tabPanel(
+    "数据映射",
+    br(),
+    fluidRow(
+      column(
+        6,
+        tags$div(
+          class = "panel panel-default",
+          tags$div(class = "panel-heading", "数据映射"),
+          tags$div(
+            class = "panel-body",
+            selectizeInput(ns("km_time"), "时间变量 (数值型)", choices = NULL, width = "100%"),
+            selectizeInput(ns("km_status"), "状态变量 (数值型)", choices = NULL, width = "100%"),
+            fluidRow(
+              column(6, selectizeInput(ns("strata_var"), "分层变量 (分组)", choices = c("无" = "None"), width = "100%")),
+              column(6, selectizeInput(ns("facet_var"), "分面变量 (分组)", choices = c("无" = "None"), width = "100%"))
+            ),
+            conditionalPanel(
+              condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
+              uiOutput(ns("hr_reference_ui"))
+            ),
+            conditionalPanel(
+              condition = paste0("input['", ns("facet_var"), "'] != 'None'"),
+              uiOutput(ns("facet_value_ui"))
+            )
+          )
+        )
+      ),
+      column(
+        6,
+        tags$div(
+          class = "panel panel-default",
+          tags$div(class = "panel-heading", "处理与筛选"),
+          tags$div(
+            class = "panel-body",
+            radioButtons(
+              ns("km_censor_value"), "删失值定义",
+              choices = c("0 = 删失, 1 = 事件" = "0", "1 = 删失, 0 = 事件" = "1"),
+              selected = "0", inline = TRUE
+            ),
+            hr(),
+            uiOutput(ns("time_range_slider")),
+            numericInput(ns("time_step"), "时间轴步长", value = NULL, min = 1, max = 1000, step = 1, width = "100%")
+          )
+        )
+      )
+    )
+  )
+}
+
+.build_survival_analysis_tab <- function(ns) {
+  tabPanel(
+    "分析参数",
+    br(),
+    fluidRow(
+      column(
+        6,
+        tags$div(
+          class = "panel panel-default",
+          tags$div(class = "panel-heading", "曲线与风险表"),
+          tags$div(
+            class = "panel-body",
+            fluidRow(
+              column(6, numericInput(ns("line_size"), "线条粗细", value = 0.6, min = 0.1, max = 5, step = 0.1, width = "100%")),
+              column(
+                6,
+                selectInput(
+                  ns("line_type"), "线条类型",
+                  choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted", "点虚线" = "dotdash", "长虚线" = "longdash"),
+                  width = "100%"
+                )
+              )
+            ),
+            checkboxInput(ns("km_show_censor"), "显示删失符号", value = TRUE),
+            conditionalPanel(
+              condition = paste0("input['", ns("km_show_censor"), "'] == true"),
+              fluidRow(
+                column(6, numericInput(ns("km_censor_size"), "删失点大小", value = 2, min = 1, max = 10, step = 0.5, width = "100%")),
+                column(
+                  6,
+                  selectInput(
+                    ns("km_censor_shape"), "删失点形状",
+                    choices = c("+" = 3, "I" = 124, "□" = 0, "○" = 1, "△" = 2, "◇" = 5, "☆" = 8),
+                    selected = 3, width = "100%"
+                  )
+                )
+              )
+            ),
+            checkboxInput(ns("km_show_risktable"), "显示风险表", value = TRUE),
+            conditionalPanel(
+              condition = paste0("input['", ns("km_show_risktable"), "'] == true"),
+              fluidRow(
+                column(6, numericInput(ns("risk_table_height_ratio"), "风险表高度比例", value = 0.15, min = 0.1, max = 0.8, step = 0.05, width = "100%")),
+                column(6, numericInput(ns("risk_table_plot_gap"), "主图与表间距(pt)", value = 0, min = 0, max = 100, step = 5, width = "100%"))
+              ),
+              numericInput(ns("risk_table_group_gap"), "风险表组别间隙(Y轴扩展)", value = 1.2, min = 0, max = 2.0, step = 0.1, width = "100%")
+            ),
+            checkboxInput(ns("show_grid"), "显示网格线", value = FALSE),
+            selectInput(ns("surv_median_line"), "显示中位线", choices = c("无" = "none", "水平和垂直" = "hv", "仅水平" = "h", "仅垂直" = "v"), selected = "none", width = "100%")
+          )
+        )
+      ),
+      column(
+        6,
+        tags$div(
+          class = "panel panel-default",
+          tags$div(class = "panel-heading", "统计标注"),
+          tags$div(
+            class = "panel-body",
+            checkboxInput(ns("show_median"), "显示中位生存时间", value = TRUE),
+            checkboxInput(ns("show_stats"), "显示统计量(P值/HR)", value = TRUE),
+            textInput(ns("median_label_text"), "中位生存时间文本（默认 mPFS）", value = "mPFS", placeholder = "例如 mPFS / mOS", width = "100%"),
+            selectInput(
+              ns("text_position_preset"), "统计文本位置预设",
+              choices = c("自动（默认）" = "auto", "左上" = "top-left", "右上" = "top-right", "左下" = "bottom-left", "右下" = "bottom-right", "自定义" = "custom"),
+              selected = "bottom-left", width = "100%"
+            ),
+            graphics_aux_legend_anchor_controls_ui(
+              ns,
+              position_id = "text_position_preset",
+              x_ratio_id = "median_x",
+              y_ratio_id = "median_y",
+              default_anchor = c(0.98, 0.95, 0.13, 0.14),
+              condition_positions = "custom",
+              x_label = "中位生存X",
+              y_label = "中位生存Y",
+              include_size = FALSE,
+              header = "自定义坐标 (0-1相对位置)"
+            ),
+            graphics_aux_legend_anchor_controls_ui(
+              ns,
+              position_id = "text_position_preset",
+              x_ratio_id = "stats_x",
+              y_ratio_id = "stats_y",
+              default_anchor = c(0.02, 0.95, 0.13, 0.14),
+              condition_positions = "custom",
+              x_label = "统计量X",
+              y_label = "统计量Y",
+              include_size = FALSE,
+              header = ""
+            )
+          )
+        )
+      )
+    )
+  )
+}
+
+.build_survival_theme_tab <- function(ns) {
+  tabPanel(
+    "样式主题",
+    br(),
+    fluidRow(
+      column(
+        6,
+        tags$div(
+          class = "panel panel-default",
+          tags$div(class = "panel-heading", "标题与坐标轴"),
+          tags$div(
+            class = "panel-body",
+            textInput(ns("plot_title"), "主标题", value = "", placeholder = "输入标题", width = "100%"),
+            fluidRow(
+              column(6, numericInput(ns("title_size"), "标题大小", value = 14, min = 8, max = 24, step = 1, width = "100%")),
+              column(6, numericInput(ns("caption_size"), "脚注大小", value = 10, min = 8, max = 20, step = 1, width = "100%"))
+            ),
+            textInput(ns("plot_caption"), "脚注", value = "", placeholder = "输入脚注", width = "100%"),
+            fluidRow(
+              column(6, textInput(ns("plot_xlab"), "X轴标签", value = "Duration", width = "100%")),
+              column(6, numericInput(ns("xlab_size"), "X轴字号", value = 12, min = 8, max = 20, step = 1, width = "100%"))
+            ),
+            fluidRow(
+              column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%")),
+              column(6, numericInput(ns("ylab_size"), "Y轴字号", value = 12, min = 8, max = 20, step = 1, width = "100%"))
+            ),
+            fluidRow(
+              column(4, numericInput(ns("y_break_step"), "Y轴步长", value = 0.25, min = 0.05, max = 1, step = 0.05, width = "100%")),
+              column(4, checkboxInput(ns("y_as_percent"), "Y轴显示百分比", value = FALSE)),
+              column(4, conditionalPanel(
+                condition = paste0("input['", ns("y_as_percent"), "'] == true"),
+                checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
+              ))
+            ),
+            numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 2, min = 0, max = 5, step = 1, width = "100%")
+          )
+        )
+      ),
+      column(
+        6,
+        tags$div(
+          class = "panel panel-default",
+          tags$div(class = "panel-heading", "图例与文字"),
+          tags$div(
+            class = "panel-body",
+            fluidRow(
+              column(4, numericInput(ns("axis_text_size"), "坐标刻度字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+              column(4, numericInput(ns("legend_text_size"), "图例文本字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+              column(4, numericInput(ns("stats_text_size"), "统计标注字号", value = 10, min = 6, max = 20, step = 1, width = "100%"))
+            ),
+            numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1, width = "100%"),
+            numericInput(ns("legend_row_gap"), "图例行间距(row_gap)", value = 1.0, min = 0.1, max = 3.0, step = 0.1, width = "100%"),
+            graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "corners_aux_none", default_position = "top-right"),
+            graphics_aux_legend_anchor_controls_ui(
+              ns,
+              position_id = "legend_position",
+              x_ratio_id = "legend_x_ratio",
+              y_ratio_id = "legend_y_ratio",
+              width_ratio_id = "legend_width_ratio",
+              height_ratio_id = "legend_height_ratio",
+              default_anchor = .survival_aux_legend_compact_spec$default_inside_anchor,
+              condition_positions = "inside_custom"
+            ),
+            conditionalPanel(
+              condition = paste0("input['", ns("strata_var"), "'] == 'None'"),
+              textInput(ns("overall_group_label"), "总体分组标签", value = "all", width = "100%"),
+              helpText("未分层时统一用于主图图例、风险表、数据表与统计报告")
+            )
+          )
+        )
+      )
+    )
+  )
+}
+
+.build_survival_export_tab <- function(ns) {
+  tabPanel(
+    "输出与导出",
+    br(),
+    fluidRow(
+      column(
+        4,
+        selectInput(
+          ns("size_mode"), "尺寸模式",
+          choices = c("宽图标准" = "wide_standard", "自定义尺寸" = "custom"),
+          selected = "wide_standard", width = "100%"
+        )
+      ),
+      column(
+        4,
+        selectInput(
+          ns("export_format"), "导出格式",
+          choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"),
+          selected = "pdf", width = "100%"
+        )
+      ),
+      column(
+        4,
+        numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%")
+      )
+    ),
+    conditionalPanel(
+      condition = paste0("input['", ns("size_mode"), "'] == 'custom'"),
+      fluidRow(
+        column(3, numericInput(ns("static_width_px"), "静态图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
+        column(3, numericInput(ns("static_height_px"), "静态图高度(px)", value = 760, min = 400, max = 1800, step = 20, width = "100%")),
+        column(3, numericInput(ns("interactive_width_px"), "交互图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
+        column(3, numericInput(ns("interactive_height_px"), "交互图高度(px)", value = 620, min = 350, max = 1600, step = 20, width = "100%"))
+      ),
+      fluidRow(
+        column(3, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 13, min = 6, max = 30, step = 0.5, width = "100%")),
+        column(3, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 9, min = 4, max = 24, step = 0.5, width = "100%"))
+      )
+    ),
+    hr(),
+    conditionalPanel(
+      condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
+      uiOutput(ns("strata_labels_ui"))
+    )
+  )
+}
+
+.build_survival_output_box <- function(ns) {
+  fluidRow(
+    box(
+      width = 12,
+      title = "生存曲线输出",
+      status = "success",
+      solidHeader = TRUE,
+      fluidRow(
+        column(6, div(style = "text-align: left; margin-bottom: 10px;", actionButton(ns("render_km_plot"), "生成图形", class = "btn-primary"))),
+        column(6, div(style = "text-align: right; margin-bottom: 10px;", downloadButton(ns("download_plot"), "下载图形", class = "btn-primary")))
+      ),
+      tabsetPanel(
+        id = ns("km_output_tabs"),
+        tabPanel("静态图", div(style = "height: 10px;"), uiOutput(ns("survPlotUI"))),
+        tabPanel("交互式图", div(style = "height: 10px;"), uiOutput(ns("interactiveSurvPlotUI"))),
+        tabPanel("数据表", div(style = "height: 10px;"), DTOutput(ns("km_data_table"))),
+        tabPanel("统计报告", div(style = "height: 10px;"), uiOutput(ns("survival_report")))
+      )
+    )
+  )
+}
+
+.build_survival_ui_script <- function() {
+  tags$script(HTML("
+      $(document).ready(function() {
+        $(document).on('mousewheel DOMMouseScroll', '.selectize-control .selectize-input', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+        $(document).on('mousewheel DOMMouseScroll', 'select', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+        $(document).on('mousewheel DOMMouseScroll', 'input[type=number]', function(e) {
+          if ($(this).is(':focus')) {
+            e.preventDefault();
+            e.stopPropagation();
+            $(this).blur();
+          }
+        });
+      });
+    "))
+}
+
 survival_analysis_ui <- function(id) {
   ns <- NS(id)
-  
+
   tagList(
     fluidRow(
       graphics_config_tabs_box(
@@ -266,244 +608,15 @@ survival_analysis_ui <- function(id) {
         title = "生存分析参数配置",
         collapsed = FALSE,
         tabs = list(
-          tabPanel(
-            "数据映射",
-            br(),
-            fluidRow(
-              column(
-                6,
-                tags$div(class = "panel panel-default",
-                         tags$div(class = "panel-heading", "数据映射"),
-                         tags$div(class = "panel-body",
-                                  selectizeInput(ns("km_time"), "时间变量 (数值型)", choices = NULL, width = "100%"),
-                                  selectizeInput(ns("km_status"), "状态变量 (数值型)", choices = NULL, width = "100%"),
-                                  fluidRow(
-                                    column(6, selectizeInput(ns("strata_var"), "分层变量 (分组)", choices = c("无" = "None"), width = "100%")),
-                                    column(6, selectizeInput(ns("facet_var"), "分面变量 (分组)", choices = c("无" = "None"), width = "100%"))
-                                  ),
-                                  conditionalPanel(
-                                    condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
-                                    uiOutput(ns("hr_reference_ui"))
-                                  ),
-                                  conditionalPanel(
-                                    condition = paste0("input['", ns("facet_var"), "'] != 'None'"),
-                                    uiOutput(ns("facet_value_ui"))
-                                  )))
-              ),
-              column(
-                6,
-                tags$div(class = "panel panel-default",
-                         tags$div(class = "panel-heading", "处理与筛选"),
-                         tags$div(class = "panel-body",
-                                  radioButtons(ns("km_censor_value"), "删失值定义",
-                                               choices = c("0 = 删失, 1 = 事件" = "0", "1 = 删失, 0 = 事件" = "1"),
-                                               selected = "0", inline = TRUE),
-                                  hr(),
-                                  uiOutput(ns("time_range_slider")),
-                                  numericInput(ns("time_step"), "时间轴步长", value = NULL, min = 1, max = 1000, step = 1, width = "100%")))
-              )
-            )
-          ),
-          tabPanel(
-            "分析参数",
-            br(),
-            fluidRow(
-              column(
-                6,
-                tags$div(class = "panel panel-default",
-                         tags$div(class = "panel-heading", "曲线与风险表"),
-                         tags$div(class = "panel-body",
-                                  fluidRow(
-                                    column(6, numericInput(ns("line_size"), "线条粗细", value = 0.6, min = 0.1, max = 5, step = 0.1, width = "100%")),
-                                    column(6, selectInput(ns("line_type"), "线条类型",
-                                                          choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted",
-                                                                      "点虚线" = "dotdash", "长虚线" = "longdash"), width = "100%"))
-                                  ),
-                                  checkboxInput(ns("km_show_censor"), "显示删失符号", value = TRUE),
-                                  conditionalPanel(
-                                    condition = paste0("input['", ns("km_show_censor"), "'] == true"),
-                                    fluidRow(
-                                      column(6, numericInput(ns("km_censor_size"), "删失点大小", value = 2, min = 1, max = 10, step = 0.5, width = "100%")),
-                                      column(6, selectInput(ns("km_censor_shape"), "删失点形状",
-                                                            choices = c("+" = 3, "I" = 124, "□" = 0, "○" = 1, "△" = 2, "◇" = 5, "☆" = 8),
-                                                            selected = 3, width = "100%"))
-                                    )
-                                  ),
-                                  checkboxInput(ns("km_show_risktable"), "显示风险表", value = TRUE),
-                                  checkboxInput(ns("show_grid"), "显示网格线", value = FALSE)))
-              ),
-              column(
-                6,
-                tags$div(class = "panel panel-default",
-                         tags$div(class = "panel-heading", "统计标注"),
-                         tags$div(class = "panel-body",
-                                  checkboxInput(ns("show_median"), "显示中位生存时间", value = TRUE),
-                                  checkboxInput(ns("show_stats"), "显示统计量(P值/HR)", value = TRUE),
-                                  selectInput(ns("text_position_preset"), "统计文本位置预设",
-                                              choices = c("自动（默认）" = "auto",
-                                                          "左上" = "top-left",
-                                                          "右上" = "top-right",
-                                                          "左下" = "bottom-left",
-                                                          "右下" = "bottom-right",
-                                                          "自定义" = "custom"),
-                                              selected = "bottom-left", width = "100%"),
-                                  conditionalPanel(
-                                    condition = paste0("input['", ns("text_position_preset"), "'] == 'custom'"),
-                                    h5("自定义坐标 (0-1相对位置)"),
-                                    fluidRow(
-                                      column(6, numericInput(ns("median_x"), "中位生存X", value = 0.98, min = 0, max = 1, step = 0.01, width = "100%")),
-                                      column(6, numericInput(ns("median_y"), "中位生存Y", value = 0.95, min = 0, max = 1, step = 0.01, width = "100%"))
-                                    ),
-                                    fluidRow(
-                                      column(6, numericInput(ns("stats_x"), "统计量X", value = 0.02, min = 0, max = 1, step = 0.01, width = "100%")),
-                                      column(6, numericInput(ns("stats_y"), "统计量Y", value = 0.95, min = 0, max = 1, step = 0.01, width = "100%"))
-                                    )
-                                  )))
-              )
-            )
-          ),
-          tabPanel(
-            "样式主题",
-            br(),
-            fluidRow(
-              column(
-                6,
-                tags$div(class = "panel panel-default",
-                         tags$div(class = "panel-heading", "标题与坐标轴"),
-                         tags$div(class = "panel-body",
-                                  textInput(ns("plot_title"), "主标题", value = "", placeholder = "输入标题", width = "100%"),
-                                  fluidRow(
-                                    column(6, numericInput(ns("title_size"), "标题大小", value = 14, min = 8, max = 24, step = 1, width = "100%")),
-                                    column(6, numericInput(ns("caption_size"), "脚注大小", value = 10, min = 8, max = 20, step = 1, width = "100%"))
-                                  ),
-                                  textInput(ns("plot_caption"), "脚注", value = "", placeholder = "输入脚注", width = "100%"),
-                                  fluidRow(
-                                    column(6, textInput(ns("plot_xlab"), "X轴标签", value = "", width = "100%")),
-                                    column(6, numericInput(ns("xlab_size"), "X轴字号", value = 12, min = 8, max = 20, step = 1, width = "100%"))
-                                  ),
-                                  fluidRow(
-                                    column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%")),
-                                    column(6, numericInput(ns("ylab_size"), "Y轴字号", value = 12, min = 8, max = 20, step = 1, width = "100%"))
-                                  )))
-              ),
-              column(
-                6,
-                tags$div(class = "panel panel-default",
-                         tags$div(class = "panel-heading", "图例与文字"),
-                         tags$div(class = "panel-body",
-                                  fluidRow(
-                                    column(4, numericInput(ns("axis_text_size"), "坐标刻度字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
-                                    column(4, numericInput(ns("legend_text_size"), "图例文本字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
-                                    column(4, numericInput(ns("stats_text_size"), "统计标注字号", value = 10, min = 6, max = 20, step = 1, width = "100%"))
-                                  ),
-                                  numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1, width = "100%"),
-                                  graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "corners_none", default_position = "top-right"),
-                                  conditionalPanel(
-                                    condition = paste0("input['", ns("strata_var"), "'] == 'None'"),
-                                    textInput(ns("overall_group_label"), "总体分组标签", value = "all", width = "100%"),
-                                    helpText("未分层时统一用于主图图例、风险表、数据表与统计报告")
-                                  )))
-              )
-            )
-          ),
-          tabPanel(
-            "输出与导出",
-            br(),
-            fluidRow(
-              column(4,
-                     selectInput(ns("size_mode"), "尺寸模式",
-                                 choices = c("宽图标准" = "wide_standard", "自定义尺寸" = "custom"),
-                                 selected = "wide_standard", width = "100%")),
-              column(4,
-                     selectInput(ns("export_format"), "导出格式",
-                                 choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"),
-                                 selected = "pdf", width = "100%")),
-              column(4,
-                     numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%"))
-            ),
-            conditionalPanel(
-              condition = paste0("input['", ns("size_mode"), "'] == 'custom'"),
-              fluidRow(
-                column(3, numericInput(ns("static_width_px"), "静态图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
-                column(3, numericInput(ns("static_height_px"), "静态图高度(px)", value = 760, min = 400, max = 1800, step = 20, width = "100%")),
-                column(3, numericInput(ns("interactive_width_px"), "交互图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
-                column(3, numericInput(ns("interactive_height_px"), "交互图高度(px)", value = 620, min = 350, max = 1600, step = 20, width = "100%"))
-              ),
-              fluidRow(
-                column(3, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 13, min = 6, max = 30, step = 0.5, width = "100%")),
-                column(3, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 9, min = 4, max = 24, step = 0.5, width = "100%"))
-              )
-            ),
-            hr(),
-            conditionalPanel(
-              condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
-              uiOutput(ns("strata_labels_ui"))
-            ),
-          )
+          .build_survival_mapping_tab(ns),
+          .build_survival_analysis_tab(ns),
+          .build_survival_theme_tab(ns),
+          .build_survival_export_tab(ns)
         )
       )
     ),
-    
-    # 图形显示区域 - 底部
-    fluidRow(
-      box(
-        width = 12,
-        title = "生存曲线输出",
-        status = "success",
-        solidHeader = TRUE,
-        fluidRow(
-          column(6, div(style = "text-align: left; margin-bottom: 10px;", actionButton(ns("render_km_plot"), "生成图形", class = "btn-primary"))),
-          column(6, div(style = "text-align: right; margin-bottom: 10px;", downloadButton(ns("download_plot"), "下载图形", class = "btn-primary")))
-        ),
-        
-        tabsetPanel(
-          id = ns("km_output_tabs"),
-          tabPanel("静态图", 
-            div(style = "height: 10px;"),
-            uiOutput(ns("survPlotUI"))
-          ),
-          tabPanel("交互式图", 
-            div(style = "height: 10px;"),
-            uiOutput(ns("interactiveSurvPlotUI"))
-          ),
-          tabPanel("数据表", 
-            div(style = "height: 10px;"),
-            DTOutput(ns("km_data_table"))
-          ),
-          tabPanel("统计报告",
-            div(style = "height: 10px;"),
-            uiOutput(ns("survival_report"))
-          )
-        )
-      )
-    ),
-    
-    # JavaScript 修复 - 增强版，防止滚轮意外修改输入值
-    tags$script(HTML('
-      $(document).ready(function() {
-        // 禁用 selectize 输入框的滚轮事件
-        $(document).on("mousewheel DOMMouseScroll", ".selectize-control .selectize-input", function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-        });
-        
-        // 禁用普通 select 输入框的滚轮事件
-        $(document).on("mousewheel DOMMouseScroll", "select", function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-        });
-        
-        // 禁用数字输入框的滚轮事件
-        $(document).on("mousewheel DOMMouseScroll", "input[type=number]", function(e) {
-          // 只有当输入框聚焦时才处理
-          if ($(this).is(":focus")) {
-            e.preventDefault();
-            e.stopPropagation();
-            $(this).blur(); // 移除焦点，这是最有效的方法
-          }
-        });
-      });
-    '))
+    .build_survival_output_box(ns),
+    .build_survival_ui_script()
   )
 }
 
@@ -519,6 +632,10 @@ survival_analysis_server <- function(input, output, session, data) {
     km_facet = "None",
     km_facet_values = NULL,
     km_show_risktable = TRUE,
+    risk_table_height_ratio = 0.15,
+    risk_table_plot_gap = 0,
+    risk_table_group_gap = 1.2,
+    surv_median_line = "none",
     km_line_size = 0.6,
     km_line_type = "solid",
     km_censor_size = 3,
@@ -528,20 +645,33 @@ survival_analysis_server <- function(input, output, session, data) {
     caption_size = 10,
     xlab_size = 12,
     ylab_size = 12,
+    y_break_step = 0.25,
+    y_decimals = 2,
+    y_as_percent = FALSE,
+    y_show_percent_sign = TRUE,
     axis_text_size = 10,
     legend_text_size = 10,
     stats_text_size = 10,
+    axis_style = "default",
     show_grid = FALSE,
     time_step = NULL,
     show_median = TRUE,
     show_stats = TRUE,
     legend_position = "top-right",
     legend_title = "",
+    legend_row_gap = 1.0,
+    legend_inside_anchor = graphics_resolve_inside_anchor(
+      x_ratio = .survival_aux_legend_compact_spec$default_inside_anchor[[1]],
+      y_ratio = .survival_aux_legend_compact_spec$default_inside_anchor[[2]],
+      width_ratio = .survival_aux_legend_compact_spec$default_inside_anchor[[3]],
+      height_ratio = .survival_aux_legend_compact_spec$default_inside_anchor[[4]]
+    ),
     text_position_preset = "bottom-left",
     median_x = 0.98,
     median_y = 0.95,
     stats_x = 0.02,
     stats_y = 0.95,
+    median_label_text = "mPFS",
     hr_reference = NULL,
     strata_labels = list(),
     overall_group_label = "all"
@@ -797,6 +927,10 @@ survival_analysis_server <- function(input, output, session, data) {
           km_facet_values = km_facet_values,
           km_censor_value = input$km_censor_value,
           km_show_risktable = input$km_show_risktable,
+          risk_table_height_ratio = input$risk_table_height_ratio,
+          risk_table_plot_gap = input$risk_table_plot_gap,
+          risk_table_group_gap = input$risk_table_group_gap,
+          surv_median_line = input$surv_median_line,
           km_line_size = input$line_size,
           km_line_type = input$line_type,
           km_censor_size = input$km_censor_size,
@@ -806,6 +940,10 @@ survival_analysis_server <- function(input, output, session, data) {
           caption_size = input$caption_size,
           xlab_size = input$xlab_size,
           ylab_size = input$ylab_size,
+          y_break_step = input$y_break_step,
+          y_decimals = input$y_decimals,
+          y_as_percent = input$y_as_percent,
+          y_show_percent_sign = input$y_show_percent_sign,
           axis_text_size = input$axis_text_size,
           legend_text_size = input$legend_text_size,
           stats_text_size = input$stats_text_size,
@@ -815,11 +953,19 @@ survival_analysis_server <- function(input, output, session, data) {
           show_stats = input$show_stats,
           legend_position = input$legend_position,
           legend_title = input$legend_title,
+          legend_row_gap = input$legend_row_gap,
+          legend_inside_anchor = graphics_resolve_inside_anchor(
+            x_ratio = input$legend_x_ratio %||% .survival_aux_legend_compact_spec$default_inside_anchor[[1]],
+            y_ratio = input$legend_y_ratio %||% .survival_aux_legend_compact_spec$default_inside_anchor[[2]],
+            width_ratio = input$legend_width_ratio %||% .survival_aux_legend_compact_spec$default_inside_anchor[[3]],
+            height_ratio = input$legend_height_ratio %||% .survival_aux_legend_compact_spec$default_inside_anchor[[4]]
+          ),
           text_position_preset = input$text_position_preset,
           median_x = input$median_x,
           median_y = input$median_y,
           stats_x = input$stats_x,
           stats_y = input$stats_y,
+          median_label_text = .resolve_survival_median_label(input$median_label_text, "mPFS"),
           hr_reference = input$hr_reference,
           strata_labels = strata_labels,
           overall_group_label = overall_group_label
@@ -831,8 +977,12 @@ survival_analysis_server <- function(input, output, session, data) {
         graphics_state$km_facet_values <- params$km_facet_values
         graphics_state$km_censor_value <- params$km_censor_value
         graphics_state$km_show_risktable <- params$km_show_risktable
+        graphics_state$risk_table_height_ratio <- params$risk_table_height_ratio
+        graphics_state$risk_table_plot_gap <- params$risk_table_plot_gap
+        graphics_state$risk_table_group_gap <- params$risk_table_group_gap
         graphics_state$km_line_size <- params$km_line_size
         graphics_state$km_line_type <- params$km_line_type
+        graphics_state$surv_median_line <- params$surv_median_line
         graphics_state$km_censor_size <- params$km_censor_size
         graphics_state$km_censor_shape <- params$km_censor_shape
         graphics_state$y_text_size <- params$y_text_size
@@ -840,7 +990,12 @@ survival_analysis_server <- function(input, output, session, data) {
         graphics_state$caption_size <- params$caption_size
         graphics_state$xlab_size <- params$xlab_size
         graphics_state$ylab_size <- params$ylab_size
+        graphics_state$y_break_step <- params$y_break_step
+        graphics_state$y_decimals <- params$y_decimals
+        graphics_state$y_as_percent <- params$y_as_percent
+        graphics_state$y_show_percent_sign <- params$y_show_percent_sign
         graphics_state$axis_text_size <- params$axis_text_size
+        graphics_state$axis_style <- params$axis_style
         graphics_state$legend_text_size <- params$legend_text_size
         graphics_state$stats_text_size <- params$stats_text_size
         graphics_state$show_grid <- params$show_grid
@@ -849,11 +1004,14 @@ survival_analysis_server <- function(input, output, session, data) {
         graphics_state$show_stats <- params$show_stats
         graphics_state$legend_position <- params$legend_position
         graphics_state$legend_title <- params$legend_title
+        graphics_state$legend_row_gap <- params$legend_row_gap
+        graphics_state$legend_inside_anchor <- params$legend_inside_anchor
         graphics_state$text_position_preset <- params$text_position_preset
         graphics_state$median_x <- params$median_x
         graphics_state$median_y <- params$median_y
         graphics_state$stats_x <- params$stats_x
         graphics_state$stats_y <- params$stats_y
+        graphics_state$median_label_text <- params$median_label_text
         graphics_state$hr_reference <- params$hr_reference
         graphics_state$strata_labels <- params$strata_labels
         graphics_state$overall_group_label <- params$overall_group_label
@@ -1214,6 +1372,7 @@ survival_analysis_server <- function(input, output, session, data) {
       fit_local,
       data = plot_data,
       risk.table = params$km_show_risktable,
+      surv.median.line = params$surv_median_line %||% "none",
       conf.int = FALSE,
       pval = FALSE,
       censor = FALSE,
@@ -1237,28 +1396,35 @@ survival_analysis_server <- function(input, output, session, data) {
         median_surv$median_txt <- ifelse(is.finite(median_surv$median), formatC(median_surv$median, format = "f", digits = 2), "NR")
         median_surv$lower_txt <- ifelse(is.finite(median_surv$lower), formatC(median_surv$lower, format = "f", digits = 2), "NA")
         median_surv$upper_txt <- ifelse(is.finite(median_surv$upper), formatC(median_surv$upper, format = "f", digits = 2), "NA")
-        median_surv$label <- ifelse(
-          median_surv$display_strata == overall_label,
-          paste0("Median Survival Time: ", median_surv$median_txt, " (95%CI ", median_surv$lower_txt, "-", median_surv$upper_txt, ")"),
-          paste0(median_surv$display_strata, ": Median Survival Time: ", median_surv$median_txt, " (95%CI ", median_surv$lower_txt, "-", median_surv$upper_txt, ")")
+        median_surv$label <- vapply(
+          seq_len(nrow(median_surv)),
+          function(i) .build_survival_median_summary_label(
+            display_strata = median_surv$display_strata[i],
+            median_label = params$median_label_text,
+            median_txt = median_surv$median_txt[i],
+            lower_txt = median_surv$lower_txt[i],
+            upper_txt = median_surv$upper_txt[i],
+            overall_label = overall_label
+          ),
+          character(1)
         )
         preset <- params$text_position_preset
         n_groups <- nrow(median_surv)
         if (preset == "auto" || preset == "bottom-left") {
           x_pos <- min(time_range) + 0.02 * diff(time_range)
-          y_positions <- seq(0.4, max(0.05, 0.4 - (n_groups - 1) * 0.1), length.out = n_groups)
+          y_positions <- .build_survival_annotation_y_positions(0.4, n_groups, 0.05)
         } else if (preset == "top-left") {
           x_pos <- min(time_range) + 0.02 * diff(time_range)
-          y_positions <- seq(0.95, max(0.6, 0.95 - (n_groups - 1) * 0.1), length.out = n_groups)
+          y_positions <- .build_survival_annotation_y_positions(0.95, n_groups, 0.6)
         } else if (preset == "top-right") {
           x_pos <- max(time_range) * 0.98
-          y_positions <- seq(0.95, max(0.6, 0.95 - (n_groups - 1) * 0.1), length.out = n_groups)
+          y_positions <- .build_survival_annotation_y_positions(0.95, n_groups, 0.6)
         } else if (preset == "bottom-right") {
           x_pos <- max(time_range) * 0.98
-          y_positions <- seq(0.4, max(0.05, 0.4 - (n_groups - 1) * 0.1), length.out = n_groups)
+          y_positions <- .build_survival_annotation_y_positions(0.4, n_groups, 0.05)
         } else {
           x_pos <- min(time_range) + params$median_x * diff(time_range)
-          y_positions <- params$median_y - seq(0, n_groups - 1) * 0.05
+          y_positions <- params$median_y - seq(0, n_groups - 1) * .survival_annotation_line_gap()
         }
         median_surv$x <- x_pos
         median_surv$y <- y_positions
@@ -1266,7 +1432,7 @@ survival_analysis_server <- function(input, output, session, data) {
           geom_text(
             data = median_surv,
             aes(x = x, y = y, label = label),
-            hjust = ifelse(preset %in% c("top-left", "bottom-left", "auto"), 0, 1),
+            hjust = .survival_median_text_hjust(),
             vjust = 0.5,
             size = params$stats_text_size / 3.2,
             color = "black",
@@ -1330,16 +1496,26 @@ survival_analysis_server <- function(input, output, session, data) {
             ))
           }
           censor_breaks <- censor_pairs$display
-          censor_colors <- stats::setNames(unname(legend_colors_raw[censor_pairs$raw]), censor_breaks)
+          censor_colors <- stats::setNames(unname(main_legend_colors[censor_breaks]), censor_breaks)
+          if (length(censor_colors) != length(censor_breaks) || any(is.na(censor_colors) | !nzchar(censor_colors))) {
+            censor_colors <- stats::setNames(unname(legend_colors_raw[censor_pairs$raw]), censor_breaks)
+          }
           if (length(censor_colors) != length(censor_breaks) || any(is.na(censor_colors) | !nzchar(censor_colors))) {
             censor_colors <- .resolve_survival_legend_colors(p$plot, censor_pairs$raw, censor_breaks)
           }
+          censored_points$color_value <- .resolve_survival_censor_point_colors(
+            raw_strata = censored_points$strata,
+            display_strata = censored_points$strata_display,
+            main_legend_colors = main_legend_colors,
+            fallback_colors = stats::setNames(unname(legend_colors_raw[legend_breaks]), legend_breaks)
+          )
           p$plot <- p$plot +
             geom_point(
               data = censored_points,
-              aes(x = time, y = surv, color = strata),
+              aes(x = time, y = surv),
               shape = .resolve_survival_censor_shape_value(params$km_censor_shape),
               size = params$km_censor_size,
+              color = censored_points$color_value,
               alpha = 1,
               inherit.aes = FALSE,
               show.legend = FALSE
@@ -1349,8 +1525,10 @@ survival_analysis_server <- function(input, output, session, data) {
             colors = censor_colors,
             shape_value = as.numeric(params$km_censor_shape),
             title = "Censor",
-            base_font_size = params$legend_text_size
+            base_font_size = params$legend_text_size,
+            row_gap = params$legend_row_gap %||% 1.0
           )
+          p$censor_rows <- length(censor_breaks)
         } else {
           censor_label <- overall_label %||% "all"
           censored_points$censor_label <- censor_label
@@ -1370,8 +1548,10 @@ survival_analysis_server <- function(input, output, session, data) {
             colors = stats::setNames("black", censor_label),
             shape_value = as.numeric(params$km_censor_shape),
             title = "Censor",
-            base_font_size = params$legend_text_size
+            base_font_size = params$legend_text_size,
+            row_gap = params$legend_row_gap %||% 1.0
           )
+          p$censor_rows <- 1
         }
       }
     }
@@ -1386,14 +1566,29 @@ survival_analysis_server <- function(input, output, session, data) {
     if (!params$show_grid) {
       p$plot <- p$plot + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
     }
+    
+    y_step <- suppressWarnings(as.numeric(params$y_break_step %||% 0.25))
+    if (is.na(y_step) || y_step <= 0) y_step <- 0.25
+    if (isTRUE(params$y_as_percent)) {
+      p$plot <- suppressWarnings(p$plot + scale_y_continuous(
+        breaks = seq(0, 1, by = y_step), 
+        labels = graphics_format_percent_labels(show_percent_sign = isTRUE(params$y_show_percent_sign), scale_factor = 100, decimals = params$y_decimals %||% 2)
+      ))
+    } else {
+      p$plot <- suppressWarnings(p$plot + scale_y_continuous(
+        breaks = seq(0, 1, by = y_step),
+        labels = graphics_format_number_labels(decimals = params$y_decimals %||% 2)
+      ))
+    }
+    
     p$plot <- p$plot +
       theme(
         text = element_text(family = "sans"),
         panel.border = element_blank(),
-        axis.line = element_line(colour = "black", arrow = arrow(length = unit(0.2, "cm"), type = "closed")),
         axis.text = element_text(size = params$axis_text_size),
         legend.text = element_text(size = params$legend_text_size)
       )
+    p$plot <- graphics_apply_axis_style(p$plot, params$axis_style %||% "default", arrow_size = 0.15)
     if (!is.null(input$plot_title) && input$plot_title != "") {
       p$plot <- p$plot + labs(title = gsub("\\\\n", "\n", input$plot_title))
     }
@@ -1417,10 +1612,11 @@ survival_analysis_server <- function(input, output, session, data) {
           axis.text.x = element_blank(),
           axis.ticks = element_blank(),
           panel.grid = element_blank(),
-          plot.margin = margin(0, 0, 0, 0, "pt"),
+          plot.margin = margin(params$risk_table_plot_gap, 0, 0, 0, "pt"),
           axis.text.y = element_text(size = params$y_text_size)
         )
-      p$table <- p$table + scale_y_discrete(labels = risk_table_labeler)
+      group_gap <- params$risk_table_group_gap %||% 1.2
+      p$table <- p$table + scale_y_discrete(labels = risk_table_labeler, expand = expansion(mult = c(group_gap, group_gap)))
     }
     p$main_legend_labels <- unname(legend_labs)
     p$main_legend_colors <- main_legend_colors
@@ -1441,16 +1637,23 @@ survival_analysis_server <- function(input, output, session, data) {
       title = p$main_legend_title,
       line_size = params$km_line_size,
       line_type = params$km_line_type,
-      base_font_size = params$legend_text_size
+      base_font_size = params$legend_text_size,
+      row_gap = params$legend_row_gap %||% 1.0
     )
     legend_bundle <- .compose_survival_static_legend(
       main_legend_plot = main_legend_plot,
       censor_legend_plot = p$censor_legend_plot,
-      legend_position = params$legend_position
+      legend_position = params$legend_position,
+      inside_anchor = params$legend_inside_anchor,
+      primary_rows = length(p$main_legend_labels),
+      secondary_rows = if (is.null(p$censor_legend_plot)) 0 else (p$censor_rows %||% 1)
     )
     
     if (params$km_show_risktable && !is.null(p$table)) {
       plot_list <- list(p$plot, p$table)
+      
+      risk_ratio <- params$risk_table_height_ratio %||% 0.15
+      plot_ratio <- 1 - risk_ratio
       
       if (!is.null(input$plot_caption) && input$plot_caption != "") {
         formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
@@ -1460,9 +1663,9 @@ survival_analysis_server <- function(input, output, session, data) {
           theme(plot.caption = element_text(hjust = 0, vjust = 0, size = input$caption_size))
         
         plot_list <- c(plot_list, list(caption_plot))
-        rel_heights <- c(2, 0.5, 0.2)
+        rel_heights <- c(plot_ratio, risk_ratio, 0.08)
       } else {
-        rel_heights <- c(2, 0.5)
+        rel_heights <- c(plot_ratio, risk_ratio)
       }
       
       combined_plot <- plot_grid(
@@ -1531,7 +1734,8 @@ survival_analysis_server <- function(input, output, session, data) {
     p <- graphics_apply_legend_theme(
       p,
       show_legend = !identical(params$legend_position, "none"),
-      position = params$legend_position
+      position = params$legend_position,
+      inside_anchor = params$legend_inside_anchor
     )
     
     # 交互式图不需要网格和复杂的自定义主题边框，但这里我们保留大部分原有设置
@@ -1665,19 +1869,20 @@ survival_analysis_server <- function(input, output, session, data) {
     logrank_p <- stats_results()$logrank_p
     
     med <- stats_results()$median_surv
+    n_groups <- if (is.null(fit_local$strata)) 1 else length(fit_local$strata)
     median_lines <- character(0)
     if (!is.null(med) && nrow(med) > 0) {
       for (i in seq_len(nrow(med))) {
         display_label <- .format_survival_group_label(med$strata[i], graphics_state$km_strata, graphics_state$strata_labels, graphics_state$overall_group_label)
-        strata_prefix <- ifelse(display_label == graphics_state$overall_group_label, "", paste0(display_label, "："))
         median_lines <- c(
           median_lines,
-          paste0(
-            strata_prefix, "Median Survival Time: ",
-            ifelse(is.finite(med$median[i]), formatC(med$median[i], format = "f", digits = 2), "NR"),
-            " (95%CI ",
-            ifelse(is.finite(med$lower[i]), formatC(med$lower[i], format = "f", digits = 2), "NA"), " - ",
-            ifelse(is.finite(med$upper[i]), formatC(med$upper[i], format = "f", digits = 2), "NA"), ")"
+          .build_survival_median_summary_label(
+            display_strata = display_label,
+            median_label = graphics_state$median_label_text,
+            median_txt = ifelse(is.finite(med$median[i]), formatC(med$median[i], format = "f", digits = 2), "NR"),
+            lower_txt = ifelse(is.finite(med$lower[i]), formatC(med$lower[i], format = "f", digits = 2), "NA"),
+            upper_txt = ifelse(is.finite(med$upper[i]), formatC(med$upper[i], format = "f", digits = 2), "NA"),
+            overall_label = graphics_state$overall_group_label
           )
         )
       }
@@ -1695,14 +1900,7 @@ survival_analysis_server <- function(input, output, session, data) {
       )
     )
     
-    if (!is.na(logrank_p)) {
-      logrank_text <- .compose_survival_p_text("Log-rank 检验 P值", logrank_p, with_spaces = FALSE)
-      if (logrank_p < 0.05) {
-        interpretation <- c(interpretation, paste0(logrank_text, "，提示组间生存曲线差异具有统计学意义。"))
-      } else {
-        interpretation <- c(interpretation, paste0(logrank_text, "，未见组间生存曲线显著差异。"))
-      }
-    }
+    interpretation <- c(interpretation, .build_survival_logrank_interpretation(logrank_p, n_groups = n_groups))
     
     if (length(hr_lines) > 0) {
       interpretation <- c(interpretation, "Cox 回归结果显示不同分层水平相对风险的方向和强度可由 HR 与其95%CI 综合判断：95%CI 不跨 1 通常提示统计学差异。")
