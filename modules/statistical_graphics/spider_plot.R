@@ -173,24 +173,7 @@ spider_plot_ui <- function(id) {
                 tabPanel(
                   "输出与导出",
                   br(),
-                  fluidRow(
-                    column(4, selectInput(ns("size_mode"), "尺寸模式", choices = c("宽图标准" = "wide_standard", "自定义尺寸" = "custom"), selected = "wide_standard", width = "100%")),
-                    column(4, selectInput(ns("export_format"), "导出格式", choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "pdf", width = "100%")),
-                    column(4, numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%"))
-                  ),
-                  conditionalPanel(
-                    condition = sprintf("input['%s'] === 'custom'", ns("size_mode")),
-                    fluidRow(
-                      column(3, numericInput(ns("static_width_px"), "静态图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
-                      column(3, numericInput(ns("static_height_px"), "静态图高度(px)", value = 760, min = 400, max = 1800, step = 20, width = "100%")),
-                      column(3, numericInput(ns("interactive_width_px"), "交互图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
-                      column(3, numericInput(ns("interactive_height_px"), "交互图高度(px)", value = 620, min = 350, max = 1600, step = 20, width = "100%"))
-                    ),
-                    fluidRow(
-                      column(3, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 13, min = 6, max = 30, step = 0.5, width = "100%")),
-                      column(3, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 9, min = 4, max = 24, step = 0.5, width = "100%"))
-                    )
-                  )
+                  graphics_export_size_controls_ui(ns, download_id = "dl_plot", include_size_mode = TRUE, include_download_button = FALSE)
                 )
               )
             )
@@ -210,8 +193,8 @@ spider_plot_ui <- function(id) {
         ),
         tabsetPanel(
           id = ns("output_tabs"),
-          tabPanel("静态图", plotOutput(ns("static_plot"), height = "760px")),
-          tabPanel("交互式图", plotly::plotlyOutput(ns("interactive_plot"), height = "620px")),
+          tabPanel("静态图", uiOutput(ns("static_plot_ui"))),
+          tabPanel("交互式图", uiOutput(ns("interactive_plot_ui"))),
           tabPanel("蜘蛛图数据", DTOutput(ns("data_table")))
         )
       )
@@ -220,6 +203,7 @@ spider_plot_ui <- function(id) {
 }
 
 spider_plot_server <- function(input, output, session, data) {
+  ns <- session$ns
   `%||%` <- function(x, y) if (is.null(x)) y else x
 
   palette_values <- function(n, palette_name = "hue") {
@@ -272,30 +256,27 @@ spider_plot_server <- function(input, output, session, data) {
   prepared_data <- reactiveVal(NULL)
   main_plot_obj <- reactiveVal(NULL)
   size_config <- reactive({
-    mode <- input$size_mode %||% "wide_standard"
-    to_num <- function(x, fallback) {
-      val <- suppressWarnings(as.numeric(x))
-      if (is.na(val) || !is.finite(val)) fallback else val
-    }
-    if (identical(mode, "custom")) {
-      list(
-        static_width = to_num(input$static_width_px, 1200),
-        static_height = to_num(input$static_height_px, 760),
-        interactive_width = to_num(input$interactive_width_px, 1200),
-        interactive_height = to_num(input$interactive_height_px, 620),
-        export_width = to_num(input$export_width_in, 13),
-        export_height = to_num(input$export_height_in, 9)
-      )
-    } else {
-      list(
-        static_width = 1200,
-        static_height = 760,
-        interactive_width = 1200,
-        interactive_height = 620,
-        export_width = 13,
-        export_height = 9
-      )
-    }
+    graphics_collect_size_config(input)
+  })
+
+  output$static_plot_ui <- renderUI({
+    cfg <- size_config()
+    graphics_centered_output_container(
+      plotOutput(ns("static_plot"), height = paste0(cfg$static_height, "px"), width = "100%"),
+      frame_width_px = cfg$static_width,
+      frame_height_px = cfg$static_height
+    )
+  })
+
+  output$interactive_plot_ui <- renderUI({
+    cfg <- size_config()
+    graphics_centered_output_container(
+      plotly::plotlyOutput(ns("interactive_plot"), height = paste0(cfg$interactive_height, "px"), width = "100%"),
+      frame_width_px = cfg$interactive_width,
+      frame_height_px = cfg$interactive_height,
+      canvas_config = cfg,
+      use_canvas_border = TRUE
+    )
   })
 
   observeEvent(input$render_plot, {
@@ -493,9 +474,13 @@ spider_plot_server <- function(input, output, session, data) {
       }
 
       if (isTRUE(input$show_recist)) {
-        p <- p +
-          geom_hline(yintercept = input$recist_lower, linetype = input$recist_lower_linetype %||% "dashed", color = input$recist_lower_color %||% "#2C7BB6", linewidth = input$recist_lower_linewidth %||% 0.7) +
-          geom_hline(yintercept = input$recist_upper, linetype = input$recist_upper_linetype %||% "dashed", color = input$recist_upper_color %||% "#D7191C", linewidth = input$recist_upper_linewidth %||% 0.7)
+        p <- graphics_add_reference_lines(
+          p,
+          list(
+            graphics_collect_reference_line_spec(input, "recist_lower", orientation = "h", fallback_value = -30, fallback_color = "#2C7BB6", fallback_linewidth = 0.7),
+            graphics_collect_reference_line_spec(input, "recist_upper", orientation = "h", fallback_value = 20, fallback_color = "#D7191C", fallback_linewidth = 0.7)
+          )
+        )
       }
 
       if (nzchar(input$facet_var %||% "")) {
@@ -532,7 +517,13 @@ spider_plot_server <- function(input, output, session, data) {
 
   output$static_plot <- renderPlot({
     validate(need(!is.null(final_plot()), "请先完成参数设置并点击“生成图形”。"))
-    final_plot()
+    cfg <- size_config()
+    graphics_apply_canvas_frame(
+      final_plot(),
+      frame_width_px = cfg$static_width,
+      frame_height_px = cfg$static_height,
+      canvas_config = cfg
+    )
   }, width = function() {
     as.integer(size_config()$static_width)
   }, height = function() {
@@ -542,7 +533,17 @@ spider_plot_server <- function(input, output, session, data) {
   output$interactive_plot <- plotly::renderPlotly({
     validate(need(!is.null(main_plot_obj()), "请先生成蜘蛛图后查看交互式图。"))
     cfg <- size_config()
-    ggplotly(main_plot_obj(), tooltip = "text", width = as.integer(cfg$interactive_width), height = as.integer(cfg$interactive_height))
+    plotly::layout(
+      ggplotly(main_plot_obj(), tooltip = "text", width = as.integer(cfg$interactive_width), height = as.integer(cfg$interactive_height)),
+      margin = list(
+        l = cfg$page_margin_left,
+        r = cfg$page_margin_right,
+        t = cfg$page_margin_top,
+        b = cfg$page_margin_bottom
+      ),
+      paper_bgcolor = cfg$canvas_background,
+      plot_bgcolor = cfg$canvas_background
+    )
   })
 
   output$data_table <- renderDT({
@@ -559,7 +560,12 @@ spider_plot_server <- function(input, output, session, data) {
       cfg <- size_config()
       save_plot_export(
         file = file,
-        plot_obj = final_plot(),
+        plot_obj = graphics_apply_canvas_frame(
+          final_plot(),
+          frame_width_px = cfg$static_width,
+          frame_height_px = cfg$static_height,
+          canvas_config = cfg
+        ),
         format = input$export_format,
         width = cfg$export_width,
         height = cfg$export_height,

@@ -17,6 +17,53 @@ get_time_vars <- function(df) {
   }, logical(1))]
 }
 
+graphics_px_to_in <- function(px, ppi = 96, digits = 2) {
+  px_val <- suppressWarnings(as.numeric(px))
+  ppi_val <- suppressWarnings(as.numeric(ppi))
+  if (is.na(px_val) || !is.finite(px_val) || px_val <= 0) return(0)
+  if (is.na(ppi_val) || !is.finite(ppi_val) || ppi_val <= 0) ppi_val <- 96
+  round(px_val / ppi_val, digits)
+}
+
+graphics_in_to_px <- function(inches, ppi = 96) {
+  inch_val <- suppressWarnings(as.numeric(inches))
+  ppi_val <- suppressWarnings(as.numeric(ppi))
+  if (is.na(inch_val) || !is.finite(inch_val) || inch_val <= 0) return(0)
+  if (is.na(ppi_val) || !is.finite(ppi_val) || ppi_val <= 0) ppi_val <- 96
+  as.integer(round(inch_val * ppi_val))
+}
+
+graphics_scale_export_height <- function(static_width_px, static_height_px, export_width_in, digits = 2) {
+  width_px <- suppressWarnings(as.numeric(static_width_px))
+  height_px <- suppressWarnings(as.numeric(static_height_px))
+  export_width <- suppressWarnings(as.numeric(export_width_in))
+  if (is.na(width_px) || !is.finite(width_px) || width_px <= 0) return(export_width)
+  if (is.na(height_px) || !is.finite(height_px) || height_px <= 0) return(export_width)
+  if (is.na(export_width) || !is.finite(export_width) || export_width <= 0) return(export_width)
+  round(export_width * (height_px / width_px), digits)
+}
+
+graphics_normalize_page_margin <- function(
+  page_margin_top_px = NULL,
+  page_margin_right_px = NULL,
+  page_margin_bottom_px = NULL,
+  page_margin_left_px = NULL,
+  default_margin_px = 24
+) {
+  to_margin <- function(value, fallback = default_margin_px) {
+    val <- suppressWarnings(as.numeric(value))
+    if (is.na(val) || !is.finite(val)) val <- fallback
+    max(0, min(240, val))
+  }
+
+  list(
+    top = to_margin(page_margin_top_px),
+    right = to_margin(page_margin_right_px),
+    bottom = to_margin(page_margin_bottom_px),
+    left = to_margin(page_margin_left_px)
+  )
+}
+
 resolve_plot_size_config <- function(
   mode = "wide_standard",
   static_width_px = NULL,
@@ -25,32 +72,235 @@ resolve_plot_size_config <- function(
   interactive_height_px = NULL,
   export_width_in = NULL,
   export_height_in = NULL,
+  sync_export_size = TRUE,
+  size_sync_ppi = 96,
+  page_margin_top_px = NULL,
+  page_margin_right_px = NULL,
+  page_margin_bottom_px = NULL,
+  page_margin_left_px = NULL,
+  canvas_border = TRUE,
+  canvas_border_color = "#D9D9D9",
+  canvas_border_size = 0.8,
+  canvas_background = "white",
   defaults = list(
     static_width = 1200,
     static_height = 760,
     interactive_width = 1200,
     interactive_height = 620,
-    export_width = 13,
-    export_height = 9
+    export_width = graphics_px_to_in(1200, 96),
+    export_height = graphics_px_to_in(760, 96),
+    sync_ppi = 96,
+    page_margin_top = 24,
+    page_margin_right = 24,
+    page_margin_bottom = 24,
+    page_margin_left = 24,
+    canvas_border = TRUE,
+    canvas_border_color = "#D9D9D9",
+    canvas_border_size = 0.8,
+    canvas_background = "white"
   )
 ) {
   to_num <- function(x, fallback) {
     val <- suppressWarnings(as.numeric(x))
-    if (is.na(val) || !is.finite(val)) fallback else val
+    if (length(val) == 0 || is.na(val) || !is.finite(val)) fallback else val
   }
 
+  sync_ppi <- to_num(size_sync_ppi, defaults$sync_ppi %||% 96)
+  margin_cfg <- graphics_normalize_page_margin(
+    page_margin_top_px = page_margin_top_px %||% defaults$page_margin_top,
+    page_margin_right_px = page_margin_right_px %||% defaults$page_margin_right,
+    page_margin_bottom_px = page_margin_bottom_px %||% defaults$page_margin_bottom,
+    page_margin_left_px = page_margin_left_px %||% defaults$page_margin_left
+  )
+  sync_export_size <- isTRUE(sync_export_size %||% defaults$sync_export_size %||% TRUE)
+  border_flag <- isTRUE(canvas_border %||% defaults$canvas_border %||% TRUE)
+  border_size <- to_num(canvas_border_size, defaults$canvas_border_size %||% 0.8)
+  border_color <- as.character(canvas_border_color %||% defaults$canvas_border_color %||% "#D9D9D9")
+  background_fill <- as.character(canvas_background %||% defaults$canvas_background %||% "white")
+
   if (!identical(mode, "custom")) {
-    return(defaults)
+    static_width <- to_num(defaults$static_width, 1200)
+    static_height <- to_num(defaults$static_height, 760)
+    interactive_width <- to_num(defaults$interactive_width, 1200)
+    interactive_height <- to_num(defaults$interactive_height, 620)
+    export_width <- if (isTRUE(sync_export_size)) {
+      graphics_px_to_in(static_width, sync_ppi)
+    } else {
+      to_num(defaults$export_width, graphics_px_to_in(static_width, sync_ppi))
+    }
+    export_height <- if (isTRUE(sync_export_size)) {
+      graphics_scale_export_height(static_width, static_height, export_width)
+    } else {
+      to_num(defaults$export_height, graphics_scale_export_height(static_width, static_height, export_width))
+    }
+    return(list(
+      static_width = static_width,
+      static_height = static_height,
+      interactive_width = interactive_width,
+      interactive_height = interactive_height,
+      export_width = export_width,
+      export_height = export_height,
+      sync_export_size = sync_export_size,
+      size_sync_ppi = sync_ppi,
+      page_margin_top = margin_cfg$top,
+      page_margin_right = margin_cfg$right,
+      page_margin_bottom = margin_cfg$bottom,
+      page_margin_left = margin_cfg$left,
+      canvas_border = border_flag,
+      canvas_border_color = border_color,
+      canvas_border_size = border_size,
+      canvas_background = background_fill
+    ))
+  }
+
+  static_width <- to_num(static_width_px, defaults$static_width)
+  static_height <- to_num(static_height_px, defaults$static_height)
+  interactive_width <- to_num(interactive_width_px, defaults$interactive_width)
+  interactive_height <- to_num(interactive_height_px, defaults$interactive_height)
+  export_width_default <- graphics_px_to_in(static_width, sync_ppi)
+  export_width <- if (isTRUE(sync_export_size)) {
+    export_width_default
+  } else {
+    to_num(export_width_in, defaults$export_width %||% export_width_default)
+  }
+  export_height_default <- graphics_scale_export_height(static_width, static_height, export_width)
+  export_height <- if (isTRUE(sync_export_size)) {
+    export_height_default
+  } else {
+    to_num(export_height_in, defaults$export_height %||% export_height_default)
   }
 
   list(
-    static_width = to_num(static_width_px, defaults$static_width),
-    static_height = to_num(static_height_px, defaults$static_height),
-    interactive_width = to_num(interactive_width_px, defaults$interactive_width),
-    interactive_height = to_num(interactive_height_px, defaults$interactive_height),
-    export_width = to_num(export_width_in, defaults$export_width),
-    export_height = to_num(export_height_in, defaults$export_height)
+    static_width = static_width,
+    static_height = static_height,
+    interactive_width = interactive_width,
+    interactive_height = interactive_height,
+    export_width = export_width,
+    export_height = export_height,
+    sync_export_size = sync_export_size,
+    size_sync_ppi = sync_ppi,
+    page_margin_top = margin_cfg$top,
+    page_margin_right = margin_cfg$right,
+    page_margin_bottom = margin_cfg$bottom,
+    page_margin_left = margin_cfg$left,
+    canvas_border = border_flag,
+    canvas_border_color = border_color,
+    canvas_border_size = border_size,
+    canvas_background = background_fill
   )
+}
+
+graphics_apply_canvas_frame <- function(plot_obj, frame_width_px, frame_height_px, canvas_config = list()) {
+  if (is.null(plot_obj)) return(NULL)
+  width_px <- max(1, suppressWarnings(as.numeric(frame_width_px %||% 1200)))
+  height_px <- max(1, suppressWarnings(as.numeric(frame_height_px %||% 760)))
+  margin_cfg <- graphics_normalize_page_margin(
+    page_margin_top_px = canvas_config$page_margin_top,
+    page_margin_right_px = canvas_config$page_margin_right,
+    page_margin_bottom_px = canvas_config$page_margin_bottom,
+    page_margin_left_px = canvas_config$page_margin_left
+  )
+
+  left_ratio <- min(0.45, margin_cfg$left / width_px)
+  right_ratio <- min(0.45, margin_cfg$right / width_px)
+  top_ratio <- min(0.45, margin_cfg$top / height_px)
+  bottom_ratio <- min(0.45, margin_cfg$bottom / height_px)
+  plot_width_ratio <- max(0.1, 1 - left_ratio - right_ratio)
+  plot_height_ratio <- max(0.1, 1 - top_ratio - bottom_ratio)
+  background_fill <- as.character(canvas_config$canvas_background %||% "white")
+  border_color <- if (isTRUE(canvas_config$canvas_border %||% TRUE)) {
+    as.character(canvas_config$canvas_border_color %||% "#D9D9D9")
+  } else {
+    NA_character_
+  }
+  border_size <- suppressWarnings(as.numeric(canvas_config$canvas_border_size %||% 0.8))
+  if (is.na(border_size) || !is.finite(border_size) || border_size < 0) border_size <- 0.8
+
+  cowplot::ggdraw() +
+    cowplot::draw_plot(
+      plot_obj,
+      x = left_ratio,
+      y = bottom_ratio,
+      width = plot_width_ratio,
+      height = plot_height_ratio
+    ) +
+    ggplot2::theme(
+      plot.margin = ggplot2::margin(0, 0, 0, 0),
+      plot.background = ggplot2::element_rect(
+        fill = background_fill,
+        colour = border_color,
+        linewidth = border_size
+      )
+    )
+}
+
+graphics_collect_size_config <- function(input, defaults = list()) {
+  resolve_plot_size_config(
+    mode = input$size_mode %||% "wide_standard",
+    static_width_px = input$static_width_px,
+    static_height_px = input$static_height_px,
+    interactive_width_px = input$interactive_width_px,
+    interactive_height_px = input$interactive_height_px,
+    export_width_in = input$export_width_in,
+    export_height_in = input$export_height_in,
+    sync_export_size = input$sync_export_size %||% TRUE,
+    size_sync_ppi = input$size_sync_ppi %||% 96,
+    page_margin_top_px = input$page_margin_top_px,
+    page_margin_right_px = input$page_margin_right_px,
+    page_margin_bottom_px = input$page_margin_bottom_px,
+    page_margin_left_px = input$page_margin_left_px,
+    canvas_border = input$canvas_border %||% TRUE,
+    defaults = defaults
+  )
+}
+
+graphics_collect_reference_line_spec <- function(
+  input,
+  id_prefix,
+  orientation = "h",
+  fallback_value = NULL,
+  fallback_color = "#1A1A1A",
+  fallback_linetype = "dashed",
+  fallback_linewidth = 0.8
+) {
+  value <- suppressWarnings(as.numeric(input[[id_prefix]] %||% fallback_value))
+  if (length(value) == 0 || is.na(value) || !is.finite(value)) return(NULL)
+  list(
+    orientation = if (identical(orientation, "v")) "v" else "h",
+    value = value,
+    color = as.character(input[[paste0(id_prefix, "_color")]] %||% fallback_color),
+    linetype = as.character(input[[paste0(id_prefix, "_linetype")]] %||% fallback_linetype),
+    linewidth = suppressWarnings(as.numeric(input[[paste0(id_prefix, "_linewidth")]] %||% fallback_linewidth))
+  )
+}
+
+graphics_add_reference_lines <- function(plot_obj, specs = list()) {
+  if (is.null(plot_obj) || length(specs) == 0) return(plot_obj)
+  for (spec in specs) {
+    if (is.null(spec)) next
+    line_value <- suppressWarnings(as.numeric(spec$value %||% NA_real_))
+    line_width <- suppressWarnings(as.numeric(spec$linewidth %||% 0.8))
+    if (length(line_value) == 0 || is.na(line_value) || !is.finite(line_value)) next
+    if (length(line_width) == 0 || is.na(line_width) || !is.finite(line_width) || line_width < 0) line_width <- 0.8
+    line_color <- as.character(spec$color %||% "#1A1A1A")
+    line_type <- as.character(spec$linetype %||% "dashed")
+    if (identical(spec$orientation %||% "h", "v")) {
+      plot_obj <- plot_obj + ggplot2::geom_vline(
+        xintercept = line_value,
+        linetype = line_type,
+        color = line_color,
+        linewidth = line_width
+      )
+    } else {
+      plot_obj <- plot_obj + ggplot2::geom_hline(
+        yintercept = line_value,
+        linetype = line_type,
+        color = line_color,
+        linewidth = line_width
+      )
+    }
+  }
+  plot_obj
 }
 
 graphics_notify_success <- function(module_name) {
@@ -306,6 +556,23 @@ graphics_aux_legend_compact_defaults <- list(
   secondary_rel_height = 0.68
 )
 
+graphics_resolve_device_safe_family <- function(family = "sans") {
+  resolved <- trimws(as.character(family %||% "sans"))
+  resolved <- resolved[[1]] %||% "sans"
+  if (!nzchar(resolved)) return("sans")
+
+  # grid/cowplot may query PostScript metrics before showtext takes over.
+  # Arial is commonly registered via showtext, but not present in the
+  # PostScript font database used during grob measurement.
+  family_alias <- c(
+    "Arial" = "sans"
+  )
+  if (resolved %in% names(family_alias)) {
+    return(unname(family_alias[[resolved]]))
+  }
+  resolved
+}
+
 graphics_build_legend_rows <- function(labels, row_gap = graphics_aux_legend_compact_defaults$row_gap) {
   labels <- as.character(labels %||% character(0))
   labels <- labels[nzchar(labels)]
@@ -321,7 +588,7 @@ graphics_build_legend_rows <- function(labels, row_gap = graphics_aux_legend_com
   )
 }
 
-graphics_build_point_legend_plot <- function(labels, colors, shape_value = 3, title = "", base_font_size = 10, row_gap = graphics_aux_legend_compact_defaults$row_gap, text_x = 0.17, point_x = 0.10, xlim = c(0, 1), compact_spec = graphics_aux_legend_compact_defaults) {
+graphics_build_point_legend_plot <- function(labels, colors, shape_value = 3, title = "", base_font_size = 10, row_gap = graphics_aux_legend_compact_defaults$row_gap, text_x = 0.17, point_x = 0.10, xlim = c(0, 1), compact_spec = graphics_aux_legend_compact_defaults, font_family = "sans") {
   labels <- as.character(labels %||% character(0))
   labels <- labels[nzchar(labels)]
   if (length(labels) == 0) return(NULL)
@@ -329,18 +596,19 @@ graphics_build_point_legend_plot <- function(labels, colors, shape_value = 3, ti
   if (length(color_vals) != length(labels) || any(is.na(color_vals) | !nzchar(color_vals))) return(NULL)
   legend_df <- graphics_build_legend_rows(labels, row_gap = row_gap)
   legend_df$color <- color_vals
+  font_family <- graphics_resolve_device_safe_family(font_family)
   
   y_max <- max(legend_df$y) + (row_gap / 2)
   y_min <- min(legend_df$y) - (row_gap / 2)
   
   plot_obj <- ggplot2::ggplot(legend_df, ggplot2::aes(y = y)) +
     ggplot2::geom_point(ggplot2::aes(x = point_x), shape = shape_value, size = max(2, base_font_size * 0.22), stroke = 0.7, color = legend_df$color) +
-    ggplot2::geom_text(ggplot2::aes(x = text_x, label = label), hjust = 0, size = max(3, base_font_size * 0.24), family = "sans") +
+    ggplot2::geom_text(ggplot2::aes(x = text_x, label = label), hjust = 0, size = max(3, base_font_size * 0.24), family = font_family) +
     ggplot2::scale_y_continuous(limits = c(y_min, y_max), expand = c(0, 0)) +
     ggplot2::coord_cartesian(xlim = xlim, clip = "off") +
-    ggplot2::theme_void(base_family = "sans") +
+    ggplot2::theme_void(base_family = font_family) +
     ggplot2::theme(
-      plot.title = ggplot2::element_text(size = max(10, base_font_size), face = "bold", hjust = 0, margin = ggplot2::margin(0, 0, compact_spec$title_margin_bottom, 0)),
+      plot.title = ggplot2::element_text(size = max(10, base_font_size), family = font_family, face = "bold", hjust = 0, margin = ggplot2::margin(0, 0, compact_spec$title_margin_bottom, 0)),
       plot.margin = do.call(ggplot2::margin, as.list(compact_spec$plot_margin_pt))
     )
   if (nzchar(trimws(title %||% ""))) {
@@ -349,7 +617,7 @@ graphics_build_point_legend_plot <- function(labels, colors, shape_value = 3, ti
   plot_obj
 }
 
-graphics_build_line_legend_plot <- function(labels, colors, title = "", line_size = 0.6, line_type = "solid", base_font_size = 10, row_gap = graphics_aux_legend_compact_defaults$row_gap, line_x = c(0.03, 0.10), text_x = 0.17, xlim = c(0, 1), compact_spec = graphics_aux_legend_compact_defaults) {
+graphics_build_line_legend_plot <- function(labels, colors, title = "", line_size = 0.6, line_type = "solid", base_font_size = 10, row_gap = graphics_aux_legend_compact_defaults$row_gap, line_x = c(0.03, 0.10), text_x = 0.17, xlim = c(0, 1), compact_spec = graphics_aux_legend_compact_defaults, font_family = "sans") {
   labels <- as.character(labels %||% character(0))
   labels <- labels[nzchar(labels)]
   if (length(labels) == 0) return(NULL)
@@ -357,6 +625,7 @@ graphics_build_line_legend_plot <- function(labels, colors, title = "", line_siz
   if (length(color_vals) != length(labels) || any(is.na(color_vals) | !nzchar(color_vals))) return(NULL)
   legend_df <- graphics_build_legend_rows(labels, row_gap = row_gap)
   legend_df$color <- color_vals
+  font_family <- graphics_resolve_device_safe_family(font_family)
   
   y_max <- max(legend_df$y) + (row_gap / 2)
   y_min <- min(legend_df$y) - (row_gap / 2)
@@ -368,12 +637,12 @@ graphics_build_line_legend_plot <- function(labels, colors, title = "", line_siz
       linetype = line_type,
       color = legend_df$color
     ) +
-    ggplot2::geom_text(ggplot2::aes(x = text_x, label = label), hjust = 0, size = max(3, base_font_size * 0.24), family = "sans") +
+    ggplot2::geom_text(ggplot2::aes(x = text_x, label = label), hjust = 0, size = max(3, base_font_size * 0.24), family = font_family) +
     ggplot2::scale_y_continuous(limits = c(y_min, y_max), expand = c(0, 0)) +
     ggplot2::coord_cartesian(xlim = xlim, clip = "off") +
-    ggplot2::theme_void(base_family = "sans") +
+    ggplot2::theme_void(base_family = font_family) +
     ggplot2::theme(
-      plot.title = ggplot2::element_text(size = max(10, base_font_size), face = "bold", hjust = 0, margin = ggplot2::margin(0, 0, compact_spec$title_margin_bottom, 0)),
+      plot.title = ggplot2::element_text(size = max(10, base_font_size), family = font_family, face = "bold", hjust = 0, margin = ggplot2::margin(0, 0, compact_spec$title_margin_bottom, 0)),
       plot.margin = do.call(ggplot2::margin, as.list(compact_spec$plot_margin_pt))
     )
   if (nzchar(trimws(title %||% ""))) {

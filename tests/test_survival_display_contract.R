@@ -146,6 +146,11 @@ test_that("删失符号解析与静态图约定一致", {
   expect_equal(.resolve_survival_censor_shape_value("bad"), 3)
 })
 
+test_that("生存分析字体解析对 Arial 做设备安全回退", {
+  expect_equal(.resolve_survival_base_family("Arial"), "sans")
+  expect_equal(.resolve_survival_base_family("serif"), "serif")
+})
+
 test_that("删失点颜色优先复用主图最终 legend 颜色", {
   colors <- .resolve_survival_censor_point_colors(
     raw_strata = c("SEX=F", "SEX=M"),
@@ -171,6 +176,21 @@ test_that("中位生存文本间距与 Cox 文本块风格对齐", {
   expect_equal(.survival_median_text_hjust(), 0)
   y_positions <- .build_survival_annotation_y_positions(0.95, 3, 0.6)
   expect_equal(round(diff(y_positions), 3), c(-0.055, -0.055))
+})
+
+test_that("生存分析辅助图例复用统一字体族", {
+  censor_legend <- .build_survival_censor_legend_plot(
+    labels = c("Group A", "Group B"),
+    colors = c("Group A" = "#E41A1C", "Group B" = "#377EB8"),
+    font_family = "Arial"
+  )
+  line_legend <- .build_survival_line_legend_plot(
+    labels = c("Group A", "Group B"),
+    colors = c("Group A" = "#E41A1C", "Group B" = "#377EB8"),
+    font_family = "serif"
+  )
+  expect_equal(censor_legend$layers[[2]]$aes_params$family, "sans")
+  expect_equal(line_legend$layers[[2]]$aes_params$family, "serif")
 })
 
 test_that("多组 log-rank 解释明确全局检验含义", {

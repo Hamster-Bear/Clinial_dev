@@ -12,6 +12,7 @@
 - **代码结构**: 
   - 严格执行 UI 与 Server 逻辑分离。
   - 跨模块复用的逻辑必须沉淀至 `modules/common/`，禁止模块间交叉引用。
+  - Shiny module 的 server 端若在 `renderUI()` / `renderPlot()` / `renderPlotly()` 中动态创建 namespaced output/input，必须显式定义 `ns <- session$ns`，避免运行时出现“没有 ns 这个函数”。
 - **依赖管理**: 
   - 统一在入口文件及部署脚本中声明依赖。
   - 禁止在业务逻辑中直接调用 `install.packages()`。
@@ -21,6 +22,8 @@
 - **图形与字体**: 
   - 统计图形统一启用 `showtext_auto()`（已在 `app.R` 入口初始化），确保在不同操作系统环境下字体（特别是 CJK 字符）渲染的一致性。
   - 开发新图形模块时应优先使用系统通用字体族（如 "sans"），避免硬编码特定物理路径的字体文件。
+  - 涉及 `cowplot` / `grid` 组合测量的图形，字体族必须先走 common 的设备安全解析；`Arial` 等非 PostScript 通用族当前需优先回退到 `sans`，不能假定 `showtext/sysfonts` 已彻底消除设备侧字体告警。
+  - 图形尺寸、页面距、画布边框、参考线与前端/导出换算必须优先复用 `graphics_common.R` 和 `common_ui_shell.R`；默认保持 PX 与英寸尺寸同步，禁止在子模块私写另一套尺寸/导出容器或 `geom_hline/geom_vline` 组装逻辑。
 
 ## 3. UI/UX 规范
 - **样式管理**: 优先使用 `bslib` 主题变量，自定义 CSS 统一存放在 `www/` 目录下。

@@ -276,24 +276,7 @@ swimmer_plot_ui <- function(id) {
           tabPanel(
             "输出与导出",
             br(),
-            fluidRow(
-              column(4, selectInput(ns("size_mode"), "尺寸模式", choices = c("宽图标准" = "wide_standard", "自定义尺寸" = "custom"), selected = "wide_standard", width = "100%")),
-              column(4, selectInput(ns("export_format"), "导出格式", choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "pdf", width = "100%")),
-              column(4, numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%"))
-            ),
-            conditionalPanel(
-              condition = sprintf("input['%s'] === 'custom'", ns("size_mode")),
-              fluidRow(
-                column(3, numericInput(ns("static_width_px"), "静态图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
-                column(3, numericInput(ns("static_height_px"), "静态图基础高度(px)", value = 760, min = 400, max = 1800, step = 20, width = "100%")),
-                column(3, numericInput(ns("interactive_width_px"), "交互图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
-                column(3, numericInput(ns("interactive_height_px"), "交互图高度(px)", value = 620, min = 350, max = 1600, step = 20, width = "100%"))
-              ),
-              fluidRow(
-                column(3, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 13, min = 6, max = 30, step = 0.5, width = "100%")),
-                column(3, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 9, min = 4, max = 24, step = 0.5, width = "100%"))
-              )
-            )
+            graphics_export_size_controls_ui(ns, download_id = "dl_plot", include_size_mode = TRUE, include_download_button = FALSE)
           )
         )
       )
@@ -310,8 +293,8 @@ swimmer_plot_ui <- function(id) {
         ),
         tabsetPanel(
           id = ns("output_tabs"),
-          tabPanel("静态图", plotOutput(ns("static_plot"), height = "760px")),
-          tabPanel("交互式图", plotly::plotlyOutput(ns("interactive_plot"), height = "620px")),
+          tabPanel("静态图", uiOutput(ns("static_plot_ui"))),
+          tabPanel("交互式图", uiOutput(ns("interactive_plot_ui"))),
           tabPanel("泳道数据", DTOutput(ns("lane_table"))),
           tabPanel("事件数据", DTOutput(ns("event_table"))),
           tabPanel("分组轨道数据", DTOutput(ns("track_table")))
@@ -322,6 +305,7 @@ swimmer_plot_ui <- function(id) {
 }
 
 swimmer_plot_server <- function(input, output, session, data) {
+  ns <- session$ns
   `%||%` <- function(x, y) if (is.null(x)) y else x
 
   palette_values <- function(n, palette_name = "hue") {
@@ -774,14 +758,41 @@ swimmer_plot_server <- function(input, output, session, data) {
   event_data <- reactiveVal(NULL)
   track_data <- reactiveVal(NULL)
   size_config <- reactive({
-    resolve_plot_size_config(
-      mode = input$size_mode %||% "wide_standard",
-      static_width_px = input$static_width_px,
-      static_height_px = input$static_height_px,
-      interactive_width_px = input$interactive_width_px,
-      interactive_height_px = input$interactive_height_px,
-      export_width_in = input$export_width_in,
-      export_height_in = input$export_height_in
+    graphics_collect_size_config(input)
+  })
+
+  static_render_height <- reactive({
+    cfg <- size_config()
+    base_h <- as.integer(cfg$static_height)
+    td <- track_data()
+    if (is.null(td) || !isTRUE(input$show_tracks)) {
+      return(base_h)
+    }
+    track_n <- length(unique(as.character(td$.track_name)))
+    if (isTRUE(input$track_compact_mode)) {
+      return(base_h)
+    }
+    tile_eff <- ifelse((input$track_row_spacing %||% 0) <= 1e-8, 1, input$track_tile_height %||% 0.65)
+    base_h + as.integer(min(180, 18 * tile_eff * track_n))
+  })
+
+  output$static_plot_ui <- renderUI({
+    cfg <- size_config()
+    graphics_centered_output_container(
+      plotOutput(ns("static_plot"), height = paste0(static_render_height(), "px"), width = "100%"),
+      frame_width_px = cfg$static_width,
+      frame_height_px = static_render_height()
+    )
+  })
+
+  output$interactive_plot_ui <- renderUI({
+    cfg <- size_config()
+    graphics_centered_output_container(
+      plotly::plotlyOutput(ns("interactive_plot"), height = paste0(cfg$interactive_height, "px"), width = "100%"),
+      frame_width_px = cfg$interactive_width,
+      frame_height_px = cfg$interactive_height,
+      canvas_config = cfg,
+      use_canvas_border = TRUE
     )
   })
 
@@ -1501,30 +1512,33 @@ swimmer_plot_server <- function(input, output, session, data) {
 
   output$static_plot <- renderPlot({
     validate(need(!is.null(final_plot()), "请先完成参数设置并点击“生成图形”。"))
-    final_plot()
+    cfg <- size_config()
+    graphics_apply_canvas_frame(
+      final_plot(),
+      frame_width_px = cfg$static_width,
+      frame_height_px = static_render_height(),
+      canvas_config = cfg
+    )
   }, width = function() {
     as.integer(size_config()$static_width)
   }, height = function() {
-    cfg <- size_config()
-    base_h <- as.integer(cfg$static_height)
-    td <- track_data()
-    if (is.null(td) || !isTRUE(input$show_tracks)) {
-      base_h
-    } else {
-      track_n <- length(unique(as.character(td$.track_name)))
-      if (isTRUE(input$track_compact_mode)) {
-        base_h
-      } else {
-        tile_eff <- ifelse((input$track_row_spacing %||% 0) <= 1e-8, 1, input$track_tile_height %||% 0.65)
-        base_h + as.integer(min(180, 18 * tile_eff * track_n))
-      }
-    }
+    static_render_height()
   })
 
   output$interactive_plot <- plotly::renderPlotly({
     validate(need(!is.null(main_plot_obj()), "请先生成泳道图后查看交互式图。"))
     cfg <- size_config()
-    ggplotly(main_plot_obj(), tooltip = "text", width = as.integer(cfg$interactive_width), height = as.integer(cfg$interactive_height))
+    plotly::layout(
+      ggplotly(main_plot_obj(), tooltip = "text", width = as.integer(cfg$interactive_width), height = as.integer(cfg$interactive_height)),
+      margin = list(
+        l = cfg$page_margin_left,
+        r = cfg$page_margin_right,
+        t = cfg$page_margin_top,
+        b = cfg$page_margin_bottom
+      ),
+      paper_bgcolor = cfg$canvas_background,
+      plot_bgcolor = cfg$canvas_background
+    )
   })
 
   output$lane_table <- renderDT({
@@ -1554,10 +1568,19 @@ swimmer_plot_server <- function(input, output, session, data) {
       cfg <- size_config()
       save_plot_export(
         file = file,
-        plot_obj = final_plot(),
+        plot_obj = graphics_apply_canvas_frame(
+          final_plot(),
+          frame_width_px = cfg$static_width,
+          frame_height_px = static_render_height(),
+          canvas_config = cfg
+        ),
         format = input$export_format,
         width = cfg$export_width,
-        height = cfg$export_height,
+        height = graphics_scale_export_height(
+          static_width_px = cfg$static_width,
+          static_height_px = static_render_height(),
+          export_width_in = cfg$export_width
+        ),
         dpi = input$export_dpi %||% 600
       )
     }

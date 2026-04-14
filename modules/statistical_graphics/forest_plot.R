@@ -118,12 +118,8 @@ forest_plot_ui <- function(id) {
                   tags$div(class = "panel-heading", "尺寸与显示"),
                   tags$div(
                     class = "panel-body",
-                    fluidRow(
-                      column(6, numericInput(ns("plot_width"), "宽度(英寸)", value = 14, min = 8, max = 20, step = 1, width = "100%")),
-                      column(6, numericInput(ns("plot_height"), "高度(英寸)", value = 10, min = 6, max = 16, step = 1, width = "100%"))
-                    ),
                     sliderInput(ns("plot_ratio"), "表格/图形宽度比", min = 0.3, max = 0.7, value = 0.55, step = 0.05, width = "100%"),
-                    sliderInput(ns("display_height"), "显示高度(像素)", min = 400, max = 1200, value = 800, step = 50, width = "100%")
+                    helpText("画布尺寸、页面距与导出设置已统一移动到“输出与导出”页签。")
                   )
                 )
               ),
@@ -138,7 +134,15 @@ forest_plot_ui <- function(id) {
                       column(6, numericInput(ns("x_min"), "X轴下限", value = 0, min = 0, step = 1, width = "100%")),
                       column(6, numericInput(ns("x_max"), "X轴上限", value = 100, min = 0, step = 1, width = "100%"))
                     ),
-                    numericInput(ns("ref_line"), "参考线位置", value = 1.0, step = 1, width = "100%"),
+                    graphics_reference_line_ui(
+                      ns,
+                      "ref_line",
+                      label = "参考线",
+                      default_value = 1,
+                      default_color = "#1A1A1A",
+                      default_linetype = "solid",
+                      default_linewidth = 0.8
+                    ),
                     sliderInput(ns("line_width"), "线条粗细", min = 0.5, max = 3, value = 1.2, step = 0.1, width = "100%"),
                     sliderInput(ns("line_height"), "短线长度", min = 0.05, max = 0.3, value = 0.15, step = 0.01, width = "100%"),
                     fluidRow(
@@ -208,10 +212,7 @@ forest_plot_ui <- function(id) {
           tabPanel(
             "输出与导出",
             br(),
-            fluidRow(
-              column(6, selectInput(ns("export_format"), "导出格式", choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "png", width = "100%")),
-              column(6, numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%"))
-            )
+            graphics_export_size_controls_ui(ns, download_id = "download_plot", include_size_mode = TRUE, include_download_button = FALSE)
           )
         )
       )
@@ -251,6 +252,28 @@ forest_plot_ui <- function(id) {
 
 forest_plot_server <- function(input, output, session, data) {
   ns <- session$ns
+  size_config <- reactive({
+    graphics_collect_size_config(
+      input,
+      defaults = list(
+        static_width = 1200,
+        static_height = 800,
+        interactive_width = 1200,
+        interactive_height = 800,
+        export_width = graphics_px_to_in(1200, 96),
+        export_height = graphics_px_to_in(800, 96),
+        sync_ppi = 96,
+        page_margin_top = 24,
+        page_margin_right = 24,
+        page_margin_bottom = 24,
+        page_margin_left = 24,
+        canvas_border = TRUE,
+        canvas_border_color = "#D9D9D9",
+        canvas_border_size = 0.8,
+        canvas_background = "white"
+      )
+    )
+  })
   
   # 存储用户选择和变量历史
   user_selections <- reactiveValues(
@@ -1112,7 +1135,12 @@ forest_plot_server <- function(input, output, session, data) {
   
   # 动态设置图形高度
   output$plot_ui <- renderUI({
-    plotOutput(ns("forest_plot"), height = paste0(input$display_height, "px"))
+    cfg <- size_config()
+    graphics_centered_output_container(
+      plotOutput(ns("forest_plot"), height = paste0(cfg$static_height, "px"), width = "100%"),
+      frame_width_px = cfg$static_width,
+      frame_height_px = cfg$static_height
+    )
   })
   
   # 生成森林图
@@ -1122,7 +1150,6 @@ forest_plot_server <- function(input, output, session, data) {
     data <- processed_data()
     x_min <- input$x_min
     x_max <- input$x_max
-    ref_line <- input$ref_line
     line_width <- input$line_width
     line_height <- input$line_height
     table_font_size <- input$table_font_size
@@ -1170,12 +1197,21 @@ forest_plot_server <- function(input, output, session, data) {
       x_labels <- sprintf(fmt, x_breaks)
     }
     
+    ref_line_spec <- graphics_collect_reference_line_spec(
+      input,
+      id_prefix = "ref_line",
+      orientation = "v",
+      fallback_value = 1,
+      fallback_color = "#1A1A1A",
+      fallback_linetype = "solid",
+      fallback_linewidth = 0.8
+    )
+    
     # 1. 创建森林图形部分
     forest_plot <- ggplot(data, aes(x = estimate_adj, y = y_pos)) +
       geom_rect(aes(xmin = x_min, xmax = x_max, 
                     ymin = y_pos - 0.45, ymax = y_pos + 0.45,
                     fill = bg_color), alpha = alpha) +
-      geom_vline(xintercept = ref_line, linetype = "solid", color = "black", linewidth = 0.8) +
       geom_vline(xintercept = seq(x_min, x_max, length.out = 8), linetype = "dotted", 
                  color = "gray70", alpha = 0.6, linewidth = 0.3) +
       geom_errorbar(data = filter(data, !is.na(estimate_adj)),
@@ -1241,6 +1277,7 @@ forest_plot_server <- function(input, output, session, data) {
         axis.text.x = element_text(color = "black", size = 10),
         plot.margin = margin(10, 15, 10, 5)
       )
+    forest_plot <- graphics_add_reference_lines(forest_plot, list(ref_line_spec))
     
     # 2. 创建表格部分
     create_table_plot <- function(data, table_cols, table_font_size, header_font_size,
@@ -1498,8 +1535,18 @@ forest_plot_server <- function(input, output, session, data) {
       plot(1, 1, type = "n", axes = FALSE, xlab = "", ylab = "")
       text(1, 1, "无法生成图形，请检查数据设置", col = "red", cex = 1.5)
     } else {
-      plot_obj
+      cfg <- size_config()
+      graphics_apply_canvas_frame(
+        plot_obj,
+        frame_width_px = cfg$static_width,
+        frame_height_px = cfg$static_height,
+        canvas_config = cfg
+      )
     }
+  }, width = function() {
+    as.integer(size_config()$static_width)
+  }, height = function() {
+    as.integer(size_config()$static_height)
   })
   
   # 下载图形
@@ -1512,12 +1559,18 @@ forest_plot_server <- function(input, output, session, data) {
       export_fmt <- if (is.null(input$export_format) || !nzchar(input$export_format)) "png" else input$export_format
       export_dpi <- suppressWarnings(as.numeric(input$export_dpi))
       if (is.na(export_dpi) || !is.finite(export_dpi)) export_dpi <- 600
+      cfg <- size_config()
       save_plot_export(
         file = file,
-        plot_obj = forest_plot_reactive(),
+        plot_obj = graphics_apply_canvas_frame(
+          forest_plot_reactive(),
+          frame_width_px = cfg$static_width,
+          frame_height_px = cfg$static_height,
+          canvas_config = cfg
+        ),
         format = export_fmt,
-        width = input$plot_width,
-        height = input$plot_height,
+        width = cfg$export_width,
+        height = cfg$export_height,
         dpi = export_dpi,
         bg = "white"
       )

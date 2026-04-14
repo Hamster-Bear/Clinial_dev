@@ -142,11 +142,18 @@ library(cowplot)
   if (is.na(resolved) || !is.finite(resolved)) fallback else resolved
 }
 
+.resolve_survival_base_family <- function(base_family = "sans") {
+  if (exists("graphics_resolve_device_safe_family", mode = "function")) {
+    return(graphics_resolve_device_safe_family(base_family))
+  }
+  trimws(as.character(base_family %||% "sans"))
+}
+
 .build_survival_legend_rows <- function(labels, row_gap = .survival_aux_legend_compact_spec$row_gap) {
   graphics_build_legend_rows(labels, row_gap = row_gap)
 }
 
-.build_survival_censor_legend_plot <- function(labels, colors, shape_value = 3, title = "Censor", base_font_size = 10, row_gap = 1.0) {
+.build_survival_censor_legend_plot <- function(labels, colors, shape_value = 3, title = "Censor", base_font_size = 10, row_gap = 1.0, font_family = "sans") {
   graphics_build_point_legend_plot(
     labels = labels,
     colors = colors,
@@ -154,11 +161,12 @@ library(cowplot)
     title = title,
     base_font_size = base_font_size,
     row_gap = row_gap,
-    compact_spec = .survival_aux_legend_compact_spec
+    compact_spec = .survival_aux_legend_compact_spec,
+    font_family = .resolve_survival_base_family(font_family)
   )
 }
 
-.build_survival_line_legend_plot <- function(labels, colors, title = "", line_size = 0.6, line_type = "solid", base_font_size = 10, row_gap = 1.0) {
+.build_survival_line_legend_plot <- function(labels, colors, title = "", line_size = 0.6, line_type = "solid", base_font_size = 10, row_gap = 1.0, font_family = "sans") {
   graphics_build_line_legend_plot(
     labels = labels,
     colors = colors,
@@ -167,7 +175,8 @@ library(cowplot)
     line_type = line_type,
     base_font_size = base_font_size,
     row_gap = row_gap,
-    compact_spec = .survival_aux_legend_compact_spec
+    compact_spec = .survival_aux_legend_compact_spec,
+    font_family = .resolve_survival_base_family(font_family)
   )
 }
 
@@ -516,41 +525,7 @@ library(cowplot)
   tabPanel(
     "输出与导出",
     br(),
-    fluidRow(
-      column(
-        4,
-        selectInput(
-          ns("size_mode"), "尺寸模式",
-          choices = c("宽图标准" = "wide_standard", "自定义尺寸" = "custom"),
-          selected = "wide_standard", width = "100%"
-        )
-      ),
-      column(
-        4,
-        selectInput(
-          ns("export_format"), "导出格式",
-          choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"),
-          selected = "pdf", width = "100%"
-        )
-      ),
-      column(
-        4,
-        numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%")
-      )
-    ),
-    conditionalPanel(
-      condition = paste0("input['", ns("size_mode"), "'] == 'custom'"),
-      fluidRow(
-        column(3, numericInput(ns("static_width_px"), "静态图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
-        column(3, numericInput(ns("static_height_px"), "静态图高度(px)", value = 760, min = 400, max = 1800, step = 20, width = "100%")),
-        column(3, numericInput(ns("interactive_width_px"), "交互图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
-        column(3, numericInput(ns("interactive_height_px"), "交互图高度(px)", value = 620, min = 350, max = 1600, step = 20, width = "100%"))
-      ),
-      fluidRow(
-        column(3, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 13, min = 6, max = 30, step = 0.5, width = "100%")),
-        column(3, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 9, min = 4, max = 24, step = 0.5, width = "100%"))
-      )
-    ),
+    graphics_export_size_controls_ui(ns, download_id = "download_plot", include_size_mode = TRUE, include_download_button = FALSE),
     hr(),
     conditionalPanel(
       condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
@@ -690,15 +665,7 @@ survival_analysis_server <- function(input, output, session, data) {
   )
   committed_params <- reactiveVal(NULL)
   size_config <- reactive({
-    resolve_plot_size_config(
-      mode = input$size_mode %||% "wide_standard",
-      static_width_px = input$static_width_px,
-      static_height_px = input$static_height_px,
-      interactive_width_px = input$interactive_width_px,
-      interactive_height_px = input$interactive_height_px,
-      export_width_in = input$export_width_in,
-      export_height_in = input$export_height_in
-    )
+    graphics_collect_size_config(input)
   })
   
   observe({
@@ -1322,6 +1289,7 @@ survival_analysis_server <- function(input, output, session, data) {
       fit_local <- fit()
     }
     legend_title_text <- graphics_resolve_legend_title(params$legend_title, "", "")
+    plot_family <- .resolve_survival_base_family(params$base_family %||% "sans")
     legend_breaks <- .extract_survival_legend_breaks(fit_local, strata_var, overall_label)
     legend_labs <- .extract_survival_legend_labs(fit_local, strata_var, params$strata_labels, overall_label)
     risk_table_labeler <- .build_survival_strata_labeler(strata_var, params$strata_labels, overall_label)
@@ -1340,10 +1308,17 @@ survival_analysis_server <- function(input, output, session, data) {
         ggtheme = theme_bw(),
         palette = "Set1",
         legend.title = legend_title_text,
-        legend.labs = legend_labs
+        legend.labs = legend_labs,
+        font.family = plot_family
       ))
       if (params$km_show_risktable && isTRUE(params$risk_table_fontbold)) {
         p$table$layers[[1]]$aes_params$fontface <- "bold"
+      }
+      if (params$km_show_risktable && !is.null(p$table) && length(p$table$layers) > 0) {
+        for (idx in seq_along(p$table$layers)) {
+          p$table$layers[[idx]]$aes_params$family <- plot_family
+          p$table$layers[[idx]]$geom_params$family <- plot_family
+        }
       }
     legend_colors_raw <- .resolve_survival_legend_colors(p$plot, legend_breaks, legend_breaks)
     main_legend_colors <- stats::setNames(unname(legend_colors_raw[legend_breaks]), legend_labs)
@@ -1399,7 +1374,7 @@ survival_analysis_server <- function(input, output, session, data) {
             size = params$stats_text_size / 3.2,
             color = "black",
             fontface = "bold",
-            family = params$base_family %||% "sans"
+            family = plot_family
           )
       }
     }
@@ -1432,7 +1407,7 @@ survival_analysis_server <- function(input, output, session, data) {
       if (stats_text != "") {
         p$plot <- p$plot +
           annotate("text", x = stats_x, y = stats_y, label = stats_text, hjust = hjust_val, vjust = vjust_val, 
-                   size = params$stats_text_size / 3.2, color = "black", fontface = "bold", family = params$base_family %||% "sans")
+                   size = params$stats_text_size / 3.2, color = "black", fontface = "bold", family = plot_family)
       }
     }
     censor_legend_plot <- NULL
@@ -1490,7 +1465,8 @@ survival_analysis_server <- function(input, output, session, data) {
             shape_value = as.numeric(params$km_censor_shape),
             title = "Censor",
             base_font_size = params$legend_text_size,
-            row_gap = params$legend_row_gap %||% 1.0
+            row_gap = params$legend_row_gap %||% 1.0,
+            font_family = plot_family
           )
           p$censor_rows <- length(censor_breaks)
         } else {
@@ -1513,7 +1489,8 @@ survival_analysis_server <- function(input, output, session, data) {
             shape_value = as.numeric(params$km_censor_shape),
             title = "Censor",
             base_font_size = params$legend_text_size,
-            row_gap = params$legend_row_gap %||% 1.0
+            row_gap = params$legend_row_gap %||% 1.0,
+            font_family = plot_family
           )
           p$censor_rows <- 1
         }
@@ -1547,7 +1524,7 @@ survival_analysis_server <- function(input, output, session, data) {
     
     p$plot <- p$plot +
       theme(
-        text = element_text(family = params$base_family %||% "sans"),
+        text = element_text(family = plot_family),
         panel.border = element_blank(),
         axis.text = element_text(size = params$axis_text_size),
         legend.text = element_text(size = params$legend_text_size)
@@ -1570,7 +1547,7 @@ survival_analysis_server <- function(input, output, session, data) {
       p$table <- p$table +
         theme_minimal() +
         theme(
-          text = element_text(family = params$base_family %||% "sans"),
+          text = element_text(family = plot_family),
           axis.title.x = element_blank(),
           axis.title.y = element_blank(),
           axis.text.x = element_blank(),
@@ -1594,6 +1571,7 @@ survival_analysis_server <- function(input, output, session, data) {
     params <- committed_params()
     req(params)
     p <- base_surv_plot()
+    plot_family <- .resolve_survival_base_family(params$base_family %||% "sans")
     p$plot <- p$plot + theme(legend.position = "none")
     main_legend_plot <- .build_survival_line_legend_plot(
       labels = p$main_legend_labels,
@@ -1602,7 +1580,8 @@ survival_analysis_server <- function(input, output, session, data) {
       line_size = params$km_line_size,
       line_type = params$km_line_type,
       base_font_size = params$legend_text_size,
-      row_gap = params$legend_row_gap %||% 1.0
+      row_gap = params$legend_row_gap %||% 1.0,
+      font_family = plot_family
     )
     legend_bundle <- .compose_survival_static_legend(
       main_legend_plot = main_legend_plot,
@@ -1624,7 +1603,7 @@ survival_analysis_server <- function(input, output, session, data) {
         caption_plot <- ggplot() +
           theme_void() +
           labs(caption = formatted_caption) +
-          theme(plot.caption = element_text(hjust = 0, vjust = 0, size = input$caption_size))
+          theme(plot.caption = element_text(hjust = 0, vjust = 0, size = input$caption_size, family = plot_family))
         
         plot_list <- c(plot_list, list(caption_plot))
         rel_heights <- c(plot_ratio, risk_ratio, 0.08)
@@ -1653,7 +1632,7 @@ survival_analysis_server <- function(input, output, session, data) {
       if (!is.null(input$plot_caption) && input$plot_caption != "") {
         formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
         p$plot <- p$plot + labs(caption = formatted_caption) +
-          theme(plot.caption = element_text(hjust = 0, vjust = 1, size = input$caption_size))
+          theme(plot.caption = element_text(hjust = 0, vjust = 1, size = input$caption_size, family = plot_family))
       }
       if (!is.null(legend_bundle$legend_plot) && !identical(legend_bundle$layout$position, "none")) {
         p$plot <- graphics_place_aux_legend(
@@ -1670,30 +1649,41 @@ survival_analysis_server <- function(input, output, session, data) {
   
   output$survPlotUI <- renderUI({
     cfg <- size_config()
-    tags$div(
-      style = paste0("width:", cfg$static_width, "px; max-width: 100%; overflow-x: auto;"),
-      plotOutput(ns("survPlot"), height = paste0(cfg$static_height, "px"), width = "100%")
+    graphics_centered_output_container(
+      plotOutput(ns("survPlot"), height = paste0(cfg$static_height, "px"), width = "100%"),
+      frame_width_px = cfg$static_width,
+      frame_height_px = cfg$static_height
     )
   })
   
   output$interactiveSurvPlotUI <- renderUI({
     cfg <- size_config()
-    tags$div(
-      style = paste0("width:", cfg$interactive_width, "px; max-width: 100%; overflow-x: auto;"),
-      plotly::plotlyOutput(ns("interactiveSurvPlot"), height = paste0(cfg$interactive_height, "px"), width = "100%")
+    graphics_centered_output_container(
+      plotly::plotlyOutput(ns("interactiveSurvPlot"), height = paste0(cfg$interactive_height, "px"), width = "100%"),
+      frame_width_px = cfg$interactive_width,
+      frame_height_px = cfg$interactive_height,
+      canvas_config = cfg,
+      use_canvas_border = TRUE
     )
   })
   
   output$survPlot <- renderPlot({
     req(input$render_km_plot) # 确保有点击过生成按钮
     validate(need(!is.null(fit()), "请先完成变量设置并点击“生成图形”。"))
-    create_surv_plot()
+    cfg <- size_config()
+    graphics_apply_canvas_frame(
+      create_surv_plot(),
+      frame_width_px = cfg$static_width,
+      frame_height_px = cfg$static_height,
+      canvas_config = cfg
+    )
   }, height = function() size_config()$static_height, width = function() size_config()$static_width)
   
   # 创建专门的交互式生存曲线图
   create_interactive_surv_plot <- function() {
     params <- committed_params()
     req(params)
+    plot_family <- .resolve_survival_base_family(params$base_family %||% "sans")
     p <- base_surv_plot()$plot
     p <- graphics_apply_legend_theme(
       p,
@@ -1716,7 +1706,7 @@ survival_analysis_server <- function(input, output, session, data) {
     if (!is.null(input$plot_caption) && input$plot_caption != "") {
       formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
       p <- p + labs(caption = formatted_caption) +
-        theme(plot.caption = element_text(hjust = 0, vjust = 1, size = 10))
+        theme(plot.caption = element_text(hjust = 0, vjust = 1, size = 10, family = plot_family))
     }
     
     return(p)
@@ -1738,6 +1728,17 @@ survival_analysis_server <- function(input, output, session, data) {
     # 手动清理layout中的width和height (如果有)
     plotly_obj$x$layout$width <- size_config()$interactive_width
     plotly_obj$x$layout$height <- size_config()$interactive_height
+    plotly_obj <- plotly::layout(
+      plotly_obj,
+      margin = list(
+        l = size_config()$page_margin_left,
+        r = size_config()$page_margin_right,
+        t = size_config()$page_margin_top,
+        b = size_config()$page_margin_bottom
+      ),
+      paper_bgcolor = size_config()$canvas_background,
+      plot_bgcolor = size_config()$canvas_background
+    )
     
     return(plotly_obj)
   })
@@ -1897,13 +1898,19 @@ survival_analysis_server <- function(input, output, session, data) {
       build_plot_export_filename("survival_plot", input$export_format)
     },
     content = function(file) {
+      cfg <- size_config()
       save_plot_export(
         file = file,
-        plot_obj = create_surv_plot(),
+        plot_obj = graphics_apply_canvas_frame(
+          create_surv_plot(),
+          frame_width_px = cfg$static_width,
+          frame_height_px = cfg$static_height,
+          canvas_config = cfg
+        ),
         format = input$export_format,
-        width = size_config()$export_width,
-        height = size_config()$export_height,
-                dpi = input$export_dpi %||% 600,
+        width = cfg$export_width,
+        height = cfg$export_height,
+        dpi = input$export_dpi %||% 600,
         bg = "white"
       )
     }

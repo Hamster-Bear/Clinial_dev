@@ -47,3 +47,38 @@ test_that("graphics_reference_line_ui generates correct HTML structure", {
   expect_match(html_str, 'Test Line线型')
   expect_match(html_str, 'Test Line线宽')
 })
+
+test_that("graphics_export_size_controls_ui 暴露统一尺寸同步与页面距控件", {
+  ns <- NS("test_module")
+  ui_output <- graphics_export_size_controls_ui(
+    ns = ns,
+    download_id = "dl_plot",
+    include_size_mode = TRUE,
+    include_download_button = FALSE
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, 'id="test_module-sync_export_size"')
+  expect_match(html_str, 'id="test_module-size_sync_ppi"')
+  expect_match(html_str, 'id="test_module-page_margin_top_px"')
+  expect_match(html_str, 'id="test_module-page_margin_left_px"')
+  expect_match(html_str, '导出尺寸跟随前端画布')
+})
+
+test_that("graphics_centered_output_container 生成居中容器并支持边框", {
+  ui_output <- graphics_centered_output_container(
+    content = tags$div("plot area"),
+    frame_width_px = 960,
+    frame_height_px = 540,
+    canvas_config = list(
+      canvas_border = TRUE,
+      canvas_border_color = "#CCCCCC",
+      canvas_border_size = 1,
+      canvas_background = "#FFFFFF"
+    ),
+    use_canvas_border = TRUE
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, "justify-content:center")
+  expect_match(html_str, "width:960px")
+  expect_match(html_str, "border: 1.0px solid #CCCCCC")
+})

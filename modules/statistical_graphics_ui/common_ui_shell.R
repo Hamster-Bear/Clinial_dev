@@ -11,7 +11,7 @@ graphics_config_tabs_box <- function(id, title, tabs, status = "primary", collap
   )
 }
 
-graphics_export_size_controls_ui <- function(ns, download_id = "dl_plot", include_size_mode = TRUE) {
+graphics_export_size_controls_ui <- function(ns, download_id = "dl_plot", include_size_mode = TRUE, include_download_button = TRUE) {
   if (isTRUE(include_size_mode)) {
     return(tagList(
       fluidRow(
@@ -28,11 +28,26 @@ graphics_export_size_controls_ui <- function(ns, download_id = "dl_plot", includ
           column(3, numericInput(ns("interactive_height_px"), "交互图高度(px)", value = 620, min = 350, max = 1600, step = 20, width = "100%"))
         ),
         fluidRow(
-          column(3, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 13, min = 6, max = 30, step = 0.5, width = "100%")),
-          column(3, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 9, min = 4, max = 24, step = 0.5, width = "100%"))
-        )
+          column(4, checkboxInput(ns("sync_export_size"), "导出尺寸跟随前端画布", value = TRUE, width = "100%")),
+          column(4, numericInput(ns("size_sync_ppi"), "PX/英寸换算", value = 96, min = 72, max = 300, step = 1, width = "100%")),
+          column(4, checkboxInput(ns("canvas_border"), "显示画布边框", value = TRUE, width = "100%"))
+        ),
+        conditionalPanel(
+          condition = sprintf("input['%s'] === false", ns("sync_export_size")),
+          fluidRow(
+            column(3, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 12.5, min = 6, max = 30, step = 0.5, width = "100%")),
+            column(3, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 7.9, min = 4, max = 24, step = 0.5, width = "100%"))
+          )
+        ),
+        fluidRow(
+          column(3, numericInput(ns("page_margin_top_px"), "上边距(px)", value = 24, min = 0, max = 240, step = 2, width = "100%")),
+          column(3, numericInput(ns("page_margin_right_px"), "右边距(px)", value = 24, min = 0, max = 240, step = 2, width = "100%")),
+          column(3, numericInput(ns("page_margin_bottom_px"), "下边距(px)", value = 24, min = 0, max = 240, step = 2, width = "100%")),
+          column(3, numericInput(ns("page_margin_left_px"), "左边距(px)", value = 24, min = 0, max = 240, step = 2, width = "100%"))
+        ),
+        helpText("默认按 PX/英寸换算同步导出尺寸，并保持前端静态图与导出比例一致。")
       ),
-      downloadButton(ns(download_id), "下载图形", class = "btn-primary")
+      if (isTRUE(include_download_button)) downloadButton(ns(download_id), "下载图形", class = "btn-primary")
     ))
   }
 
@@ -41,7 +56,42 @@ graphics_export_size_controls_ui <- function(ns, download_id = "dl_plot", includ
       column(6, selectInput(ns("export_format"), "导出格式", choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "pdf", width = "100%")),
       column(6, numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%"))
     ),
-    downloadButton(ns(download_id), "下载图形", class = "btn-primary")
+    if (isTRUE(include_download_button)) downloadButton(ns(download_id), "下载图形", class = "btn-primary")
+  )
+}
+
+graphics_centered_output_container <- function(
+  content,
+  frame_width_px,
+  frame_height_px = NULL,
+  canvas_config = list(),
+  use_canvas_border = FALSE
+) {
+  width_px <- suppressWarnings(as.numeric(frame_width_px %||% 1200))
+  height_px <- suppressWarnings(as.numeric(frame_height_px %||% 0))
+  if (is.na(width_px) || !is.finite(width_px) || width_px <= 0) width_px <- 1200
+  if (is.na(height_px) || !is.finite(height_px) || height_px < 0) height_px <- 0
+
+  border_css <- ""
+  if (isTRUE(use_canvas_border) && isTRUE(canvas_config$canvas_border %||% TRUE)) {
+    border_css <- sprintf(
+      "border: %.1fpx solid %s; background: %s; box-sizing: border-box;",
+      suppressWarnings(as.numeric(canvas_config$canvas_border_size %||% 0.8)),
+      as.character(canvas_config$canvas_border_color %||% "#D9D9D9"),
+      as.character(canvas_config$canvas_background %||% "white")
+    )
+  }
+
+  tags$div(
+    style = "display:flex; justify-content:center; width:100%; overflow-x:auto;",
+    tags$div(
+      style = paste0(
+        "width:", width_px, "px; max-width:100%; margin:0 auto;",
+        if (height_px > 0) paste0(" min-height:", height_px, "px;") else "",
+        border_css
+      ),
+      content
+    )
   )
 }
 

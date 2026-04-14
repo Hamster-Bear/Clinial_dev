@@ -34,6 +34,8 @@ test_that("resolve_plot_size_config 支持统一尺寸模式切换", {
   cfg_default <- resolve_plot_size_config()
   expect_equal(cfg_default$static_width, 1200)
   expect_equal(cfg_default$interactive_height, 620)
+  expect_equal(cfg_default$export_width, 12.5)
+  expect_equal(cfg_default$export_height, 7.92)
   cfg_custom <- resolve_plot_size_config(
     mode = "custom",
     static_width_px = 1400,
@@ -45,7 +47,61 @@ test_that("resolve_plot_size_config 支持统一尺寸模式切换", {
   )
   expect_equal(cfg_custom$static_width, 1400)
   expect_equal(cfg_custom$static_height, 880)
-  expect_equal(cfg_custom$export_height, 7.5)
+  expect_equal(cfg_custom$export_width, 14.58)
+  expect_equal(cfg_custom$export_height, 9.16)
+})
+
+test_that("resolve_plot_size_config 支持关闭同步并保留边距与边框配置", {
+  cfg <- resolve_plot_size_config(
+    mode = "custom",
+    static_width_px = 1440,
+    static_height_px = 900,
+    export_width_in = 11,
+    export_height_in = 8.5,
+    sync_export_size = FALSE,
+    page_margin_top_px = 36,
+    page_margin_right_px = 20,
+    page_margin_bottom_px = 18,
+    page_margin_left_px = 40,
+    canvas_border = FALSE
+  )
+  expect_false(cfg$sync_export_size)
+  expect_equal(cfg$export_width, 11)
+  expect_equal(cfg$export_height, 8.5)
+  expect_equal(cfg$page_margin_top, 36)
+  expect_equal(cfg$page_margin_left, 40)
+  expect_false(cfg$canvas_border)
+})
+
+test_that("graphics_apply_canvas_frame 返回可导出的组合画布对象", {
+  p <- ggplot2::ggplot(data.frame(x = 1:3, y = 1:3), ggplot2::aes(x, y)) +
+    ggplot2::geom_point()
+  canvas_plot <- graphics_apply_canvas_frame(
+    p,
+    frame_width_px = 1200,
+    frame_height_px = 760,
+    canvas_config = resolve_plot_size_config()
+  )
+  expect_s3_class(canvas_plot, "ggplot")
+})
+
+test_that("graphics_collect_reference_line_spec 与 graphics_add_reference_lines 支持统一辅助线抽象", {
+  input <- list(
+    ref_line = 1,
+    ref_line_color = "#123456",
+    ref_line_linetype = "solid",
+    ref_line_linewidth = 1.2
+  )
+  spec <- graphics_collect_reference_line_spec(input, "ref_line", orientation = "v")
+  expect_equal(spec$orientation, "v")
+  expect_equal(spec$value, 1)
+  expect_equal(spec$color, "#123456")
+
+  p <- ggplot2::ggplot(data.frame(x = 1:3, y = 1:3), ggplot2::aes(x, y)) +
+    ggplot2::geom_point()
+  out <- graphics_add_reference_lines(p, list(spec))
+  expect_s3_class(out, "ggplot")
+  expect_equal(length(out$layers), length(p$layers) + 1)
 })
 
 test_that("graphics_remember_choice 优先保留当前输入并支持空值回退", {
@@ -164,6 +220,29 @@ test_that("graphics 辅助图例绘制器支持点线图例与堆叠组合", {
   expect_s3_class(point_legend, "ggplot")
   expect_s3_class(line_legend, "ggplot")
   expect_false(is.null(stacked))
+})
+
+test_that("graphics 设备安全字体解析对 Arial 回退到 sans", {
+  expect_equal(graphics_resolve_device_safe_family("Arial"), "sans")
+  expect_equal(graphics_resolve_device_safe_family(" serif "), "serif")
+  expect_equal(graphics_resolve_device_safe_family(NULL), "sans")
+})
+
+test_that("graphics 辅助图例支持透传统一字体族", {
+  point_legend <- graphics_build_point_legend_plot(
+    labels = c("A", "B"),
+    colors = c(A = "#E41A1C", B = "#377EB8"),
+    font_family = "serif"
+  )
+  line_legend <- graphics_build_line_legend_plot(
+    labels = c("A", "B"),
+    colors = c(A = "#E41A1C", B = "#377EB8"),
+    font_family = "mono"
+  )
+  expect_equal(point_legend$layers[[2]]$aes_params$family, "serif")
+  expect_equal(point_legend$theme$text$family, "serif")
+  expect_equal(line_legend$layers[[2]]$aes_params$family, "mono")
+  expect_equal(line_legend$theme$text$family, "mono")
 })
 
 test_that("graphics 辅助图例统一使用紧凑因子间距规则", {
