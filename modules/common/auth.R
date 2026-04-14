@@ -157,6 +157,7 @@ auth_ensure_schema <- function(pool) {
       "password_salt VARCHAR(128) NOT NULL,",
       "password_hash VARCHAR(128) NOT NULL,",
       "is_admin BOOLEAN NOT NULL DEFAULT FALSE,",
+      "db_access_enabled BOOLEAN NOT NULL DEFAULT FALSE,",
       "status VARCHAR(20) NOT NULL DEFAULT 'active',",
       "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP",
       ")"
@@ -269,7 +270,8 @@ auth_build_user_payload <- function(user_row) {
     id = user_row$id[[1]],
     username = user_row$username[[1]],
     email = if (is.null(user_row$email[[1]]) || is.na(user_row$email[[1]])) "" else user_row$email[[1]],
-    is_admin = isTRUE(user_row$is_admin[[1]])
+    is_admin = isTRUE(user_row$is_admin[[1]]),
+    db_access_enabled = isTRUE(user_row$db_access_enabled[[1]]) || isTRUE(user_row$is_admin[[1]])
   )
 }
 
@@ -304,10 +306,10 @@ auth_register_user <- function(pool, username, email, password) {
   DBI::dbExecute(
     pool,
     paste(
-      "INSERT INTO users (id, username, email, password_salt, password_hash, is_admin, status, created_at)",
-      "VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())"
+      "INSERT INTO users (id, username, email, password_salt, password_hash, is_admin, db_access_enabled, status, created_at)",
+      "VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', NOW())"
     ),
-    params = list(user_id, normalized, normalized_email, salt, password_hash, should_grant_admin)
+    params = list(user_id, normalized, normalized_email, salt, password_hash, should_grant_admin, FALSE)
   )
   created <- auth_get_user_by_id(pool, user_id)
   list(
@@ -362,8 +364,8 @@ auth_ensure_bootstrap_admin <- function(pool) {
   DBI::dbExecute(
     pool,
     paste(
-      "INSERT INTO users (id, username, email, password_salt, password_hash, is_admin, status, created_at)",
-      "VALUES ($1, $2, $3, $4, $5, TRUE, 'active', NOW())"
+      "INSERT INTO users (id, username, email, password_salt, password_hash, is_admin, db_access_enabled, status, created_at)",
+      "VALUES ($1, $2, $3, $4, $5, TRUE, TRUE, 'active', NOW())"
     ),
     params = list(auth_generate_id("usr"), username, email, salt, auth_hash_password(password, salt))
   )

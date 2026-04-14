@@ -66,9 +66,10 @@ spider_plot_ui <- function(id) {
                 tags$div(
                   class = "panel-body",
                   checkboxInput(ns("show_recist"), "显示RECIST阈值线", TRUE),
-                  fluidRow(
-                    column(6, numericInput(ns("recist_lower"), "下阈值", value = -30, step = 1, width = "100%")),
-                    column(6, numericInput(ns("recist_upper"), "上阈值", value = 20, step = 1, width = "100%"))
+                  conditionalPanel(
+                    condition = paste0("input['", ns("show_recist"), "'] == true"),
+                    graphics_reference_line_ui(ns, "recist_lower", label = "下阈值", default_value = -30, default_color = "#2C7BB6", default_linewidth = 0.7),
+                    graphics_reference_line_ui(ns, "recist_upper", label = "上阈值", default_value = 20, default_color = "#D7191C", default_linewidth = 0.7)
                   )
                 )
               )
@@ -104,7 +105,7 @@ spider_plot_ui <- function(id) {
                           class = "panel-body",
                           checkboxInput(ns("show_legend"), "显示图例", TRUE),
                           graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "outer", default_position = "right"),
-                          selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
+                          selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
                           checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
                           checkboxInput(ns("show_points"), "显示测量点", FALSE),
                           checkboxInput(ns("show_end_labels"), "显示末次标签", FALSE),
@@ -131,7 +132,10 @@ spider_plot_ui <- function(id) {
                                 checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
                               ))
                             ),
-                            numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 1, min = 0, max = 5, step = 1, width = "100%")
+                            fluidRow(
+                              column(6, numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 1, min = 0, max = 5, step = 1, width = "100%")),
+                              column(6, graphics_font_family_ui(ns, id = "base_family"))
+                            )
                         )
                       )
                     ),
@@ -427,7 +431,7 @@ spider_plot_server <- function(input, output, session, data) {
             y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "较基线变化(%)"),
             color = graphics_resolve_legend_title(input$legend_title, input$line_color_by)
           ) +
-          theme_minimal(base_size = input$base_font_size, base_family = "sans") +
+          theme_minimal(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
           theme(
             panel.grid.minor = element_blank()
           )
@@ -447,7 +451,7 @@ spider_plot_server <- function(input, output, session, data) {
             x = ifelse(nzchar(input$plot_xlab %||% ""), input$plot_xlab, ifelse(time_mode == "categorical", "时间序列", "时间")),
             y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "较基线变化(%)")
           ) +
-          theme_minimal(base_size = input$base_font_size, base_family = "sans") +
+          theme_minimal(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
           theme(
             legend.position = "none",
             panel.grid.minor = element_blank()
@@ -466,20 +470,13 @@ spider_plot_server <- function(input, output, session, data) {
           arrange(.time_plot)
         p <- p + scale_x_continuous(breaks = x_lab_map$.time_plot, labels = x_lab_map$.time_label)
       } else {
-        x_break_step <- suppressWarnings(as.numeric(input$x_break_step %||% 0))
-        if (!is.na(x_break_step) && x_break_step > 0) {
-          x_min <- min(plot_df$.time_plot, na.rm = TRUE)
-          x_max <- max(plot_df$.time_plot, na.rm = TRUE)
-          x_from <- floor(x_min / x_break_step) * x_break_step
-          x_to <- ceiling(x_max / x_break_step) * x_break_step
-          p <- p + scale_x_continuous(breaks = seq(x_from, x_to, by = x_break_step))
-        }
+        p <- graphics_apply_x_break_step(p, plot_df$.time_plot, input$x_break_step)
       }
 
-      if ((input$axis_style %||% "default") == "classic_arrow") {
+      if ((input$axis_style %||% "default") %in% c("classic_arrow", "classic")) {
         p <- p +
-          theme_classic(base_size = input$base_font_size, base_family = "sans")
-        p <- graphics_apply_axis_style(p, "classic_arrow", arrow_size = 0.12)
+          theme_classic(base_size = input$base_font_size, base_family = input$base_family %||% "sans")
+        p <- graphics_apply_axis_style(p, input$axis_style, arrow_size = 0.12)
         p <- graphics_apply_legend_theme(
           p,
           show_legend = isTRUE(input$show_legend) && isTRUE(line_has_group),
@@ -497,8 +494,8 @@ spider_plot_server <- function(input, output, session, data) {
 
       if (isTRUE(input$show_recist)) {
         p <- p +
-          geom_hline(yintercept = input$recist_lower, linetype = "dashed", color = "#2C7BB6", linewidth = 0.7) +
-          geom_hline(yintercept = input$recist_upper, linetype = "dashed", color = "#D7191C", linewidth = 0.7)
+          geom_hline(yintercept = input$recist_lower, linetype = input$recist_lower_linetype %||% "dashed", color = input$recist_lower_color %||% "#2C7BB6", linewidth = input$recist_lower_linewidth %||% 0.7) +
+          geom_hline(yintercept = input$recist_upper, linetype = input$recist_upper_linetype %||% "dashed", color = input$recist_upper_color %||% "#D7191C", linewidth = input$recist_upper_linewidth %||% 0.7)
       }
 
       if (nzchar(input$facet_var %||% "")) {

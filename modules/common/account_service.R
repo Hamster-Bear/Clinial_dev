@@ -39,6 +39,13 @@ service_label_user_status <- function(status) {
   labels[[trimws(status %||% "")]] %||% (status %||% "")
 }
 
+service_label_db_access_status <- function(enabled) {
+  if (isTRUE(enabled)) {
+    return("已开放")
+  }
+  "未开放"
+}
+
 service_format_datetime <- function(x) {
   values <- as.character(x %||% character(0))
   values[is.na(values) | !nzchar(values)] <- ""
@@ -483,4 +490,24 @@ service_set_user_status_by_email <- function(pool, email, status) {
     stop("目标邮箱对应的用户不存在")
   }
   service_set_user_status(pool, target_user$id[[1]], status)
+}
+
+service_set_user_db_access <- function(pool, user_id, enabled = FALSE) {
+  if (!nzchar(user_id %||% "")) {
+    stop("缺少用户信息")
+  }
+  DBI::dbExecute(
+    pool,
+    "UPDATE users SET db_access_enabled = $1 WHERE id = $2",
+    params = list(isTRUE(enabled), user_id)
+  )
+  invisible(TRUE)
+}
+
+service_set_user_db_access_by_email <- function(pool, email, enabled = FALSE) {
+  target_user <- service_get_user_by_email(pool, email)
+  if (nrow(target_user) == 0) {
+    stop("目标邮箱对应的用户不存在")
+  }
+  service_set_user_db_access(pool, target_user$id[[1]], enabled = enabled)
 }

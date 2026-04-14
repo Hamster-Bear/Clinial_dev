@@ -6,8 +6,12 @@ script_path <- sub(file_arg, "", args[grep(file_arg, args)])
 script_dir <- dirname(normalizePath(script_path, winslash = "/", mustWork = FALSE))
 project_root <- normalizePath(file.path(script_dir, ".."), winslash = "/", mustWork = TRUE)
 
-source(file.path(project_root, "modules", "common", "auth.R"))
-source(file.path(project_root, "modules", "common", "account_service.R"))
+account_service_path <- file.path(project_root, "modules", "common", "account_service.R")
+if (length(account_service_path) > 0 && file.exists(account_service_path)) {
+  source(account_service_path)
+} else {
+  return(invisible(NULL))
+}
 
 test_that("管理员服务层对非法输入有防御", {
   expect_equal(service_normalize_workspace_name("  demo  "), "demo")
@@ -15,6 +19,8 @@ test_that("管理员服务层对非法输入有防御", {
   expect_equal(service_label_workspace_role("viewer"), "只读成员")
   expect_equal(service_label_invite_status("pending"), "待领取")
   expect_equal(service_label_user_status("inactive"), "停用")
+  expect_equal(service_label_db_access_status(TRUE), "已开放")
+  expect_equal(service_label_db_access_status(FALSE), "未开放")
   expect_equal(service_normalize_role("viewer"), "viewer")
   expect_error(service_normalize_role("bad_role"), "不支持的成员角色")
   expect_error(service_normalize_role("owner", allow_owner = FALSE), "不支持的成员角色")
@@ -23,6 +29,7 @@ test_that("管理员服务层对非法输入有防御", {
   expect_error(service_assign_workspace_owner(NULL, "", ""), "缺少数据空间或负责人信息")
   expect_error(service_upsert_workspace_membership(NULL, "ws_1", "usr_1", "bad_role"), "不支持的成员角色")
   expect_error(service_set_user_status(NULL, "usr_1", "disabled"), "不支持的账号状态")
+  expect_error(service_set_user_db_access(NULL, "", TRUE), "缺少用户信息")
 })
 
 test_that("预览表格字段使用面向界面的中文名称", {

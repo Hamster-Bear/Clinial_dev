@@ -459,13 +459,14 @@ graphics_apply_legend_theme <- function(plot_obj, show_legend = TRUE, position =
 graphics_apply_axis_style <- function(plot_obj, axis_style = "default", arrow_size = 0.15) {
   if (identical(axis_style, "classic_arrow")) {
     plot_obj <- plot_obj + ggplot2::theme(
-      axis.line = ggplot2::element_line(colour = "black", arrow = ggplot2::arrow(length = ggplot2::unit(arrow_size, "inches"), type = "closed"))
+      axis.line = ggplot2::element_line(colour = "black", lineend = "square", arrow = ggplot2::arrow(length = ggplot2::unit(arrow_size, "inches"), type = "closed"))
     )
-  } else {
+  } else if (identical(axis_style, "classic")) {
     plot_obj <- plot_obj + ggplot2::theme(
-      axis.line = ggplot2::element_line(colour = "black")
+      axis.line = ggplot2::element_line(colour = "black", lineend = "square")
     )
   }
+  # "default" 不做任何操作，保留原主题默认样式
   plot_obj
 }
 
@@ -481,4 +482,58 @@ graphics_format_percent_labels <- function(show_percent_sign = TRUE, scale_facto
 graphics_format_number_labels <- function(decimals = 1) {
   acc <- if (!is.null(decimals) && !is.na(decimals) && decimals >= 0) 10^(-decimals) else 0.1
   scales::label_number(accuracy = acc)
+}
+
+#' 通用时间范围滑块渲染器
+#' @param ns Shiny 命名空间函数
+#' @param time_var_name 用户选择的时间变量名
+#' @param data 反应式数据源 (或 data.frame)
+#' @param slider_id 内部滑块 ID (默认为 "time_range")
+#' @param buffer 时间轴最大值缓冲区 (默认为 30)
+graphics_render_time_range_slider <- function(ns, time_var_name, data, slider_id = "time_range", buffer = 30) {
+  shiny::renderUI({
+    shiny::req(time_var_name)
+    df <- if (shiny::is.reactive(data)) data() else data
+    
+    if (is.null(df) || nrow(df) == 0) {
+      shiny::helpText("没有可用的数据")
+    } else if (time_var_name %in% names(df)) {
+      time_var <- df[[time_var_name]]
+      if (!is.null(time_var) && is.numeric(time_var)) {
+        time_var <- time_var[!is.na(time_var)]
+        if (length(time_var) > 0) {
+          time_max <- max(time_var, na.rm = TRUE)
+          time_range_max <- time_max + buffer
+          shiny::tagList(
+            shiny::sliderInput(ns(slider_id), paste("时间范围 (最大值:", round(time_max, 2), ")"),
+                        min = 0, max = time_range_max, value = c(0, time_range_max)),
+            shiny::tags$script(shiny::HTML(sprintf("
+              $(document).ready(function() {
+                $('#%s').on('mousewheel DOMMouseScroll', function(e) { e.preventDefault(); e.stopPropagation(); });
+                $('#%s').closest('.shiny-input-container').find('input').on('mousewheel DOMMouseScroll', function(e) { e.preventDefault(); e.stopPropagation(); });
+              });
+            ", ns(slider_id), ns(slider_id))))
+          )
+        } else { shiny::helpText("时间变量没有有效数据") }
+      } else { shiny::helpText("请选择数值型时间变量") }
+    } else { shiny::helpText("请选择时间变量") }
+  })
+}
+
+#' 通用X轴步长应用器
+#' @param plot_obj ggplot2对象
+#' @param x_data X轴对应的数据向量，用于计算最大最小值
+#' @param break_step 用户指定的步长，如果为0、NA或NULL则不生效
+graphics_apply_x_break_step <- function(plot_obj, x_data, break_step) {
+  step_val <- suppressWarnings(as.numeric(break_step %||% 0))
+  if (!is.na(step_val) && step_val > 0 && length(x_data) > 0) {
+    x_min <- min(x_data, na.rm = TRUE)
+    x_max <- max(x_data, na.rm = TRUE)
+    if (is.finite(x_min) && is.finite(x_max)) {
+      x_from <- floor(x_min / step_val) * step_val
+      x_to <- ceiling(x_max / step_val) * step_val
+      plot_obj <- plot_obj + ggplot2::scale_x_continuous(breaks = seq(x_from, x_to, by = step_val))
+    }
+  }
+  plot_obj
 }

@@ -1,44 +1,97 @@
+auth_manager_styles <- function() {
+  tags$head(
+    tags$style(HTML("
+      .auth-page-shell {
+        min-height: calc(100vh - 130px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 28px 12px 36px;
+      }
+      .auth-page-column {
+        width: 100%;
+        max-width: 620px;
+      }
+      .auth-page-column .box {
+        margin-bottom: 16px;
+        box-shadow: 0 10px 24px rgba(31, 45, 61, 0.08);
+      }
+      .auth-intro {
+        color: #5f6b7a;
+        line-height: 1.75;
+      }
+      .auth-hint {
+        color: #6b7785;
+        font-size: 12px;
+        line-height: 1.7;
+      }
+    "))
+  )
+}
+
 auth_manager_tabs <- function(id) {
   ns <- NS(id)
-  tagList(
+  list(
     tabItem(
       tabName = "login",
-      fluidRow(
-        box(
-          width = 6,
-          title = "登录",
-          status = "primary",
-          solidHeader = TRUE,
-          textInput(ns("login_identity"), "用户名或邮箱", placeholder = "请输入用户名或邮箱"),
-          passwordInput(ns("login_password"), "密码", placeholder = "请输入密码"),
-          actionButton(ns("login_submit"), "登录", class = "btn-primary", width = "100%")
-        ),
-        box(
-          width = 6,
-          title = "当前工具声明",
-          status = "warning",
-          solidHeader = TRUE,
-          p("当前工具暂不负责数据安全；数据传到服务端后不保证安全，请使用方自行妥善保管数据。"),
-          p("如需更高的数据隔离或运行保障，可提供独立部署服务。")
+      div(
+        class = "auth-page-shell",
+        div(
+          class = "auth-page-column",
+          box(
+            width = 12,
+            title = "欢迎进入 AutoTFL",
+            status = "primary",
+            solidHeader = TRUE,
+            p(class = "auth-intro", "请先登录后进入工作台。当前支持用户名或邮箱登录，后续协作能力会继续围绕邮箱身份扩展。")
+          ),
+          box(
+            width = 12,
+            title = "登录",
+            status = "primary",
+            solidHeader = TRUE,
+            textInput(ns("login_identity"), "用户名或邮箱", placeholder = "请输入用户名或邮箱"),
+            passwordInput(ns("login_password"), "密码", placeholder = "请输入密码"),
+            actionButton(ns("login_submit"), "登录", class = "btn-primary", width = "100%")
+          ),
+          box(
+            width = 12,
+            title = "当前工具声明",
+            status = "warning",
+            solidHeader = TRUE,
+            p("当前工具暂不负责数据安全；数据传到服务端后不保证安全，请使用方自行妥善保管数据。"),
+            p("如需更高的数据隔离或运行保障，可提供独立部署服务。")
+          )
         )
       )
     ),
     tabItem(
       tabName = "register",
-      fluidRow(
-        box(
-          width = 8,
-          title = "注册",
-          status = "info",
-          solidHeader = TRUE,
-          textInput(ns("register_username"), "用户名", placeholder = "3-32 位小写字母、数字、下划线、点或中划线"),
-          textInput(ns("register_email"), "邮箱", placeholder = "后续可用于协作授权与找回流程"),
-          passwordInput(ns("register_password"), "密码", placeholder = "至少 8 位"),
-          passwordInput(ns("register_password_confirm"), "确认密码", placeholder = "请再次输入密码"),
-          actionButton(ns("register_submit"), "注册", class = "btn-info", width = "100%"),
-          br(),
-          br(),
-          tags$small("当前先加入邮箱字段与格式校验，暂未接入真实邮箱验证与邮件发送服务。")
+      div(
+        class = "auth-page-shell",
+        div(
+          class = "auth-page-column",
+          box(
+            width = 12,
+            title = "创建账号",
+            status = "info",
+            solidHeader = TRUE,
+            p(class = "auth-intro", "注册后可由管理员开放数据库管理能力，并可通过邮箱加入协作数据空间。")
+          ),
+          box(
+            width = 12,
+            title = "注册",
+            status = "info",
+            solidHeader = TRUE,
+            textInput(ns("register_username"), "用户名", placeholder = "3-32 位小写字母、数字、下划线、点或中划线"),
+            textInput(ns("register_email"), "邮箱", placeholder = "后续可用于协作授权与找回流程"),
+            passwordInput(ns("register_password"), "密码", placeholder = "至少 8 位"),
+            passwordInput(ns("register_password_confirm"), "确认密码", placeholder = "请再次输入密码"),
+            actionButton(ns("register_submit"), "注册", class = "btn-info", width = "100%"),
+            br(),
+            br(),
+            tags$small(class = "auth-hint", "当前已支持邮箱格式校验，暂未接入真实邮箱验证与邮件发送服务。数据库管理权限需由管理员开放。")
+          )
         )
       )
     )

@@ -60,7 +60,7 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       if (isTRUE(is_admin())) {
         tags$div(
           class = "admin-note",
-          "当前页面仅面向系统管理员，用于执行账号状态调整、数据空间负责人绑定和系统级协作授权。管理员入口保持独立，不并入普通用户侧边栏卡片。"
+          "当前页面仅面向系统管理员，用于执行账号状态调整、数据库管理权限开关、数据空间负责人绑定和系统级协作授权。管理员入口保持独立，不并入普通用户侧边栏卡片。"
         )
       } else {
         tags$div("当前页面仅系统管理员可用。")
@@ -86,6 +86,11 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
             fluidRow(
               column(6, actionButton(session$ns("activate_user"), "启用账号", class = "btn-success", width = "100%")),
               column(6, actionButton(session$ns("deactivate_user"), "停用账号", class = "btn-danger", width = "100%"))
+            ),
+            br(),
+            fluidRow(
+              column(6, actionButton(session$ns("grant_db_access"), "开放数据库", class = "btn-primary", width = "100%")),
+              column(6, actionButton(session$ns("revoke_db_access"), "锁定数据库", class = "btn-default", width = "100%"))
             )
           ),
           box(
@@ -141,7 +146,8 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
         "账号名: ", row$username[[1]], "\n",
         "联系邮箱: ", ifelse(is.na(row$email[[1]]) || !nzchar(row$email[[1]]), "未设置", row$email[[1]]), "\n",
         "管理员身份: ", ifelse(isTRUE(row$is_admin[[1]]), "是", "否"), "\n",
-        "账号状态: ", service_label_user_status(row$status[[1]])
+        "账号状态: ", service_label_user_status(row$status[[1]]), "\n",
+        "数据库管理: ", service_label_db_access_status(isTRUE(row$db_access_enabled[[1]]) || isTRUE(row$is_admin[[1]]))
       )
     })
 
@@ -240,6 +246,36 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
         showNotification("账号已停用", type = "message")
       }, error = function(e) {
         showNotification(paste0("停用失败：", e$message), type = "error")
+      })
+    })
+
+    observeEvent(input$grant_db_access, {
+      req(is_admin())
+      req(nzchar(input$admin_user_email %||% ""))
+      tryCatch({
+        service_set_user_db_access_by_email(pg_pool, input$admin_user_email %||% "", enabled = TRUE)
+        refresh_tick(as.numeric(Sys.time()))
+        showNotification("数据库管理权限已开放", type = "message")
+      }, error = function(e) {
+        showNotification(paste0("开放失败：", e$message), type = "error")
+      })
+    })
+
+    observeEvent(input$revoke_db_access, {
+      req(is_admin())
+      req(nzchar(input$admin_user_email %||% ""))
+      target_user <- service_get_user_by_email(pg_pool, input$admin_user_email %||% "")
+      current <- get_current_user()
+      if (nrow(target_user) > 0 && !is.null(current) && identical(current$id, target_user$id[[1]]) && isTRUE(current$is_admin)) {
+        showNotification("不能锁定当前登录管理员的数据库管理权限", type = "warning")
+        return()
+      }
+      tryCatch({
+        service_set_user_db_access_by_email(pg_pool, input$admin_user_email %||% "", enabled = FALSE)
+        refresh_tick(as.numeric(Sys.time()))
+        showNotification("数据库管理权限已锁定", type = "message")
+      }, error = function(e) {
+        showNotification(paste0("锁定失败：", e$message), type = "error")
       })
     })
   })

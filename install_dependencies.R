@@ -35,6 +35,8 @@ required_packages <- c(
   "gridExtra",
   "scales",
   "RColorBrewer",
+  "showtext",
+  "sysfonts",
   
   # 表格生成
   "cards",

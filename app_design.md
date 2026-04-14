@@ -1,5 +1,7 @@
 # 主应用框架设计 - shinydashboard布局
 
+> 说明：本文档保留为早期界面设计草稿，当前实现口径与图形显示规范请以 `PROJECT_GUIDE.md` 为准。
+
 ## 整体布局结构
 
 ```mermaid

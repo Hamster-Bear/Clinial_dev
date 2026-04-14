@@ -325,8 +325,7 @@ library(cowplot)
               selected = "0", inline = TRUE
             ),
             hr(),
-            uiOutput(ns("time_range_slider")),
-            numericInput(ns("time_step"), "时间轴步长", value = NULL, min = 1, max = 1000, step = 1, width = "100%")
+            graphics_time_axis_controls_ui(ns)
           )
         )
       )
@@ -466,7 +465,8 @@ library(cowplot)
                 checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
               ))
             ),
-            numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 2, min = 0, max = 5, step = 1, width = "100%")
+            numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 2, min = 0, max = 5, step = 1, width = "100%"),
+            selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%")
           )
         )
       ),
@@ -482,8 +482,13 @@ library(cowplot)
               column(4, numericInput(ns("legend_text_size"), "图例文本字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
               column(4, numericInput(ns("stats_text_size"), "统计标注字号", value = 10, min = 6, max = 20, step = 1, width = "100%"))
             ),
-            numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1, width = "100%"),
+            fluidRow(
+              column(4, numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+              column(4, numericInput(ns("risk_table_fontsize"), "风险表数字大小", value = 4, min = 2, max = 10, step = 0.5, width = "100%")),
+              column(4, tags$div(style = "margin-top: 25px;", checkboxInput(ns("risk_table_fontbold"), "风险表数字加粗", value = FALSE)))
+            ),
             numericInput(ns("legend_row_gap"), "图例行间距(row_gap)", value = 1.0, min = 0.1, max = 3.0, step = 0.1, width = "100%"),
+            graphics_font_family_ui(ns, id = "base_family"),
             graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "corners_aux_none", default_position = "top-right"),
             graphics_aux_legend_anchor_controls_ui(
               ns,
@@ -944,9 +949,13 @@ survival_analysis_server <- function(input, output, session, data) {
           y_decimals = input$y_decimals,
           y_as_percent = input$y_as_percent,
           y_show_percent_sign = input$y_show_percent_sign,
+          axis_style = input$axis_style,
+          base_family = input$base_family,
           axis_text_size = input$axis_text_size,
           legend_text_size = input$legend_text_size,
           stats_text_size = input$stats_text_size,
+          risk_table_fontsize = input$risk_table_fontsize,
+          risk_table_fontbold = input$risk_table_fontbold,
           show_grid = input$show_grid,
           time_step = input$time_step,
           show_median = input$show_median,
@@ -994,8 +1003,11 @@ survival_analysis_server <- function(input, output, session, data) {
         graphics_state$y_decimals <- params$y_decimals
         graphics_state$y_as_percent <- params$y_as_percent
         graphics_state$y_show_percent_sign <- params$y_show_percent_sign
+        graphics_state$base_family <- params$base_family
         graphics_state$axis_text_size <- params$axis_text_size
         graphics_state$axis_style <- params$axis_style
+        graphics_state$risk_table_fontsize <- params$risk_table_fontsize
+        graphics_state$risk_table_fontbold <- params$risk_table_fontbold
         graphics_state$legend_text_size <- params$legend_text_size
         graphics_state$stats_text_size <- params$stats_text_size
         graphics_state$show_grid <- params$show_grid
@@ -1061,63 +1073,8 @@ survival_analysis_server <- function(input, output, session, data) {
     df
   })
   
-  
   # 动态时间范围滑块UI
-  output$time_range_slider <- renderUI({
-    req(input$km_time)
-    
-    # 注意：为了让用户在选择变量后能立刻看到滑块范围，这里直接使用 data()
-    # 并且如果存在分面，不影响全局时间轴的最大值计算，保持一致的范围更合理
-    df <- data()
-    
-    if (is.null(df) || nrow(df) == 0) {
-      helpText("没有可用的数据")
-    } else if (input$km_time %in% names(df)) {
-      time_var <- df[[input$km_time]]
-      
-      if (!is.null(time_var) && is.numeric(time_var)) {
-        # 移除NA值
-        time_var <- time_var[!is.na(time_var)]
-        
-        if (length(time_var) > 0) {
-          time_max <- max(time_var, na.rm = TRUE)
-          time_range_max <- time_max + 30  # 最大值 = 实际最大值 + 30
-          
-          # 生成滑块并添加禁用鼠标滚轮的脚本
-          tagList(
-            sliderInput(
-              ns("time_range"),
-              paste("时间范围 (最大值:", round(time_max, 2), ")"),
-              min = 0,
-              max = time_range_max,
-              value = c(0, time_range_max)
-            ),
-            tags$script(HTML(sprintf("
-              $(document).ready(function() {
-                // 禁用滑块区域的鼠标滚轮事件
-                $('#%s').on('mousewheel DOMMouseScroll', function(e) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                });
-                
-                // 同时禁用滑块内部input元素的滚轮事件
-                $('#%s').closest('.shiny-input-container').find('input').on('mousewheel DOMMouseScroll', function(e) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                });
-              });
-            ", ns("time_range"), ns("time_range"))))
-          )
-        } else {
-          helpText("时间变量没有有效数据")
-        }
-      } else {
-        helpText("请选择数值型时间变量")
-      }
-    } else {
-      helpText("请选择时间变量")
-    }
-  })
+  output$time_range_slider <- graphics_render_time_range_slider(ns, input$km_time, data)
   
   extract_median_ci <- function(fit_obj) {
     tbl <- tryCatch(summary(fit_obj)$table, error = function(e) NULL)
@@ -1369,20 +1326,25 @@ survival_analysis_server <- function(input, output, session, data) {
     legend_labs <- .extract_survival_legend_labs(fit_local, strata_var, params$strata_labels, overall_label)
     risk_table_labeler <- .build_survival_strata_labeler(strata_var, params$strata_labels, overall_label)
     p <- suppressWarnings(ggsurvplot(
-      fit_local,
-      data = plot_data,
-      risk.table = params$km_show_risktable,
-      surv.median.line = params$surv_median_line %||% "none",
-      conf.int = FALSE,
-      pval = FALSE,
-      censor = FALSE,
-      xlim = time_range,
-      break.time.by = time_step,
-      ggtheme = theme_bw(),
-      palette = "Set1",
-      legend.title = legend_title_text,
-      legend.labs = legend_labs
-    ))
+        fit_local,
+        data = plot_data,
+        risk.table = params$km_show_risktable,
+        fontsize = params$risk_table_fontsize %||% 4.0,
+        font.tickslab = c(params$y_text_size %||% 10, "plain"),
+        surv.median.line = params$surv_median_line %||% "none",
+        conf.int = FALSE,
+        pval = FALSE,
+        censor = FALSE,
+        xlim = time_range,
+        break.time.by = time_step,
+        ggtheme = theme_bw(),
+        palette = "Set1",
+        legend.title = legend_title_text,
+        legend.labs = legend_labs
+      ))
+      if (params$km_show_risktable && isTRUE(params$risk_table_fontbold)) {
+        p$table$layers[[1]]$aes_params$fontface <- "bold"
+      }
     legend_colors_raw <- .resolve_survival_legend_colors(p$plot, legend_breaks, legend_breaks)
     main_legend_colors <- stats::setNames(unname(legend_colors_raw[legend_breaks]), legend_labs)
     if (params$show_median) {
@@ -1393,9 +1355,9 @@ survival_analysis_server <- function(input, output, session, data) {
           function(x) .format_survival_group_label(x, strata_var, params$strata_labels, overall_label),
           character(1)
         )
-        median_surv$median_txt <- ifelse(is.finite(median_surv$median), formatC(median_surv$median, format = "f", digits = 2), "NR")
-        median_surv$lower_txt <- ifelse(is.finite(median_surv$lower), formatC(median_surv$lower, format = "f", digits = 2), "NA")
-        median_surv$upper_txt <- ifelse(is.finite(median_surv$upper), formatC(median_surv$upper, format = "f", digits = 2), "NA")
+        median_surv$median_txt <- ifelse(is.finite(median_surv$median), formatC(median_surv$median, format = "f", digits = 1), "NR")
+          median_surv$lower_txt <- ifelse(is.finite(median_surv$lower), formatC(median_surv$lower, format = "f", digits = 1), "NA")
+          median_surv$upper_txt <- ifelse(is.finite(median_surv$upper), formatC(median_surv$upper, format = "f", digits = 1), "NA")
         median_surv$label <- vapply(
           seq_len(nrow(median_surv)),
           function(i) .build_survival_median_summary_label(
@@ -1436,7 +1398,8 @@ survival_analysis_server <- function(input, output, session, data) {
             vjust = 0.5,
             size = params$stats_text_size / 3.2,
             color = "black",
-            fontface = "bold"
+            fontface = "bold",
+            family = params$base_family %||% "sans"
           )
       }
     }
@@ -1468,7 +1431,8 @@ survival_analysis_server <- function(input, output, session, data) {
       }
       if (stats_text != "") {
         p$plot <- p$plot +
-          annotate("text", x = stats_x, y = stats_y, label = stats_text, hjust = hjust_val, vjust = vjust_val, size = params$stats_text_size / 3.2, color = "black", fontface = "bold")
+          annotate("text", x = stats_x, y = stats_y, label = stats_text, hjust = hjust_val, vjust = vjust_val, 
+                   size = params$stats_text_size / 3.2, color = "black", fontface = "bold", family = params$base_family %||% "sans")
       }
     }
     censor_legend_plot <- NULL
@@ -1583,7 +1547,7 @@ survival_analysis_server <- function(input, output, session, data) {
     
     p$plot <- p$plot +
       theme(
-        text = element_text(family = "sans"),
+        text = element_text(family = params$base_family %||% "sans"),
         panel.border = element_blank(),
         axis.text = element_text(size = params$axis_text_size),
         legend.text = element_text(size = params$legend_text_size)
@@ -1606,7 +1570,7 @@ survival_analysis_server <- function(input, output, session, data) {
       p$table <- p$table +
         theme_minimal() +
         theme(
-          text = element_text(family = "sans"),
+          text = element_text(family = params$base_family %||% "sans"),
           axis.title.x = element_blank(),
           axis.title.y = element_blank(),
           axis.text.x = element_blank(),
@@ -1879,9 +1843,9 @@ survival_analysis_server <- function(input, output, session, data) {
           .build_survival_median_summary_label(
             display_strata = display_label,
             median_label = graphics_state$median_label_text,
-            median_txt = ifelse(is.finite(med$median[i]), formatC(med$median[i], format = "f", digits = 2), "NR"),
-            lower_txt = ifelse(is.finite(med$lower[i]), formatC(med$lower[i], format = "f", digits = 2), "NA"),
-            upper_txt = ifelse(is.finite(med$upper[i]), formatC(med$upper[i], format = "f", digits = 2), "NA"),
+            median_txt = ifelse(is.finite(med$median[i]), formatC(med$median[i], format = "f", digits = 1), "NR"),
+            lower_txt = ifelse(is.finite(med$lower[i]), formatC(med$lower[i], format = "f", digits = 1), "NA"),
+            upper_txt = ifelse(is.finite(med$upper[i]), formatC(med$upper[i], format = "f", digits = 1), "NA"),
             overall_label = graphics_state$overall_group_label
           )
         )

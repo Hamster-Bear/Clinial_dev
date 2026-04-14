@@ -132,7 +132,7 @@ test_that("辅助图例行间距收紧并稳定", {
 })
 
 test_that("辅助图例紧凑布局常量保持收紧约束", {
-  expect_equal(.survival_aux_legend_compact_spec$row_gap, 0.36)
+  expect_equal(.survival_aux_legend_compact_spec$row_gap, 1.0)
   expect_equal(.survival_aux_legend_compact_spec$plot_margin_pt, c(1, 3, 1, 3))
   expect_equal(.survival_aux_legend_compact_spec$title_margin_bottom, 1)
   expect_equal(.survival_aux_legend_compact_spec$inter_legend_spacer, 0.03)

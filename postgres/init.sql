@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_salt VARCHAR(128) NOT NULL,
     password_hash VARCHAR(128) NOT NULL,
     is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    db_access_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

@@ -131,7 +131,7 @@
 ### 3.6 当前访问控制边界
 
 - 当前仓库已实现应用内自注册、登录、退出与 workspace 级权限控制。
-- 登录支持用户名或邮箱；注册阶段会校验邮箱格式，但当前尚未接入真实邮箱验证或邮件发送。
+- 登录支持用户名或邮箱；注册阶段会校验邮箱格式，当前登录/注册页已改为上下居中的单列卡片布局，但尚未接入真实邮箱验证或邮件发送。
 - 当前用户信息与退出入口稳定显示在侧边栏卡片中；普通用户的权限管理快捷入口也合并在该卡片内。
 - 未登录状态下只渲染登录/注册入口，不渲染业务工作台侧边栏。
 - 非管理员用户默认按个人空间隔离，只能看到自己拥有或被授权的 workspace。
@@ -141,6 +141,7 @@
 - 普通用户可对自己拥有的数据空间进行权限管理，且授权、撤销与 owner 迁移统一通过邮箱输入完成。
 - 管理员页保持独立系统入口，不并入侧边栏用户卡片；系统级负责人绑定、协作授权与账号状态调整继续集中在管理员页。
 - 权限预览表统一改为业务中文列名；数据库管理页按“空间与目录 / 上传与导入 / 结构总览”三段重组。
+- 数据库管理功能已增加账号级访问锁：普通账号默认锁定，需由管理员开放数据库管理权限后才可进入与操作。
 - 当前尚未实现组织级、项目级隔离，也未提供更细粒度的 folder 或 dataset 权限模型。
 
 ### 3.7 当前免责声明
@@ -151,10 +152,10 @@
 
 ### 3.8 当前阶段风险与优化建议
 
-- 技术风险：当前权限主边界仍在 workspace 级别，`viewer` / `editor` 对数据写操作的差异尚未完全落实到所有模块。
+- 技术风险：当前权限主边界仍在 workspace 级别，`viewer` / `editor` 对数据写操作的差异尚未完全落实到所有模块；数据库管理锁当前仍是账号级开关。
 - 维护风险：邮箱邀请支持未注册用户占位，但尚未提供邀请过期、撤回审计与邮箱真实性校验；普通用户入口与管理员入口的交互规范需要持续同步。
 - 项目风险：owner 自助授权已开放给创建者，后续若扩展共享协作，需要同步补齐审计日志与异常回滚策略。
-- 立即可做：补充 service 层数据库集成测试，覆盖授权、撤销、owner 迁移、invite 领取与 workspace 删除链路，并验证阶段二数据库管理新布局的可用性。
+- 立即可做：补充 service 层数据库集成测试，覆盖授权、撤销、owner 迁移、invite 领取与 workspace 删除链路，并验证数据库管理新布局与数据库管理锁的可用性。
 - 中长期建议：引入邮箱验证、邀请有效期、组织级 / 项目级协作模型与更细粒度权限矩阵。
 - 工具链建议：在 `tests/` 现有守卫测试基础上，引入 PostgreSQL 临时库回归测试与 pre-commit 文档一致性校验。
 
@@ -355,11 +356,13 @@ AutoTFL/
 | 主题 | 当前实现 |
 | --- | --- |
 | 状态管理 | 采用 view state 与 committed state 分离，只有点击“生成图形”才提交分析参数 |
-| 风险表 | 风险表主要用于静态图组合输出；交互页并不是“Plotly + 风险表”同页布局 |
+| 风险表 | 风险表主要用于静态图组合输出；交互页并不是“Plotly + 风险表”同页布局。当前已暴露 `risk_table_height_ratio`、`risk_table_plot_gap`、`risk_table_group_gap` 三个参数，分别控制风险表相对高度、主图与风险表之间的垂直留白、风险表分组行之间的额外扩展；默认值收紧为 `0.15 / 0 / 1.2` |
 | 分层标签 | 主图图例、删失图例、统计文本、风险表与数据表统一复用同一标签格式化链路；比较符号及原始值中的 `=`, `>=`, `<` 必须原样保留并可映射自定义标签 |
-| 删失图例 | 交互图中的主图分组图例优先复用 `ggsurvplot` 默认图例能力，仅负责标题与标签定制；静态图则统一改为辅助图例方案：主图分组图例与删失图例都以 common 图例绘制器生成并组合，其中 Censor 图例在分层场景下必须优先复用主图最终 legend 颜色，确保删失符号颜色与曲线颜色一致。曲线上的删失点形状在所有分组中统一取自 `km_censor_shape`，不能因分组再次映射为圆形/三角等离散形状；静态图中主图分组图例固定在前、Censor 图例固定在后，且通过 common 的 inside-anchor/aux-legend 摆放抽象和公共 ratio 滑条控件控制紧凑间距与定位；图例自定义滑轨初始化值统一为 `X/Y/宽/高 = 0.95/0.85/0.13/0.14`，避免重复图例、原始 `变量=取值` 文本泄漏、颜色失配与 `Ignoring unknown labels` 警告 |
+| 删失图例 | 交互图中的主图分组图例优先复用 `ggsurvplot` 默认图例能力，仅负责标题与标签定制；静态图则统一改为辅助图例方案：主图分组图例与删失图例都以 common 图例绘制器生成并组合，其中 Censor 图例在分层场景下必须优先复用主图最终 legend 颜色，确保删失符号颜色与曲线颜色一致。曲线上的删失点形状在所有分组中统一取自 `km_censor_shape`，不能因分组再次映射为圆形/三角等离散形状；静态图中主图分组图例固定在前、Censor 图例固定在后，且通过 common 的 inside-anchor/aux-legend 摆放抽象和公共 ratio 滑条控件控制紧凑间距与定位；图例自定义滑轨初始化值统一为 `X/Y/宽/高 = 0.95/0.85/0.13/0.14`，避免重复图例、原始 `变量=取值` 文本泄漏、颜色失配与 `Ignoring unknown labels` 警告。当前 `legend_row_gap` 已暴露到 UI，主图线条图例与删失图例必须共享同一 row-gap 参数，并在叠加时按各自真实行数动态分配高度，禁止再将删失图例行数硬编码为 `1` |
 | 统计文本 | 各组中位生存时间文本改为自由编辑标签，默认使用 `mPFS`，并统一左对齐；其组间距与 Cox 多组文本块保持一致的紧凑行距。统计文本自定义坐标统一复用 common 的比例坐标控件；统计报告中三组以上时需明确 Log-rank 为全局检验，只表示至少一组与其他组存在差异，不代表所有两两比较均显著 |
 | 坐标轴默认值 | X 轴标签默认填入 `Duration`，除非用户显式改写 |
+| Y轴格式 | 当前已暴露 `y_break_step`、`y_decimals`、`y_as_percent`、`y_show_percent_sign` 参数：支持控制步长、小数位、是否按百分比显示、以及百分比场景下是否带 `%`；普通数值与百分比数值统一走 common 格式化函数，避免三图间显示口径分叉 |
+| 中位线 | 当前已暴露 `surv_median_line` 选项，允许 `none / hv / h / v` 四种模式控制主图中位线显示 |
 | P值格式 | Log-rank 与生存分析内联 P 值统一采用 AMA 风格：`<0.001`、`>0.99` 或三位小数，避免 `P=0.000` |
 | 交互页 | 当前以交互主图和单独结果页签为主 |
 | 尺寸配置 | 已接入统一尺寸接口，不在模块内写死静态/交互/导出尺寸 |
@@ -370,6 +373,8 @@ AutoTFL/
 - Survival、Spider、Waterfall、Swimmer 已逐步接入 common 图例能力。
 - Swimmer 保留事件图例的自绘特例，但标题解析、inside-anchor 摆放与 ratio 滑条控件应继续优先复用 common。
 - Waterfall 与 Swimmer 的符号/颜色分别指定能力已经存在，但仍属于高复杂 UI，后续应继续抽象公共组件。
+- Survival、Spider、Waterfall 当前都已接入统一 Y 轴格式化口径：百分比显示、是否带 `%`、保留小数位数都应优先复用 common 的标签格式化函数。
+- Survival 静态图的主图线条图例与删失图例，当前被视为两个独立辅助图例：内部行距使用同一 `legend_row_gap` 参数，叠加拼接时按照各自真实行数分配 `rel_heights`，不得依赖固定比例常量推断高度。
 
 ## 8. 预设图表实现
 
@@ -404,7 +409,7 @@ AutoTFL/
 | `data_filter.R` | 统一筛选 UI / server 与变量过滤行为 |
 | `analysis_shared.R` | 统一回归校验和结果组装 |
 | `analysis_format.R` | 统一统计值、P 值、复现代码模板 |
-| `graphics_common.R` | 统一图形变量筛选、尺寸和通知 |
+| `graphics_common.R` | 统一图形变量筛选、尺寸、图例绘制、坐标轴样式和标签格式化 |
 | `graphics_repro.R` | 图形复现代码 |
 | `plot_export.R` | 图形导出 |
 | `table_export.R` | 表格导出与样式注入 |
@@ -422,7 +427,9 @@ AutoTFL/
 | --- | --- | --- | --- |
 | 图例标题与位置枚举 | `graphics_common.R` | `graphics_resolve_legend_title()`、`graphics_legend_position_choices()`、`graphics_legend_controls_ui()` | 图例标题统一走 `custom > fallback > default`；位置值只能来自 common 枚举，子模块不得自造私有位置字符串 |
 | 图例锚点、ratio 滑条与辅助图例摆放 | `graphics_common.R` | `graphics_resolve_inside_anchor()`、`graphics_aux_legend_anchor_controls_ui()`、`graphics_place_aux_legend()`、`graphics_apply_legend_theme()` | 图内锚点必须先归一化；辅助图例位置、统计文本自定义坐标与 x/y/width/height ratio 控件优先复用 common；隐藏图例统一使用 `"none"` |
-| 辅助图例绘制器 | `graphics_common.R` | `graphics_aux_legend_compact_defaults`、`graphics_build_legend_rows()`、`graphics_build_point_legend_plot()`、`graphics_build_line_legend_plot()`、`graphics_compose_stacked_legends()` | 自绘辅助图例的行距、标题间距、外边距、组间 spacer 统一由 common 控制；收紧通用规则为所有图例的每个因子之间保持约一个字符大小的间距，且线条图例与删失图例必须复用同一 row-gap 约束；模块内不得再复制一套 legend painter |
+| 辅助图例绘制器 | `graphics_common.R` | `graphics_aux_legend_compact_defaults`、`graphics_build_legend_rows()`、`graphics_build_point_legend_plot()`、`graphics_build_line_legend_plot()`、`graphics_compose_stacked_legends()` | 自绘辅助图例的行距、标题间距、外边距、组间 spacer 统一由 common 控制；收紧通用规则为所有图例的每个因子之间保持约一个字符大小的间距，且线条图例与删失图例必须复用同一 row-gap 约束；拼接多个辅助图例时必须按真实行数传入 `primary_rows / secondary_rows`，不得硬编码删失图例高度 |
+| 轴线与标签格式 | `graphics_common.R` | `graphics_apply_axis_style()`、`graphics_format_percent_labels()`、`graphics_format_number_labels()` | 经典 XY 轴箭头样式、百分比显示、是否带 `%`、保留小数位数统一走 common；模块内不得各写一套刻度格式化逻辑 |
+| 通用 UI 控件 | `common_ui_shell.R` | `graphics_reference_line_ui()`、`graphics_primary_action_button_ui()`、`graphics_font_family_ui()` | 高度重复的 UI 块（如参考线配置、主按钮、字体族选择）必须复用 common 控件，统一参数收集逻辑 |
 | 图形尺寸解析 | `graphics_common.R` | `resolve_plot_size_config()` | 静态图、交互图、导出尺寸统一从 common 解析；模块内不得各自硬编码三套尺寸 |
 | 图形说明文字 | `graphics_common.R` | `graphics_mapping_caption_line()`、`graphics_compose_caption()`、`graphics_append_bottom_caption()` | caption 统一由 common 拼接，禁止模块内再拼第二套底部说明逻辑 |
 | 元数据标签与类型 | `data_metadata.R` | `metadata_get_var_label()`、`metadata_get_var_type()`、`metadata_build_column_choices()`、`metadata_attach_to_data()` | 标签解析顺序固定为 `override > metadata表 > 列label > var_name`；元数据变更后必须重新回写到数据对象 |
@@ -546,6 +553,11 @@ AutoTFL/
 3. 为部署文档、运行入口和关键环境变量增加自动检查。
 4. 在现有个人隔离与 workspace 权限基础上，评估组织级、项目级隔离、邮箱验证与共享协作模型。
 5. 在高级方法真正落地后，再补充对应章节与测试。
+6. **UI 状态隔离与响应式重构**：优化图形模块（如森林图）动态渲染配置项时的循环依赖问题，大规模采用 `isolate()` 技巧防止输入过程中的焦点丢失和异常跳出。
+7. **通用 UI 组件 (Common UI Components)**：将各图形模块中高度重复的 UI 块（如坐标与线条配置、导出设置）进一步提取为 `graphics_common_ui.R` 中的高阶组件（Higher-Order Components），并在 server 端统一参数收集逻辑，降低冗余。
+8. **测试工具链引入**：引入 `styler` 和 `lintr` 等代码规范工具，并通过 `pre-commit` 钩子强制执行，避免多文件修改时引入缩进或代码风格不一致的问题；考虑引入 `shinytest2` 针对输入框跳出等复杂 UI 交互状态编写自动化测试。
+9. **分析参数与UI状态持久化**：考察并设计每次分析（如回归模型、生存分析等）自定义参数与UI设置的保存与导入方案。建议在数据库新增 `analysis_states` 表，将 `reactiveValues` 序列化为 JSON 存储，支持用户复用历史分析预设，实现从“单次生成”到“任务资产沉淀”的闭环。
+10. **精细化图形样式控制**：持续修复和统一图形视觉细节（如通过设置 `lineend = "square"` 彻底解决经典坐标轴样式的尾端断裂问题），并将生存分析的时间轴控制（最大值、步长）等优秀实践抽象为公共函数，推广至所有时间序列图形（如泳道图、蜘蛛图）。
 
 ## 13. 研发治理约束
 

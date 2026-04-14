@@ -389,14 +389,14 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
     })
   }
   
-  refresh_db_workspace_choices <- function() {
+  refresh_db_workspace_choices <- function(selected = NULL) {
     reg <- load_registry()
     ws <- reg$workspaces
     ws_choices <- if (nrow(ws) == 0) character(0) else setNames(ws$id, ws$name)
-    updateSelectInput(session, "db_workspace_select", choices = ws_choices)
+    updateSelectInput(session, "db_workspace_select", choices = ws_choices, selected = selected)
   }
   
-  refresh_db_folder_choices <- function(workspace_id = "") {
+  refresh_db_folder_choices <- function(workspace_id = "", selected = root_folder_token) {
     reg <- load_registry()
     fd <- reg$folders
     if (is.null(workspace_id) || workspace_id == "") {
@@ -408,7 +408,7 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
         fd_choices <- c(fd_choices, setNames(fd_current$id, fd_current$name))
       }
     }
-    updateSelectInput(session, "db_folder_select", choices = fd_choices, selected = root_folder_token)
+    updateSelectInput(session, "db_folder_select", choices = fd_choices, selected = selected)
   }
   
   refresh_db_dataset_choices <- function(workspace_id = "", folder_id = root_folder_token) {
@@ -532,16 +532,13 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
   refresh_db_workspace_choices()
   refresh_db_folder_choices("")
   refresh_db_dataset_choices("", root_folder_token)
-  observe({
-    if (!is.null(current_user)) {
-      current_user()
-    }
-    workspace_id <- input$db_workspace_select %||% ""
-    folder_id <- input$db_folder_select %||% root_folder_token
-    refresh_db_workspace_choices()
-    refresh_db_folder_choices(workspace_id)
+  observeEvent(current_user(), {
+    workspace_id <- isolate(input$db_workspace_select %||% "")
+    folder_id <- isolate(input$db_folder_select %||% root_folder_token)
+    refresh_db_workspace_choices(selected = workspace_id)
+    refresh_db_folder_choices(workspace_id, selected = folder_id)
     refresh_db_dataset_choices(workspace_id, folder_id)
-  })
+  }, ignoreNULL = FALSE, ignoreInit = TRUE)
   get_var_label <- function(var_name, var_data) {
     metadata_get_var_label(var_name, var_data, label_overrides = var_label_overrides(), data = data_store())
   }
@@ -729,8 +726,8 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
   observeEvent(input$db_refresh, {
     workspace_id <- ifelse(is.null(input$db_workspace_select), "", input$db_workspace_select)
     folder_id <- ifelse(is.null(input$db_folder_select), root_folder_token, input$db_folder_select)
-    refresh_db_workspace_choices()
-    refresh_db_folder_choices(workspace_id)
+    refresh_db_workspace_choices(selected = workspace_id)
+    refresh_db_folder_choices(workspace_id, selected = folder_id)
     refresh_db_dataset_choices(workspace_id, folder_id)
     showNotification("数据库列表已刷新", type = "message")
   })

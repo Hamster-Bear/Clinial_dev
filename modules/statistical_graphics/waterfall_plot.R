@@ -69,7 +69,7 @@ waterfall_plot_ui <- function(id) {
                         ),
                         numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 1, min = 0, max = 5, step = 1, width = "100%"),
                         checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
-                        selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
+                        selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
                         checkboxInput(ns("show_legend"), "显示图例", TRUE),
                         checkboxInput(ns("auto_mapping_caption"), "自动追加样式脚注", TRUE),
                         selectInput(ns("main_legend_position"), "主图图例位置", choices = graphics_legend_position_choices("outer"), selected = "right", width = "100%"),
@@ -84,18 +84,19 @@ waterfall_plot_ui <- function(id) {
                 tags$div(
                   class = "panel panel-default",
                   tags$div(class = "panel-heading", "阈值与临床线"),
-                  tags$div(
-                    class = "panel-body",
-                    checkboxInput(ns("show_recist"), "显示RECIST阈值线", TRUE),
-                    fluidRow(
-                      column(6, numericInput(ns("recist_lower"), "RECIST下阈值", value = -30, step = 1, width = "100%")),
-                      column(6, numericInput(ns("recist_upper"), "RECIST上阈值", value = 20, step = 1, width = "100%"))
-                    ),
-                    checkboxInput(ns("show_recist_labels"), "显示阈值文本标签", TRUE),
-                    textInput(ns("recist_lower_label"), "下阈值标签", value = "RECIST -30%", width = "100%"),
-                    textInput(ns("recist_upper_label"), "上阈值标签", value = "RECIST +20%", width = "100%")
+                    tags$div(
+                      class = "panel-body",
+                      checkboxInput(ns("show_recist"), "显示RECIST阈值线", TRUE),
+                      conditionalPanel(
+                        condition = paste0("input['", ns("show_recist"), "'] == true"),
+                        graphics_reference_line_ui(ns, "recist_lower", label = "RECIST下阈值", default_value = -30, default_color = "#2C7BB6"),
+                        graphics_reference_line_ui(ns, "recist_upper", label = "RECIST上阈值", default_value = 20, default_color = "#D7191C"),
+                        checkboxInput(ns("show_recist_labels"), "显示阈值文本标签", TRUE),
+                        textInput(ns("recist_lower_label"), "下阈值标签", value = "RECIST -30%", width = "100%"),
+                        textInput(ns("recist_upper_label"), "上阈值标签", value = "RECIST +20%", width = "100%")
+                      )
+                    )
                   )
-                )
               )
             )
           ),
@@ -145,13 +146,9 @@ waterfall_plot_ui <- function(id) {
                     6,
                     tags$div(
                       class = "panel panel-default",
-                      tags$div(class = "panel-heading", "阈值与符号样式"),
+                      tags$div(class = "panel-heading", "符号样式"),
                       tags$div(
                         class = "panel-body",
-                        fluidRow(
-                          column(6, colourpicker::colourInput(ns("recist_lower_color"), "下阈值线颜色", value = "#2C7BB6", width = "100%")),
-                          column(6, colourpicker::colourInput(ns("recist_upper_color"), "上阈值线颜色", value = "#D7191C", width = "100%"))
-                        ),
                         uiOutput(ns("symbol_controls")),
                         fluidRow(
                           column(6, colourpicker::colourInput(ns("symbol_text_color"), "默认符号颜色", value = "#1A1A1A", width = "100%")),
@@ -207,7 +204,10 @@ waterfall_plot_ui <- function(id) {
                           column(4, numericInput(ns("y_break_step"), "Y轴刻度步长", value = 0, min = 0, step = 0.1, width = "100%")),
                           column(4, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%"))
                         ),
-                        sliderInput(ns("track_rel_height"), "下方表格占比", min = 0.5, max = 4, value = 0.5, step = 0.1, width = "100%")
+                        fluidRow(
+                          column(8, sliderInput(ns("track_rel_height"), "下方表格占比", min = 0.5, max = 4, value = 0.5, step = 0.1, width = "100%")),
+                          column(4, graphics_font_family_ui(ns, id = "base_family"))
+                        )
                       )
                     )
                   )
@@ -665,7 +665,7 @@ waterfall_plot_server <- function(input, output, session, data) {
           y = y_axis_title,
           fill = legend_title
         ) +
-        theme_minimal(base_size = input$base_font_size, base_family = "sans") +
+        theme_minimal(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
         theme(
           axis.text.x = if (isTRUE(input$show_subject_labels)) element_text(angle = 90, vjust = 0.5, hjust = 1) else element_blank(),
           axis.ticks.x = if (isTRUE(input$show_subject_labels)) element_line() else element_blank(),
@@ -757,8 +757,8 @@ waterfall_plot_server <- function(input, output, session, data) {
 
       if (isTRUE(input$show_recist)) {
         p_main <- p_main +
-          geom_hline(yintercept = input$recist_lower, linetype = "dashed", color = input$recist_lower_color, linewidth = 0.8) +
-          geom_hline(yintercept = input$recist_upper, linetype = "dashed", color = input$recist_upper_color, linewidth = 0.8)
+          geom_hline(yintercept = input$recist_lower, linetype = input$recist_lower_linetype %||% "dashed", color = input$recist_lower_color, linewidth = input$recist_lower_linewidth %||% 0.8) +
+          geom_hline(yintercept = input$recist_upper, linetype = input$recist_upper_linetype %||% "dashed", color = input$recist_upper_color, linewidth = input$recist_upper_linewidth %||% 0.8)
         if (isTRUE(input$show_recist_labels)) {
           p_main <- p_main +
             annotate("text", x = Inf, y = input$recist_lower, label = input$recist_lower_label %||% "", hjust = 1.02, vjust = -0.2, color = input$recist_lower_color, size = 3.5) +
@@ -769,22 +769,31 @@ waterfall_plot_server <- function(input, output, session, data) {
       if (!isTRUE(input$show_grid_lines)) {
         p_main <- p_main + theme(panel.grid = element_blank(), panel.grid.minor = element_blank())
       }
-      if ((input$axis_style %||% "default") == "classic_arrow") {
+      if ((input$axis_style %||% "default") %in% c("classic_arrow", "classic")) {
+        is_arrow <- (input$axis_style %||% "default") == "classic_arrow"
         n_x <- length(levels(plot_df$.subject_factor))
         y_rng <- range(plot_df$.value, na.rm = TRUE)
         y_span <- max(1e-6, diff(y_rng))
         y_axis_base <- y_rng[1] - 0.06 * y_span
         y_axis_top <- y_rng[2] + 0.08 * y_span
         p_main <- p_main +
-          theme_classic(base_size = input$base_font_size, base_family = "sans") +
+          theme_classic(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
           theme(
             axis.text.x = if (isTRUE(input$show_subject_labels)) element_text(angle = 90, vjust = 0.5, hjust = 1) else element_blank(),
             axis.ticks.x = if (isTRUE(input$show_subject_labels)) element_line() else element_blank(),
             plot.margin = margin(10, 20, 14, 16)
           ) +
-          coord_cartesian(clip = "off") +
-          annotate("segment", x = 0.5, xend = n_x + 0.55, y = y_axis_base, yend = y_axis_base, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black") +
-          annotate("segment", x = 0.5, xend = 0.5, y = y_axis_base, yend = y_axis_top, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black")
+          coord_cartesian(clip = "off")
+        
+        if (is_arrow) {
+          p_main <- p_main + 
+            annotate("segment", x = 0.5, xend = n_x + 0.55, y = y_axis_base, yend = y_axis_base, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black") +
+            annotate("segment", x = 0.5, xend = 0.5, y = y_axis_base, yend = y_axis_top, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black")
+        } else {
+          p_main <- p_main + 
+            annotate("segment", x = 0.5, xend = n_x + 0.55, y = y_axis_base, yend = y_axis_base, linewidth = 0.45, color = "black", lineend = "square") +
+            annotate("segment", x = 0.5, xend = 0.5, y = y_axis_base, yend = y_axis_top, linewidth = 0.45, color = "black", lineend = "square")
+        }
       } else {
         p_main <- p_main + theme(
           axis.line = element_line(colour = "black")
@@ -852,7 +861,7 @@ waterfall_plot_server <- function(input, output, session, data) {
         p_track <- p_track +
           labs(x = NULL, y = NULL, fill = graphics_resolve_legend_title(input$track_legend_title, "轨道分组")) +
           scale_y_discrete(expand = expansion(add = c(track_row_spacing_eff, track_row_spacing_eff))) +
-          theme_minimal(base_size = max(9, input$base_font_size - 1), base_family = "sans") +
+          theme_minimal(base_size = max(9, input$base_font_size - 1), base_family = input$base_family %||% "sans") +
           theme(
             axis.text.x = element_blank(),
             axis.ticks.x = element_blank(),

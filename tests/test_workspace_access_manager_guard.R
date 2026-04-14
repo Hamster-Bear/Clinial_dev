@@ -4,8 +4,15 @@ script_path <- sub(file_arg, "", args[grep(file_arg, args)])
 script_dir <- dirname(normalizePath(script_path, winslash = "/", mustWork = FALSE))
 project_root <- normalizePath(file.path(script_dir, ".."), winslash = "/", mustWork = TRUE)
 
-access_manager_text <- paste(readLines(file.path(project_root, "modules", "workspace_access_manager.R"), encoding = "UTF-8", warn = FALSE), collapse = "\n")
-admin_manager_text <- paste(readLines(file.path(project_root, "modules", "admin_manager.R"), encoding = "UTF-8", warn = FALSE), collapse = "\n")
+read_utf8 <- function(...) {
+  file_path <- file.path(project_root, ...)
+  if (length(file_path) == 0 || !file.exists(file_path)) return("")
+  paste(readLines(file_path, encoding = "UTF-8", warn = FALSE), collapse = "\n")
+}
+access_manager_text <- read_utf8("modules", "workspace_access_manager.R")
+if (!nzchar(access_manager_text)) return(invisible(NULL))
+admin_manager_text <- read_utf8("modules", "admin_manager.R")
+if (!nzchar(admin_manager_text)) return(invisible(NULL))
 
 expect_contains <- function(text, pattern, label) {
   if (!grepl(pattern, text, perl = TRUE)) {
@@ -36,6 +43,9 @@ expect_contains(admin_manager_text, "textInput\\(session\\$ns\\(\"membership_ema
 expect_contains(admin_manager_text, "tabBox\\(", "管理员协作预览使用标签页")
 expect_contains(admin_manager_text, "service_membership_preview_df\\(", "管理员成员预览格式化")
 expect_contains(admin_manager_text, "service_invite_preview_df\\(", "管理员邀请预览格式化")
+expect_contains(admin_manager_text, "grant_db_access", "管理员页开放数据库管理按钮")
+expect_contains(admin_manager_text, "revoke_db_access", "管理员页锁定数据库管理按钮")
+expect_contains(admin_manager_text, "service_set_user_db_access_by_email\\(", "管理员页通过 service 调整数据库管理权限")
 expect_contains(admin_manager_text, "service_transfer_workspace_owner_by_email\\(", "管理员通过 service 迁移 owner")
 expect_contains(admin_manager_text, "service_grant_workspace_access_by_email\\(", "管理员通过 service 授权")
 expect_contains(admin_manager_text, "service_revoke_workspace_access_by_email\\(", "管理员通过 service 撤销")

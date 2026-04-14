@@ -141,7 +141,10 @@ forest_plot_ui <- function(id) {
                     numericInput(ns("ref_line"), "参考线位置", value = 1.0, step = 1, width = "100%"),
                     sliderInput(ns("line_width"), "线条粗细", min = 0.5, max = 3, value = 1.2, step = 0.1, width = "100%"),
                     sliderInput(ns("line_height"), "短线长度", min = 0.05, max = 0.3, value = 0.15, step = 0.01, width = "100%"),
-                    checkboxInput(ns("percentage_format"), "X轴显示为百分比", value = FALSE)
+                    fluidRow(
+                      column(6, numericInput(ns("x_axis_decimals"), "X轴小数位数", value = 1, min = 0, max = 5, step = 1, width = "100%")),
+                      column(6, checkboxInput(ns("percentage_format"), "显示百分号(%)", value = FALSE))
+                    )
                   )
                 )
               )
@@ -298,21 +301,28 @@ forest_plot_server <- function(input, output, session, data) {
     cols <- names(data())
     if (length(cols) == 0) return()
     
+    # 获取当前选择的值，如果有效则保留
+    cur_subgroup <- isolate(input$subgroup_col)
+    sel_subgroup <- if (!is.null(cur_subgroup) && cur_subgroup %in% cols) cur_subgroup else ifelse("subgroup" %in% cols, "subgroup", cols[1])
+    
+    cur_study <- isolate(input$study_col)
+    sel_study <- if (!is.null(cur_study) && cur_study %in% cols) cur_study else ifelse("study" %in% cols, "study", ifelse(length(cols) > 1, cols[2], cols[1]))
+    
+    cur_est <- isolate(input$estimate_col)
+    sel_est <- if (!is.null(cur_est) && cur_est %in% cols) cur_est else ifelse("estimate" %in% cols, "estimate", ifelse(length(cols) > 2, cols[3], cols[1]))
+    
+    cur_lower <- isolate(input$lower_col)
+    sel_lower <- if (!is.null(cur_lower) && cur_lower %in% cols) cur_lower else ifelse("lower" %in% cols, "lower", ifelse(length(cols) > 3, cols[4], cols[1]))
+    
+    cur_upper <- isolate(input$upper_col)
+    sel_upper <- if (!is.null(cur_upper) && cur_upper %in% cols) cur_upper else ifelse("upper" %in% cols, "upper", ifelse(length(cols) > 4, cols[5], cols[1]))
+    
     # 更新列映射选择框 (预处理模式)
-    updateSelectInput(session, "subgroup_col", choices = cols, 
-                      selected = ifelse("subgroup" %in% cols, "subgroup", cols[1]))
-    updateSelectInput(session, "study_col", choices = cols,
-                      selected = ifelse("study" %in% cols, "study", 
-                                       ifelse(length(cols) > 1, cols[2], cols[1])))
-    updateSelectInput(session, "estimate_col", choices = cols,
-                      selected = ifelse("estimate" %in% cols, "estimate",
-                                       ifelse(length(cols) > 2, cols[3], cols[1])))
-    updateSelectInput(session, "lower_col", choices = cols,
-                      selected = ifelse("lower" %in% cols, "lower",
-                                       ifelse(length(cols) > 3, cols[4], cols[1])))
-    updateSelectInput(session, "upper_col", choices = cols,
-                      selected = ifelse("upper" %in% cols, "upper",
-                                       ifelse(length(cols) > 4, cols[5], cols[1])))
+    updateSelectInput(session, "subgroup_col", choices = cols, selected = sel_subgroup)
+    updateSelectInput(session, "study_col", choices = cols, selected = sel_study)
+    updateSelectInput(session, "estimate_col", choices = cols, selected = sel_est)
+    updateSelectInput(session, "lower_col", choices = cols, selected = sel_lower)
+    updateSelectInput(session, "upper_col", choices = cols, selected = sel_upper)
     
     # 更新分析配置选项 (原始数据模式)
     # 尝试智能识别 Time 和 Status
@@ -320,12 +330,18 @@ forest_plot_server <- function(input, output, session, data) {
     status_candidates <- cols[grep("status|event|dead|death|censor", tolower(cols))]
     outcome_candidates <- cols[grep("response|outcome|recurrence|disease|event|status", tolower(cols))]
     
-    updateSelectInput(session, "time_col", choices = cols, 
-                      selected = if(length(time_candidates)>0) time_candidates[1] else cols[1])
-    updateSelectInput(session, "status_col", choices = cols, 
-                      selected = if(length(status_candidates)>0) status_candidates[1] else cols[2])
-    updateSelectInput(session, "outcome_col", choices = cols,
-                      selected = if(length(outcome_candidates)>0) outcome_candidates[1] else cols[1])
+    cur_time <- isolate(input$time_col)
+    sel_time <- if (!is.null(cur_time) && cur_time %in% cols) cur_time else if(length(time_candidates)>0) time_candidates[1] else cols[1]
+    
+    cur_status <- isolate(input$status_col)
+    sel_status <- if (!is.null(cur_status) && cur_status %in% cols) cur_status else if(length(status_candidates)>0) status_candidates[1] else cols[2]
+    
+    cur_outcome <- isolate(input$outcome_col)
+    sel_outcome <- if (!is.null(cur_outcome) && cur_outcome %in% cols) cur_outcome else if(length(outcome_candidates)>0) outcome_candidates[1] else cols[1]
+    
+    updateSelectInput(session, "time_col", choices = cols, selected = sel_time)
+    updateSelectInput(session, "status_col", choices = cols, selected = sel_status)
+    updateSelectInput(session, "outcome_col", choices = cols, selected = sel_outcome)
     updateSelectizeInput(session, "covariates", choices = cols, server = TRUE)
 
     # 不预设任何列，用户需手动选择
@@ -409,6 +425,10 @@ forest_plot_server <- function(input, output, session, data) {
       return(tags$p("请先选择要显示的列"))
     }
     
+    # 隔离对 display_names 和 alignments 的依赖，避免输入时不断重新渲染UI导致失焦跳出
+    display_names <- isolate(user_selections$display_names)
+    alignments <- isolate(user_selections$alignments)
+    
     tagList(
       tags$div(class = "column-config-section",
                lapply(seq_along(selected_cols), function(i) {
@@ -429,8 +449,8 @@ forest_plot_server <- function(input, output, session, data) {
                        inputId = ns(paste0("name_", col)),
                        label = NULL,
                        placeholder = "显示名称",
-                       value = ifelse(!is.null(user_selections$display_names[[col]]), 
-                                      user_selections$display_names[[col]], col)
+                       value = ifelse(!is.null(display_names[[col]]), 
+                                      display_names[[col]], col)
                      )
                    ),
                    column(
@@ -439,8 +459,8 @@ forest_plot_server <- function(input, output, session, data) {
                        inputId = ns(paste0("align_", col)),
                        label = NULL,
                        choices = c("左对齐" = "left", "居中" = "center", "右对齐" = "right"),
-                       selected = ifelse(!is.null(user_selections$alignments[[col]]), 
-                                         user_selections$alignments[[col]], 
+                       selected = ifelse(!is.null(alignments[[col]]), 
+                                         alignments[[col]], 
                                          ifelse(is_first_col, "left", "center"))
                      )
                    )
@@ -1136,18 +1156,18 @@ forest_plot_server <- function(input, output, session, data) {
     line_offset <- ifelse(n_rows > 15, 0.9, 0.6)
     y_upper_limit <- ifelse(n_rows > 15, 1.8, 1.5)
     
-    if (input$percentage_format) {
-      x_breaks <- pretty(c(x_min, x_max), n = 10)
-      x_breaks <- x_breaks[x_breaks >= x_min & x_breaks <= x_max]
-      if(length(x_breaks) < 2) x_breaks <- seq(x_min, x_max, length.out = 5)
-      
-      x_labels <- sprintf("%.0f%%", x_breaks * 100)
+    x_breaks <- pretty(c(x_min, x_max), n = 10)
+    x_breaks <- x_breaks[x_breaks >= x_min & x_breaks <= x_max]
+    if(length(x_breaks) < 2) x_breaks <- seq(x_min, x_max, length.out = 5)
+    
+    decimals <- if (is.null(input$x_axis_decimals)) 1 else input$x_axis_decimals
+    
+    if (isTRUE(input$percentage_format)) {
+      fmt <- paste0("%.", decimals, "f%%")
+      x_labels <- sprintf(fmt, x_breaks * 100)
     } else {
-      x_breaks <- pretty(c(x_min, x_max), n = 10)
-      x_breaks <- x_breaks[x_breaks >= x_min & x_breaks <= x_max]
-      if(length(x_breaks) < 2) x_breaks <- seq(x_min, x_max, length.out = 5)
-      
-      x_labels <- smart_format_number(x_breaks)
+      fmt <- paste0("%.", decimals, "f")
+      x_labels <- sprintf(fmt, x_breaks)
     }
     
     # 1. 创建森林图形部分

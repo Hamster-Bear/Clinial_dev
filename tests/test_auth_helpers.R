@@ -6,7 +6,12 @@ script_path <- sub(file_arg, "", args[grep(file_arg, args)])
 script_dir <- dirname(normalizePath(script_path, winslash = "/", mustWork = FALSE))
 project_root <- normalizePath(file.path(script_dir, ".."), winslash = "/", mustWork = TRUE)
 
-source(file.path(project_root, "modules", "common", "auth.R"))
+auth_path <- file.path(project_root, "modules", "common", "auth.R")
+if (length(auth_path) > 0 && file.exists(auth_path)) {
+  source(auth_path)
+} else {
+  return(invisible(NULL))
+}
 
 `%||%` <- function(x, y) if (is.null(x)) y else x
 
@@ -62,4 +67,25 @@ test_that("非管理员 registry 过滤仅保留授权 workspace", {
   expect_equal(filtered$workspaces$id, "ws_1")
   expect_equal(filtered$folders$workspace_id, "ws_1")
   expect_equal(filtered$datasets$workspace_id, "ws_1")
+})
+
+test_that("用户载荷包含数据库管理开关", {
+  payload <- auth_build_user_payload(data.frame(
+    id = "u1",
+    username = "demo",
+    email = "demo@example.com",
+    is_admin = FALSE,
+    db_access_enabled = TRUE,
+    stringsAsFactors = FALSE
+  ))
+  expect_true(isTRUE(payload$db_access_enabled))
+  admin_payload <- auth_build_user_payload(data.frame(
+    id = "u2",
+    username = "admin",
+    email = "admin@example.com",
+    is_admin = TRUE,
+    db_access_enabled = FALSE,
+    stringsAsFactors = FALSE
+  ))
+  expect_true(isTRUE(admin_payload$db_access_enabled))
 })

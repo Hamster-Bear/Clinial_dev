@@ -168,8 +168,8 @@ test_that("graphics 辅助图例绘制器支持点线图例与堆叠组合", {
 
 test_that("graphics 辅助图例统一使用紧凑因子间距规则", {
   rows <- graphics_build_legend_rows(c("A", "B", "C"))
-  expect_equal(round(diff(rows$y), 2), c(-0.36, -0.36))
-  expect_equal(graphics_aux_legend_compact_defaults$row_gap, 0.36)
+  expect_equal(round(diff(rows$y), 2), c(-1, -1))
+  expect_equal(graphics_aux_legend_compact_defaults$row_gap, 1.0)
   point_legend <- graphics_build_point_legend_plot(c("A", "B"), c(A = "#E41A1C", B = "#377EB8"))
   line_legend <- graphics_build_line_legend_plot(c("A", "B"), c(A = "#E41A1C", B = "#377EB8"))
   point_y <- ggplot2::ggplot_build(point_legend)$data[[1]]$y

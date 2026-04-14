@@ -134,7 +134,7 @@ swimmer_plot_ui <- function(id) {
                       tags$div(class = "panel-heading", "坐标与尺寸"),
                       tags$div(
                         class = "panel-body",
-                        selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
+                        selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
                         selectInput(
                           ns("x_unit"),
                           "X轴单位换算",
@@ -262,7 +262,10 @@ swimmer_plot_ui <- function(id) {
                           textInput(ns("missing_display_custom"), "自定义空值文本", value = "NA", width = "100%")
                         ),
                         sliderInput(ns("track_rel_height"), "下方表格占比", min = 0.5, max = 4, value = 0.5, step = 0.1, width = "100%"),
-                        numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%")
+                        fluidRow(
+                          column(6, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%")),
+                          column(6, graphics_font_family_ui(ns, id = "base_family"))
+                        )
                       )
                     )
                   )
@@ -1067,7 +1070,7 @@ swimmer_plot_server <- function(input, output, session, data) {
               x = ifelse(nzchar(input$plot_xlab %||% ""), input$plot_xlab, "时间"),
               y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "受试者")
             ) +
-            theme_minimal(base_size = input$base_font_size, base_family = "sans") +
+            theme_minimal(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
             theme(
               panel.grid.major.y = element_blank(),
               axis.text.y = if (isTRUE(input$show_subject_labels)) element_text() else element_blank(),
@@ -1089,7 +1092,7 @@ swimmer_plot_server <- function(input, output, session, data) {
               y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "受试者"),
               color = graphics_resolve_legend_title(input$lane_legend_title, get_var_label(data(), lane_color_source %||% input$subject_id))
             ) +
-            theme_minimal(base_size = input$base_font_size, base_family = "sans") +
+            theme_minimal(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
             theme(
               panel.grid.major.y = element_blank(),
               axis.text.y = if (isTRUE(input$show_subject_labels)) element_text() else element_blank(),
@@ -1111,7 +1114,7 @@ swimmer_plot_server <- function(input, output, session, data) {
             x = ifelse(nzchar(input$plot_xlab %||% ""), input$plot_xlab, "时间"),
             y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "受试者")
           ) +
-          theme_minimal(base_size = input$base_font_size, base_family = "sans") +
+          theme_minimal(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
           theme(
             panel.grid.major.y = element_blank(),
             axis.text.y = if (isTRUE(input$show_subject_labels)) element_text() else element_blank(),
@@ -1126,14 +1129,7 @@ swimmer_plot_server <- function(input, output, session, data) {
         position = input$main_legend_position %||% "right"
       )
 
-      x_break_step <- suppressWarnings(as.numeric(input$x_break_step %||% 0))
-      if (!is.na(x_break_step) && x_break_step > 0) {
-        x_min <- min(lane_df$.start_plot, na.rm = TRUE)
-        x_max <- max(lane_df$.end_plot, na.rm = TRUE)
-        x_from <- floor(x_min / x_break_step) * x_break_step
-        x_to <- ceiling(x_max / x_break_step) * x_break_step
-        p_main <- p_main + scale_x_continuous(breaks = seq(x_from, x_to, by = x_break_step))
-      }
+      p_main <- graphics_apply_x_break_step(p_main, c(lane_df$.start_plot, lane_df$.end_plot), input$x_break_step)
 
       event_legend_df <- NULL
       if (!is.null(event_df) && nrow(event_df) > 0) {
@@ -1291,14 +1287,15 @@ swimmer_plot_server <- function(input, output, session, data) {
       if (!isTRUE(input$show_grid_lines)) {
         p_main <- p_main + theme(panel.grid = element_blank(), panel.grid.minor = element_blank())
       }
-      if ((input$axis_style %||% "default") == "classic_arrow") {
+      if ((input$axis_style %||% "default") %in% c("classic_arrow", "classic")) {
+        is_arrow <- (input$axis_style %||% "default") == "classic_arrow"
         n_y <- length(levels(lane_df$.subject_factor))
         x_rng <- range(c(lane_df$.start_plot, lane_df$.end_plot), na.rm = TRUE)
         x_span <- max(1e-6, diff(x_rng))
         x_axis_start <- x_rng[1] - 0.03 * x_span
         x_axis_end <- x_rng[2] + 0.06 * x_span
         p_main <- p_main +
-          theme_classic(base_size = input$base_font_size, base_family = "sans") +
+          theme_classic(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
           theme(
             axis.line = element_blank(),
             axis.text.y = if (isTRUE(input$show_subject_labels)) element_text() else element_blank(),
@@ -1306,9 +1303,17 @@ swimmer_plot_server <- function(input, output, session, data) {
             legend.position = if (isTRUE(input$show_legend)) (input$main_legend_position %||% "right") else "none",
             plot.margin = margin(10, 20, 12, 16)
           ) +
-          coord_cartesian(clip = "off") +
-          annotate("segment", x = x_axis_start, xend = x_axis_end, y = 0.5, yend = 0.5, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black") +
-          annotate("segment", x = x_axis_start, xend = x_axis_start, y = 0.5, yend = n_y + 0.55, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black")
+          coord_cartesian(clip = "off")
+        
+        if (is_arrow) {
+          p_main <- p_main + 
+            annotate("segment", x = x_axis_start, xend = x_axis_end, y = 0.5, yend = 0.5, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black") +
+            annotate("segment", x = x_axis_start, xend = x_axis_start, y = 0.5, yend = n_y + 0.55, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black")
+        } else {
+          p_main <- p_main + 
+            annotate("segment", x = x_axis_start, xend = x_axis_end, y = 0.5, yend = 0.5, linewidth = 0.45, color = "black", lineend = "square") +
+            annotate("segment", x = x_axis_start, xend = x_axis_start, y = 0.5, yend = n_y + 0.55, linewidth = 0.45, color = "black", lineend = "square")
+        }
       }
 
       if (is.null(track_df) || !isTRUE(input$show_tracks)) {
@@ -1364,7 +1369,7 @@ swimmer_plot_server <- function(input, output, session, data) {
         p_track <- p_track +
           labs(x = NULL, y = NULL, fill = graphics_resolve_legend_title(input$track_legend_title, "轨道分组")) +
           scale_y_discrete(expand = expansion(add = c(track_row_spacing_eff, track_row_spacing_eff))) +
-          theme_minimal(base_size = max(9, input$base_font_size - 1), base_family = "sans") +
+          theme_minimal(base_size = max(9, input$base_font_size - 1), base_family = input$base_family %||% "sans") +
           theme(
             axis.text.x = element_blank(),
             axis.ticks.x = element_blank(),

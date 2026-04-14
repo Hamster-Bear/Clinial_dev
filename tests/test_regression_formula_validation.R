@@ -118,22 +118,19 @@ test_that("Logistic 全场景公式验算通过", {
 
   r_split <- perform_logistic_analysis(dat, "y", c("x"), "sex", "None", "1", NULL)
   d_split <- get_gt_data(r_split)
-  fit_int_split <- broom::tidy(glm(y ~ x + sex + x:sex, data = dat, family = binomial()))
   for (lv in c("M", "F")) {
     sub <- dat[dat$sex == lv, , drop = FALSE]
     fit <- glm(y ~ x, data = sub, family = binomial())
-    td <- broom::tidy(fit)
+    td <- broom::tidy(fit, conf.int = TRUE)
     td_x <- td[td$term == "x", , drop = FALSE]
-    beta <- as.numeric(td_x$estimate)
-    se <- as.numeric(td_x$std.error)
-    est <- exp(beta)
-    low <- exp(beta - 1.96 * se)
-    high <- exp(beta + 1.96 * se)
+    est <- exp(as.numeric(td_x$estimate))
+    low <- exp(as.numeric(td_x$conf.low))
+    high <- exp(as.numeric(td_x$conf.high))
     row <- check_common_custom_row(d_split, lv)
     expect_equal(as.character(row$统计值), fmt_ci(est, low, high))
     expect_equal(as.character(row$P值), format_p_value_regression(td_x$p.value))
     n_expected <- sum(complete.cases(sub[, c("y", "x"), drop = FALSE]))
-    expect_equal(as.integer(row$N), as.integer(n_expected))
+    expect_equal(as.character(row[["Event/N"]]), paste0(sum(sub$y == 1), "/", n_expected))
   }
 
   r_both <- perform_logistic_analysis(dat, "y", c("x"), "sex", "arm", "1", NULL)
@@ -142,18 +139,16 @@ test_that("Logistic 全场景公式验算通过", {
     for (fv in c("A", "B")) {
       sub <- dat[dat$sex == lv & dat$arm == fv, , drop = FALSE]
       fit <- glm(y ~ x, data = sub, family = binomial())
-      td <- broom::tidy(fit)
+      td <- broom::tidy(fit, conf.int = TRUE)
       td_x <- td[td$term == "x", , drop = FALSE]
-      beta <- as.numeric(td_x$estimate)
-      se <- as.numeric(td_x$std.error)
-      est <- exp(beta)
-      low <- exp(beta - 1.96 * se)
-      high <- exp(beta + 1.96 * se)
+      est <- exp(as.numeric(td_x$estimate))
+      low <- exp(as.numeric(td_x$conf.low))
+      high <- exp(as.numeric(td_x$conf.high))
       row <- check_common_custom_row(d_both, lv)
       expect_equal(as.character(row[[paste0(fv, "__统计值")]]), fmt_ci(est, low, high))
       expect_equal(as.character(row[[paste0(fv, "__P值")]]), format_p_value_regression(td_x$p.value))
       n_expected <- sum(complete.cases(sub[, c("y", "x"), drop = FALSE]))
-      expect_equal(as.integer(row[[paste0(fv, "__N")]]), as.integer(n_expected))
+      expect_equal(as.character(row[[paste0(fv, "__Event/N")]]), paste0(sum(sub$y == 1), "/", n_expected))
     }
   }
 })

@@ -78,6 +78,15 @@ database_manager_ui <- function(id) {
           margin-top: 8px;
           margin-bottom: 10px;
         }
+        .db-lock-card {
+          margin-top: 12px;
+          padding: 16px 18px;
+          border-radius: 10px;
+          background: #fff7ec;
+          border: 1px solid #f6d7a7;
+          color: #7d5a16;
+          line-height: 1.7;
+        }
       "))
     ),
     fluidRow(
@@ -93,129 +102,7 @@ database_manager_ui <- function(id) {
         uiOutput(ns("db_context_summary"))
       )
     ),
-    fluidRow(
-      tabBox(
-        width = 12,
-        id = ns("db_workspace_tabs"),
-        title = "数据库管理区块",
-        tabPanel(
-          "空间与目录",
-          fluidRow(
-            column(
-              width = 4,
-              box(
-                width = 12,
-                title = "数据空间",
-                status = "primary",
-                solidHeader = TRUE,
-                selectInput(
-                  ns("workspace_select"),
-                  "当前数据空间",
-                  choices = character(0)
-                ),
-                textInput(ns("workspace_name"), "新建数据空间名称", placeholder = "请输入数据空间名称"),
-                div(class = "db-form-note", "创建后会自动把当前登录用户设为负责人；删除数据空间仅允许负责人或管理员执行。"),
-                fluidRow(
-                  column(6, actionButton(ns("create_workspace"), "创建空间", class = "btn-primary", width = "100%")),
-                  column(6, actionButton(ns("delete_workspace"), "删除空间", class = "btn-danger", width = "100%"))
-                )
-              )
-            ),
-            column(
-              width = 4,
-              box(
-                width = 12,
-                title = "目录管理",
-                status = "info",
-                solidHeader = TRUE,
-                selectInput(
-                  ns("folder_select"),
-                  "当前目录",
-                  choices = c("根目录" = "__ROOT__")
-                ),
-                textInput(ns("folder_name"), "新建目录名称", placeholder = "请输入目录名称"),
-                div(class = "db-form-note", "目录只在当前数据空间下生效；根目录下的数据集会直接展示在空间级结构中。"),
-                fluidRow(
-                  column(6, actionButton(ns("create_folder"), "创建目录", class = "btn-info", width = "100%")),
-                  column(6, actionButton(ns("delete_folder"), "删除目录", class = "btn-warning", width = "100%"))
-                )
-              )
-            ),
-            column(
-              width = 4,
-              box(
-                width = 12,
-                title = "数据集管理",
-                status = "warning",
-                solidHeader = TRUE,
-                selectInput(
-                  ns("dataset_select"),
-                  "当前数据集",
-                  choices = character(0)
-                ),
-                textInput(ns("dataset_name"), "保存时显示名称", placeholder = "为空则默认使用上传文件名"),
-                div(class = "db-form-note", "上传时可以覆盖显示名称；删除仅影响当前数据空间内选中的数据集。"),
-                fluidRow(
-                  column(12, actionButton(ns("delete_dataset"), "删除数据集", class = "btn-danger", width = "100%"))
-                )
-              )
-            )
-          )
-        ),
-        tabPanel(
-          "上传与导入",
-          fluidRow(
-            column(
-              width = 6,
-              box(
-                width = 12,
-                title = "单文件上传",
-                status = "success",
-                solidHeader = TRUE,
-                fileInput(
-                  ns("file"),
-                  "上传数据文件 (CSV/Excel/SAS/SPSS)",
-                  accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
-                  buttonLabel = "浏览文件",
-                  placeholder = "请选择一个文件进行上传",
-                  multiple = FALSE
-                ),
-                div(class = "db-form-note", "适合逐个整理数据集名称与目录归属。"),
-                actionButton(ns("save_dataset"), "上传并保存到当前目录", class = "btn-success", width = "100%")
-              )
-            ),
-            column(
-              width = 6,
-              box(
-                width = 12,
-                title = "批量导入",
-                status = "primary",
-                solidHeader = TRUE,
-                fileInput(
-                  ns("batch_files"),
-                  "批量上传数据文件",
-                  accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
-                  buttonLabel = "选择多个文件",
-                  placeholder = "请选择多个文件进行批量上传",
-                  multiple = TRUE
-                ),
-                div(class = "db-form-note", "适合初始化当前目录下的一批数据集。服务器目录导入仅对系统管理员开放。"),
-                actionButton(ns("save_batch_datasets"), "批量保存到当前目录", class = "btn-primary", width = "100%"),
-                br(),
-                br(),
-                uiOutput(ns("server_import_section"))
-              )
-            )
-          )
-        ),
-        tabPanel(
-          "结构总览",
-          uiOutput(ns("db_overview_cards")),
-          br(),
-          uiOutput(ns("db_structure_tree"))
-        )
-      )
-    )
+    uiOutput(ns("db_gate_content"))
   )
 }
 
@@ -259,6 +146,24 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     isTRUE(get_current_user()$is_admin)
   }
 
+  has_database_access <- function() {
+    user <- get_current_user()
+    if (is.null(user)) return(FALSE)
+    
+    # 获取最新用户信息确保权限状态最新
+    fresh_user <- tryCatch(
+      auth_get_user_by_id(pool, user$id),
+      error = function(e) data.frame()
+    )
+    
+    if (nrow(fresh_user) > 0) {
+      return(isTRUE(fresh_user$is_admin[[1]]) || isTRUE(fresh_user$db_access_enabled[[1]]))
+    }
+    
+    # 后备检查
+    isTRUE(user$is_admin) || isTRUE(user$db_access_enabled)
+  }
+
   require_logged_in <- function() {
     if (!is.null(get_current_user())) {
       return(TRUE)
@@ -278,7 +183,23 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     FALSE
   }
 
+  require_database_access <- function(show_feedback = TRUE) {
+    if (!require_logged_in()) {
+      return(FALSE)
+    }
+    if (has_database_access()) {
+      return(TRUE)
+    }
+    if (isTRUE(show_feedback)) {
+      showNotification("数据库管理功能尚未开放，请联系系统管理员授权", type = "warning")
+    }
+    FALSE
+  }
+
   require_workspace_access <- function(workspace_id) {
+    if (!require_database_access()) {
+      return(FALSE)
+    }
     user <- get_current_user()
     if (is.null(user)) {
       showNotification("请先登录", type = "warning")
@@ -292,6 +213,9 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   }
 
   require_workspace_manage <- function(workspace_id) {
+    if (!require_database_access()) {
+      return(FALSE)
+    }
     user <- get_current_user()
     if (is.null(user)) {
       showNotification("请先登录", type = "warning")
@@ -398,14 +322,19 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     })
   }
   
-  refresh_workspace_choices <- function() {
+  refresh_workspace_choices <- function(selected = NULL) {
     reg <- load_registry()
     ws <- reg$workspaces
     ws_choices <- if (nrow(ws) == 0) character(0) else setNames(ws$id, ws$name)
-    updateSelectInput(session, "workspace_select", choices = ws_choices)
+    ws_ids <- ws$id %||% character(0)
+    if (!nzchar(selected %||% "") || !(selected %in% ws_ids)) {
+      selected <- if (length(ws_ids) > 0) ws_ids[[1]] else ""
+    }
+    updateSelectInput(session, "workspace_select", choices = ws_choices, selected = selected)
+    selected
   }
   
-  refresh_folder_choices <- function(workspace_id = "") {
+  refresh_folder_choices <- function(workspace_id = "", selected = root_folder_token) {
     reg <- load_registry()
     fd <- reg$folders
     if (is.null(workspace_id) || workspace_id == "") {
@@ -417,10 +346,15 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
         fd_choices <- c(fd_choices, setNames(fd_current$id, fd_current$name))
       }
     }
-    updateSelectInput(session, "folder_select", choices = fd_choices, selected = root_folder_token)
+    folder_ids <- unname(fd_choices)
+    if (!nzchar(selected %||% "") || !(selected %in% folder_ids)) {
+      selected <- root_folder_token
+    }
+    updateSelectInput(session, "folder_select", choices = fd_choices, selected = selected)
+    selected
   }
   
-  refresh_dataset_choices <- function(workspace_id = "", folder_id = root_folder_token) {
+  refresh_dataset_choices <- function(workspace_id = "", folder_id = root_folder_token, selected = NULL) {
     reg <- load_registry()
     ds <- reg$datasets
     ds_choices <- character(0)
@@ -436,8 +370,200 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
         ds_choices <- setNames(ds_current$id, label)
       }
     }
-    updateSelectInput(session, "dataset_select", choices = ds_choices)
+    dataset_ids <- unname(ds_choices)
+    if (!nzchar(selected %||% "") || !(selected %in% dataset_ids)) {
+      selected <- if (length(dataset_ids) > 0) dataset_ids[[1]] else ""
+    }
+    updateSelectInput(session, "dataset_select", choices = ds_choices, selected = selected)
+    selected
   }
+
+  output$db_gate_content <- renderUI({
+    if (!is.null(current_user)) {
+      current_user()
+    }
+    if (!require_logged_in()) {
+      return(NULL)
+    }
+    if (!has_database_access()) {
+      return(
+        fluidRow(
+          box(
+            width = 12,
+            title = "数据库管理已锁定",
+            status = "warning",
+            solidHeader = TRUE,
+            div(
+              class = "db-lock-card",
+              "当前账号尚未开放数据库管理功能。请由系统管理员在“系统管理 > 账号状态管理”中为该账号开放数据库管理权限，开放后即可创建、整理和导入数据空间。"
+            )
+          )
+        )
+      )
+    }
+    reg <- load_registry()
+    workspace_df <- reg$workspaces
+    workspace_choices <- if (nrow(workspace_df) == 0) character(0) else setNames(workspace_df$id, workspace_df$name)
+    selected_workspace <- isolate(input$workspace_select %||% "")
+    workspace_ids <- workspace_df$id %||% character(0)
+    if (!nzchar(selected_workspace) || !(selected_workspace %in% workspace_ids)) {
+      selected_workspace <- if (length(workspace_ids) > 0) workspace_ids[[1]] else ""
+    }
+    folder_choices <- c("根目录" = root_folder_token)
+    folder_df <- reg$folders
+    if (nzchar(selected_workspace) && nrow(folder_df) > 0) {
+      folder_current <- folder_df[folder_df$workspace_id == selected_workspace, , drop = FALSE]
+      if (nrow(folder_current) > 0) {
+        folder_choices <- c(folder_choices, setNames(folder_current$id, folder_current$name))
+      }
+    }
+    selected_folder <- isolate(input$folder_select %||% root_folder_token)
+    if (!(selected_folder %in% unname(folder_choices))) {
+      selected_folder <- root_folder_token
+    }
+    dataset_choices <- character(0)
+    dataset_df <- reg$datasets
+    if (nzchar(selected_workspace) && nrow(dataset_df) > 0) {
+      if (identical(selected_folder, root_folder_token)) {
+        dataset_current <- dataset_df[dataset_df$workspace_id == selected_workspace & (is.na(dataset_df$folder_id) | dataset_df$folder_id == ""), , drop = FALSE]
+      } else {
+        dataset_current <- dataset_df[dataset_df$workspace_id == selected_workspace & dataset_df$folder_id == selected_folder, , drop = FALSE]
+      }
+      if (nrow(dataset_current) > 0) {
+        dataset_choices <- setNames(dataset_current$id, dataset_current$name)
+      }
+    }
+    selected_dataset <- isolate(input$dataset_select %||% "")
+    if (!nzchar(selected_dataset) || !(selected_dataset %in% unname(dataset_choices))) {
+      selected_dataset <- if (length(dataset_choices) > 0) unname(dataset_choices)[[1]] else ""
+    }
+    fluidRow(
+      tabBox(
+        width = 12,
+        id = session$ns("db_workspace_tabs"),
+        title = "数据库管理区块",
+        tabPanel(
+          "空间与目录",
+          fluidRow(
+            column(
+              width = 4,
+              box(
+                width = 12,
+                title = "数据空间",
+                status = "primary",
+                solidHeader = TRUE,
+                selectInput(
+                  session$ns("workspace_select"),
+                  "当前数据空间",
+                  choices = workspace_choices,
+                  selected = selected_workspace
+                ),
+                textInput(session$ns("workspace_name"), "新建数据空间名称", placeholder = "请输入数据空间名称"),
+                div(class = "db-form-note", "创建后会自动把当前登录用户设为负责人；删除数据空间仅允许负责人或管理员执行。"),
+                fluidRow(
+                  column(6, actionButton(session$ns("create_workspace"), "创建空间", class = "btn-primary", width = "100%")),
+                  column(6, actionButton(session$ns("delete_workspace"), "删除空间", class = "btn-danger", width = "100%"))
+                )
+              )
+            ),
+            column(
+              width = 4,
+              box(
+                width = 12,
+                title = "目录管理",
+                status = "info",
+                solidHeader = TRUE,
+                selectInput(
+                  session$ns("folder_select"),
+                  "当前目录",
+                  choices = folder_choices,
+                  selected = selected_folder
+                ),
+                textInput(session$ns("folder_name"), "新建目录名称", placeholder = "请输入目录名称"),
+                div(class = "db-form-note", "目录只在当前数据空间下生效；根目录下的数据集会直接展示在空间级结构中。"),
+                fluidRow(
+                  column(6, actionButton(session$ns("create_folder"), "创建目录", class = "btn-info", width = "100%")),
+                  column(6, actionButton(session$ns("delete_folder"), "删除目录", class = "btn-warning", width = "100%"))
+                )
+              )
+            ),
+            column(
+              width = 4,
+              box(
+                width = 12,
+                title = "数据集管理",
+                status = "warning",
+                solidHeader = TRUE,
+                selectInput(
+                  session$ns("dataset_select"),
+                  "当前数据集",
+                  choices = dataset_choices,
+                  selected = selected_dataset
+                ),
+                textInput(session$ns("dataset_name"), "保存时显示名称", placeholder = "为空则默认使用上传文件名"),
+                div(class = "db-form-note", "上传时可以覆盖显示名称；删除仅影响当前数据空间内选中的数据集。"),
+                fluidRow(
+                  column(12, actionButton(session$ns("delete_dataset"), "删除数据集", class = "btn-danger", width = "100%"))
+                )
+              )
+            )
+          )
+        ),
+        tabPanel(
+          "上传与导入",
+          fluidRow(
+            column(
+              width = 6,
+              box(
+                width = 12,
+                title = "单文件上传",
+                status = "success",
+                solidHeader = TRUE,
+                fileInput(
+                  session$ns("file"),
+                  "上传数据文件 (CSV/Excel/SAS/SPSS)",
+                  accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
+                  buttonLabel = "浏览文件",
+                  placeholder = "请选择一个文件进行上传",
+                  multiple = FALSE
+                ),
+                div(class = "db-form-note", "适合逐个整理数据集名称与目录归属。"),
+                actionButton(session$ns("save_dataset"), "上传并保存到当前目录", class = "btn-success", width = "100%")
+              )
+            ),
+            column(
+              width = 6,
+              box(
+                width = 12,
+                title = "批量导入",
+                status = "primary",
+                solidHeader = TRUE,
+                fileInput(
+                  session$ns("batch_files"),
+                  "批量上传数据文件",
+                  accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
+                  buttonLabel = "选择多个文件",
+                  placeholder = "请选择多个文件进行批量上传",
+                  multiple = TRUE
+                ),
+                div(class = "db-form-note", "适合初始化当前目录下的一批数据集。服务器目录导入仅对系统管理员开放。"),
+                actionButton(session$ns("save_batch_datasets"), "批量保存到当前目录", class = "btn-primary", width = "100%"),
+                br(),
+                br(),
+                uiOutput(session$ns("server_import_section"))
+              )
+            )
+          )
+        ),
+        tabPanel(
+          "结构总览",
+          uiOutput(session$ns("db_overview_cards")),
+          br(),
+          uiOutput(session$ns("db_structure_tree"))
+        )
+      )
+    )
+  })
   
   output$server_import_section <- renderUI({
     user <- get_current_user()
@@ -455,35 +581,46 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     )
   })
 
-  refresh_workspace_choices()
-  refresh_folder_choices("")
-  refresh_dataset_choices("", root_folder_token)
+  refresh_workspace_choices("")
+  refresh_folder_choices("", root_folder_token)
+  refresh_dataset_choices("", root_folder_token, "")
 
   observe({
     if (!is.null(current_user)) {
       current_user()
     }
     registry_version()
-    if (is.null(get_current_user())) {
+    if (is.null(get_current_user()) || !has_database_access()) {
       updateSelectInput(session, "workspace_select", choices = character(0), selected = "")
-      refresh_folder_choices("")
-      refresh_dataset_choices("", root_folder_token)
+      refresh_folder_choices("", root_folder_token)
+      refresh_dataset_choices("", root_folder_token, "")
       return(invisible(NULL))
     }
-    reg <- load_registry()
-    ws_ids <- reg$workspaces$id %||% character(0)
-    selected_workspace <- input$workspace_select %||% ""
-    if (!nzchar(selected_workspace) || !(selected_workspace %in% ws_ids)) {
-      selected_workspace <- if (length(ws_ids) > 0) ws_ids[[1]] else ""
-    }
-    refresh_workspace_choices()
-    updateSelectInput(session, "workspace_select", selected = selected_workspace)
-    refresh_folder_choices(selected_workspace)
-    refresh_dataset_choices(selected_workspace, root_folder_token)
+    selected_workspace <- isolate(input$workspace_select %||% "")
+    selected_folder <- isolate(input$folder_select %||% root_folder_token)
+    selected_dataset <- isolate(input$dataset_select %||% "")
+    selected_workspace <- refresh_workspace_choices(selected_workspace)
+    selected_folder <- refresh_folder_choices(selected_workspace, selected_folder)
+    refresh_dataset_choices(selected_workspace, selected_folder, selected_dataset)
   })
+
+  observeEvent(input$workspace_select, {
+    req(has_database_access())
+    selected_workspace <- input$workspace_select %||% ""
+    selected_folder <- refresh_folder_choices(selected_workspace, isolate(input$folder_select %||% root_folder_token))
+    refresh_dataset_choices(selected_workspace, selected_folder, isolate(input$dataset_select %||% ""))
+  }, ignoreInit = TRUE)
+
+  observeEvent(input$folder_select, {
+    req(has_database_access())
+    refresh_dataset_choices(input$workspace_select %||% "", input$folder_select %||% root_folder_token, isolate(input$dataset_select %||% ""))
+  }, ignoreInit = TRUE)
 
   output$db_context_summary <- renderUI({
     registry_version()
+    if (!has_database_access()) {
+      return(NULL)
+    }
     reg <- load_registry()
     selected_workspace <- input$workspace_select %||% ""
     selected_folder <- input$folder_select %||% root_folder_token
@@ -544,6 +681,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   
   output$db_overview_cards <- renderUI({
     registry_version()
+    req(has_database_access())
     reg <- load_registry()
     ws_count <- nrow(reg$workspaces)
     fd_count <- nrow(reg$folders)
@@ -559,6 +697,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   
   output$db_structure_tree <- renderUI({
     registry_version()
+    req(has_database_access())
     reg <- load_registry()
     ws <- reg$workspaces
     fd <- reg$folders
@@ -643,7 +782,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   })
   
   observeEvent(input$create_workspace, {
-    if (!require_logged_in()) {
+    if (!require_database_access()) {
       return()
     }
     workspace_name <- input$workspace_name
@@ -699,6 +838,9 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   })
   
   observeEvent(input$create_folder, {
+    if (!require_database_access()) {
+      return()
+    }
     workspace_id <- input$workspace_select
     folder_name <- trimws(input$folder_name)
     if (is.null(workspace_id) || workspace_id == "") {
@@ -745,6 +887,9 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   }, ignoreNULL = FALSE)
   
   observeEvent(input$delete_folder, {
+    if (!require_database_access()) {
+      return()
+    }
     workspace_id <- input$workspace_select
     folder_id <- input$folder_select
     if (is.null(workspace_id) || workspace_id == "") {
@@ -787,8 +932,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   })
   
   observeEvent(input$save_dataset, {
-    req(input$file)
-    if (!require_logged_in()) {
+    if (!require_database_access()) {
       return()
     }
     workspace_id <- input$workspace_select
@@ -825,8 +969,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   })
   
   observeEvent(input$save_batch_datasets, {
-    req(input$batch_files)
-    if (!require_logged_in()) {
+    if (!require_database_access()) {
       return()
     }
     workspace_id <- input$workspace_select

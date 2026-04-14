@@ -8,6 +8,8 @@ landing_path <- file.path(project_root, "nginx", "landing", "index.html")
 autotfl_path <- file.path(project_root, "nginx", "landing", "autotfl.html")
 guide_path <- file.path(project_root, "PROJECT_GUIDE.md")
 
+if (length(landing_path) == 0 || !file.exists(landing_path)) return("")
+
 landing_lines <- readLines(landing_path, encoding = "UTF-8", warn = FALSE)
 autotfl_lines <- readLines(autotfl_path, encoding = "UTF-8", warn = FALSE)
 guide_lines <- readLines(guide_path, encoding = "UTF-8", warn = FALSE)

@@ -481,8 +481,8 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
     if (length(n_cols) > 0) {
       for (cn in n_cols) raw[[cn]] <- n_out_map[[cn]]
       nm <- names(raw)
-      nm[nm == "N"] <- "event/N"
-      nm <- sub("__N$", "__event/N", nm)
+      nm[nm == "N"] <- "Event/N"
+      nm <- sub("__N$", "__Event/N", nm)
       names(raw) <- nm
     }
     sanitized <- raw[keep, , drop = FALSE]

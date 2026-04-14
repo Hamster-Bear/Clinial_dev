@@ -6,7 +6,8 @@ required_packages <- c(
   "corrplot", "ggsci", "patchwork", "digest", "colourpicker", "reactable",
   "waiter", "shinyalert", "scales", "gridExtra", "cowplot", "RColorBrewer",
   "tidyr", "vroom", "memoise", "shinyWidgets", "gtsummary",
-  "DBI", "RPostgres", "pool", "rmarkdown", "knitr", "flextable", "officer"
+  "DBI", "RPostgres", "pool", "rmarkdown", "knitr", "flextable", "officer",
+  "showtext", "sysfonts"
 )
 
 # 校验依赖包，不在 app.R 内执行安装
@@ -24,6 +25,27 @@ if (length(missing_packages) > 0) {
 invisible(lapply(required_packages, function(pkg) {
   library(pkg, character.only = TRUE, quietly = TRUE, warn.conflicts = FALSE)
 }))
+
+# 启用 showtext 以增强跨平台字体渲染稳定性
+if (requireNamespace("showtext", quietly = TRUE) && requireNamespace("sysfonts", quietly = TRUE)) {
+  # 尝试注册本地字体作为后备
+  tryCatch({
+    sysfonts::font_add("Arial", 
+                      regular = "arial.ttf", 
+                      bold = "arialbd.ttf", 
+                      italic = "ariali.ttf", 
+                      bolditalic = "arialbi.ttf")
+  }, error = function(e) {
+    # 若本地无Arial，则尝试从 Google Fonts 下载高度相似的开源字体 Arimo，并伪装为 Arial
+    try(sysfonts::font_add_google("Arimo", "Arial"), silent = TRUE)
+  })
+  
+  # 注册中文字体以防 Docker 内缺失
+  try(sysfonts::font_add_google("Noto Sans SC", "Noto Sans SC"), silent = TRUE)
+  
+  showtext::showtext_auto()
+  showtext::showtext_opts(dpi = 96) # 匹配 Shiny 默认 DPI
+}
 
 # 加载所有模块
 source("modules/common/storage_backend.R")
@@ -53,6 +75,7 @@ ui <- dashboardPage(
   ),
   dashboardBody(
     useShinyjs(),
+    auth_manager_styles(),
     tags$head(
       tags$title("Hamster Analysis · AutoTFL"),
       tags$link(rel = "stylesheet", type = "text/css", href = "style.css"),
