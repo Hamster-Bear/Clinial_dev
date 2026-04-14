@@ -337,15 +337,26 @@ tables_server <- function(id, data) {
         )
       } else if (input$table_type == "listing_general") {
         # 一般列表分析
-        result <- perform_listing_general_analysis(
+        normalized_listing <- normalize_listing_columns(
           data = df,
           key_cols = input$listing_key_cols,
           disp_cols = input$listing_disp_cols
         )
+        if (length(normalized_listing$disp_cols) == 0) {
+          stop("当前展示列已失效，请重新选择有效字段。")
+        }
+        if (length(normalized_listing$missing_cols) > 0) {
+          showNotification("部分已选 Listing 字段已失效，系统已自动忽略不可用字段。", type = "warning")
+        }
+        result <- perform_listing_general_analysis(
+          data = df,
+          key_cols = normalized_listing$key_cols,
+          disp_cols = normalized_listing$disp_cols
+        )
         
         code <- generate_listing_general_code(
-          key_cols = input$listing_key_cols,
-          disp_cols = input$listing_disp_cols,
+          key_cols = normalized_listing$key_cols,
+          disp_cols = normalized_listing$disp_cols,
           landscape = input$listing_landscape,
           font_size = input$listing_font_size
         )
@@ -384,9 +395,10 @@ tables_server <- function(id, data) {
       }
       
     }, error = function(e) {
-      showNotification(paste("生成表格时出错:", e$message), type = "error")
+      message(sprintf("[TablesGenerateError] %s", conditionMessage(e)))
+      showNotification("表格生成失败，请检查当前变量选择或数据状态后重试。", type = "error")
       table_result(NULL)
-      code_result(paste("# 错误:", e$message))
+      code_result("# 表格生成失败，请检查变量选择与数据状态。")
     }, finally = {
       shinyjs::enable("generate")
     })
@@ -443,16 +455,28 @@ tables_server <- function(id, data) {
       req(filtered_data(), input$listing_disp_cols)
       
       tryCatch({
-        export_listing_general_rtf(
+        normalized_listing <- normalize_listing_columns(
           data = filtered_data(),
           key_cols = input$listing_key_cols,
-          disp_cols = input$listing_disp_cols,
+          disp_cols = input$listing_disp_cols
+        )
+        if (length(normalized_listing$disp_cols) == 0) {
+          stop("当前导出列与数据不匹配，请重新选择变量后重试。")
+        }
+        if (length(normalized_listing$missing_cols) > 0) {
+          showNotification("部分已选导出字段已失效，系统将仅导出当前仍有效的字段。", type = "warning")
+        }
+        export_listing_general_rtf(
+          data = filtered_data(),
+          key_cols = normalized_listing$key_cols,
+          disp_cols = normalized_listing$disp_cols,
           file = file,
           landscape = input$listing_landscape,
           font_size = input$listing_font_size
         )
       }, error = function(e) {
-        showNotification(paste("导出错误:", e$message), type = "error")
+        message(sprintf("[ListingExportError] %s", conditionMessage(e)))
+        showNotification("RTF 导出失败，请检查当前导出字段与数据是否一致。", type = "error")
       })
     }
   )

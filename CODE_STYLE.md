@@ -12,18 +12,23 @@
 - **代码结构**: 
   - 严格执行 UI 与 Server 逻辑分离。
   - 跨模块复用的逻辑必须沉淀至 `modules/common/`，禁止模块间交叉引用。
+  - 任务历史、权限管理、任务列表等跨业务复用的 Shiny 区块，应先抽为共享模块并嵌入现有业务页验证；未形成跨统计图形/统计分析稳定契约前，不应直接升级为左侧一级菜单。
+  - 接入任务历史的业务模块必须显式维护 `state` / `apply_state` 契约；凡写入 `state_payload` 的图形子模块参数，应尽量提供对称的回填逻辑，目标是覆盖当前子模块全部用户可配置参数，避免“可保存不可载入”。
   - Shiny module 的 server 端若在 `renderUI()` / `renderPlot()` / `renderPlotly()` 中动态创建 namespaced output/input，必须显式定义 `ns <- session$ns`，避免运行时出现“没有 ns 这个函数”。
+  - 在 Shiny `reactive()` / `render*()` 链路中使用校验时，必须显式写成 `shiny::validate()` 与 `shiny::need()`，不要依赖裸函数名，避免被其他包的同名函数覆盖。
 - **依赖管理**: 
   - 统一在入口文件及部署脚本中声明依赖。
   - 禁止在业务逻辑中直接调用 `install.packages()`。
 - **代码格式化**: 
   - 缩进使用 2 个空格。
   - 推荐使用 `styler` 包进行自动格式化。
+  - 提交前优先通过仓库根目录 `.pre-commit-config.yaml` 执行 `styler`、`lintr` 与 `testthat` 守卫，避免多文件改动后出现格式漂移或文档/实现不一致。
 - **图形与字体**: 
   - 统计图形统一启用 `showtext_auto()`（已在 `app.R` 入口初始化），确保在不同操作系统环境下字体（特别是 CJK 字符）渲染的一致性。
   - 开发新图形模块时应优先使用系统通用字体族（如 "sans"），避免硬编码特定物理路径的字体文件。
   - 涉及 `cowplot` / `grid` 组合测量的图形，字体族必须先走 common 的设备安全解析；`Arial` 等非 PostScript 通用族当前需优先回退到 `sans`，不能假定 `showtext/sysfonts` 已彻底消除设备侧字体告警。
   - 图形尺寸、页面距、画布边框、参考线与前端/导出换算必须优先复用 `graphics_common.R` 和 `common_ui_shell.R`；默认保持 PX 与英寸尺寸同步，禁止在子模块私写另一套尺寸/导出容器或 `geom_hline/geom_vline` 组装逻辑。
+  - 坐标范围、刻度格式、时间轴单位换算等高重复图形控件，应优先复用 `graphics_axis_range_controls_ui()`、`graphics_axis_tick_format_controls_ui()`、`graphics_time_axis_settings_ui()` 等 common UI 组件。
 
 ## 3. UI/UX 规范
 - **样式管理**: 优先使用 `bslib` 主题变量，自定义 CSS 统一存放在 `www/` 目录下。
@@ -39,3 +44,5 @@
 - **框架**: 使用 `testthat` 或配套工具。
 - **目录约定**: 所有测试文件统一置于 `tests/` 目录，文件名以 `test_` 开头。
 - **执行要求**: 合并代码或发布前，确保测试套件运行通过。
+- **交互状态**: 新增任务历史、状态回填或复杂 UI 交互时，至少补一条 `tests/` 守卫测试；高风险输入交互优先纳入 `shinytest2` 规划范围。
+- **任务历史操作**: 新增 note、删除、覆盖保存等状态资产操作时，必须同时覆盖 service 层测试与 UI/契约守卫测试。

@@ -82,3 +82,38 @@ test_that("graphics_centered_output_container 生成居中容器并支持边框"
   expect_match(html_str, "width:960px")
   expect_match(html_str, "border: 1.0px solid #CCCCCC")
 })
+
+test_that("graphics_axis_range_controls_ui 生成统一轴范围控件", {
+  ns <- NS("test_module")
+  ui_output <- graphics_axis_range_controls_ui(
+    ns = ns,
+    min_id = "x_min",
+    max_id = "x_max",
+    axis_label = "X轴",
+    min_value = 1,
+    max_value = 99
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, 'id="test_module-x_min"')
+  expect_match(html_str, 'id="test_module-x_max"')
+  expect_match(html_str, 'X轴下限')
+  expect_match(html_str, 'X轴上限')
+  expect_match(html_str, 'value="1"')
+  expect_match(html_str, 'value="99"')
+})
+
+test_that("graphics_time_axis_settings_ui 生成统一时间轴设置控件", {
+  ns <- NS("test_module")
+  ui_output <- graphics_time_axis_settings_ui(
+    ns = ns,
+    unit_id = "time_unit",
+    unit_choices = c("天" = "day", "周" = "week"),
+    selected_unit = "day",
+    step_id = "x_break_step",
+    step_label = "X轴刻度步长"
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, 'id="test_module-time_unit"')
+  expect_match(html_str, 'id="test_module-x_break_step"')
+  expect_match(html_str, 'X轴刻度步长')
+})

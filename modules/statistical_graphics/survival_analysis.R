@@ -1076,10 +1076,10 @@ survival_analysis_server <- function(input, output, session, data) {
     req(data)
     time_var_name <- params$km_time
     status_var_name <- params$km_status
-    validate(
-      need(time_var_name %in% names(data), "请选择有效的时间变量"),
-      need(status_var_name %in% names(data), "请选择有效的状态变量"),
-      need(nrow(data) > 0, "选择的分面值没有数据")
+    shiny::validate(
+      shiny::need(time_var_name %in% names(data), "请选择有效的时间变量"),
+      shiny::need(status_var_name %in% names(data), "请选择有效的状态变量"),
+      shiny::need(nrow(data) > 0, "选择的分面值没有数据")
     )
     time_var <- data[[time_var_name]]
     status_var <- data[[status_var_name]]
@@ -1112,9 +1112,9 @@ survival_analysis_server <- function(input, output, session, data) {
     if (is.null(strata_var) || strata_var == "None") {
       surv_fit(surv_obj() ~ 1, data = data, conf.type = "log-log")
     } else {
-      validate(
-        need(strata_var %in% names(data), "请选择有效的分层变量"),
-        need(nrow(data) > 0, "选择的分面值没有数据")
+      shiny::validate(
+        shiny::need(strata_var %in% names(data), "请选择有效的分层变量"),
+        shiny::need(nrow(data) > 0, "选择的分面值没有数据")
       )
       formula_str <- paste("surv_obj() ~", strata_var)
       surv_fit(as.formula(formula_str), data = data, conf.type = "log-log")
@@ -1292,6 +1292,11 @@ survival_analysis_server <- function(input, output, session, data) {
     plot_family <- .resolve_survival_base_family(params$base_family %||% "sans")
     legend_breaks <- .extract_survival_legend_breaks(fit_local, strata_var, overall_label)
     legend_labs <- .extract_survival_legend_labs(fit_local, strata_var, params$strata_labels, overall_label)
+    legend_colors_raw <- .build_survival_legend_colors(legend_breaks, palette_name = "Set1")
+    palette_values <- unname(legend_colors_raw[legend_breaks])
+    if (length(palette_values) == 0) {
+      palette_values <- scales::hue_pal()(max(1, length(legend_breaks)))
+    }
     risk_table_labeler <- .build_survival_strata_labeler(strata_var, params$strata_labels, overall_label)
     p <- suppressWarnings(ggsurvplot(
         fit_local,
@@ -1306,7 +1311,7 @@ survival_analysis_server <- function(input, output, session, data) {
         xlim = time_range,
         break.time.by = time_step,
         ggtheme = theme_bw(),
-        palette = "Set1",
+        palette = palette_values,
         legend.title = legend_title_text,
         legend.labs = legend_labs,
         font.family = plot_family
@@ -1320,7 +1325,6 @@ survival_analysis_server <- function(input, output, session, data) {
           p$table$layers[[idx]]$geom_params$family <- plot_family
         }
       }
-    legend_colors_raw <- .resolve_survival_legend_colors(p$plot, legend_breaks, legend_breaks)
     main_legend_colors <- stats::setNames(unname(legend_colors_raw[legend_breaks]), legend_labs)
     if (params$show_median) {
       median_surv <- stats_results()$median_surv
@@ -1438,9 +1442,6 @@ survival_analysis_server <- function(input, output, session, data) {
           censor_colors <- stats::setNames(unname(main_legend_colors[censor_breaks]), censor_breaks)
           if (length(censor_colors) != length(censor_breaks) || any(is.na(censor_colors) | !nzchar(censor_colors))) {
             censor_colors <- stats::setNames(unname(legend_colors_raw[censor_pairs$raw]), censor_breaks)
-          }
-          if (length(censor_colors) != length(censor_breaks) || any(is.na(censor_colors) | !nzchar(censor_colors))) {
-            censor_colors <- .resolve_survival_legend_colors(p$plot, censor_pairs$raw, censor_breaks)
           }
           censored_points$color_value <- .resolve_survival_censor_point_colors(
             raw_strata = censored_points$strata,
@@ -1669,7 +1670,7 @@ survival_analysis_server <- function(input, output, session, data) {
   
   output$survPlot <- renderPlot({
     req(input$render_km_plot) # 确保有点击过生成按钮
-    validate(need(!is.null(fit()), "请先完成变量设置并点击“生成图形”。"))
+    shiny::validate(shiny::need(!is.null(fit()), "请先完成变量设置并点击“生成图形”。"))
     cfg <- size_config()
     graphics_apply_canvas_frame(
       create_surv_plot(),
@@ -1715,7 +1716,7 @@ survival_analysis_server <- function(input, output, session, data) {
     # 交互式生存曲线图
   output$interactiveSurvPlot <- renderPlotly({
     req(input$render_km_plot)
-    validate(need(!is.null(fit()), "请先生成生存曲线后查看交互式图。"))
+    shiny::validate(shiny::need(!is.null(fit()), "请先生成生存曲线后查看交互式图。"))
     
     # 创建专门的交互式图形
     interactive_plot <- create_interactive_surv_plot()
@@ -1771,7 +1772,7 @@ survival_analysis_server <- function(input, output, session, data) {
   # 生存分析数据表
   output$km_data_table <- renderDT({
     req(input$render_km_plot)
-    validate(need(!is.null(fit()), "请先生成生存曲线后查看数据表。"))
+    shiny::validate(shiny::need(!is.null(fit()), "请先生成生存曲线后查看数据表。"))
     
     # 获取生存分析结果数据
     tryCatch({
@@ -1791,15 +1792,19 @@ survival_analysis_server <- function(input, output, session, data) {
         data.frame(错误 = "无法生成生存分析数据表", 信息 = "请检查输入数据")
       }
     }, error = function(e) {
-      data.frame(错误 = "生成数据表时出错", 信息 = e$message)
+      message(sprintf("[SurvivalTableError] %s", conditionMessage(e)))
+      data.frame(
+        错误 = "结果表暂时无法生成",
+        信息 = "请检查当前分层、分面与变量设置后重试。"
+      )
     })
   })
   
   output$survival_report <- renderUI({
     req(input$render_km_plot)
     data_local <- committed_filtered_data()
-    validate(need(!is.null(fit()) && !is.null(data_local) && nrow(data_local) > 0, "请先生成生存曲线后查看统计报告。"))
-    validate(need(!is.null(graphics_state$km_time) && !is.null(graphics_state$km_status), "请先选择时间与状态变量。"))
+    shiny::validate(shiny::need(!is.null(fit()) && !is.null(data_local) && nrow(data_local) > 0, "请先生成生存曲线后查看统计报告。"))
+    shiny::validate(shiny::need(!is.null(graphics_state$km_time) && !is.null(graphics_state$km_status), "请先选择时间与状态变量。"))
     
     fit_local <- fit()
     
@@ -1916,16 +1921,46 @@ survival_analysis_server <- function(input, output, session, data) {
     }
   )
   
-  # 返回模块状态
-  return(reactive({
-    list(
-      time_var = graphics_state$km_time %||% input$km_time,
-      status_var = graphics_state$km_status %||% input$km_status,
-      km_censor_value = graphics_state$km_censor_value %||% input$km_censor_value,
-      strata_var = graphics_state$km_strata %||% input$strata_var,
-      facet_var = graphics_state$km_facet %||% input$facet_var,
-      facet_value = graphics_state$km_facet_values %||% input$facet_value,
-      overall_group_label = graphics_state$overall_group_label %||% input$overall_group_label
-    )
-  }))
+  apply_state <- function(state) {
+    if (!is.list(state)) return(invisible(FALSE))
+    graphics_restore_task_input_state(session, state)
+    extra_state <- graphics_task_payload_extra_state(state)
+    if (!is.null(extra_state$time_var)) view_state$km_time <- extra_state$time_var
+    if (!is.null(extra_state$status_var)) view_state$km_status <- extra_state$status_var
+    if (!is.null(extra_state$km_censor_value)) view_state$km_censor_value <- extra_state$km_censor_value
+    if (!is.null(extra_state$strata_var)) view_state$km_strata <- extra_state$strata_var
+    if (!is.null(extra_state$facet_var)) view_state$km_facet <- extra_state$facet_var
+    if (!is.null(extra_state$facet_value)) view_state$km_facet_values <- extra_state$facet_value
+    if (!is.null(extra_state$overall_group_label)) view_state$overall_group_label <- extra_state$overall_group_label
+    updateSelectizeInput(session, "km_time", selected = extra_state$time_var %||% input$km_time, server = TRUE)
+    updateSelectizeInput(session, "km_status", selected = extra_state$status_var %||% input$km_status, server = TRUE)
+    if (!is.null(extra_state$km_censor_value)) updateRadioButtons(session, "km_censor_value", selected = extra_state$km_censor_value)
+    updateSelectizeInput(session, "strata_var", selected = extra_state$strata_var %||% input$strata_var, server = TRUE)
+    updateSelectizeInput(session, "facet_var", selected = extra_state$facet_var %||% input$facet_var, server = TRUE)
+    if (!is.null(extra_state$overall_group_label)) updateTextInput(session, "overall_group_label", value = extra_state$overall_group_label)
+    if (!is.null(extra_state$facet_value) && nzchar(extra_state$facet_value %||% "")) {
+      session$onFlushed(function() {
+        updateSelectInput(session, "facet_value", selected = extra_state$facet_value)
+      }, once = TRUE)
+    }
+    invisible(TRUE)
+  }
+
+  list(
+    state = reactive({
+      graphics_build_task_state(
+        input,
+        extra_state = list(
+          time_var = graphics_state$km_time %||% input$km_time,
+          status_var = graphics_state$km_status %||% input$km_status,
+          km_censor_value = graphics_state$km_censor_value %||% input$km_censor_value,
+          strata_var = graphics_state$km_strata %||% input$strata_var,
+          facet_var = graphics_state$km_facet %||% input$facet_var,
+          facet_value = graphics_state$km_facet_values %||% input$facet_value,
+          overall_group_label = graphics_state$overall_group_label %||% input$overall_group_label
+        )
+      )
+    }),
+    apply_state = apply_state
+  )
 }

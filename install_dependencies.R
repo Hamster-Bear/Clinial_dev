@@ -19,6 +19,7 @@ required_packages <- c(
   "readr",
   "readxl",
   "haven",
+  "jsonlite",
   "purrr",
   "stringr",
   "vroom",
@@ -74,7 +75,10 @@ required_packages <- c(
   "knitr",
   "flextable",
   "officer",
-  "testthat"
+  "testthat",
+  "lintr",
+  "styler",
+  "shinytest2"
 )
 
 # 安装缺失的包

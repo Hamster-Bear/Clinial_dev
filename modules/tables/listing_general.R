@@ -5,6 +5,22 @@
 library(dplyr)
 library(rlistings)
 library(r2rtf)
+`%||%` <- function(x, y) if (is.null(x)) y else x
+
+normalize_listing_columns <- function(data, key_cols = NULL, disp_cols = NULL) {
+  available_cols <- names(data %||% data.frame())
+  raw_key_cols <- unique(key_cols %||% character(0))
+  raw_disp_cols <- unique(disp_cols %||% character(0))
+  missing_cols <- setdiff(unique(c(raw_key_cols, raw_disp_cols)), available_cols)
+  key_cols <- intersect(raw_key_cols, available_cols)
+  disp_cols <- intersect(raw_disp_cols, available_cols)
+  list(
+    key_cols = key_cols,
+    disp_cols = disp_cols,
+    missing_cols = missing_cols,
+    available_cols = available_cols
+  )
+}
 
 #' 一般列表参数 UI
 #'
@@ -50,7 +66,13 @@ listing_general_params_ui <- function(ns, data) {
 #' @return rlistings listing 对象 (用于打印预览)
 #' @export
 perform_listing_general_analysis <- function(data, key_cols, disp_cols) {
-  req(data, disp_cols)
+  shiny::req(data, disp_cols)
+  normalized <- normalize_listing_columns(data, key_cols, disp_cols)
+  key_cols <- normalized$key_cols
+  disp_cols <- normalized$disp_cols
+  if (length(disp_cols) == 0) {
+    stop("当前展示列已失效，请重新选择有效字段。")
+  }
   
   # 数据清洗 (参考 listing_sample.R)
   # 优化：先排序，再格式化为字符，确保数值列按大小排序而非字典序
@@ -85,7 +107,13 @@ perform_listing_general_analysis <- function(data, key_cols, disp_cols) {
 #' @param font_size 字体大小
 #' @export
 export_listing_general_rtf <- function(data, key_cols, disp_cols, file, landscape = TRUE, font_size = 9) {
-  req(data, disp_cols)
+  shiny::req(data, disp_cols)
+  normalized <- normalize_listing_columns(data, key_cols, disp_cols)
+  key_cols <- normalized$key_cols
+  disp_cols <- normalized$disp_cols
+  if (length(disp_cols) == 0) {
+    stop("当前导出列与数据不匹配，请重新选择变量后重试。")
+  }
   
   # 1. 数据准备
   # 优化：先排序，再格式化为字符，确保数值列按大小排序而非字典序

@@ -135,14 +135,18 @@ swimmer_plot_ui <- function(id) {
                       tags$div(
                         class = "panel-body",
                         selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
-                        selectInput(
-                          ns("x_unit"),
-                          "X轴单位换算",
-                          choices = c("天" = "day", "周" = "week", "月(30.44天)" = "month", "年(365.25天)" = "year"),
-                          selected = "day",
-                          width = "100%"
+                        graphics_time_axis_settings_ui(
+                          ns,
+                          unit_id = "x_unit",
+                          unit_label = "X轴单位换算",
+                          unit_choices = c("天" = "day", "周" = "week", "月(30.44天)" = "month", "年(365.25天)" = "year"),
+                          selected_unit = "day",
+                          step_id = "x_break_step",
+                          step_label = "X轴刻度步长(0为自动)",
+                          step_value = 0,
+                          step_min = 0,
+                          step_step = 0.1
                         ),
-                        numericInput(ns("x_break_step"), "X轴刻度步长(0为自动)", value = 0, min = 0, step = 0.1, width = "100%"),
                         fluidRow(
                           column(6, sliderInput(ns("lane_size"), "泳道线宽", min = 0.8, max = 8, value = 4, step = 0.2, width = "100%")),
                           column(6, sliderInput(ns("event_size"), "事件点大小", min = 1, max = 8, value = 3.2, step = 0.2, width = "100%"))
@@ -1316,15 +1320,16 @@ swimmer_plot_server <- function(input, output, session, data) {
           ) +
           coord_cartesian(clip = "off")
         
-        if (is_arrow) {
-          p_main <- p_main + 
-            annotate("segment", x = x_axis_start, xend = x_axis_end, y = 0.5, yend = 0.5, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black") +
-            annotate("segment", x = x_axis_start, xend = x_axis_start, y = 0.5, yend = n_y + 0.55, arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"), linewidth = 0.45, color = "black")
-        } else {
-          p_main <- p_main + 
-            annotate("segment", x = x_axis_start, xend = x_axis_end, y = 0.5, yend = 0.5, linewidth = 0.45, color = "black", lineend = "square") +
-            annotate("segment", x = x_axis_start, xend = x_axis_start, y = 0.5, yend = n_y + 0.55, linewidth = 0.45, color = "black", lineend = "square")
-        }
+        p_main <- graphics_add_classic_axis_segments(
+          p_main,
+          x_start = x_axis_start,
+          x_end = x_axis_end,
+          y_start = 0.5,
+          y_end = n_y + 0.55,
+          arrow = is_arrow,
+          linewidth = 0.45,
+          color = "black"
+        )
       }
 
       if (is.null(track_df) || !isTRUE(input$show_tracks)) {
@@ -1506,12 +1511,12 @@ swimmer_plot_server <- function(input, output, session, data) {
       lane_data(NULL)
       event_data(NULL)
       track_data(NULL)
-      showNotification(paste("泳道图生成错误:", e$message), type = "error")
+      graphics_notify_error("泳道图", e)
     })
   })
 
   output$static_plot <- renderPlot({
-    validate(need(!is.null(final_plot()), "请先完成参数设置并点击“生成图形”。"))
+    shiny::validate(shiny::need(!is.null(final_plot()), "请先完成参数设置并点击“生成图形”。"))
     cfg <- size_config()
     graphics_apply_canvas_frame(
       final_plot(),
@@ -1526,7 +1531,7 @@ swimmer_plot_server <- function(input, output, session, data) {
   })
 
   output$interactive_plot <- plotly::renderPlotly({
-    validate(need(!is.null(main_plot_obj()), "请先生成泳道图后查看交互式图。"))
+    shiny::validate(shiny::need(!is.null(main_plot_obj()), "请先生成泳道图后查看交互式图。"))
     cfg <- size_config()
     plotly::layout(
       ggplotly(main_plot_obj(), tooltip = "text", width = as.integer(cfg$interactive_width), height = as.integer(cfg$interactive_height)),
@@ -1542,19 +1547,19 @@ swimmer_plot_server <- function(input, output, session, data) {
   })
 
   output$lane_table <- renderDT({
-    validate(need(!is.null(lane_data()) && nrow(lane_data()) > 0, "当前无可展示的泳道数据。"))
+    shiny::validate(shiny::need(!is.null(lane_data()) && nrow(lane_data()) > 0, "当前无可展示的泳道数据。"))
     datatable(lane_data(), options = list(pageLength = 15, scrollX = TRUE))
   })
 
   output$event_table <- renderDT({
     ed <- event_data()
-    validate(need(!is.null(ed) && nrow(ed) > 0, "未配置事件映射或无事件数据"))
+    shiny::validate(shiny::need(!is.null(ed) && nrow(ed) > 0, "未配置事件映射或无事件数据"))
     datatable(ed, options = list(pageLength = 15, scrollX = TRUE))
   })
 
   output$track_table <- renderDT({
     td <- track_data()
-    validate(need(!is.null(td), "未选择分组轨道变量"))
+    shiny::validate(shiny::need(!is.null(td), "未选择分组轨道变量"))
     out <- td %>% select(.subject_id, .track_name, .track_value) %>% tidyr::pivot_wider(names_from = .track_name, values_from = .track_value)
     datatable(out, options = list(pageLength = 15, scrollX = TRUE))
   })
@@ -1586,30 +1591,72 @@ swimmer_plot_server <- function(input, output, session, data) {
     }
   )
 
-  return(reactive({
-    event_mappings <- lapply(seq_len(event_map_count()), function(i) {
-      list(
-        event_time = input[[paste0("event_time_", i)]] %||% "",
-        event_type = input[[paste0("event_type_", i)]] %||% "",
-        event_label = input[[paste0("event_label_", i)]] %||% "",
-        event_legend_title = input[[paste0("event_legend_title_", i)]] %||% ""
+  apply_state <- function(state) {
+    if (!is.list(state)) return(invisible(FALSE))
+    graphics_restore_task_input_state(session, state)
+    extra_state <- graphics_task_payload_extra_state(state)
+    updateSelectizeInput(session, "subject_id", selected = extra_state$subject_id %||% input$subject_id, server = TRUE)
+    if (!is.null(extra_state$lane_time_mode)) updateSelectInput(session, "lane_time_mode", selected = extra_state$lane_time_mode)
+    updateSelectizeInput(session, "start_time", selected = extra_state$start_time %||% input$start_time, server = TRUE)
+    updateSelectizeInput(session, "end_time", selected = extra_state$end_time %||% input$end_time, server = TRUE)
+    updateSelectizeInput(session, "duration_var", selected = extra_state$duration_var %||% input$duration_var, server = TRUE)
+    if (!is.null(extra_state$event_legend_title)) updateTextInput(session, "event_legend_title", value = extra_state$event_legend_title)
+    if (!is.null(extra_state$lock_event_style_refresh)) updateCheckboxInput(session, "lock_event_style_refresh", value = isTRUE(extra_state$lock_event_style_refresh))
+    if (!is.null(extra_state$event_symbol_seed)) updateNumericInput(session, "event_symbol_seed", value = extra_state$event_symbol_seed)
+    if (!is.null(extra_state$x_unit)) updateSelectInput(session, "x_unit", selected = extra_state$x_unit)
+    if (!is.null(extra_state$x_break_step)) updateNumericInput(session, "x_break_step", value = extra_state$x_break_step)
+    if (!is.null(extra_state$tracks)) updateSelectizeInput(session, "tracks", selected = extra_state$tracks, server = TRUE)
+    if (!is.null(extra_state$size_mode)) updateSelectInput(session, "size_mode", selected = extra_state$size_mode)
+    if (!is.null(extra_state$export_width_in)) updateNumericInput(session, "export_width_in", value = extra_state$export_width_in)
+    if (!is.null(extra_state$export_height_in)) updateNumericInput(session, "export_height_in", value = extra_state$export_height_in)
+    if (is.list(extra_state$event_mappings) && length(extra_state$event_mappings) > 0) {
+      event_ui_state(extra_state$event_mappings)
+      event_map_count(length(extra_state$event_mappings))
+      session$onFlushed(function() {
+        for (i in seq_len(length(extra_state$event_mappings))) {
+          mapping <- extra_state$event_mappings[[i]]
+          if (!is.null(mapping$event_time)) updateSelectizeInput(session, paste0("event_time_", i), selected = mapping$event_time, server = TRUE)
+          if (!is.null(mapping$event_type)) updateSelectizeInput(session, paste0("event_type_", i), selected = mapping$event_type, server = TRUE)
+          if (!is.null(mapping$event_label)) updateSelectizeInput(session, paste0("event_label_", i), selected = mapping$event_label, server = TRUE)
+          if (!is.null(mapping$event_legend_title)) updateTextInput(session, paste0("event_legend_title_", i), value = mapping$event_legend_title)
+        }
+      }, once = TRUE)
+    }
+    invisible(TRUE)
+  }
+
+  list(
+    state = reactive({
+      event_mappings <- lapply(seq_len(event_map_count()), function(i) {
+        list(
+          event_time = input[[paste0("event_time_", i)]] %||% "",
+          event_type = input[[paste0("event_type_", i)]] %||% "",
+          event_label = input[[paste0("event_label_", i)]] %||% "",
+          event_legend_title = input[[paste0("event_legend_title_", i)]] %||% ""
+        )
+      })
+      time_axis_cfg <- graphics_collect_time_axis_config(input, unit_id = "x_unit", break_id = "x_break_step")
+      graphics_build_task_state(
+        input,
+        extra_state = list(
+          subject_id = input$subject_id,
+          lane_time_mode = input$lane_time_mode,
+          start_time = input$start_time,
+          end_time = input$end_time,
+          duration_var = input$duration_var,
+          event_mappings = event_mappings,
+          lock_event_style_refresh = input$lock_event_style_refresh,
+          event_symbol_seed = input$event_symbol_seed,
+          event_legend_title = input$event_legend_title,
+          x_unit = time_axis_cfg$unit,
+          x_break_step = time_axis_cfg$break_step,
+          tracks = input$tracks %||% character(0),
+          size_mode = input$size_mode,
+          export_width_in = size_config()$export_width,
+          export_height_in = size_config()$export_height
+        )
       )
-    })
-    list(
-      subject_id = input$subject_id,
-      lane_time_mode = input$lane_time_mode,
-      start_time = input$start_time,
-      end_time = input$end_time,
-      duration_var = input$duration_var,
-      event_mappings = event_mappings,
-      lock_event_style_refresh = input$lock_event_style_refresh,
-      event_symbol_seed = input$event_symbol_seed,
-      event_legend_title = input$event_legend_title,
-      x_break_step = input$x_break_step,
-      tracks = input$tracks %||% character(0),
-      size_mode = input$size_mode,
-      export_width_in = size_config()$export_width,
-      export_height_in = size_config()$export_height
-    )
-  }))
+    }),
+    apply_state = apply_state
+  )
 }

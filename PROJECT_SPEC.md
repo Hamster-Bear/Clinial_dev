@@ -22,7 +22,12 @@ AutoTFL 旨在为医学和临床数据分析提供一套自动化、可复现的
 - **统计图形 (Statistical Graphics)**: 提供生存分析图、森林图、泳道图等医学常用图形。
 - **图形输出一致性**: 统计图形模块需保证前端静态图、交互图与导出尺寸模式一致；带轨道/风险表的组合图在导出时需按当前前端画布高度同步扩展导出高度。
 - **报表导出**: 支持 Word (RTF/DOCX), PDF, HTML 格式。
-- **分析状态管理 (Analysis State Manager) [规划中]**: 负责将各个分析模块的 UI 参数与 `reactiveValues` 序列化为 JSON 并持久化到数据库，支持按用户与工作空间读取历史预设配置，实现分析任务的复用与沉淀。
+- **分析状态管理 (Analysis State Manager)**: 当前已为统计图形模块落地 `analysis_states` 持久化底座，并抽离共享 `task_history` 模块承载任务历史 UI/加载逻辑；现阶段仍嵌入统计图形页内，不单列左侧一级菜单。当前支持按用户保存/加载图形子模块的完整参数、UI 状态、模块类型与用户自定义 note；不保存图对象、分析结果对象或原始数据副本，载入后由各模块按 `state/apply_state` 契约恢复控件状态。任务历史同时支持删除。workspace 为空时保存为个人任务。后续再继续扩展到统计分析模块与更完整的任务资产管理。
+
+## 3.1 研发工具链
+
+- 当前仓库已补充 `.pre-commit-config.yaml`，用于串联 `styler`、`lintr` 与 `testthat` 守卫测试。
+- `install_dependencies.R` 已将 `jsonlite`、`lintr`、`styler`、`shinytest2` 纳入开发依赖入口，便于本地和容器环境统一安装。
 
 ## 4. 权限模型
 

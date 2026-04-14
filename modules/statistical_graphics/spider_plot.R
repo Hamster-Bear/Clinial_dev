@@ -110,15 +110,17 @@ spider_plot_ui <- function(id) {
                           checkboxInput(ns("show_points"), "显示测量点", FALSE),
                           checkboxInput(ns("show_end_labels"), "显示末次标签", FALSE),
                           checkboxInput(ns("add_baseline_zero"), "补充基线点(time=0, chg=0)", FALSE),
-                          fluidRow(
-                            column(6, selectInput(
-                              ns("time_unit"),
-                              "时间单位换算",
-                              choices = c("原始数值/天" = "day", "周" = "week", "月(30.44天)" = "month", "年(365.25天)" = "year"),
-                              selected = "day",
-                              width = "100%"
-                            )),
-                            column(6, numericInput(ns("x_break_step"), "X轴刻度步长", value = 0, min = 0, step = 0.1, width = "100%"))
+                          graphics_time_axis_settings_ui(
+                            ns,
+                            unit_id = "time_unit",
+                            unit_label = "时间单位换算",
+                            unit_choices = c("原始数值/天" = "day", "周" = "week", "月(30.44天)" = "month", "年(365.25天)" = "year"),
+                            selected_unit = "day",
+                            step_id = "x_break_step",
+                            step_label = "X轴刻度步长",
+                            step_value = 0,
+                            step_min = 0,
+                            step_step = 0.1
                           ),
                           fluidRow(
                             column(4, numericInput(ns("y_breaks_n"), "Y轴刻度数量", value = 9, min = 4, max = 20, step = 1, width = "100%")),
@@ -516,7 +518,7 @@ spider_plot_server <- function(input, output, session, data) {
   })
 
   output$static_plot <- renderPlot({
-    validate(need(!is.null(final_plot()), "请先完成参数设置并点击“生成图形”。"))
+    shiny::validate(shiny::need(!is.null(final_plot()), "请先完成参数设置并点击“生成图形”。"))
     cfg <- size_config()
     graphics_apply_canvas_frame(
       final_plot(),
@@ -531,7 +533,7 @@ spider_plot_server <- function(input, output, session, data) {
   })
 
   output$interactive_plot <- plotly::renderPlotly({
-    validate(need(!is.null(main_plot_obj()), "请先生成蜘蛛图后查看交互式图。"))
+    shiny::validate(shiny::need(!is.null(main_plot_obj()), "请先生成蜘蛛图后查看交互式图。"))
     cfg <- size_config()
     plotly::layout(
       ggplotly(main_plot_obj(), tooltip = "text", width = as.integer(cfg$interactive_width), height = as.integer(cfg$interactive_height)),
@@ -547,7 +549,7 @@ spider_plot_server <- function(input, output, session, data) {
   })
 
   output$data_table <- renderDT({
-    validate(need(!is.null(prepared_data()) && nrow(prepared_data()) > 0, "当前无可展示的蜘蛛图数据。"))
+    shiny::validate(shiny::need(!is.null(prepared_data()) && nrow(prepared_data()) > 0, "当前无可展示的蜘蛛图数据。"))
     datatable(prepared_data(), options = list(pageLength = 15, scrollX = TRUE))
   })
 
@@ -574,19 +576,46 @@ spider_plot_server <- function(input, output, session, data) {
     }
   )
 
-  return(reactive({
-    list(
-      subject_id = input$subject_id,
-      time_var = input$time_var,
-      value_var = input$value_var,
-      line_color_by = input$line_color_by,
-      facet_var = input$facet_var
-      ,add_baseline_zero = input$add_baseline_zero,
-      line_linetype = input$line_linetype,
-      x_break_step = input$x_break_step,
-      size_mode = input$size_mode,
-      export_width_in = size_config()$export_width,
-      export_height_in = size_config()$export_height
-    )
-  }))
+  apply_state <- function(state) {
+    if (!is.list(state)) return(invisible(FALSE))
+    graphics_restore_task_input_state(session, state)
+    extra_state <- graphics_task_payload_extra_state(state)
+    updateSelectizeInput(session, "subject_id", selected = extra_state$subject_id %||% input$subject_id, server = TRUE)
+    updateSelectizeInput(session, "time_var", selected = extra_state$time_var %||% input$time_var, server = TRUE)
+    updateSelectizeInput(session, "value_var", selected = extra_state$value_var %||% input$value_var, server = TRUE)
+    updateSelectizeInput(session, "line_color_by", selected = extra_state$line_color_by %||% input$line_color_by, server = TRUE)
+    updateSelectizeInput(session, "facet_var", selected = extra_state$facet_var %||% input$facet_var, server = TRUE)
+    if (!is.null(extra_state$add_baseline_zero)) updateCheckboxInput(session, "add_baseline_zero", value = isTRUE(extra_state$add_baseline_zero))
+    if (!is.null(extra_state$line_linetype)) updateSelectInput(session, "line_linetype", selected = extra_state$line_linetype)
+    if (!is.null(extra_state$time_unit)) updateSelectInput(session, "time_unit", selected = extra_state$time_unit)
+    if (!is.null(extra_state$x_break_step)) updateNumericInput(session, "x_break_step", value = extra_state$x_break_step)
+    if (!is.null(extra_state$size_mode)) updateSelectInput(session, "size_mode", selected = extra_state$size_mode)
+    if (!is.null(extra_state$export_width_in)) updateNumericInput(session, "export_width_in", value = extra_state$export_width_in)
+    if (!is.null(extra_state$export_height_in)) updateNumericInput(session, "export_height_in", value = extra_state$export_height_in)
+    invisible(TRUE)
+  }
+
+  list(
+    state = reactive({
+      time_axis_cfg <- graphics_collect_time_axis_config(input, unit_id = "time_unit", break_id = "x_break_step")
+      graphics_build_task_state(
+        input,
+        extra_state = list(
+          subject_id = input$subject_id,
+          time_var = input$time_var,
+          value_var = input$value_var,
+          line_color_by = input$line_color_by,
+          facet_var = input$facet_var,
+          add_baseline_zero = input$add_baseline_zero,
+          line_linetype = input$line_linetype,
+          time_unit = time_axis_cfg$unit,
+          x_break_step = time_axis_cfg$break_step,
+          size_mode = input$size_mode,
+          export_width_in = size_config()$export_width,
+          export_height_in = size_config()$export_height
+        )
+      )
+    }),
+    apply_state = apply_state
+  )
 }

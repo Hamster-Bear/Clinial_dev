@@ -458,10 +458,21 @@ combo_plot_server <- function(input, output, session, data) {
     }
   )
   
-  return(reactive({
-    list(
-      plot_types = input$plot_types,
-      method = input$combo_method
-    )
-  }))
+  apply_state <- function(state) {
+    graphics_restore_task_input_state(session, state)
+    invisible(TRUE)
+  }
+
+  list(
+    state = reactive({
+      graphics_build_task_state(
+        input,
+        extra_state = list(
+          plot_types = input$plot_types,
+          method = input$combo_method
+        )
+      )
+    }),
+    apply_state = apply_state
+  )
 }

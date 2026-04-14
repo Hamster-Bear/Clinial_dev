@@ -130,9 +130,15 @@ forest_plot_ui <- function(id) {
                   tags$div(class = "panel-heading", "坐标与线条"),
                   tags$div(
                     class = "panel-body",
-                    fluidRow(
-                      column(6, numericInput(ns("x_min"), "X轴下限", value = 0, min = 0, step = 1, width = "100%")),
-                      column(6, numericInput(ns("x_max"), "X轴上限", value = 100, min = 0, step = 1, width = "100%"))
+                    graphics_axis_range_controls_ui(
+                      ns,
+                      min_id = "x_min",
+                      max_id = "x_max",
+                      axis_label = "X轴",
+                      min_value = 0,
+                      max_value = 100,
+                      min_step = 1,
+                      max_step = 1
                     ),
                     graphics_reference_line_ui(
                       ns,
@@ -145,9 +151,14 @@ forest_plot_ui <- function(id) {
                     ),
                     sliderInput(ns("line_width"), "线条粗细", min = 0.5, max = 3, value = 1.2, step = 0.1, width = "100%"),
                     sliderInput(ns("line_height"), "短线长度", min = 0.05, max = 0.3, value = 0.15, step = 0.01, width = "100%"),
-                    fluidRow(
-                      column(6, numericInput(ns("x_axis_decimals"), "X轴小数位数", value = 1, min = 0, max = 5, step = 1, width = "100%")),
-                      column(6, checkboxInput(ns("percentage_format"), "显示百分号(%)", value = FALSE))
+                    graphics_axis_tick_format_controls_ui(
+                      ns,
+                      decimals_id = "x_axis_decimals",
+                      decimals_label = "X轴小数位数",
+                      decimals_value = 1,
+                      percent_id = "percentage_format",
+                      percent_label = "显示百分号(%)",
+                      percent_value = FALSE
                     )
                   )
                 )
@@ -1577,14 +1588,47 @@ forest_plot_server <- function(input, output, session, data) {
     }
   )
   
-  # 返回模块状态（可选）
-  return(reactive({
-    list(
-      subgroup_col = input$subgroup_col,
-      study_col = input$study_col,
-      estimate_col = input$estimate_col,
-      lower_col = input$lower_col,
-      upper_col = input$upper_col
-    )
-  }))
+  apply_state <- function(state) {
+    if (!is.list(state)) return(invisible(FALSE))
+    graphics_restore_task_input_state(session, state)
+    extra_state <- graphics_task_payload_extra_state(state)
+    updateSelectInput(session, "subgroup_col", selected = extra_state$subgroup_col %||% input$subgroup_col)
+    updateSelectInput(session, "study_col", selected = extra_state$study_col %||% input$study_col)
+    updateSelectInput(session, "estimate_col", selected = extra_state$estimate_col %||% input$estimate_col)
+    updateSelectInput(session, "lower_col", selected = extra_state$lower_col %||% input$lower_col)
+    updateSelectInput(session, "upper_col", selected = extra_state$upper_col %||% input$upper_col)
+    if (!is.null(extra_state$plot_title)) updateTextInput(session, "plot_title", value = extra_state$plot_title)
+    if (!is.null(extra_state$x_min)) updateNumericInput(session, "x_min", value = extra_state$x_min)
+    if (!is.null(extra_state$x_max)) updateNumericInput(session, "x_max", value = extra_state$x_max)
+    if (!is.null(extra_state$line_width)) updateSliderInput(session, "line_width", value = extra_state$line_width)
+    if (!is.null(extra_state$line_height)) updateSliderInput(session, "line_height", value = extra_state$line_height)
+    if (!is.null(extra_state$x_axis_decimals)) updateNumericInput(session, "x_axis_decimals", value = extra_state$x_axis_decimals)
+    if (!is.null(extra_state$percentage_format)) updateCheckboxInput(session, "percentage_format", value = isTRUE(extra_state$percentage_format))
+    invisible(TRUE)
+  }
+
+  list(
+    state = reactive({
+      axis_range <- graphics_collect_axis_range_config(input, "x_min", "x_max")
+      axis_tick <- graphics_collect_axis_tick_config(input, decimals_id = "x_axis_decimals", percent_id = "percentage_format")
+      graphics_build_task_state(
+        input,
+        extra_state = list(
+          subgroup_col = input$subgroup_col,
+          study_col = input$study_col,
+          estimate_col = input$estimate_col,
+          lower_col = input$lower_col,
+          upper_col = input$upper_col,
+          plot_title = input$plot_title,
+          x_min = axis_range$min,
+          x_max = axis_range$max,
+          line_width = input$line_width,
+          line_height = input$line_height,
+          x_axis_decimals = axis_tick$decimals,
+          percentage_format = isTRUE(axis_tick$show_percent)
+        )
+      )
+    }),
+    apply_state = apply_state
+  )
 }

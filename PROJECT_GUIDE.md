@@ -351,6 +351,7 @@ AutoTFL/
 | 复现代码 | `graphics_repro.R` | 为图形模块生成可复现代码片段 |
 | UI 壳层 | `statistical_graphics_ui/common_ui_shell.R` | 统一页签容器、导出控件、主按钮样式，以及图形输出居中容器 |
 | 导出 | `plot_export.R` | 图形导出辅助能力 |
+| 任务历史 | `task_history.R` + `account_service.R` | 共享任务历史模块负责保存/加载入口、最近任务列表、用户自定义 note、删除操作与用户友好提示；底层使用 PostgreSQL `analysis_states` 表持久化图形子模块完整参数、UI 状态与模块类型 JSON 快照，不保存图对象、结果对象或原始数据副本 |
 
 ### 7.4 生存分析当前实现口径
 
@@ -377,6 +378,7 @@ AutoTFL/
 - Survival、Spider、Waterfall 当前都已接入统一 Y 轴格式化口径：百分比显示、是否带 `%`、保留小数位数都应优先复用 common 的标签格式化函数。
 - Survival 静态图的主图线条图例与删失图例，当前被视为两个独立辅助图例：内部行距使用同一 `legend_row_gap` 参数，叠加拼接时按照各自真实行数分配 `rel_heights`，不得依赖固定比例常量推断高度。
 - 涉及 `cowplot` / `grid` 组合测量的文本（如 Survival 静态图、辅助图例、风险表）若用户选择 `Arial`，必须先经过 common 的设备安全字体解析并回退为 `sans`；仅依赖 `showtext::font_add()` 不能消除组合阶段的 `PostScript字体数据库里找不到'Arial'` 告警。
+- 森林图、蜘蛛图、泳道图当前已开始复用 common UI 高阶组件收口坐标范围、刻度格式与时间轴单位换算；经典轴线手动画段也已抽到 `graphics_add_classic_axis_segments()`，减少模块内重复 `annotate("segment")` 逻辑。
 
 ## 8. 预设图表实现
 
@@ -431,8 +433,10 @@ AutoTFL/
 | 图例锚点、ratio 滑条与辅助图例摆放 | `graphics_common.R` | `graphics_resolve_inside_anchor()`、`graphics_aux_legend_anchor_controls_ui()`、`graphics_place_aux_legend()`、`graphics_apply_legend_theme()` | 图内锚点必须先归一化；辅助图例位置、统计文本自定义坐标与 x/y/width/height ratio 控件优先复用 common；隐藏图例统一使用 `"none"` |
 | 辅助图例绘制器 | `graphics_common.R` | `graphics_aux_legend_compact_defaults`、`graphics_resolve_device_safe_family()`、`graphics_build_legend_rows()`、`graphics_build_point_legend_plot()`、`graphics_build_line_legend_plot()`、`graphics_compose_stacked_legends()` | 自绘辅助图例的行距、标题间距、外边距、组间 spacer 统一由 common 控制；收紧通用规则为所有图例的每个因子之间保持约一个字符大小的间距，且线条图例与删失图例必须复用同一 row-gap 约束；拼接多个辅助图例时必须按真实行数传入 `primary_rows / secondary_rows`，不得硬编码删失图例高度。涉及 `cowplot/grid` 组合测量的字体需先走 `graphics_resolve_device_safe_family()`，当前 `Arial` 必须回退为 `sans` |
 | 轴线、辅助线与标签格式 | `graphics_common.R` | `graphics_apply_axis_style()`、`graphics_collect_reference_line_spec()`、`graphics_add_reference_lines()`、`graphics_format_percent_labels()`、`graphics_format_number_labels()` | 经典 XY 轴样式、用户可配置辅助线、百分比显示、是否带 `%`、保留小数位数统一走 common；模块内不得各写一套刻度/辅助线拼装逻辑 |
-| 通用 UI 控件 | `common_ui_shell.R` | `graphics_reference_line_ui()`、`graphics_primary_action_button_ui()`、`graphics_font_family_ui()`、`graphics_export_size_controls_ui()`、`graphics_centered_output_container()` | 高度重复的 UI 块（如参考线配置、主按钮、字体族选择、尺寸/导出表单、输出区居中容器）必须复用 common 控件，统一参数收集逻辑 |
+| 通用 UI 控件 | `common_ui_shell.R` | `graphics_reference_line_ui()`、`graphics_primary_action_button_ui()`、`graphics_font_family_ui()`、`graphics_export_size_controls_ui()`、`graphics_centered_output_container()`、`graphics_axis_range_controls_ui()`、`graphics_axis_tick_format_controls_ui()`、`graphics_time_axis_settings_ui()` | 高度重复的 UI 块（如参考线配置、主按钮、字体族选择、尺寸/导出表单、输出区居中容器、坐标范围、刻度格式、时间轴单位换算）必须复用 common 控件，统一参数收集逻辑 |
+| 通用 UI 状态收集 | `common_ui_shell.R` | `graphics_collect_axis_range_config()`、`graphics_collect_axis_tick_config()`、`graphics_collect_time_axis_config()` | server 端若需收集上述 common UI 的值，应优先复用配套收集函数，避免模块内重复拼装输入解析 |
 | 图形尺寸解析 | `graphics_common.R` | `graphics_px_to_in()`、`graphics_in_to_px()`、`graphics_scale_export_height()`、`resolve_plot_size_config()`、`graphics_collect_size_config()`、`graphics_apply_canvas_frame()` | 静态图、交互图、导出尺寸与画布边框/页面距统一从 common 解析；默认保持前端像素尺寸与导出英寸尺寸同步，模块内不得各自硬编码三套尺寸或手写导出高度换算 |
+| 经典坐标轴线段 | `graphics_common.R` | `graphics_add_classic_axis_segments()`、`graphics_apply_axis_style()` | 需要自绘经典轴线或箭头轴线时，优先复用 common 线段拼装函数，避免模块继续复制 `annotate("segment") + lineend = "square"` 逻辑 |
 | 图形说明文字 | `graphics_common.R` | `graphics_mapping_caption_line()`、`graphics_compose_caption()`、`graphics_append_bottom_caption()` | caption 统一由 common 拼接，禁止模块内再拼第二套底部说明逻辑 |
 | 元数据标签与类型 | `data_metadata.R` | `metadata_get_var_label()`、`metadata_get_var_type()`、`metadata_build_column_choices()`、`metadata_attach_to_data()` | 标签解析顺序固定为 `override > metadata表 > 列label > var_name`；元数据变更后必须重新回写到数据对象 |
 | 元数据底层推断 | `data_metadata.R` | `metadata_determine_var_type()`、`metadata_coerce_var_data()`、`metadata_safe_numeric_range()` | 字符变量低基数判定与日期/数值转换规则统一由 common 维护，子模块不得各写一套推断逻辑 |
@@ -448,6 +452,8 @@ AutoTFL/
 - 若现有 common 抽象只差少量参数或枚举，应优先扩展 common 函数签名，不得在子模块包一层同义变体长期并存。
 - 子模块允许存在的特例，只限表现层细节且必须在指南中明确说明边界；一旦第二个模块需要同类能力，必须上提到 common。
 - 新增或改动 common 函数时，至少同步更新本指南中的“可复用函数清单”和相关测试，确保后续开发按同一契约收紧。
+- 任务历史当前采用“共享模块先内嵌、一级导航后置”的演进策略：在统计图形/统计分析形成统一 `state/apply_state` 契约前，不直接迁移为左侧一级菜单。
+- 任务历史载入的本质是“状态快照恢复”：当前由 `task_history.R` 解析 `state_payload`，再调用各业务模块的 `apply_state()` 回填控件；图形模块需尽量覆盖当前子模块全部参数的保存/回填，但是否自动重新生成结果，仍取决于业务模块自身的交互设计。
 
 ## 10. 数据、存储与规范
 
@@ -523,6 +529,7 @@ AutoTFL/
 - 图形公共进度、图例/颜色覆盖与 Waterfall 符号选择。
 - 计算层与渲染层解耦相关回归。
 - Landing 文案、访问控制边界与导入入口文案守卫。
+- 图形任务历史持久化守卫、analysis_states 建表契约、以及 common UI 新增控件。
 
 ### 11.2 当前测试契约
 
@@ -531,6 +538,7 @@ AutoTFL/
 - 图形或统计口径改动优先补“同口径断言”，避免只测 UI 是否渲染成功。
 - `run_app_test.ps1` 依赖 `.env.test`；仓库当前提供 `.env.test.example` 作为测试环境变量模板。若数据库由 `docker-compose1.yml` 拉起，测试端口应使用 `55432`。
 - `run_app_test.ps1` 启动前会读取 `SHINY_PORT`（未设置时默认为 `8109`）；若该端口已被占用，脚本会强制关闭占用进程后再拉起应用（且会妥善处理进程在检测后已自行退出的并发情况）。
+- 当前仓库已补充 `.pre-commit-config.yaml` 与 `.lintr`，用于在提交前串联 `styler`、`lintr` 与 `tests/` 守卫；`install_dependencies.R` 也已纳入 `jsonlite`、`lintr`、`styler`、`shinytest2` 开发依赖入口。
 
 ### 11.3 当前缺口
 
@@ -556,10 +564,10 @@ AutoTFL/
 4. 在现有个人隔离与 workspace 权限基础上，评估组织级、项目级隔离、邮箱验证与共享协作模型。
 5. 在高级方法真正落地后，再补充对应章节与测试。
 6. **UI 状态隔离与响应式重构**：优化图形模块（如森林图）动态渲染配置项时的循环依赖问题，大规模采用 `isolate()` 技巧防止输入过程中的焦点丢失和异常跳出。
-7. **通用 UI 组件 (Common UI Components)**：将各图形模块中高度重复的 UI 块（如坐标与线条配置、导出设置）进一步提取为 `graphics_common_ui.R` 中的高阶组件（Higher-Order Components），并在 server 端统一参数收集逻辑，降低冗余。
-8. **测试工具链引入**：引入 `styler` 和 `lintr` 等代码规范工具，并通过 `pre-commit` 钩子强制执行，避免多文件修改时引入缩进或代码风格不一致的问题；考虑引入 `shinytest2` 针对输入框跳出等复杂 UI 交互状态编写自动化测试。
-9. **分析参数与UI状态持久化**：考察并设计每次分析（如回归模型、生存分析等）自定义参数与UI设置的保存与导入方案。建议在数据库新增 `analysis_states` 表，将 `reactiveValues` 序列化为 JSON 存储，支持用户复用历史分析预设，实现从“单次生成”到“任务资产沉淀”的闭环。
-10. **精细化图形样式控制**：持续修复和统一图形视觉细节（如通过设置 `lineend = "square"` 彻底解决经典坐标轴样式的尾端断裂问题），并将生存分析的时间轴控制（最大值、步长）、统一画布边框和页面距等优秀实践抽象为公共函数，推广至所有时间序列图形（如泳道图、蜘蛛图）。
+7. **通用 UI 组件 (Common UI Components) [已落地]**：已继续以 `common_ui_shell.R` 作为真实承载文件，新增 `graphics_axis_range_controls_ui()`、`graphics_axis_tick_format_controls_ui()`、`graphics_time_axis_settings_ui()` 及配套收集函数；森林图、蜘蛛图、泳道图已开始接入这套高阶组件，持续减少模块私有 UI 冗余。
+8. **测试工具链引入 [已落地]**：已引入 `.pre-commit-config.yaml`、`.lintr`、`styler`、`lintr`、`shinytest2` 依赖入口，并通过 pre-commit 串联格式化、静态检查与 `tests/` 守卫；复杂浏览器级交互测试仍保留给后续 `shinytest2` 场景补齐。
+9. **分析参数与UI状态持久化 [已落地增强中]**：已新增 PostgreSQL `analysis_states` 表，并在 `auth_ensure_schema()` 与 `postgres/init.sql` 双处同步建表；任务历史 UI 现抽离为共享 `task_history` 模块，并先嵌入统计图形页，支持按用户保存/加载图形子模块完整参数、UI 状态、模块类型与用户 note，底层将状态序列化为 JSON 存储，并展示最近任务列表与删除操作。当前保存的是状态快照而非结果对象；载入时由各图形模块按 `state/apply_state` 契约恢复字段。当前 workspace 为空时保存为个人任务；在统计图形与统计分析形成统一契约前，暂不升为左侧一级菜单，统计分析模块接入留待下一轮扩展。
+10. **精细化图形样式控制 [已落地首期]**：已将经典坐标轴线段抽到 `graphics_add_classic_axis_segments()`，并把时间轴单位换算/步长配置继续收敛到 common UI；泳道图与蜘蛛图已开始复用统一时间轴控件，森林图也已收敛坐标范围与刻度格式。其余时间序列图形继续按同一公共契约扩展。
 
 ## 13. 研发治理约束
 

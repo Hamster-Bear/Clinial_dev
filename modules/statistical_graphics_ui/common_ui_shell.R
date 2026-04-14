@@ -163,3 +163,88 @@ graphics_time_axis_controls_ui <- function(ns, slider_id = "time_range_slider", 
     numericInput(ns(step_id), step_label, value = NULL, min = 0, step = 1, width = "100%")
   )
 }
+
+graphics_axis_range_controls_ui <- function(
+  ns,
+  min_id = "x_min",
+  max_id = "x_max",
+  axis_label = "X轴",
+  min_value = 0,
+  max_value = 100,
+  min_step = 1,
+  max_step = 1
+) {
+  fluidRow(
+    column(6, numericInput(ns(min_id), paste0(axis_label, "下限"), value = min_value, step = min_step, width = "100%")),
+    column(6, numericInput(ns(max_id), paste0(axis_label, "上限"), value = max_value, step = max_step, width = "100%"))
+  )
+}
+
+graphics_axis_tick_format_controls_ui <- function(
+  ns,
+  break_id = NULL,
+  break_label = "X轴刻度步长",
+  break_value = 0,
+  break_min = 0,
+  break_step = 0.1,
+  decimals_id = NULL,
+  decimals_label = "X轴小数位数",
+  decimals_value = 1,
+  percent_id = NULL,
+  percent_label = "显示百分号(%)",
+  percent_value = FALSE
+) {
+  controls <- list()
+  if (!is.null(break_id)) {
+    controls[[length(controls) + 1]] <- column(6, numericInput(ns(break_id), break_label, value = break_value, min = break_min, step = break_step, width = "100%"))
+  }
+  if (!is.null(decimals_id)) {
+    controls[[length(controls) + 1]] <- column(if (is.null(break_id)) 6 else 6, numericInput(ns(decimals_id), decimals_label, value = decimals_value, min = 0, max = 5, step = 1, width = "100%"))
+  } else if (!is.null(percent_id)) {
+    controls[[length(controls) + 1]] <- column(if (is.null(break_id)) 6 else 6, checkboxInput(ns(percent_id), percent_label, value = percent_value))
+  }
+  if (!is.null(percent_id) && !is.null(decimals_id)) {
+    controls[[length(controls) + 1]] <- column(if (is.null(break_id)) 6 else 12, checkboxInput(ns(percent_id), percent_label, value = percent_value))
+  }
+  do.call(fluidRow, controls)
+}
+
+graphics_time_axis_settings_ui <- function(
+  ns,
+  unit_id,
+  unit_label = "时间单位换算",
+  unit_choices,
+  selected_unit = NULL,
+  step_id = "x_break_step",
+  step_label = "X轴刻度步长",
+  step_value = 0,
+  step_min = 0,
+  step_step = 0.1
+) {
+  fluidRow(
+    column(6, selectInput(ns(unit_id), unit_label, choices = unit_choices, selected = selected_unit, width = "100%")),
+    column(6, numericInput(ns(step_id), step_label, value = step_value, min = step_min, step = step_step, width = "100%"))
+  )
+}
+
+graphics_collect_axis_range_config <- function(input, min_id = "x_min", max_id = "x_max") {
+  list(
+    min = suppressWarnings(as.numeric(input[[min_id]])),
+    max = suppressWarnings(as.numeric(input[[max_id]]))
+  )
+}
+
+graphics_collect_axis_tick_config <- function(input, break_id = "x_break_step", decimals_id = NULL, percent_id = NULL) {
+  list(
+    break_step = suppressWarnings(as.numeric(input[[break_id]])),
+    decimals = if (!is.null(decimals_id)) suppressWarnings(as.numeric(input[[decimals_id]])) else NULL,
+    show_percent = if (!is.null(percent_id)) isTRUE(input[[percent_id]]) else NULL
+  )
+}
+
+graphics_collect_time_axis_config <- function(input, unit_id = NULL, break_id = "x_break_step") {
+  list(
+    unit = if (!is.null(unit_id)) as.character(input[[unit_id]] %||% "") else NULL,
+    break_step = suppressWarnings(as.numeric(input[[break_id]]))
+  )
+}

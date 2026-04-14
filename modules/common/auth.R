@@ -201,6 +201,25 @@ auth_ensure_schema <- function(pool) {
       ")"
     )
   )
+  DBI::dbExecute(
+    pool,
+    paste(
+      "CREATE TABLE IF NOT EXISTS analysis_states (",
+      "id VARCHAR(50) PRIMARY KEY,",
+      "user_id VARCHAR(50) NOT NULL REFERENCES users(id) ON DELETE CASCADE,",
+      "workspace_id VARCHAR(50) REFERENCES workspaces(id) ON DELETE SET NULL,",
+      "scope VARCHAR(20) NOT NULL DEFAULT 'graphics',",
+      "module_type VARCHAR(50) NOT NULL,",
+      "state_name VARCHAR(255) NOT NULL,",
+      "state_note TEXT,",
+      "state_payload TEXT NOT NULL,",
+      "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,",
+      "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,",
+      "UNIQUE(user_id, workspace_id, scope, module_type, state_name)",
+      ")"
+    )
+  )
+  DBI::dbExecute(pool, "ALTER TABLE analysis_states ADD COLUMN IF NOT EXISTS state_note TEXT")
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_workspaces_owner_user ON workspaces(owner_user_id)")
   DBI::dbExecute(pool, "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email)")
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_folders_workspace ON folders(workspace_id)")
@@ -210,6 +229,9 @@ auth_ensure_schema <- function(pool) {
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_workspace_memberships_user ON workspace_memberships(user_id)")
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_workspace_invites_workspace ON workspace_invites(workspace_id)")
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_workspace_invites_email ON workspace_invites(invited_email)")
+  DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_analysis_states_user_scope ON analysis_states(user_id, scope)")
+  DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_analysis_states_workspace ON analysis_states(workspace_id)")
+  DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_analysis_states_module ON analysis_states(module_type)")
 }
 
 auth_get_user_by_username <- function(pool, username) {

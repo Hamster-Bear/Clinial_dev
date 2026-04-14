@@ -7,7 +7,7 @@ required_packages <- c(
   "waiter", "shinyalert", "scales", "gridExtra", "cowplot", "RColorBrewer",
   "tidyr", "vroom", "memoise", "shinyWidgets", "gtsummary",
   "DBI", "RPostgres", "pool", "rmarkdown", "knitr", "flextable", "officer",
-  "showtext", "sysfonts"
+  "showtext", "sysfonts", "jsonlite"
 )
 
 # 校验依赖包，不在 app.R 内执行安装
@@ -392,7 +392,7 @@ server <- function(input, output, session) {
 
   exploratory_analysis_server("explore", data = filtered_data)
   statistical_analysis_server("stats", data = filtered_data)
-  statistical_graphics_server("plots", data = filtered_data)
+  statistical_graphics_server("plots", data = filtered_data, pg_pool = pg_pool, current_user = current_user)
   tables_server("tables", data = filtered_data)
 
   observe({

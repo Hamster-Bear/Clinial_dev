@@ -511,3 +511,221 @@ service_set_user_db_access_by_email <- function(pool, email, enabled = FALSE) {
   }
   service_set_user_db_access(pool, target_user$id[[1]], enabled = enabled)
 }
+
+service_normalize_analysis_state_scope <- function(scope = "graphics") {
+  scope <- trimws(scope %||% "graphics")
+  if (!(scope %in% c("graphics", "statistics"))) {
+    stop("不支持的分析状态范围")
+  }
+  scope
+}
+
+service_normalize_analysis_state_name <- function(state_name) {
+  if (length(state_name) == 0 || is.null(state_name)) {
+    state_name <- ""
+  } else {
+    state_name <- as.character(state_name[[1]])
+  }
+  state_name <- trimws(state_name)
+  if (!nzchar(state_name)) {
+    stop("请输入任务名称")
+  }
+  state_name
+}
+
+service_normalize_analysis_state_note <- function(state_note = NULL) {
+  if (is.null(state_note) || length(state_note) == 0) {
+    return(NULL)
+  }
+  state_note <- trimws(as.character(state_note[[1]]))
+  if (!nzchar(state_note) || is.na(state_note)) {
+    return(NULL)
+  }
+  state_note
+}
+
+service_analysis_state_db_scalar <- function(value) {
+  if (is.null(value) || length(value) == 0) {
+    return(NA_character_)
+  }
+  value <- value[[1]]
+  if (is.na(value)) {
+    return(NA_character_)
+  }
+  as.character(value)
+}
+
+service_normalize_analysis_state_workspace_id <- function(workspace_id = NULL) {
+  if (is.null(workspace_id) || length(workspace_id) == 0) {
+    return(NULL)
+  }
+  if (is.list(workspace_id) && !is.data.frame(workspace_id)) {
+    if (!is.null(workspace_id$id)) {
+      workspace_id <- workspace_id$id
+    }
+  }
+  if (length(workspace_id) == 0 || is.null(workspace_id)) {
+    return(NULL)
+  }
+  workspace_id <- as.character(workspace_id[[1]])
+  if (!nzchar(trimws(workspace_id)) || is.na(workspace_id)) {
+    return(NULL)
+  }
+  trimws(workspace_id)
+}
+
+service_normalize_analysis_state_payload <- function(payload) {
+  if (is.character(payload) && length(payload) == 1 && nzchar(trimws(payload))) {
+    parsed <- jsonlite::fromJSON(payload, simplifyVector = FALSE)
+    return(jsonlite::toJSON(parsed, auto_unbox = TRUE, null = "null"))
+  }
+  jsonlite::toJSON(payload %||% list(), auto_unbox = TRUE, null = "null")
+}
+
+service_parse_analysis_state_payload <- function(payload_json) {
+  payload_json <- trimws(payload_json %||% "")
+  if (!nzchar(payload_json)) {
+    return(list())
+  }
+  jsonlite::fromJSON(payload_json, simplifyVector = FALSE)
+}
+
+service_build_analysis_state_insert_spec <- function(state_id, user_id, workspace_id, scope, module_type, state_name, state_note, state_payload) {
+  workspace_id <- service_normalize_analysis_state_workspace_id(workspace_id)
+  state_note <- service_normalize_analysis_state_note(state_note)
+  state_note_param <- service_analysis_state_db_scalar(state_note)
+  if (is.null(workspace_id)) {
+    return(list(
+      sql = paste(
+        "INSERT INTO analysis_states",
+        "(id, user_id, workspace_id, scope, module_type, state_name, state_note, state_payload, created_at, updated_at)",
+        "VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, NOW(), NOW())"
+      ),
+      params = list(state_id, user_id, scope, module_type, state_name, state_note_param, state_payload)
+    ))
+  }
+  list(
+    sql = paste(
+      "INSERT INTO analysis_states",
+      "(id, user_id, workspace_id, scope, module_type, state_name, state_note, state_payload, created_at, updated_at)",
+      "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())"
+    ),
+    params = list(state_id, user_id, workspace_id, scope, module_type, state_name, state_note_param, state_payload)
+  )
+}
+
+service_list_analysis_states <- function(pool, user_id, scope = "graphics", module_type = NULL, workspace_id = NULL, match_workspace = TRUE) {
+  if (!nzchar(user_id %||% "")) {
+    return(data.frame())
+  }
+  scope <- service_normalize_analysis_state_scope(scope)
+  workspace_id <- service_normalize_analysis_state_workspace_id(workspace_id)
+  sql <- paste(
+    "SELECT id, user_id, workspace_id, scope, module_type, state_name, state_note, state_payload, created_at, updated_at",
+    "FROM analysis_states WHERE user_id = $1 AND scope = $2"
+  )
+  params <- list(user_id, scope)
+  if (nzchar(module_type %||% "")) {
+    sql <- paste(sql, sprintf("AND module_type = $%d", length(params) + 1))
+    params[[length(params) + 1]] <- module_type
+  }
+  if (isTRUE(match_workspace)) {
+    if (nzchar(workspace_id %||% "")) {
+      sql <- paste(sql, sprintf("AND workspace_id = $%d", length(params) + 1))
+      params[[length(params) + 1]] <- workspace_id
+    } else {
+      sql <- paste(sql, "AND workspace_id IS NULL")
+    }
+  }
+  sql <- paste(sql, "ORDER BY updated_at DESC, created_at DESC")
+  DBI::dbGetQuery(pool, sql, params = params)
+}
+
+service_get_analysis_state <- function(pool, state_id, user_id) {
+  if (!nzchar(state_id %||% "") || !nzchar(user_id %||% "")) {
+    return(data.frame())
+  }
+  DBI::dbGetQuery(
+    pool,
+    paste(
+      "SELECT id, user_id, workspace_id, scope, module_type, state_name, state_note, state_payload, created_at, updated_at",
+      "FROM analysis_states WHERE id = $1 AND user_id = $2 LIMIT 1"
+    ),
+    params = list(state_id, user_id)
+  )
+}
+
+service_delete_analysis_state <- function(pool, state_id, user_id) {
+  if (!nzchar(state_id %||% "") || !nzchar(user_id %||% "")) {
+    return(invisible(0L))
+  }
+  DBI::dbExecute(
+    pool,
+    "DELETE FROM analysis_states WHERE id = $1 AND user_id = $2",
+    params = list(state_id, user_id)
+  )
+}
+
+service_save_analysis_state <- function(pool, user_id, module_type, state_name, payload, scope = "graphics", workspace_id = NULL, state_note = NULL) {
+  if (!nzchar(user_id %||% "")) {
+    stop("缺少用户信息")
+  }
+  if (length(module_type) == 0 || is.null(module_type)) {
+    module_type <- ""
+  } else {
+    module_type <- trimws(as.character(module_type[[1]]))
+  }
+  if (!nzchar(module_type)) {
+    stop("缺少模块类型")
+  }
+  scope <- service_normalize_analysis_state_scope(scope)
+  state_name <- service_normalize_analysis_state_name(state_name)
+  workspace_id <- service_normalize_analysis_state_workspace_id(workspace_id)
+  state_note <- service_normalize_analysis_state_note(state_note)
+  state_payload <- service_normalize_analysis_state_payload(payload)
+  if (is.null(workspace_id)) {
+    existing <- DBI::dbGetQuery(
+      pool,
+      paste(
+        "SELECT id FROM analysis_states",
+        "WHERE user_id = $1 AND scope = $2 AND module_type = $3 AND state_name = $4 AND workspace_id IS NULL",
+        "LIMIT 1"
+      ),
+      params = list(user_id, scope, module_type, state_name)
+    )
+  } else {
+    existing <- DBI::dbGetQuery(
+      pool,
+      paste(
+        "SELECT id FROM analysis_states",
+        "WHERE user_id = $1 AND scope = $2 AND module_type = $3 AND state_name = $4 AND workspace_id = $5",
+        "LIMIT 1"
+      ),
+      params = list(user_id, scope, module_type, state_name, workspace_id)
+    )
+  }
+  if (nrow(existing) > 0) {
+    DBI::dbExecute(
+      pool,
+      paste(
+        "UPDATE analysis_states SET state_payload = $1, state_note = $2, updated_at = NOW()",
+        "WHERE id = $3"
+      ),
+      params = list(state_payload, service_analysis_state_db_scalar(state_note), existing$id[[1]])
+    )
+    return(invisible(existing$id[[1]]))
+  }
+  state_id <- auth_generate_id("ast")
+  insert_spec <- service_build_analysis_state_insert_spec(
+    state_id = state_id,
+    user_id = user_id,
+    workspace_id = workspace_id,
+    scope = scope,
+    module_type = module_type,
+    state_name = state_name,
+    state_note = state_note,
+    state_payload = state_payload
+  )
+  DBI::dbExecute(pool, insert_spec$sql, params = insert_spec$params)
+  invisible(state_id)
+}

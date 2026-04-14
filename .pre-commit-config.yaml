@@ -1,0 +1,18 @@
+repos:
+  - repo: local
+    hooks:
+      - id: r-styler
+        name: r-styler
+        entry: Rscript -e "styler::style_dir('modules'); styler::style_dir('tests'); styler::style_file('app.R'); styler::style_file('run_app.R'); styler::style_file('install_dependencies.R')"
+        language: system
+        pass_filenames: false
+      - id: r-lintr
+        name: r-lintr
+        entry: Rscript -e "results <- c(lintr::lint('app.R'), lintr::lint('run_app.R'), lintr::lint('install_dependencies.R'), lintr::lint_dir('modules'), lintr::lint_dir('tests')); if (length(results) > 0) { print(results); quit(status = 1) }"
+        language: system
+        pass_filenames: false
+      - id: r-testthat-guards
+        name: r-testthat-guards
+        entry: Rscript -e "testthat::test_dir('tests', reporter = 'summary')"
+        language: system
+        pass_filenames: false

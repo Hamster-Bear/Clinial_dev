@@ -14,3 +14,8 @@ test_that("graphics_progress_text 百分比自动截断到 0-100", {
   expect_match(msg_low, "\\(0%\\)")
   expect_match(msg_high, "\\(100%\\)")
 })
+
+test_that("graphics_user_safe_error_message 返回面向用户的友好提示", {
+  msg <- graphics_user_safe_error_message("泳道图")
+  expect_equal(msg, "泳道图生成图形失败，请检查当前参数或数据后重试。")
+})

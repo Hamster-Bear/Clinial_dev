@@ -137,19 +137,19 @@ boxplot_server <- function(input, output, session, data) {
   
   # 显示静态图
   output$static_plot <- renderPlot({
-    validate(need(!is.null(final_plot()), "请先选择变量并点击“生成图形”。"))
+    shiny::validate(shiny::need(!is.null(final_plot()), "请先选择变量并点击“生成图形”。"))
     final_plot()
   }, height = 600)
   
   # 显示交互式图
   output$interactive_plot <- plotly::renderPlotly({
-    validate(need(!is.null(final_plot()), "请先生成箱线图，再查看交互式图。"))
+    shiny::validate(shiny::need(!is.null(final_plot()), "请先生成箱线图，再查看交互式图。"))
     ggplotly(final_plot(), height = 600)
   })
   
   # 显示数据表
   output$data_table <- renderDT({
-    validate(need(!is.null(data()) && nrow(data()) > 0, "当前无可展示的数据。"))
+    shiny::validate(shiny::need(!is.null(data()) && nrow(data()) > 0, "当前无可展示的数据。"))
     datatable(data(), options = list(pageLength = 10, scrollX = TRUE))
   })
   
@@ -170,11 +170,21 @@ boxplot_server <- function(input, output, session, data) {
     }
   )
   
-  # 返回模块状态
-  return(reactive({
-    list(
-      x_var = input$boxplot_x,
-      y_var = input$boxplot_y
-    )
-  }))
+  apply_state <- function(state) {
+    graphics_restore_task_input_state(session, state)
+    invisible(TRUE)
+  }
+
+  list(
+    state = reactive({
+      graphics_build_task_state(
+        input,
+        extra_state = list(
+          x_var = input$boxplot_x,
+          y_var = input$boxplot_y
+        )
+      )
+    }),
+    apply_state = apply_state
+  )
 }

@@ -157,20 +157,20 @@ heatmap_server <- function(input, output, session, data) {
   
   # 显示静态图
   output$static_plot <- renderPlot({
-    validate(need(!is.null(final_plot()), "请先选择变量并点击“生成图形”。"))
+    shiny::validate(shiny::need(!is.null(final_plot()), "请先选择变量并点击“生成图形”。"))
     final_plot()
   }, height = 600)
   
   # 显示交互式图
   output$interactive_plot <- plotly::renderPlotly({
-    validate(need(!is.null(final_plot()), "请先生成热图，再查看交互式图。"))
+    shiny::validate(shiny::need(!is.null(final_plot()), "请先生成热图，再查看交互式图。"))
     ggplotly(final_plot(), height = 600)
   })
   
   # 显示数据表
   output$data_table <- renderDT({
-    validate(need(!is.null(data()) && nrow(data()) > 0, "当前无可展示的数据。"))
-    validate(need(!is.null(input$heatmap_vars) && length(input$heatmap_vars) > 0, "请先选择数值变量。"))
+    shiny::validate(shiny::need(!is.null(data()) && nrow(data()) > 0, "当前无可展示的数据。"))
+    shiny::validate(shiny::need(!is.null(input$heatmap_vars) && length(input$heatmap_vars) > 0, "请先选择数值变量。"))
     
     if (!is.null(input$heatmap_vars)) {
       # 计算相关性矩阵
@@ -206,11 +206,21 @@ heatmap_server <- function(input, output, session, data) {
     }
   )
   
-  # 返回模块状态
-  return(reactive({
-    list(
-      selected_vars = input$heatmap_vars,
-      clustering = input$heatmap_cluster
-    )
-  }))
+  apply_state <- function(state) {
+    graphics_restore_task_input_state(session, state)
+    invisible(TRUE)
+  }
+
+  list(
+    state = reactive({
+      graphics_build_task_state(
+        input,
+        extra_state = list(
+          selected_vars = input$heatmap_vars,
+          clustering = input$heatmap_cluster
+        )
+      )
+    }),
+    apply_state = apply_state
+  )
 }

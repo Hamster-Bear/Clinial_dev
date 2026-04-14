@@ -307,9 +307,101 @@ graphics_notify_success <- function(module_name) {
   showNotification(paste0(module_name, "生成完成"), type = "message")
 }
 
-graphics_notify_error <- function(module_name, err) {
+graphics_user_safe_error_message <- function(module_name, action = "生成图形") {
+  paste0(module_name, action, "失败，请检查当前参数或数据后重试。")
+}
+
+graphics_notify_error <- function(module_name, err, user_message = NULL, action = "生成图形") {
   msg <- if (inherits(err, "error")) conditionMessage(err) else as.character(err)
-  showNotification(paste0(module_name, "生成错误: ", msg), type = "error")
+  message(sprintf("[GraphicsError][%s] %s: %s", module_name, action, msg))
+  showNotification(user_message %||% graphics_user_safe_error_message(module_name, action), type = "error")
+}
+
+graphics_collect_task_input_state <- function(
+  input,
+  exclude_ids = character(0),
+  exclude_patterns = c(
+    "^(render_|refresh_|save_|load_|delete_|confirm_|add_|remove_)",
+    "^(dl_|download_)",
+    "_rows_selected$",
+    "^output_tabs$"
+  )
+) {
+  state <- shiny::reactiveValuesToList(input)
+  if (length(state) == 0) {
+    return(list())
+  }
+  state_names <- names(state)
+  keep <- !(state_names %in% exclude_ids)
+  if (length(exclude_patterns) > 0) {
+    for (pattern in exclude_patterns) {
+      keep <- keep & !grepl(pattern, state_names)
+    }
+  }
+  state[keep]
+}
+
+graphics_build_task_state <- function(input, extra_state = list(), exclude_ids = character(0), exclude_patterns = NULL) {
+  list(
+    task_schema_version = 1,
+    input_state = graphics_collect_task_input_state(
+      input = input,
+      exclude_ids = exclude_ids,
+      exclude_patterns = exclude_patterns %||% c(
+        "^(render_|refresh_|save_|load_|delete_|confirm_|add_|remove_)",
+        "^(dl_|download_)",
+        "_rows_selected$",
+        "^output_tabs$"
+      )
+    ),
+    extra_state = extra_state %||% list()
+  )
+}
+
+graphics_task_payload_input_state <- function(state) {
+  if (is.list(state) && is.list(state$input_state)) {
+    return(state$input_state)
+  }
+  list()
+}
+
+graphics_task_payload_extra_state <- function(state) {
+  if (is.list(state) && is.list(state$extra_state)) {
+    return(state$extra_state)
+  }
+  state %||% list()
+}
+
+graphics_restore_single_input_value <- function(session, input_id, value) {
+  if (!nzchar(input_id %||% "")) {
+    return(invisible(FALSE))
+  }
+  tryCatch({
+    session$sendInputMessage(input_id, list(value = value))
+    TRUE
+  }, error = function(e) {
+    message(sprintf("[GraphicsTaskRestoreWarn][%s] %s", input_id, conditionMessage(e)))
+    FALSE
+  })
+}
+
+graphics_restore_task_input_state <- function(session, state, exclude_ids = character(0), defer = TRUE) {
+  input_state <- graphics_task_payload_input_state(state)
+  if (length(input_state) == 0) {
+    return(invisible(FALSE))
+  }
+  restore_fn <- function() {
+    input_names <- setdiff(names(input_state), exclude_ids)
+    for (input_id in input_names) {
+      graphics_restore_single_input_value(session, input_id, input_state[[input_id]])
+    }
+  }
+  if (isTRUE(defer)) {
+    session$onFlushed(restore_fn, once = TRUE)
+  } else {
+    restore_fn()
+  }
+  invisible(TRUE)
 }
 
 graphics_progress_text <- function(module_name, detail = NULL, value = NULL) {
@@ -723,6 +815,65 @@ graphics_apply_legend_theme <- function(plot_obj, show_legend = TRUE, position =
     return(plot_obj + ggplot2::theme(legend.position = "inside", legend.position.inside = legend_pos, legend.justification = legend_just))
   }
   plot_obj
+}
+
+graphics_add_classic_axis_segments <- function(
+  plot_obj,
+  x_start,
+  x_end,
+  y_start,
+  y_end,
+  arrow = FALSE,
+  linewidth = 0.45,
+  color = "black"
+) {
+  if (is.null(plot_obj)) return(NULL)
+  if (isTRUE(arrow)) {
+    return(
+      plot_obj +
+        ggplot2::annotate(
+          "segment",
+          x = x_start,
+          xend = x_end,
+          y = y_start,
+          yend = y_start,
+          arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"),
+          linewidth = linewidth,
+          color = color
+        ) +
+        ggplot2::annotate(
+          "segment",
+          x = x_start,
+          xend = x_start,
+          y = y_start,
+          yend = y_end,
+          arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"),
+          linewidth = linewidth,
+          color = color
+        )
+    )
+  }
+  plot_obj +
+    ggplot2::annotate(
+      "segment",
+      x = x_start,
+      xend = x_end,
+      y = y_start,
+      yend = y_start,
+      linewidth = linewidth,
+      color = color,
+      lineend = "square"
+    ) +
+    ggplot2::annotate(
+      "segment",
+      x = x_start,
+      xend = x_start,
+      y = y_start,
+      yend = y_end,
+      linewidth = linewidth,
+      color = color,
+      lineend = "square"
+    )
 }
 
 graphics_apply_axis_style <- function(plot_obj, axis_style = "default", arrow_size = 0.15) {

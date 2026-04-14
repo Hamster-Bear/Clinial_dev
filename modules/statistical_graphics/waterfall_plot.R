@@ -903,7 +903,7 @@ waterfall_plot_server <- function(input, output, session, data) {
       main_plot_obj(NULL)
       prepared_data(NULL)
       prepared_track_data(NULL)
-      showNotification(paste("瀑布图生成错误:", e$message), type = "error")
+      graphics_notify_error("瀑布图", e)
     })
   })
 
@@ -945,7 +945,7 @@ waterfall_plot_server <- function(input, output, session, data) {
 
   output$track_table <- renderDT({
     track_df <- prepared_track_data()
-    validate(need(!is.null(track_df), "未选择分组轨道变量"))
+    shiny::validate(shiny::need(!is.null(track_df), "未选择分组轨道变量"))
     out <- track_df %>%
       select(.subject_id, .track_name, .track_value) %>%
       tidyr::pivot_wider(names_from = .track_name, values_from = .track_value)
@@ -979,16 +979,27 @@ waterfall_plot_server <- function(input, output, session, data) {
     }
   )
 
-  return(reactive({
-    list(
-      subject_id = input$subject_id,
-      value_var = input$value_var,
-      color_by = input$bar_color_by,
-      symbol_by = input$symbol_by,
-      tracks = if (is.null(input$tracks)) character(0) else input$tracks,
-      size_mode = input$size_mode,
-      export_width_in = size_config()$export_width,
-      export_height_in = size_config()$export_height
-    )
-  }))
+  apply_state <- function(state) {
+    graphics_restore_task_input_state(session, state)
+    invisible(TRUE)
+  }
+
+  list(
+    state = reactive({
+      graphics_build_task_state(
+        input,
+        extra_state = list(
+          subject_id = input$subject_id,
+          value_var = input$value_var,
+          color_by = input$bar_color_by,
+          symbol_by = input$symbol_by,
+          tracks = if (is.null(input$tracks)) character(0) else input$tracks,
+          size_mode = input$size_mode,
+          export_width_in = size_config()$export_width,
+          export_height_in = size_config()$export_height
+        )
+      )
+    }),
+    apply_state = apply_state
+  )
 }
