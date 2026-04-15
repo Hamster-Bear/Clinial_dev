@@ -376,6 +376,8 @@ AutoTFL/
 
 - Survival、Spider、Waterfall、Swimmer、Forest 已逐步接入 common 图例与统一尺寸/画布能力。
 - Swimmer 保留事件图例的自绘特例，但标题解析、inside-anchor 摆放与 ratio 滑条控件应继续优先复用 common。
+- Swimmer 当前也开始采用 view state 与 committed state 分离的输出口径：点击“生成图形”后，主图、交互图、下方轨道组合高度与导出所依赖的图形参数统一锁定到同一份提交快照，避免生成后继续修改控件导致图形结果与当前面板值漂移；剩余待讨论项应尽量限定在统计/业务语义，而不是状态恢复或 UI 实现分叉。
+- Swimmer 在最后一轮语义收口中继续修正文案与实现边界：`end_desc/end_asc` 当前表示按汇总后的“泳道终点”排序，而不是原始日历结束日期；`track_rel_height` 当前控制的是主图与下方轨道区的相对高度，不是数据表控件本身的高度。
 - Survival 的时间范围滑轴已复用 common 的 `graphics_time_axis_controls_ui()` + `graphics_render_time_range_slider()`；Swimmer 当前也接入同一组件，用于控制主图 X 轴最大显示范围。泳道图在时间映射尚未选定时必须保留该 UI 位置并显示提示，不能因 `req()` 中断而整块空白，任务历史恢复后也要继续回填 `time_range`。
 - Waterfall 与 Swimmer 的符号/颜色分别指定能力已经存在，但仍属于高复杂 UI，后续应继续抽象公共组件。
 - Survival、Spider、Waterfall 当前都已接入统一 Y 轴格式化口径：百分比显示、是否带 `%`、保留小数位数都应优先复用 common 的标签格式化函数。
@@ -511,10 +513,22 @@ AutoTFL/
 - 阶段性收口清单（代表模块）：
   - `spider_plot.R`：普通设置型面板已全部切换到 common；剩余 raw panel `0`。
   - `waterfall_plot.R`：普通设置型面板已全部切换到 common；剩余 raw panel `0`。
-  - `swimmer_plot.R`：普通设置型面板已基本切换到 common；剩余 raw panel `1`，仅保留在“事件变量组”逐行动态面板壳，用于承载按行编号的高动态映射 UI。
-  - `已统一面板`：核心变量映射、显示与图例、文本与标签、配色与布局、坐标与比例、符号与样式、按组样式映射、参考线与阈值最小共享壳、普通排序与显示、普通轨道与缺失值。
-  - `暂保留面板`：高动态事件变量组逐行壳、依赖即时 levels 推断的动态控制块、与绘图算法强耦合的业务配置。
-  - `下一轮优先级`：先评估泳道图事件变量组行壳是否可切换为 `graphics_dynamic_mapping_row_ui()`；若仍涉及行级高动态状态同步，则继续保留并仅做文档约束。
+  - `swimmer_plot.R`：普通设置型面板已全部切换到 common；剩余 raw panel `0`。
+  - `已统一面板`：核心变量映射、显示与图例、文本与标签、配色与布局、坐标与比例、符号与样式、按组样式映射、参考线与阈值最小共享壳、普通排序与显示、普通轨道与缺失值、动态事件变量组逐行壳。
+  - `暂保留面板`：依赖即时 levels 推断的动态控制块、与绘图算法强耦合的业务配置。
+  - `下一轮优先级`：从“继续清 raw panel”转为“清理模块内仍可下沉的 spec/helper 与动态控制桥接层”，优先检查泳道图与瀑布图中的动态控制 helper 是否还能继续压薄。
+- 子模块逐个排查优化当前进度：
+  - `swimmer_plot.R` 第一轮：补齐动态样式任务历史重现，将泳道分别指定颜色、轨道展示方式、轨道颜色映射、事件组颜色/符号模式及其分别指定值纳入 `extra_state`，并在动态 UI 刷新后分阶段回填。
+  - `swimmer_plot.R` 第二轮：收紧 UI 分类与文案边界，明确“轨道默认展示方式”仅作用于新选轨道默认值，“事件总图例标题”作用于事件整体图例层，“轨道总图例标题”只作用于下方分组轨道区；同时补充缺失值/版式影响范围说明。
+  - `swimmer_plot.R` 第三轮：将主图、事件层、下方轨道区、自绘事件图例、底部脚注与静态图高度统一改为只读取点击“生成图形”时捕获的 committed 参数快照；生成后修改线宽、标题、图例位置、轨道占比、缺失值文本或事件样式，不再让已生成结果与当前面板值发生实现漂移。当前剩余未知优先限定为统计/业务概念边界，而不是 UI/状态链路问题。
+  - `swimmer_plot.R` 第四轮：继续收紧已确定的语义文案，将排序中的 `end_desc/end_asc` 明确为“泳道终点”而非原始结束日期，并将 `track_rel_height` 的 UI 文案改为“下方轨道区占比”，明确其影响的是主图与下方轨道区的相对高度，不是数据表页签高度。
+  - `survival_analysis.R` 第一轮：任务历史显式纳入 `strata_labels` 重现；`数据映射` 与 `标题/坐标轴` 先切换到 common 卡片；UI 文案中将“删失值定义”收紧为“状态变量编码含义”，明确其影响的是生存对象构造而非原始数据。
+  - `survival_analysis.R` 第二轮：将 `km_show_censor`、`plot_title`、`plot_caption`、`plot_xlab`、`plot_ylab` 纳入 `committed_params()`，消除“点击生成后又改控件但图局部漂移”的提交态不一致；同时把“曲线/删失点/风险表”和“统计标注与位置”重排为更清晰的参数分组。
+  - `survival_analysis.R` 第三轮：将 `survival_report` 从 `graphics_state` 语义切回 `committed_params()`，并让 `show_median`、`show_stats` 同时约束主图与报告摘要，消除“主图关闭但报告仍显示”的实现不一致。
+  - `survival_analysis.R` 第四轮：将“图例与文字”拆分为“图形与图例文字”和“风险表文字”，避免主图图例、统计标注、风险表字号混放；此轮属于 UI 分类收紧，不改变统计或绘图算法。
+  - `survival_analysis.R` 第五轮：收紧统计语义文案，明确 `surv_median_line` 控制的是中位生存辅助线、`show_median` 控制的是中位生存文本标注、`show_stats` 控制的是 Log-rank 摘要且分层时附加 HR，`overall_group_label` 仅在未分层时生效。
+  - `survival_analysis.R` 第六轮：移除 `base_surv_plot()` 中对 `input$time_range` 的提交态回退；在统计报告的方法解释中明确 HR 参考组；交互图默认标题改为中文，保持主图、交互图与报告的实现说明一致。
+  - `survival_analysis.R` 暂不下沉内容：KM/COX 模型切换、HR 参考组逻辑、风险表算法、参考线绘制语义、分层标签的计算来源。
 - 任务历史保存/恢复要区分“业务输入”与“派生交互输入”：DT 行选择、列过滤、Plotly relayout/hover，以及 `config_tabs` 这类配置页签导航态都不得写入快照；恢复旧任务时若 payload 中仍含这些字段，common 层也必须跳过，避免回填时把表格/交互组件带入异常状态。
 
 ## 10. 数据、存储与规范

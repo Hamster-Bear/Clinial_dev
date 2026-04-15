@@ -231,6 +231,7 @@ test_that("graphics_text_label_panel_ui 生成统一文本与标签卡片", {
     title = "文本与标签",
     fields = list(
       list(list(id = "plot_title", label = "主标题", type = "text", selected = "标题")),
+      list(list(id = "plot_caption", label = "脚注", type = "textarea", selected = "说明", rows = 2)),
       list(
         list(id = "plot_xlab", label = "X轴标签", type = "text", selected = "X", column = 6),
         list(id = "plot_ylab", label = "Y轴标签", type = "text", selected = "Y", column = 6)
@@ -240,6 +241,7 @@ test_that("graphics_text_label_panel_ui 生成统一文本与标签卡片", {
   html_str <- as.character(ui_output)
   expect_match(html_str, "文本与标签")
   expect_match(html_str, 'id="test_module-plot_title"')
+  expect_match(html_str, 'id="test_module-plot_caption"')
   expect_match(html_str, 'id="test_module-plot_xlab"')
   expect_match(html_str, 'id="test_module-plot_ylab"')
 })

@@ -178,6 +178,7 @@ graphics_mapping_field_ui <- function(ns, field_spec) {
     "select" = selectInput(ns(input_id), label, choices = choices, selected = selected, width = width),
     "selectize" = selectizeInput(ns(input_id), label, choices = choices, selected = selected, multiple = multiple, options = options, width = width),
     "text" = textInput(ns(input_id), label, value = selected %||% field_spec$value %||% "", width = width),
+    "textarea" = textAreaInput(ns(input_id), label, value = selected %||% field_spec$value %||% "", rows = field_spec$rows %||% 2, width = width),
     "color" = colourpicker::colourInput(ns(input_id), label, value = selected %||% field_spec$value %||% "#000000", width = width),
     "slider" = sliderInput(
       ns(input_id),

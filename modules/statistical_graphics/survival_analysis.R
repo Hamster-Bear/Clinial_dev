@@ -396,17 +396,18 @@ library(cowplot)
     fluidRow(
       column(
         6,
-        tags$div(
-          class = "panel panel-default",
-          tags$div(class = "panel-heading", "数据映射"),
-          tags$div(
-            class = "panel-body",
-            selectizeInput(ns("km_time"), "时间变量 (数值型)", choices = NULL, width = "100%"),
-            selectizeInput(ns("km_status"), "状态变量 (数值型)", choices = NULL, width = "100%"),
-            fluidRow(
-              column(6, selectizeInput(ns("strata_var"), "分层变量 (分组)", choices = c("无" = "None"), width = "100%")),
-              column(6, selectizeInput(ns("facet_var"), "分面变量 (分组)", choices = c("无" = "None"), width = "100%"))
-            ),
+        graphics_column_mapping_panel_ui(
+          ns,
+          title = "数据映射",
+          fields = list(
+            list(list(id = "km_time", label = tags$span("生存时间变量 [数值]", title = "用于构建 Surv(time, status) 的时间变量"), type = "selectize")),
+            list(list(id = "km_status", label = tags$span("事件状态变量 [数值编码]", title = "二值状态变量，具体 0/1 含义由“状态变量编码含义”指定"), type = "selectize")),
+            list(
+              list(id = "strata_var", label = tags$span("分层变量 [分组，可选]", title = "用于分组绘制 KM 曲线与 HR"), type = "selectize", choices = c("无" = "None"), column = 6),
+              list(id = "facet_var", label = tags$span("分面变量 [分组，可选]", title = "用于拆分多个子图，仅显示一个分面值"), type = "selectize", choices = c("无" = "None"), column = 6)
+            )
+          ),
+          extra_ui = tagList(
             conditionalPanel(
               condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
               uiOutput(ns("hr_reference_ui"))
@@ -420,16 +421,15 @@ library(cowplot)
       ),
       column(
         6,
-        tags$div(
-          class = "panel panel-default",
-          tags$div(class = "panel-heading", "处理与筛选"),
-          tags$div(
-            class = "panel-body",
+        graphics_card_panel_ui(
+          "处理与筛选",
+          tagList(
             radioButtons(
-              ns("km_censor_value"), "删失值定义",
+              ns("km_censor_value"), "状态变量编码含义",
               choices = c("0 = 删失, 1 = 事件" = "0", "1 = 删失, 0 = 事件" = "1"),
               selected = "0", inline = TRUE
             ),
+            helpText("这里定义状态变量中 0/1 的业务含义，不改变原始数据，只影响生存对象构造。"),
             hr(),
             graphics_time_axis_controls_ui(ns)
           )
@@ -446,11 +446,9 @@ library(cowplot)
     fluidRow(
       column(
         6,
-        tags$div(
-          class = "panel panel-default",
-          tags$div(class = "panel-heading", "曲线与风险表"),
-          tags$div(
-            class = "panel-body",
+        graphics_card_panel_ui(
+          "曲线、删失点与风险表",
+          tagList(
             fluidRow(
               column(6, numericInput(ns("line_size"), "线条粗细", value = 0.6, min = 0.1, max = 5, step = 0.1, width = "100%")),
               column(
@@ -462,7 +460,7 @@ library(cowplot)
                 )
               )
             ),
-            checkboxInput(ns("km_show_censor"), "显示删失符号", value = TRUE),
+            checkboxInput(ns("km_show_censor"), "显示删失点", value = TRUE),
             conditionalPanel(
               condition = paste0("input['", ns("km_show_censor"), "'] == true"),
               fluidRow(
@@ -480,32 +478,39 @@ library(cowplot)
             checkboxInput(ns("km_show_risktable"), "显示风险表", value = TRUE),
             conditionalPanel(
               condition = paste0("input['", ns("km_show_risktable"), "'] == true"),
-              fluidRow(
-                column(6, numericInput(ns("risk_table_height_ratio"), "风险表高度比例", value = 0.15, min = 0.1, max = 0.8, step = 0.05, width = "100%")),
-                column(6, numericInput(ns("risk_table_plot_gap"), "主图与表间距(pt)", value = 0, min = 0, max = 100, step = 5, width = "100%"))
-              ),
-              numericInput(ns("risk_table_group_gap"), "风险表组别间隙(Y轴扩展)", value = 1.2, min = 0, max = 2.0, step = 0.1, width = "100%")
+              tagList(
+                helpText("这些设置只影响下方风险表的高度、间距与分组排布。"),
+                fluidRow(
+                  column(6, numericInput(ns("risk_table_height_ratio"), "风险表高度比例", value = 0.15, min = 0.1, max = 0.8, step = 0.05, width = "100%")),
+                  column(6, numericInput(ns("risk_table_plot_gap"), "主图与表间距(pt)", value = 0, min = 0, max = 100, step = 5, width = "100%"))
+                ),
+                numericInput(ns("risk_table_group_gap"), "风险表组别间隙", value = 1.2, min = 0, max = 2.0, step = 0.1, width = "100%")
+              )
             ),
             checkboxInput(ns("show_grid"), "显示网格线", value = FALSE),
-            selectInput(ns("surv_median_line"), "显示中位线", choices = c("无" = "none", "水平和垂直" = "hv", "仅水平" = "h", "仅垂直" = "v"), selected = "none", width = "100%")
+            selectInput(ns("surv_median_line"), "中位生存辅助线", choices = c("无" = "none", "水平和垂直" = "hv", "仅水平" = "h", "仅垂直" = "v"), selected = "none", width = "100%"),
+            helpText("该设置控制主图中的中位生存辅助线；与“显示中位生存时间标注”相互独立。")
           )
         )
       ),
       column(
         6,
-        tags$div(
-          class = "panel panel-default",
-          tags$div(class = "panel-heading", "统计标注"),
-          tags$div(
-            class = "panel-body",
-            checkboxInput(ns("show_median"), "显示中位生存时间", value = TRUE),
-            checkboxInput(ns("show_stats"), "显示统计量(P值/HR)", value = TRUE),
-            textInput(ns("median_label_text"), "中位生存时间文本（默认 mPFS）", value = "mPFS", placeholder = "例如 mPFS / mOS", width = "100%"),
+        graphics_card_panel_ui(
+          "统计标注与位置",
+          tagList(
+            checkboxInput(ns("show_median"), "显示中位生存时间文本标注", value = TRUE),
+            conditionalPanel(
+              condition = paste0("input['", ns("show_median"), "'] == true"),
+              textInput(ns("median_label_text"), "中位生存标签前缀", value = "mPFS", placeholder = "例如 mPFS / mOS", width = "100%"),
+              helpText("用于主图和统计报告中的中位生存时间文本前缀，不控制辅助线显示。")
+            ),
+            checkboxInput(ns("show_stats"), "显示统计摘要（Log-rank P；分层时附加 HR）", value = TRUE),
             selectInput(
-              ns("text_position_preset"), "统计文本位置预设",
+              ns("text_position_preset"), "统计/中位标注位置预设",
               choices = c("自动（默认）" = "auto", "左上" = "top-left", "右上" = "top-right", "左下" = "bottom-left", "右下" = "bottom-right", "自定义" = "custom"),
               selected = "bottom-left", width = "100%"
             ),
+            helpText("该位置预设同时作用于中位生存文本标注和统计摘要文本。"),
             graphics_aux_legend_anchor_controls_ui(
               ns,
               position_id = "text_position_preset",
@@ -544,72 +549,80 @@ library(cowplot)
     fluidRow(
       column(
         6,
-        tags$div(
-          class = "panel panel-default",
-          tags$div(class = "panel-heading", "标题与坐标轴"),
-          tags$div(
-            class = "panel-body",
-            textInput(ns("plot_title"), "主标题", value = "", placeholder = "输入标题", width = "100%"),
-            fluidRow(
-              column(6, numericInput(ns("title_size"), "标题大小", value = 14, min = 8, max = 24, step = 1, width = "100%")),
-              column(6, numericInput(ns("caption_size"), "脚注大小", value = 10, min = 8, max = 20, step = 1, width = "100%"))
+        graphics_text_label_panel_ui(
+          ns,
+          title = "标题与坐标轴",
+          fields = list(
+            list(list(id = "plot_title", label = "主标题", type = "text", selected = "", placeholder = "输入标题")),
+            list(
+              list(id = "title_size", label = "标题大小", type = "numeric", value = 14, min = 8, max = 24, step = 1, column = 6),
+              list(id = "caption_size", label = "脚注大小", type = "numeric", value = 10, min = 8, max = 20, step = 1, column = 6)
             ),
-            textInput(ns("plot_caption"), "脚注", value = "", placeholder = "输入脚注", width = "100%"),
-            fluidRow(
-              column(6, textInput(ns("plot_xlab"), "X轴标签", value = "Duration", width = "100%")),
-              column(6, numericInput(ns("xlab_size"), "X轴字号", value = 12, min = 8, max = 20, step = 1, width = "100%"))
+            list(list(id = "plot_caption", label = "脚注", type = "textarea", selected = "", rows = 2)),
+            list(
+              list(id = "plot_xlab", label = "X轴标签", type = "text", selected = "Duration", column = 6),
+              list(id = "xlab_size", label = "X轴字号", type = "numeric", value = 12, min = 8, max = 20, step = 1, column = 6)
             ),
-            fluidRow(
-              column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%")),
-              column(6, numericInput(ns("ylab_size"), "Y轴字号", value = 12, min = 8, max = 20, step = 1, width = "100%"))
+            list(
+              list(id = "plot_ylab", label = "Y轴标签", type = "text", selected = "", column = 6),
+              list(id = "ylab_size", label = "Y轴字号", type = "numeric", value = 12, min = 8, max = 20, step = 1, column = 6)
             ),
-            fluidRow(
-              column(4, numericInput(ns("y_break_step"), "Y轴步长", value = 0.25, min = 0.05, max = 1, step = 0.05, width = "100%")),
-              column(4, checkboxInput(ns("y_as_percent"), "Y轴显示百分比", value = FALSE)),
-              column(4, conditionalPanel(
-                condition = paste0("input['", ns("y_as_percent"), "'] == true"),
-                checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
-              ))
+            list(
+              list(id = "y_break_step", label = "Y轴步长", type = "numeric", value = 0.25, min = 0.05, max = 1, step = 0.05, column = 4),
+              list(id = "y_as_percent", label = "Y轴显示百分比", type = "checkbox", value = FALSE, column = 4)
             ),
-            numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 2, min = 0, max = 5, step = 1, width = "100%"),
-            selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%")
+            list(list(id = "y_decimals", label = "Y轴保留小数位数", type = "numeric", value = 2, min = 0, max = 5, step = 1)),
+            list(list(id = "axis_style", label = "坐标轴样式", type = "select", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default"))
+          ),
+          extra_ui = conditionalPanel(
+            condition = paste0("input['", ns("y_as_percent"), "'] == true"),
+            checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
           )
         )
       ),
       column(
         6,
-        tags$div(
-          class = "panel panel-default",
-          tags$div(class = "panel-heading", "图例与文字"),
-          tags$div(
-            class = "panel-body",
-            fluidRow(
-              column(4, numericInput(ns("axis_text_size"), "坐标刻度字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
-              column(4, numericInput(ns("legend_text_size"), "图例文本字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
-              column(4, numericInput(ns("stats_text_size"), "统计标注字号", value = 10, min = 6, max = 20, step = 1, width = "100%"))
-            ),
-            fluidRow(
-              column(4, numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1, width = "100%")),
-              column(4, numericInput(ns("risk_table_fontsize"), "风险表数字字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
-              column(4, tags$div(style = "margin-top: 25px;", checkboxInput(ns("risk_table_fontbold"), "风险表数字加粗", value = FALSE)))
-            ),
-            numericInput(ns("legend_row_gap"), "图例行间距(row_gap)", value = 1.0, min = 0.1, max = 3.0, step = 0.1, width = "100%"),
-            graphics_font_family_ui(ns, id = "base_family"),
-            graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "corners_aux_none", default_position = "top-right"),
-            graphics_aux_legend_anchor_controls_ui(
-              ns,
-              position_id = "legend_position",
-              x_ratio_id = "legend_x_ratio",
-              y_ratio_id = "legend_y_ratio",
-              width_ratio_id = "legend_width_ratio",
-              height_ratio_id = "legend_height_ratio",
-              default_anchor = .survival_aux_legend_compact_spec$default_inside_anchor,
-              condition_positions = "inside_custom"
-            ),
-            conditionalPanel(
-              condition = paste0("input['", ns("strata_var"), "'] == 'None'"),
-              textInput(ns("overall_group_label"), "总体分组标签", value = "all", width = "100%"),
-              helpText("未分层时统一用于主图图例、风险表、数据表与统计报告")
+        tagList(
+          graphics_card_panel_ui(
+            "图形与图例文字",
+            tagList(
+              fluidRow(
+                column(4, numericInput(ns("axis_text_size"), "坐标刻度字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+                column(4, numericInput(ns("legend_text_size"), "图例文本字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+                column(4, numericInput(ns("stats_text_size"), "统计标注字号", value = 10, min = 6, max = 20, step = 1, width = "100%"))
+              ),
+              numericInput(ns("legend_row_gap"), "图例行间距(row_gap)", value = 1.0, min = 0.1, max = 3.0, step = 0.1, width = "100%"),
+              graphics_font_family_ui(ns, id = "base_family"),
+              graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "corners_aux_none", default_position = "top-right"),
+              graphics_aux_legend_anchor_controls_ui(
+                ns,
+                position_id = "legend_position",
+                x_ratio_id = "legend_x_ratio",
+                y_ratio_id = "legend_y_ratio",
+                width_ratio_id = "legend_width_ratio",
+                height_ratio_id = "legend_height_ratio",
+                default_anchor = .survival_aux_legend_compact_spec$default_inside_anchor,
+                condition_positions = "inside_custom"
+              ),
+              conditionalPanel(
+                condition = paste0("input['", ns("strata_var"), "'] == 'None'"),
+                textInput(ns("overall_group_label"), "总体组显示名称", value = "all", width = "100%"),
+                helpText("仅在未分层时生效；统一用于主图图例、风险表、数据表与统计报告。分层后的组名请在“输出与导出”页签中逐项设置。")
+              )
+            )
+          ),
+          graphics_card_panel_ui(
+            "风险表文字",
+            tagList(
+              helpText("这些设置只影响风险表与其分组标签，不影响主图图例与统计标注。"),
+              conditionalPanel(
+                condition = paste0("input['", ns("km_show_risktable"), "'] == true"),
+                fluidRow(
+                  column(4, numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+                  column(4, numericInput(ns("risk_table_fontsize"), "风险表数字字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+                  column(4, tags$div(style = "margin-top: 25px;", checkboxInput(ns("risk_table_fontbold"), "风险表数字加粗", value = FALSE)))
+                )
+              )
             )
           )
         )
@@ -706,6 +719,7 @@ survival_analysis_server <- function(input, output, session, data) {
     km_status = NULL,
     time_range = NULL,
     km_censor_value = "0",
+    km_show_censor = TRUE,
     km_strata = "None",
     km_facet = "None",
     km_facet_values = NULL,
@@ -754,7 +768,11 @@ survival_analysis_server <- function(input, output, session, data) {
     median_label_text = "mPFS",
     hr_reference = NULL,
     strata_labels = list(),
-    overall_group_label = "all"
+    overall_group_label = "all",
+    plot_title = "",
+    plot_caption = "",
+    plot_xlab = "Duration",
+    plot_ylab = ""
   )
   view_state <- reactiveValues(
     km_time = NULL,
@@ -1000,6 +1018,7 @@ survival_analysis_server <- function(input, output, session, data) {
           km_facet = km_facet,
           km_facet_values = km_facet_values,
           km_censor_value = input$km_censor_value,
+          km_show_censor = input$km_show_censor,
           km_show_risktable = input$km_show_risktable,
           risk_table_height_ratio = input$risk_table_height_ratio,
           risk_table_plot_gap = input$risk_table_plot_gap,
@@ -1046,7 +1065,11 @@ survival_analysis_server <- function(input, output, session, data) {
           median_label_text = .resolve_survival_median_label(input$median_label_text, "mPFS"),
           hr_reference = input$hr_reference,
           strata_labels = strata_labels,
-          overall_group_label = overall_group_label
+          overall_group_label = overall_group_label,
+          plot_title = input$plot_title,
+          plot_caption = input$plot_caption,
+          plot_xlab = input$plot_xlab,
+          plot_ylab = input$plot_ylab
         )
         graphics_state$km_time <- params$km_time
         graphics_state$km_status <- params$km_status
@@ -1055,6 +1078,7 @@ survival_analysis_server <- function(input, output, session, data) {
         graphics_state$km_facet <- params$km_facet
         graphics_state$km_facet_values <- params$km_facet_values
         graphics_state$km_censor_value <- params$km_censor_value
+        graphics_state$km_show_censor <- params$km_show_censor
         graphics_state$km_show_risktable <- params$km_show_risktable
         graphics_state$risk_table_height_ratio <- params$risk_table_height_ratio
         graphics_state$risk_table_plot_gap <- params$risk_table_plot_gap
@@ -1097,6 +1121,10 @@ survival_analysis_server <- function(input, output, session, data) {
         graphics_state$hr_reference <- params$hr_reference
         graphics_state$strata_labels <- params$strata_labels
         graphics_state$overall_group_label <- params$overall_group_label
+        graphics_state$plot_title <- params$plot_title
+        graphics_state$plot_caption <- params$plot_caption
+        graphics_state$plot_xlab <- params$plot_xlab
+        graphics_state$plot_ylab <- params$plot_ylab
         committed_params(params)
         graphics_progress_update(progress_id, "生存分析", "模型拟合", 0.55)
         incProgress(0.35, detail = "Fitting survival model")
@@ -1384,8 +1412,6 @@ survival_analysis_server <- function(input, output, session, data) {
     overall_label <- params$overall_group_label %||% "all"
     time_range <- if (!is.null(params$time_range) && length(params$time_range) == 2) {
       suppressWarnings(as.numeric(params$time_range))
-    } else if (!is.null(input$time_range) && length(input$time_range) == 2) {
-      suppressWarnings(as.numeric(input$time_range))
     } else {
       time_max <- max(data[[time_var_name]], na.rm = TRUE)
       c(0, time_max + 30)
@@ -1546,7 +1572,7 @@ survival_analysis_server <- function(input, output, session, data) {
       }
     }
     censor_legend_plot <- NULL
-    if (input$km_show_censor) {
+    if (isTRUE(params$km_show_censor)) {
       surv_data <- surv_summary(fit_local)
       censored_points <- surv_data[surv_data$n.censor > 0, ]
       if (nrow(censored_points) > 0) {
@@ -1662,16 +1688,16 @@ survival_analysis_server <- function(input, output, session, data) {
         legend.text = element_text(size = params$legend_text_size)
       )
     p$plot <- graphics_apply_axis_style(p$plot, params$axis_style %||% "default", arrow_size = 0.15)
-    if (!is.null(input$plot_title) && input$plot_title != "") {
-      p$plot <- p$plot + labs(title = gsub("\\\\n", "\n", input$plot_title))
+    if (!is.null(params$plot_title) && nzchar(params$plot_title %||% "")) {
+      p$plot <- p$plot + labs(title = gsub("\\\\n", "\n", params$plot_title))
     }
-    if (!is.null(input$plot_xlab) && input$plot_xlab != "") {
-      p$plot <- p$plot + labs(x = gsub("\\\\n", "\n", input$plot_xlab))
+    if (!is.null(params$plot_xlab) && nzchar(params$plot_xlab %||% "")) {
+      p$plot <- p$plot + labs(x = gsub("\\\\n", "\n", params$plot_xlab))
     } else {
       p$plot <- p$plot + labs(x = time_var_name)
     }
-    if (!is.null(input$plot_ylab) && input$plot_ylab != "") {
-      p$plot <- p$plot + labs(y = gsub("\\\\n", "\n", input$plot_ylab))
+    if (!is.null(params$plot_ylab) && nzchar(params$plot_ylab %||% "")) {
+      p$plot <- p$plot + labs(y = gsub("\\\\n", "\n", params$plot_ylab))
     } else {
       p$plot <- p$plot + labs(y = "Survival Probability")
     }
@@ -1741,12 +1767,12 @@ survival_analysis_server <- function(input, output, session, data) {
       risk_ratio <- params$risk_table_height_ratio %||% 0.15
       plot_ratio <- 1 - risk_ratio
       
-      if (!is.null(input$plot_caption) && input$plot_caption != "") {
-        formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
+      if (!is.null(params$plot_caption) && nzchar(params$plot_caption %||% "")) {
+        formatted_caption <- gsub("\\\\n", "\n", params$plot_caption)
         caption_plot <- ggplot() +
           theme_void() +
           labs(caption = formatted_caption) +
-          theme(plot.caption = element_text(hjust = 0, vjust = 0, size = input$caption_size, family = plot_family))
+          theme(plot.caption = element_text(hjust = 0, vjust = 0, size = params$caption_size, family = plot_family))
         
         plot_list <- c(plot_list, list(caption_plot))
         rel_heights <- c(plot_ratio, risk_ratio, 0.08)
@@ -1772,10 +1798,10 @@ survival_analysis_server <- function(input, output, session, data) {
       }
       combined_plot
     } else {
-      if (!is.null(input$plot_caption) && input$plot_caption != "") {
-        formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
+      if (!is.null(params$plot_caption) && nzchar(params$plot_caption %||% "")) {
+        formatted_caption <- gsub("\\\\n", "\n", params$plot_caption)
         p$plot <- p$plot + labs(caption = formatted_caption) +
-          theme(plot.caption = element_text(hjust = 0, vjust = 1, size = input$caption_size, family = plot_family))
+          theme(plot.caption = element_text(hjust = 0, vjust = 1, size = params$caption_size, family = plot_family))
       }
       if (!is.null(legend_bundle$legend_plot) && !identical(legend_bundle$layout$position, "none")) {
         p$plot <- graphics_place_aux_legend(
@@ -1837,19 +1863,19 @@ survival_analysis_server <- function(input, output, session, data) {
     
     # 交互式图不需要网格和复杂的自定义主题边框，但这里我们保留大部分原有设置
     # 处理标题（如果之前未自定义，添加默认交互式标题）
-    if (is.null(input$plot_title) || input$plot_title == "") {
+    if (is.null(params$plot_title) || !nzchar(params$plot_title %||% "")) {
       if (params$km_facet != "None" && !is.null(params$km_facet_values)) {
-        p <- p + labs(title = paste("Interactive Survival Plot -", params$km_facet, "=", params$km_facet_values))
+        p <- p + labs(title = paste("交互式生存曲线 -", params$km_facet, "=", params$km_facet_values))
       } else {
-        p <- p + labs(title = "Interactive Survival Plot")
+        p <- p + labs(title = "交互式生存曲线")
       }
     }
     
     # 处理脚注（直接加到主图）
-    if (!is.null(input$plot_caption) && input$plot_caption != "") {
-      formatted_caption <- gsub("\\\\n", "\n", input$plot_caption)
+    if (!is.null(params$plot_caption) && nzchar(params$plot_caption %||% "")) {
+      formatted_caption <- gsub("\\\\n", "\n", params$plot_caption)
       p <- p + labs(caption = formatted_caption) +
-        theme(plot.caption = element_text(hjust = 0, vjust = 1, size = 10, family = plot_family))
+        theme(plot.caption = element_text(hjust = 0, vjust = 1, size = params$caption_size %||% 10, family = plot_family))
     }
     
     return(p)
@@ -1950,36 +1976,55 @@ survival_analysis_server <- function(input, output, session, data) {
   
   output$survival_report <- renderUI({
     req(input$render_km_plot)
+    params <- committed_params()
+    req(params)
     data_local <- committed_filtered_data()
     shiny::validate(shiny::need(!is.null(fit()) && !is.null(data_local) && nrow(data_local) > 0, "请先生成生存曲线后查看统计报告。"))
-    shiny::validate(shiny::need(!is.null(graphics_state$km_time) && !is.null(graphics_state$km_status), "请先选择时间与状态变量。"))
+    shiny::validate(shiny::need(!is.null(params$km_time) && !is.null(params$km_status), "请先选择时间与状态变量。"))
     
     fit_local <- fit()
     
     method_desc <- paste0(
       "当前采用 Kaplan-Meier 方法估计生存函数；删失定义为 ",
-      ifelse(graphics_state$km_censor_value == "0", "0=删失, 1=事件", "1=删失, 0=事件"),
+      ifelse(params$km_censor_value == "0", "0=删失, 1=事件", "1=删失, 0=事件"),
       "。"
     )
     
-    if (!is.null(graphics_state$km_strata) && graphics_state$km_strata != "None") {
+    if (!is.null(params$km_strata) && params$km_strata != "None") {
       method_desc <- paste0(
         method_desc,
         " 分层变量为 ",
-        graphics_state$km_strata,
+        params$km_strata,
         "，比较各组生存曲线差异。"
       )
+      if (isTRUE(params$show_stats)) {
+        reference_level <- if (!is.null(params$hr_reference) && params$hr_reference != "auto") {
+          params$hr_reference
+        } else {
+          strata_vals <- unique(as.character(data_local[[params$km_strata]]))
+          strata_vals <- strata_vals[!is.na(strata_vals) & nzchar(strata_vals)]
+          if (length(strata_vals) > 0) strata_vals[[1]] else NULL
+        }
+        if (!is.null(reference_level) && nzchar(reference_level)) {
+          reference_label <- if (reference_level %in% names(params$strata_labels) && nzchar(params$strata_labels[[reference_level]] %||% "")) {
+            params$strata_labels[[reference_level]]
+          } else {
+            reference_level
+          }
+          method_desc <- paste0(method_desc, " 统计摘要中的 HR 以“", reference_label, "”作为参考组。")
+        }
+      }
     } else {
       method_desc <- paste0(method_desc, " 未设置分层变量，输出总体生存曲线。")
     }
     
-    if (!is.null(graphics_state$km_facet) && graphics_state$km_facet != "None" && !is.null(graphics_state$km_facet_values) && graphics_state$km_facet_values != "") {
+    if (!is.null(params$km_facet) && params$km_facet != "None" && !is.null(params$km_facet_values) && params$km_facet_values != "") {
       method_desc <- paste0(
         method_desc,
         " 当前分面筛选：",
-        graphics_state$km_facet,
+        params$km_facet,
         " = ",
-        graphics_state$km_facet_values,
+        params$km_facet_values,
         "。"
       )
     }
@@ -1989,39 +2034,46 @@ survival_analysis_server <- function(input, output, session, data) {
     med <- stats_results()$median_surv
     n_groups <- if (is.null(fit_local$strata)) 1 else length(fit_local$strata)
     median_lines <- character(0)
-    if (!is.null(med) && nrow(med) > 0) {
+    if (isTRUE(params$show_median) && !is.null(med) && nrow(med) > 0) {
       for (i in seq_len(nrow(med))) {
-        display_label <- .format_survival_group_label(med$strata[i], graphics_state$km_strata, graphics_state$strata_labels, graphics_state$overall_group_label)
+        display_label <- .format_survival_group_label(med$strata[i], params$km_strata, params$strata_labels, params$overall_group_label)
         median_lines <- c(
           median_lines,
           .build_survival_median_summary_label(
             display_strata = display_label,
-            median_label = graphics_state$median_label_text,
+            median_label = params$median_label_text,
             median_txt = ifelse(is.finite(med$median[i]), formatC(med$median[i], format = "f", digits = 1), "NR"),
             lower_txt = ifelse(is.finite(med$lower[i]), formatC(med$lower[i], format = "f", digits = 1), "NA"),
             upper_txt = ifelse(is.finite(med$upper[i]), formatC(med$upper[i], format = "f", digits = 1), "NA"),
-            overall_label = graphics_state$overall_group_label
+            overall_label = params$overall_group_label
           )
         )
       }
     }
     
-    hr_lines <- stats_results()$hr_lines
+    hr_lines <- if (isTRUE(params$show_stats)) stats_results()$hr_lines else character(0)
     
     interpretation <- character(0)
     interpretation <- c(
       interpretation,
       paste0(
         "纳入样本量：", nrow(data_local),
-        "；时间变量：", graphics_state$km_time,
-        "；状态变量：", graphics_state$km_status, "。"
+        "；时间变量：", params$km_time,
+        "；状态变量：", params$km_status, "。"
       )
     )
     
-    interpretation <- c(interpretation, .build_survival_logrank_interpretation(logrank_p, n_groups = n_groups))
+    if (isTRUE(params$show_stats)) {
+      interpretation <- c(interpretation, .build_survival_logrank_interpretation(logrank_p, n_groups = n_groups))
+    }
     
     if (length(hr_lines) > 0) {
       interpretation <- c(interpretation, "Cox 回归结果显示不同分层水平相对风险的方向和强度可由 HR 与其95%CI 综合判断：95%CI 不跨 1 通常提示统计学差异。")
+    }
+    
+    summary_items <- c(median_lines, hr_lines)
+    if (length(summary_items) == 0) {
+      summary_items <- "当前已关闭中位生存时间标注与统计摘要显示。"
     }
     
     tagList(
@@ -2031,13 +2083,7 @@ survival_analysis_server <- function(input, output, session, data) {
         tags$p(method_desc),
         tags$hr(),
         tags$h4("结果摘要"),
-        tags$ul(lapply(median_lines, tags$li)),
-        if (length(hr_lines) > 0) {
-          tagList(
-            tags$p(tags$b("Cox 风险比结果：")),
-            tags$ul(lapply(hr_lines, tags$li))
-          )
-        },
+        tags$ul(lapply(summary_items, tags$li)),
         tags$hr(),
         tags$h4("智能统计解释"),
         tags$ul(lapply(interpretation, tags$li))
@@ -2083,6 +2129,7 @@ survival_analysis_server <- function(input, output, session, data) {
     if (!is.null(extra_state$strata_var)) view_state$km_strata <- extra_state$strata_var
     if (!is.null(extra_state$facet_var)) view_state$km_facet <- extra_state$facet_var
     if (!is.null(extra_state$facet_value)) view_state$km_facet_values <- extra_state$facet_value
+    if (is.list(extra_state$strata_labels)) graphics_state$strata_labels <- extra_state$strata_labels
     if (!is.null(extra_state$overall_group_label)) view_state$overall_group_label <- extra_state$overall_group_label
     updateSelectizeInput(session, "km_time", selected = extra_state$time_var %||% input$km_time, server = TRUE)
     updateSelectizeInput(session, "km_status", selected = extra_state$status_var %||% input$km_status, server = TRUE)
@@ -2090,6 +2137,14 @@ survival_analysis_server <- function(input, output, session, data) {
     updateSelectizeInput(session, "strata_var", selected = extra_state$strata_var %||% input$strata_var, server = TRUE)
     updateSelectizeInput(session, "facet_var", selected = extra_state$facet_var %||% input$facet_var, server = TRUE)
     if (!is.null(extra_state$overall_group_label)) updateTextInput(session, "overall_group_label", value = extra_state$overall_group_label)
+    if (is.list(extra_state$strata_labels) && length(extra_state$strata_labels) > 0) {
+      session$onFlushed(function() {
+        for (label_name in names(extra_state$strata_labels)) {
+          input_id <- .survival_strata_label_input_id(label_name)
+          updateTextInput(session, input_id, value = extra_state$strata_labels[[label_name]] %||% "")
+        }
+      }, once = TRUE)
+    }
     if (!is.null(extra_state$facet_value) && nzchar(extra_state$facet_value %||% "")) {
       session$onFlushed(function() {
         updateSelectInput(session, "facet_value", selected = extra_state$facet_value)
@@ -2115,6 +2170,7 @@ survival_analysis_server <- function(input, output, session, data) {
           strata_var = graphics_state$km_strata %||% input$strata_var,
           facet_var = graphics_state$km_facet %||% input$facet_var,
           facet_value = graphics_state$km_facet_values %||% input$facet_value,
+          strata_labels = graphics_state$strata_labels %||% list(),
           overall_group_label = graphics_state$overall_group_label %||% input$overall_group_label
         )
       )

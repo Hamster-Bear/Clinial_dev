@@ -70,15 +70,17 @@ swimmer_plot_ui <- function(id) {
                       choices = c(
                         "随访时长-降序" = "duration_desc",
                         "随访时长-升序" = "duration_asc",
-                        "结束时间-降序" = "end_desc",
-                        "结束时间-升序" = "end_asc",
+                        "泳道终点-降序" = "end_desc",
+                        "泳道终点-升序" = "end_asc",
                         "受试者ID" = "subject"
                       ),
                       selected = "duration_desc",
                       width = "100%"
                     ),
-                    selectInput(ns("track_mode"), "轨道默认展示方式", choices = c("颜色填充" = "color", "文本填充" = "text"), selected = "color", width = "100%"),
+                    helpText("排序基于每位受试者汇总后的主泳道长度或绘图终点位置；若使用日期型起止时间，这里的“泳道终点”指换算后的随访终点位置，而不是原始日历日期。"),
                     checkboxInput(ns("show_tracks"), "显示下方分组轨道", TRUE),
+                    selectInput(ns("track_mode"), "轨道默认展示方式", choices = c("颜色填充" = "color", "文本填充" = "text"), selected = "color", width = "100%"),
+                    helpText("这里设置的是新选轨道的默认展示方式；下方“分组轨道展示方式”可对每条轨道分别改成颜色填充或文本填充。"),
                     uiOutput(ns("track_mode_controls")),
                     uiOutput(ns("track_color_controls"))
                   )
@@ -175,7 +177,7 @@ swimmer_plot_ui <- function(id) {
                         list(list(id = "event_palette", label = "事件调色板", type = "select", choices = c("默认Hue" = "hue", "Set1" = "Set1", "Set2" = "Set2", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"), selected = "Set1")),
                         list(list(id = "auto_mapping_caption", label = "自动追加样式脚注", type = "checkbox", value = TRUE)),
                         list(list(id = "event_legend_position", label = "事件图例位置", type = "select", choices = graphics_legend_position_choices("aux"), selected = "right")),
-                        list(list(id = "event_legend_title", label = "事件图例层标题(可选)", type = "text", selected = ""))
+                        list(list(id = "event_legend_title", label = "事件总图例标题(可选)", type = "text", selected = ""))
                       ),
                       prepend_ui = numericInput(ns("event_symbol_seed"), "随机符号种子", value = 2026, min = 1, step = 1, width = "100%"),
                       extra_ui = graphics_aux_legend_anchor_controls_ui(
@@ -186,7 +188,8 @@ swimmer_plot_ui <- function(id) {
                         width_ratio_id = "event_legend_width_ratio",
                         height_ratio_id = "event_legend_height_ratio",
                         default_anchor = c(0.95, 0.85, 0.13, 0.14)
-                      )
+                      ),
+                      help_text = "这里控制事件图例整体层级；每个事件变量组自己的图例标题在“事件映射”中逐组设置。"
                     )
                   ),
                   column(
@@ -231,12 +234,13 @@ swimmer_plot_ui <- function(id) {
                       "轨道显示",
                       tagList(
                         colourpicker::colourInput(ns("track_text_bg_color"), "轨道文本底色", value = "#F7F7F7", width = "100%"),
-                        textInput(ns("track_legend_title"), "轨道图例标题", value = "轨道分组", width = "100%"),
+                        textInput(ns("track_legend_title"), "轨道总图例标题", value = "轨道分组", width = "100%"),
                         checkboxInput(ns("track_compact_mode"), "轨道紧凑模式", TRUE),
                         fluidRow(
                           column(6, sliderInput(ns("track_tile_height"), "轨道方框高度", min = 0.1, max = 1.4, value = 0.65, step = 0.05, width = "100%")),
                           column(6, sliderInput(ns("track_row_spacing"), "轨道行间距", min = 0, max = 0.8, value = 0.08, step = 0.02, width = "100%"))
-                        )
+                        ),
+                        helpText("这里控制下方分组轨道区的显示方式与总图例标题，不影响泳道主图的颜色分组图例。")
                       )
                     )
                   ),
@@ -250,11 +254,12 @@ swimmer_plot_ui <- function(id) {
                           condition = sprintf("input['%s'] === 'custom'", ns("missing_display_mode")),
                           textInput(ns("missing_display_custom"), "自定义空值文本", value = "NA", width = "100%")
                         ),
-                        sliderInput(ns("track_rel_height"), "下方表格占比", min = 0.5, max = 4, value = 0.5, step = 0.1, width = "100%"),
+                        sliderInput(ns("track_rel_height"), "下方轨道区占比", min = 0.5, max = 4, value = 0.5, step = 0.1, width = "100%"),
                         fluidRow(
                           column(6, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%")),
                           column(6, graphics_font_family_ui(ns, id = "base_family"))
-                        )
+                        ),
+                        helpText("“空值显示方式”影响轨道和数据表中的缺失文本；“下方轨道区占比”和“全局字号”影响主图与下方轨道区的版式比例。")
                       )
                     )
                   )
@@ -323,19 +328,31 @@ swimmer_plot_server <- function(input, output, session, data) {
     if (length(y) == 0) default else as.character(y[[1]])
   }
 
-  get_missing_text <- function() {
-    mode <- input$missing_display_mode %||% "na"
+  normalize_time_range <- function(x) {
+    if (is.null(x) || length(x) != 2) {
+      return(NULL)
+    }
+    range_num <- suppressWarnings(as.numeric(x))
+    if (any(is.na(range_num)) || any(!is.finite(range_num))) {
+      return(NULL)
+    }
+    range_num
+  }
+
+  get_missing_text <- function(params = NULL) {
+    mode <- params$missing_display_mode %||% input$missing_display_mode %||% "na"
+    custom_value <- params$missing_display_custom %||% input$missing_display_custom %||% "NA"
     if (mode == "blank") return("")
     if (mode == "none") return("无")
     if (mode == "dash") return("-")
-    if (mode == "custom") return(input$missing_display_custom %||% "NA")
+    if (mode == "custom") return(custom_value)
     "NA"
   }
 
-  format_missing_vec <- function(x) {
+  format_missing_vec <- function(x, params = NULL) {
     x_chr <- as.character(x)
     miss_idx <- is.na(x) | is.na(x_chr) | !nzchar(trimws(x_chr))
-    x_chr[miss_idx] <- get_missing_text()
+    x_chr[miss_idx] <- get_missing_text(params)
     x_chr
   }
 
@@ -363,6 +380,7 @@ swimmer_plot_server <- function(input, output, session, data) {
   )
   event_map_count <- reactiveVal(1)
   event_ui_state <- reactiveVal(list())
+  committed_params <- reactiveVal(NULL)
 
   state_get <- function(i, key, default = NULL) {
     st <- event_ui_state()
@@ -393,6 +411,240 @@ swimmer_plot_server <- function(input, output, session, data) {
       st_old <- st_old[seq_len(n_maps)]
     }
     event_ui_state(st_new)
+  }
+
+  capture_lane_manual_color_values <- function(df_current = NULL) {
+    if (!identical(input$lane_color_mode %||% "palette", "manual_each")) {
+      return(list())
+    }
+    if (is.null(df_current)) {
+      df_current <- data()
+    }
+    if (is.null(df_current)) {
+      return(list())
+    }
+    lane_color_source <- graphics_resolve_mapping_var(input$lane_color_by, input$subject_id, names(df_current), enable_fallback = TRUE)
+    if (is.null(lane_color_source) || !nzchar(lane_color_source) || !(lane_color_source %in% names(df_current))) {
+      return(list())
+    }
+    levels <- unique(as.character(df_current[[lane_color_source]]))
+    levels <- levels[!is.na(levels) & nzchar(levels)]
+    levels <- head(levels, 12)
+    setNames(
+      lapply(levels, function(lv) input[[paste0("lane_col_", digest::digest(lv, algo = "crc32"))]] %||% NULL),
+      levels
+    )
+  }
+
+  capture_track_mode_map <- function(selected_tracks = NULL) {
+    selected_tracks <- selected_tracks %||% input$tracks %||% character(0)
+    if (length(selected_tracks) == 0) {
+      return(list())
+    }
+    setNames(
+      lapply(selected_tracks, function(tr) input[[paste0("track_mode_", digest::digest(tr, algo = "crc32"))]] %||% (input$track_mode %||% "color")),
+      selected_tracks
+    )
+  }
+
+  capture_track_color_values <- function(df_current = NULL, selected_tracks = NULL, track_mode_map = NULL) {
+    if (is.null(df_current)) {
+      df_current <- data()
+    }
+    if (is.null(df_current)) {
+      return(list())
+    }
+    selected_tracks <- selected_tracks %||% input$tracks %||% character(0)
+    selected_tracks <- selected_tracks[selected_tracks %in% names(df_current)]
+    if (length(selected_tracks) == 0) {
+      return(list())
+    }
+    track_mode_map <- track_mode_map %||% capture_track_mode_map(selected_tracks)
+    color_tracks <- graphics_filter_tracks_by_mode(selected_tracks, track_mode_map, "color")
+    if (length(color_tracks) == 0) {
+      return(list())
+    }
+    track_label_map <- setNames(make.unique(vapply(color_tracks, function(tr) get_var_label(df_current, tr), character(1))), color_tracks)
+    key_list <- lapply(color_tracks, function(tr) {
+      vals <- unique(format_missing_vec(df_current[[tr]]))
+      vals <- vals[!is.na(vals)]
+      paste0(track_label_map[[tr]], " : ", vals)
+    })
+    track_keys <- unique(unlist(key_list, use.names = FALSE))
+    track_keys <- head(track_keys, 30)
+    setNames(
+      lapply(track_keys, function(key) input[[paste0("track_col_", digest::digest(key, algo = "crc32"))]] %||% NULL),
+      track_keys
+    )
+  }
+
+  capture_event_style_snapshot <- function(i, df_current = NULL) {
+    if (is.null(df_current)) {
+      df_current <- data()
+    }
+    event_type_var <- input[[paste0("event_type_", i)]] %||% state_get(i, "event_type", "")
+    event_levels <- if (!is.null(df_current) && !is.null(event_type_var) && nzchar(event_type_var) && event_type_var %in% names(df_current)) {
+      vals <- unique(as.character(df_current[[event_type_var]]))
+      vals[!is.na(vals) & nzchar(vals)]
+    } else {
+      character(0)
+    }
+    list(
+      event_grp_color_mode = input[[paste0("event_grp_color_mode_", i)]] %||% state_get(i, "event_grp_color_mode", "random_unique"),
+      event_grp_col = input[[paste0("event_grp_col_", i)]] %||% state_get(i, "event_grp_col", NULL),
+      event_grp_shape = input[[paste0("event_grp_shape_", i)]] %||% state_get(i, "event_grp_shape", NULL),
+      event_grp_symbol_mode = input[[paste0("event_grp_symbol_mode_", i)]] %||% state_get(i, "event_grp_symbol_mode", "random_unique"),
+      event_grp_col_each = setNames(
+        lapply(event_levels, function(lv) input[[paste0("event_grp_col_each_", i, "_", digest::digest(lv, algo = "crc32"))]] %||% NULL),
+        event_levels
+      ),
+      event_grp_shape_each = setNames(
+        lapply(event_levels, function(lv) input[[paste0("event_grp_shape_each_", i, "_", digest::digest(lv, algo = "crc32"))]] %||% NULL),
+        event_levels
+      )
+    )
+  }
+
+  restore_swimmer_dynamic_style_inputs <- function(extra_state) {
+    if (!is.list(extra_state)) {
+      return(invisible(NULL))
+    }
+    if (is.list(extra_state$track_mode_map) && length(extra_state$track_mode_map) > 0) {
+      for (track_name in names(extra_state$track_mode_map)) {
+        updateSelectInput(
+          session,
+          paste0("track_mode_", digest::digest(track_name, algo = "crc32")),
+          selected = extra_state$track_mode_map[[track_name]] %||% "color"
+        )
+      }
+    }
+    if (is.list(extra_state$lane_manual_colors) && length(extra_state$lane_manual_colors) > 0) {
+      for (lane_name in names(extra_state$lane_manual_colors)) {
+        lane_color <- extra_state$lane_manual_colors[[lane_name]]
+        if (!is.null(lane_color) && nzchar(lane_color %||% "")) {
+          colourpicker::updateColourInput(session, paste0("lane_col_", digest::digest(lane_name, algo = "crc32")), value = lane_color)
+        }
+      }
+    }
+    if (is.list(extra_state$track_color_values) && length(extra_state$track_color_values) > 0) {
+      for (track_key in names(extra_state$track_color_values)) {
+        track_color <- extra_state$track_color_values[[track_key]]
+        if (!is.null(track_color) && nzchar(track_color %||% "")) {
+          colourpicker::updateColourInput(session, paste0("track_col_", digest::digest(track_key, algo = "crc32")), value = track_color)
+        }
+      }
+    }
+    if (is.list(extra_state$event_mappings) && length(extra_state$event_mappings) > 0) {
+      for (i in seq_len(length(extra_state$event_mappings))) {
+        mapping <- extra_state$event_mappings[[i]]
+        if (!is.null(mapping$event_grp_color_mode)) updateSelectInput(session, paste0("event_grp_color_mode_", i), selected = mapping$event_grp_color_mode)
+        if (!is.null(mapping$event_grp_symbol_mode)) updateSelectInput(session, paste0("event_grp_symbol_mode_", i), selected = mapping$event_grp_symbol_mode)
+        if (!is.null(mapping$event_grp_col) && nzchar(mapping$event_grp_col %||% "")) {
+          colourpicker::updateColourInput(session, paste0("event_grp_col_", i), value = mapping$event_grp_col)
+        }
+        if (!is.null(mapping$event_grp_shape)) {
+          updateSelectInput(session, paste0("event_grp_shape_", i), selected = mapping$event_grp_shape)
+        }
+        if (is.list(mapping$event_grp_col_each) && length(mapping$event_grp_col_each) > 0) {
+          for (level_name in names(mapping$event_grp_col_each)) {
+            level_color <- mapping$event_grp_col_each[[level_name]]
+            if (!is.null(level_color) && nzchar(level_color %||% "")) {
+              colourpicker::updateColourInput(session, paste0("event_grp_col_each_", i, "_", digest::digest(level_name, algo = "crc32")), value = level_color)
+            }
+          }
+        }
+        if (is.list(mapping$event_grp_shape_each) && length(mapping$event_grp_shape_each) > 0) {
+          for (level_name in names(mapping$event_grp_shape_each)) {
+            level_shape <- mapping$event_grp_shape_each[[level_name]]
+            if (!is.null(level_shape) && nzchar(as.character(level_shape) %||% "")) {
+              updateSelectInput(session, paste0("event_grp_shape_each_", i, "_", digest::digest(level_name, algo = "crc32")), selected = level_shape)
+            }
+          }
+        }
+      }
+    }
+    invisible(NULL)
+  }
+
+  collect_swimmer_event_mappings <- function(df_current = NULL) {
+    lapply(seq_len(event_map_count()), function(i) {
+      c(
+        list(
+          event_time = input[[paste0("event_time_", i)]] %||% "",
+          event_type = input[[paste0("event_type_", i)]] %||% "",
+          event_label = input[[paste0("event_label_", i)]] %||% "",
+          event_legend_title = input[[paste0("event_legend_title_", i)]] %||% ""
+        ),
+        capture_event_style_snapshot(i, df_current)
+      )
+    })
+  }
+
+  build_swimmer_committed_params <- function(df_current = NULL) {
+    if (is.null(df_current)) {
+      df_current <- data()
+    }
+    selected_tracks <- input$tracks %||% character(0)
+    track_mode_map <- capture_track_mode_map(selected_tracks)
+    list(
+      subject_id = input$subject_id,
+      lane_time_mode = input$lane_time_mode %||% "start_end",
+      start_time = input$start_time %||% "",
+      end_time = input$end_time %||% "",
+      duration_var = input$duration_var %||% "",
+      lane_color_by = input$lane_color_by %||% "",
+      ongoing_var = input$ongoing_var %||% "",
+      lane_color_mode = input$lane_color_mode %||% "palette",
+      lane_palette = input$lane_palette %||% "Set2",
+      lane_size = input$lane_size %||% 4,
+      lane_alpha = input$lane_alpha %||% 0.9,
+      lane_legend_title = input$lane_legend_title %||% "",
+      sort_mode = input$sort_mode %||% "duration_desc",
+      tracks = selected_tracks,
+      show_tracks = isTRUE(input$show_tracks),
+      track_mode = input$track_mode %||% "color",
+      track_mode_map = track_mode_map,
+      track_text_bg_color = input$track_text_bg_color %||% "#F7F7F7",
+      track_legend_title = input$track_legend_title %||% "轨道分组",
+      track_legend_position = input$track_legend_position %||% "right",
+      track_compact_mode = isTRUE(input$track_compact_mode),
+      track_tile_height = input$track_tile_height %||% 0.65,
+      track_row_spacing = input$track_row_spacing %||% 0.08,
+      track_rel_height = input$track_rel_height %||% 0.5,
+      missing_display_mode = input$missing_display_mode %||% "na",
+      missing_display_custom = input$missing_display_custom %||% "NA",
+      plot_title = input$plot_title %||% "",
+      plot_subtitle = input$plot_subtitle %||% "",
+      plot_caption = input$plot_caption %||% "",
+      plot_xlab = input$plot_xlab %||% "",
+      plot_ylab = input$plot_ylab %||% "",
+      show_legend = isTRUE(input$show_legend),
+      main_legend_position = input$main_legend_position %||% "right",
+      show_grid_lines = isTRUE(input$show_grid_lines),
+      show_subject_labels = isTRUE(input$show_subject_labels),
+      show_ongoing_arrow = isTRUE(input$show_ongoing_arrow),
+      axis_style = input$axis_style %||% "default",
+      x_unit = input$x_unit %||% "day",
+      x_break_step = input$x_break_step %||% 0,
+      time_range = normalize_time_range(input$time_range),
+      event_size = input$event_size %||% 3.2,
+      show_event_labels = isTRUE(input$show_event_labels),
+      lock_event_style_refresh = isTRUE(input$lock_event_style_refresh),
+      event_palette = input$event_palette %||% "Set1",
+      auto_mapping_caption = isTRUE(input$auto_mapping_caption),
+      event_symbol_seed = input$event_symbol_seed %||% 2026,
+      event_legend_position = input$event_legend_position %||% "right",
+      event_legend_title = input$event_legend_title %||% "",
+      event_legend_x_ratio = input$event_legend_x_ratio %||% 0.72,
+      event_legend_y_ratio = input$event_legend_y_ratio %||% 0.03,
+      event_legend_width_ratio = input$event_legend_width_ratio %||% 0.26,
+      event_legend_height_ratio = input$event_legend_height_ratio %||% 0.28,
+      base_font_size = input$base_font_size %||% 12,
+      base_family = input$base_family %||% "sans",
+      event_mappings = collect_swimmer_event_mappings(df_current),
+      lane_manual_colors = capture_lane_manual_color_values(df_current),
+      track_color_values = capture_track_color_values(df_current, selected_tracks, track_mode_map)
+    )
   }
 
   refresh_event_mapping_choices <- function(
@@ -608,13 +860,9 @@ swimmer_plot_server <- function(input, output, session, data) {
           selected_label = selected_label,
           selected_legend_title = state_get(i, "event_legend_title", "")
         )
-        tags$div(
-          class = "panel panel-default",
-          tags$div(class = "panel-heading", paste0("事件变量组 ", i)),
-          tags$div(
-            class = "panel-body",
-            graphics_dynamic_mapping_fields_ui(session$ns, event_row_fields)
-          )
+        graphics_dynamic_mapping_row_ui(
+          title = paste0("事件变量组 ", i),
+          body = graphics_dynamic_mapping_fields_ui(session$ns, event_row_fields)
         )
       })
     )
@@ -826,14 +1074,19 @@ swimmer_plot_server <- function(input, output, session, data) {
     cfg <- size_config()
     base_h <- as.integer(cfg$static_height)
     td <- track_data()
-    if (is.null(td) || !isTRUE(input$show_tracks)) {
+    params <- committed_params()
+    show_tracks <- if (is.list(params) && !is.null(params$show_tracks)) isTRUE(params$show_tracks) else isTRUE(input$show_tracks)
+    compact_mode <- if (is.list(params) && !is.null(params$track_compact_mode)) isTRUE(params$track_compact_mode) else isTRUE(input$track_compact_mode)
+    track_row_spacing <- if (is.list(params) && !is.null(params$track_row_spacing)) params$track_row_spacing else (input$track_row_spacing %||% 0)
+    track_tile_height <- if (is.list(params) && !is.null(params$track_tile_height)) params$track_tile_height else (input$track_tile_height %||% 0.65)
+    if (is.null(td) || !isTRUE(show_tracks)) {
       return(base_h)
     }
     track_n <- length(unique(as.character(td$.track_name)))
-    if (isTRUE(input$track_compact_mode)) {
+    if (isTRUE(compact_mode)) {
       return(base_h)
     }
-    tile_eff <- ifelse((input$track_row_spacing %||% 0) <= 1e-8, 1, input$track_tile_height %||% 0.65)
+    tile_eff <- ifelse((track_row_spacing %||% 0) <= 1e-8, 1, track_tile_height %||% 0.65)
     base_h + as.integer(min(180, 18 * tile_eff * track_n))
   })
 
@@ -919,51 +1172,48 @@ swimmer_plot_server <- function(input, output, session, data) {
 
     tryCatch({
       df <- data()
+      params <- build_swimmer_committed_params(df)
       lane_color_source <- graphics_resolve_mapping_var(
-        input$lane_color_by,
-        input$subject_id,
+        params$lane_color_by,
+        params$subject_id,
         names(df),
-        enable_fallback = identical(input$lane_color_mode %||% "palette", "manual_each")
+        enable_fallback = identical(params$lane_color_mode, "manual_each")
       )
       lane_has_group <- !is.null(lane_color_source) && nzchar(lane_color_source) && lane_color_source %in% names(df)
-      use_duration_mode <- identical(input$lane_time_mode %||% "start_end", "duration")
+      use_duration_mode <- identical(params$lane_time_mode, "duration")
       if (use_duration_mode) {
-        req(input$duration_var)
+        req(params$duration_var)
       } else {
-        req(input$start_time, input$end_time)
+        req(params$start_time, params$end_time)
       }
-      unit_divisor <- switch(input$x_unit %||% "day", day = 1, week = 7, month = 30.4375, year = 365.25, 1)
-      unit_label <- switch(input$x_unit %||% "day", day = "天", week = "周", month = "月", year = "年", "天")
-      time_range <- NULL
-      if (!is.null(input$time_range) && length(input$time_range) == 2) {
-        time_range <- suppressWarnings(as.numeric(input$time_range))
-        if (any(is.na(time_range)) || any(!is.finite(time_range))) time_range <- NULL
-      }
+      unit_divisor <- switch(params$x_unit, day = 1, week = 7, month = 30.4375, year = 365.25, 1)
+      unit_label <- switch(params$x_unit, day = "天", week = "周", month = "月", year = "年", "天")
+      time_range <- params$time_range
 
-      selected_tracks <- input$tracks %||% character(0)
+      selected_tracks <- params$tracks %||% character(0)
       selected_tracks <- selected_tracks[selected_tracks %in% names(df)]
       track_label_map <- setNames(make.unique(vapply(selected_tracks, function(tr) get_var_label(df, tr), character(1))), selected_tracks)
 
-      lane_time_cols <- if (use_duration_mode) c(input$duration_var) else c(input$start_time, input$end_time)
-      lane_cols <- unique(c(input$subject_id, lane_time_cols, lane_color_source, input$ongoing_var, selected_tracks))
+      lane_time_cols <- if (use_duration_mode) c(params$duration_var) else c(params$start_time, params$end_time)
+      lane_cols <- unique(c(params$subject_id, lane_time_cols, lane_color_source, params$ongoing_var, selected_tracks))
       lane_cols <- lane_cols[nzchar(lane_cols)]
       lane_cols <- lane_cols[lane_cols %in% names(df)]
       lane_df <- df[, lane_cols, drop = FALSE]
 
-      names(lane_df)[names(lane_df) == input$subject_id] <- ".subject_id"
+      names(lane_df)[names(lane_df) == params$subject_id] <- ".subject_id"
       if (use_duration_mode) {
-        names(lane_df)[names(lane_df) == input$duration_var] <- ".duration_input"
+        names(lane_df)[names(lane_df) == params$duration_var] <- ".duration_input"
       } else {
-        names(lane_df)[names(lane_df) == input$start_time] <- ".start"
-        names(lane_df)[names(lane_df) == input$end_time] <- ".end"
+        names(lane_df)[names(lane_df) == params$start_time] <- ".start"
+        names(lane_df)[names(lane_df) == params$end_time] <- ".end"
       }
       if (!is.null(lane_color_source) && nzchar(lane_color_source) && lane_color_source %in% names(df)) {
         names(lane_df)[names(lane_df) == lane_color_source] <- ".lane_group"
       } else {
         lane_df$.lane_group <- "全部受试者"
       }
-      if (nzchar(input$ongoing_var %||% "") && input$ongoing_var %in% names(df)) {
-        names(lane_df)[names(lane_df) == input$ongoing_var] <- ".ongoing"
+      if (nzchar(params$ongoing_var %||% "") && params$ongoing_var %in% names(df)) {
+        names(lane_df)[names(lane_df) == params$ongoing_var] <- ".ongoing"
       } else {
         lane_df$.ongoing <- FALSE
       }
@@ -981,7 +1231,7 @@ swimmer_plot_server <- function(input, output, session, data) {
 
       date_mode <- FALSE
       if (use_duration_mode) {
-        duration_is_date <- inherits(df[[input$duration_var]], "Date") || inherits(df[[input$duration_var]], "POSIXt")
+        duration_is_date <- inherits(df[[params$duration_var]], "Date") || inherits(df[[params$duration_var]], "POSIXt")
         if (isTRUE(duration_is_date)) {
           lane_df <- lane_df %>%
             mutate(.duration_date = as.Date(.duration_input)) %>%
@@ -1011,8 +1261,8 @@ swimmer_plot_server <- function(input, output, session, data) {
             )
         }
       } else {
-        start_is_date <- inherits(df[[input$start_time]], "Date") || inherits(df[[input$start_time]], "POSIXt")
-        end_is_date <- inherits(df[[input$end_time]], "Date") || inherits(df[[input$end_time]], "POSIXt")
+        start_is_date <- inherits(df[[params$start_time]], "Date") || inherits(df[[params$start_time]], "POSIXt")
+        end_is_date <- inherits(df[[params$end_time]], "Date") || inherits(df[[params$end_time]], "POSIXt")
         date_mode <- isTRUE(start_is_date && end_is_date)
       }
 
@@ -1072,11 +1322,11 @@ swimmer_plot_server <- function(input, output, session, data) {
         mutate(.duration = .end - .start) %>%
         ungroup()
 
-      if (input$sort_mode == "duration_desc") lane_df <- lane_df %>% arrange(desc(.duration), desc(.end))
-      if (input$sort_mode == "duration_asc") lane_df <- lane_df %>% arrange(.duration, .end)
-      if (input$sort_mode == "end_desc") lane_df <- lane_df %>% arrange(desc(.end), desc(.duration))
-      if (input$sort_mode == "end_asc") lane_df <- lane_df %>% arrange(.end, .duration)
-      if (input$sort_mode == "subject") lane_df <- lane_df %>% arrange(.subject_id)
+      if (params$sort_mode == "duration_desc") lane_df <- lane_df %>% arrange(desc(.duration), desc(.end))
+      if (params$sort_mode == "duration_asc") lane_df <- lane_df %>% arrange(.duration, .end)
+      if (params$sort_mode == "end_desc") lane_df <- lane_df %>% arrange(desc(.end), desc(.duration))
+      if (params$sort_mode == "end_asc") lane_df <- lane_df %>% arrange(.end, .duration)
+      if (params$sort_mode == "subject") lane_df <- lane_df %>% arrange(.subject_id)
 
       lane_df <- lane_df %>%
         mutate(
@@ -1094,18 +1344,19 @@ swimmer_plot_server <- function(input, output, session, data) {
         ifelse(isTRUE(lane_has_group), paste0("<br>分组: ", lane_df$.lane_group), "")
       )
 
-      event_list <- lapply(seq_len(event_map_count()), function(i) {
-        event_time_var <- input[[paste0("event_time_", i)]] %||% ""
-        event_type_var <- input[[paste0("event_type_", i)]] %||% ""
-        event_label_var <- input[[paste0("event_label_", i)]] %||% ""
+      event_list <- lapply(seq_along(params$event_mappings), function(i) {
+        mapping <- params$event_mappings[[i]]
+        event_time_var <- mapping$event_time %||% ""
+        event_type_var <- mapping$event_type %||% ""
+        event_label_var <- mapping$event_label %||% ""
         if (!nzchar(event_time_var) || !nzchar(event_type_var) || !(event_time_var %in% names(df)) || !(event_type_var %in% names(df))) {
           return(NULL)
         }
-        event_cols <- unique(c(input$subject_id, event_time_var, event_type_var, event_label_var))
+        event_cols <- unique(c(params$subject_id, event_time_var, event_type_var, event_label_var))
         event_cols <- event_cols[nzchar(event_cols)]
         event_cols <- event_cols[event_cols %in% names(df)]
         tmp_df <- df[, event_cols, drop = FALSE]
-        names(tmp_df)[names(tmp_df) == input$subject_id] <- ".subject_id"
+        names(tmp_df)[names(tmp_df) == params$subject_id] <- ".subject_id"
         names(tmp_df)[names(tmp_df) == event_time_var] <- ".event_time"
         names(tmp_df)[names(tmp_df) == event_type_var] <- ".event_type"
         if (nzchar(event_label_var) && event_label_var %in% names(df)) {
@@ -1114,7 +1365,7 @@ swimmer_plot_server <- function(input, output, session, data) {
           tmp_df$.event_label <- ""
         }
         event_type_label <- get_var_label(df, event_type_var) %||% event_type_var
-        event_source_title <- trimws(input[[paste0("event_legend_title_", i)]] %||% "")
+        event_source_title <- trimws(mapping$event_legend_title %||% "")
         if (!nzchar(event_source_title)) {
           event_source_title <- event_type_label
         }
@@ -1165,7 +1416,7 @@ swimmer_plot_server <- function(input, output, session, data) {
             .track_name_raw = sub("^\\.track__", "", .track_name),
             .track_name = unname(track_label_map[.track_name_raw]),
             .track_name = ifelse(is.na(.track_name) | !nzchar(.track_name), .track_name_raw, .track_name),
-            .track_value = format_missing_vec(.track_value),
+            .track_value = format_missing_vec(.track_value, params = params),
             .track_name = factor(.track_name, levels = rev(unname(track_label_map[selected_tracks])))
           )
       } else {
@@ -1173,17 +1424,17 @@ swimmer_plot_server <- function(input, output, session, data) {
       }
 
       lane_levels <- unique(lane_df$.lane_group)
-      lane_colors <- setNames(palette_values(length(lane_levels), input$lane_palette %||% "hue"), lane_levels)
-      if (identical(input$lane_color_mode %||% "palette", "manual_each")) {
+      lane_colors <- setNames(palette_values(length(lane_levels), params$lane_palette %||% "hue"), lane_levels)
+      if (identical(params$lane_color_mode, "manual_each")) {
         for (lv in lane_levels) {
-          id <- paste0("lane_col_", digest::digest(lv, algo = "crc32"))
-          if (!is.null(input[[id]]) && nzchar(input[[id]])) lane_colors[[lv]] <- input[[id]]
+          lane_color <- params$lane_manual_colors[[lv]]
+          if (!is.null(lane_color) && nzchar(lane_color %||% "")) lane_colors[[lv]] <- lane_color
         }
       }
       lane_single_color <- lane_colors[[1]] %||% "#4E79A7"
       has_event_data <- !is.null(event_df) && nrow(event_df) > 0
       auto_caption_lines <- character(0)
-      if (isTRUE(input$auto_mapping_caption) && isTRUE(lane_has_group) && identical(input$lane_color_mode %||% "palette", "manual_each")) {
+      if (isTRUE(params$auto_mapping_caption) && isTRUE(lane_has_group) && identical(params$lane_color_mode, "manual_each")) {
         auto_caption_lines <- c(auto_caption_lines, graphics_mapping_caption_line(get_var_label(data(), lane_color_source), "泳道颜色"))
       }
 
@@ -1193,77 +1444,77 @@ swimmer_plot_server <- function(input, output, session, data) {
           p_main <- ggplot(lane_df, aes(y = .subject_factor, text = .tooltip_lane)) +
             geom_segment(
               aes(x = .start_plot, xend = .end_plot, yend = .subject_factor, color = .lane_color),
-              linewidth = input$lane_size,
-              alpha = input$lane_alpha,
+              linewidth = params$lane_size,
+              alpha = params$lane_alpha,
               lineend = "round"
             ) +
             scale_color_identity() +
             labs(
-              title = ifelse(nzchar(input$plot_title %||% ""), input$plot_title, "泳道图"),
-              subtitle = input$plot_subtitle %||% "",
-              x = ifelse(nzchar(input$plot_xlab %||% ""), input$plot_xlab, "时间"),
-              y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "受试者")
+              title = ifelse(nzchar(params$plot_title %||% ""), params$plot_title, "泳道图"),
+              subtitle = params$plot_subtitle %||% "",
+              x = ifelse(nzchar(params$plot_xlab %||% ""), params$plot_xlab, "时间"),
+              y = ifelse(nzchar(params$plot_ylab %||% ""), params$plot_ylab, "受试者")
             ) +
-            theme_minimal(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
+            theme_minimal(base_size = params$base_font_size, base_family = params$base_family %||% "sans") +
             theme(
               panel.grid.major.y = element_blank(),
-              axis.text.y = if (isTRUE(input$show_subject_labels)) element_text() else element_blank(),
-              axis.ticks.y = if (isTRUE(input$show_subject_labels)) element_line() else element_blank()
+              axis.text.y = if (isTRUE(params$show_subject_labels)) element_text() else element_blank(),
+              axis.ticks.y = if (isTRUE(params$show_subject_labels)) element_line() else element_blank()
             )
         } else {
           p_main <- ggplot(lane_df, aes(y = .subject_factor, text = .tooltip_lane)) +
             geom_segment(
               aes(x = .start_plot, xend = .end_plot, yend = .subject_factor, color = .lane_group),
-              linewidth = input$lane_size,
-              alpha = input$lane_alpha,
+              linewidth = params$lane_size,
+              alpha = params$lane_alpha,
               lineend = "round"
             ) +
             scale_color_manual(values = lane_colors) +
             labs(
-              title = ifelse(nzchar(input$plot_title %||% ""), input$plot_title, "泳道图"),
-              subtitle = input$plot_subtitle %||% "",
-              x = ifelse(nzchar(input$plot_xlab %||% ""), input$plot_xlab, "时间"),
-              y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "受试者"),
-              color = graphics_resolve_legend_title(input$lane_legend_title, get_var_label(data(), lane_color_source %||% input$subject_id))
+              title = ifelse(nzchar(params$plot_title %||% ""), params$plot_title, "泳道图"),
+              subtitle = params$plot_subtitle %||% "",
+              x = ifelse(nzchar(params$plot_xlab %||% ""), params$plot_xlab, "时间"),
+              y = ifelse(nzchar(params$plot_ylab %||% ""), params$plot_ylab, "受试者"),
+              color = graphics_resolve_legend_title(params$lane_legend_title, get_var_label(data(), lane_color_source %||% params$subject_id))
             ) +
-            theme_minimal(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
+            theme_minimal(base_size = params$base_font_size, base_family = params$base_family %||% "sans") +
             theme(
               panel.grid.major.y = element_blank(),
-              axis.text.y = if (isTRUE(input$show_subject_labels)) element_text() else element_blank(),
-              axis.ticks.y = if (isTRUE(input$show_subject_labels)) element_line() else element_blank()
+              axis.text.y = if (isTRUE(params$show_subject_labels)) element_text() else element_blank(),
+              axis.ticks.y = if (isTRUE(params$show_subject_labels)) element_line() else element_blank()
             )
         }
       } else {
         p_main <- ggplot(lane_df, aes(y = .subject_factor, text = .tooltip_lane)) +
           geom_segment(
             aes(x = .start_plot, xend = .end_plot, yend = .subject_factor),
-            linewidth = input$lane_size,
-            alpha = input$lane_alpha,
+            linewidth = params$lane_size,
+            alpha = params$lane_alpha,
             color = lane_single_color,
             lineend = "round"
           ) +
           labs(
-            title = ifelse(nzchar(input$plot_title %||% ""), input$plot_title, "泳道图"),
-            subtitle = input$plot_subtitle %||% "",
-            x = ifelse(nzchar(input$plot_xlab %||% ""), input$plot_xlab, "时间"),
-            y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "受试者")
+            title = ifelse(nzchar(params$plot_title %||% ""), params$plot_title, "泳道图"),
+            subtitle = params$plot_subtitle %||% "",
+            x = ifelse(nzchar(params$plot_xlab %||% ""), params$plot_xlab, "时间"),
+            y = ifelse(nzchar(params$plot_ylab %||% ""), params$plot_ylab, "受试者")
           ) +
-          theme_minimal(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
+          theme_minimal(base_size = params$base_font_size, base_family = params$base_family %||% "sans") +
           theme(
             panel.grid.major.y = element_blank(),
-            axis.text.y = if (isTRUE(input$show_subject_labels)) element_text() else element_blank(),
-            axis.ticks.y = if (isTRUE(input$show_subject_labels)) element_line() else element_blank()
+            axis.text.y = if (isTRUE(params$show_subject_labels)) element_text() else element_blank(),
+            axis.ticks.y = if (isTRUE(params$show_subject_labels)) element_line() else element_blank()
           ) +
           guides(color = "none")
       }
 
       p_main <- graphics_apply_legend_theme(
         p_main,
-        show_legend = isTRUE(input$show_legend) && !isTRUE(has_event_data) && isTRUE(lane_has_group),
-        position = input$main_legend_position %||% "right"
+        show_legend = isTRUE(params$show_legend) && !isTRUE(has_event_data) && isTRUE(lane_has_group),
+        position = params$main_legend_position %||% "right"
       )
 
-      p_main <- graphics_apply_x_break_step(p_main, c(lane_df$.start_plot, lane_df$.end_plot), input$x_break_step)
+      p_main <- graphics_apply_x_break_step(p_main, c(lane_df$.start_plot, lane_df$.end_plot), params$x_break_step)
 
       event_legend_df <- NULL
       if (!is.null(event_df) && nrow(event_df) > 0) {
@@ -1280,8 +1531,8 @@ swimmer_plot_server <- function(input, output, session, data) {
           )
         event_keys <- key_info$.event_style_key
         event_label_map <- setNames(key_info$.event_style_label, key_info$.event_style_key)
-        color_seed_val <- suppressWarnings(as.integer(input$event_symbol_seed %||% NA))
-        source_default_colors <- palette_values(length(event_keys), input$event_palette %||% "hue")
+        color_seed_val <- suppressWarnings(as.integer(params$event_symbol_seed %||% NA))
+        source_default_colors <- palette_values(length(event_keys), params$event_palette %||% "hue")
         if (!is.na(color_seed_val) && is.finite(color_seed_val) && color_seed_val > 0) {
           set.seed(color_seed_val + 17L)
           source_default_colors <- sample(source_default_colors, length(source_default_colors))
@@ -1290,17 +1541,19 @@ swimmer_plot_server <- function(input, output, session, data) {
         event_colors_by_key <- source_default_colors
         for (k in seq_along(event_keys)) {
           idx <- key_info$.event_group_index[[k]]
-          color_mode_i <- input[[paste0("event_grp_color_mode_", idx)]] %||% "random_unique"
+          mapping <- params$event_mappings[[idx]]
+          color_mode_i <- mapping$event_grp_color_mode %||% "random_unique"
           if (identical(color_mode_i, "single")) {
-            id <- paste0("event_grp_col_", idx)
-            if (!is.null(input[[id]]) && nzchar(input[[id]])) event_colors_by_key[[event_keys[[k]]]] <- input[[id]]
+            if (!is.null(mapping$event_grp_col) && nzchar(mapping$event_grp_col %||% "")) {
+              event_colors_by_key[[event_keys[[k]]]] <- mapping$event_grp_col
+            }
           } else if (identical(color_mode_i, "manual_each")) {
-            id <- paste0("event_grp_col_each_", idx, "_", digest::digest(key_info$.event_type[[k]], algo = "crc32"))
-            if (!is.null(input[[id]]) && nzchar(input[[id]])) event_colors_by_key[[event_keys[[k]]]] <- input[[id]]
+            level_color <- mapping$event_grp_col_each[[key_info$.event_type[[k]]]]
+            if (!is.null(level_color) && nzchar(level_color %||% "")) event_colors_by_key[[event_keys[[k]]]] <- level_color
           }
         }
         shape_pool <- unique(as.numeric(unname(shape_choice_values)))
-        seed_val <- suppressWarnings(as.integer(input$event_symbol_seed %||% NA))
+        seed_val <- suppressWarnings(as.integer(params$event_symbol_seed %||% NA))
         if (!is.na(seed_val) && is.finite(seed_val) && seed_val > 0) {
           set.seed(seed_val)
         }
@@ -1309,27 +1562,29 @@ swimmer_plot_server <- function(input, output, session, data) {
         used_shapes <- numeric(0)
         for (k in seq_along(event_keys)) {
           idx <- key_info$.event_group_index[[k]]
-          mode_i <- input[[paste0("event_grp_symbol_mode_", idx)]] %||% "random_unique"
+          mapping <- params$event_mappings[[idx]]
+          mode_i <- mapping$event_grp_symbol_mode %||% "random_unique"
           if (identical(mode_i, "single")) {
-            chosen <- suppressWarnings(as.numeric(input[[paste0("event_grp_shape_", idx)]]))
+            chosen <- suppressWarnings(as.numeric(mapping$event_grp_shape))
             if (is.na(chosen)) chosen <- shape_pool_ordered[[((k - 1) %% length(shape_pool_ordered)) + 1]]
             event_shapes_by_key[[event_keys[[k]]]] <- chosen
             used_shapes <- c(used_shapes, chosen)
           } else if (identical(mode_i, "manual_each")) {
-            chosen <- suppressWarnings(as.numeric(input[[paste0("event_grp_shape_each_", idx, "_", digest::digest(key_info$.event_type[[k]], algo = "crc32"))]]))
+            chosen <- suppressWarnings(as.numeric(mapping$event_grp_shape_each[[key_info$.event_type[[k]]]]))
             if (is.na(chosen)) chosen <- shape_pool_ordered[[((k - 1) %% length(shape_pool_ordered)) + 1]]
             event_shapes_by_key[[event_keys[[k]]]] <- chosen
             used_shapes <- c(used_shapes, chosen)
           }
         }
-        if (isTRUE(input$auto_mapping_caption)) {
+        if (isTRUE(params$auto_mapping_caption)) {
           for (idx in unique(key_info$.event_group_index)) {
-            event_type_var_i <- input[[paste0("event_type_", idx)]] %||% state_get(idx, "event_type", "")
+            mapping <- params$event_mappings[[idx]]
+            event_type_var_i <- mapping$event_type %||% ""
             if (!is.null(event_type_var_i) && nzchar(event_type_var_i) && event_type_var_i %in% names(data())) {
-              if (identical(input[[paste0("event_grp_color_mode_", idx)]] %||% "random_unique", "manual_each")) {
+              if (identical(mapping$event_grp_color_mode %||% "random_unique", "manual_each")) {
                 auto_caption_lines <- c(auto_caption_lines, graphics_mapping_caption_line(get_var_label(data(), event_type_var_i), "事件颜色"))
               }
-              if (identical(input[[paste0("event_grp_symbol_mode_", idx)]] %||% "random_unique", "manual_each")) {
+              if (identical(mapping$event_grp_symbol_mode %||% "random_unique", "manual_each")) {
                 auto_caption_lines <- c(auto_caption_lines, graphics_mapping_caption_line(get_var_label(data(), event_type_var_i), "事件符号"))
               }
             }
@@ -1361,19 +1616,19 @@ swimmer_plot_server <- function(input, output, session, data) {
           geom_point(
             data = event_df,
             aes(x = .event_time_plot, y = .subject_factor, shape = .event_style_key, color = .event_style_key, text = .tooltip_event),
-            size = input$event_size,
+            size = params$event_size,
             stroke = 0.4
           ) +
           scale_shape_manual(values = event_shapes_by_key, breaks = event_keys, labels = unname(event_label_map[event_keys])) +
           scale_color_manual(values = event_colors_by_key, breaks = event_keys, labels = unname(event_label_map[event_keys]))
 
-        if (isTRUE(input$show_event_labels)) {
+        if (isTRUE(params$show_event_labels)) {
           p_main <- p_main +
             geom_text(
               data = event_df %>% filter(nzchar(.event_label)),
               aes(x = .event_time_plot, y = .subject_factor, label = .event_label),
               nudge_y = 0.3,
-              size = max(2.8, input$base_font_size * 0.22),
+              size = max(2.8, params$base_font_size * 0.22),
               check_overlap = TRUE
             )
         }
@@ -1392,7 +1647,7 @@ swimmer_plot_server <- function(input, output, session, data) {
         event_df$.event_color_assigned <- unname(event_colors_by_key[event_df$.event_style_key])
       }
 
-      if (isTRUE(input$show_ongoing_arrow)) {
+      if (isTRUE(params$show_ongoing_arrow)) {
         ongoing_df <- lane_df %>% filter(.ongoing)
         if (nrow(ongoing_df) > 0) {
           if (isTRUE(lane_has_group)) {
@@ -1400,7 +1655,7 @@ swimmer_plot_server <- function(input, output, session, data) {
               geom_segment(
                 data = ongoing_df,
                 aes(x = .end_plot - 0.001, xend = .end_plot + max(.duration_plot, na.rm = TRUE) * 0.03, y = .subject_factor, yend = .subject_factor, color = .lane_group),
-                linewidth = input$lane_size * 0.45,
+                linewidth = params$lane_size * 0.45,
                 arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"),
                 inherit.aes = FALSE
               )
@@ -1409,7 +1664,7 @@ swimmer_plot_server <- function(input, output, session, data) {
               geom_segment(
                 data = ongoing_df,
                 aes(x = .end_plot - 0.001, xend = .end_plot + max(.duration_plot, na.rm = TRUE) * 0.03, y = .subject_factor, yend = .subject_factor),
-                linewidth = input$lane_size * 0.45,
+                linewidth = params$lane_size * 0.45,
                 color = lane_single_color,
                 arrow = grid::arrow(length = grid::unit(0.12, "inches"), type = "closed"),
                 inherit.aes = FALSE
@@ -1418,11 +1673,11 @@ swimmer_plot_server <- function(input, output, session, data) {
         }
       }
 
-      if (!isTRUE(input$show_grid_lines)) {
+      if (!isTRUE(params$show_grid_lines)) {
         p_main <- p_main + theme(panel.grid = element_blank(), panel.grid.minor = element_blank())
       }
-      if ((input$axis_style %||% "default") %in% c("classic_arrow", "classic")) {
-        is_arrow <- (input$axis_style %||% "default") == "classic_arrow"
+      if ((params$axis_style %||% "default") %in% c("classic_arrow", "classic")) {
+        is_arrow <- (params$axis_style %||% "default") == "classic_arrow"
         n_y <- length(levels(lane_df$.subject_factor))
         x_rng <- if (!is.null(time_range)) time_range else range(c(lane_df$.start_plot, lane_df$.end_plot), na.rm = TRUE)
         x_span <- max(1e-6, diff(x_rng))
@@ -1430,12 +1685,12 @@ swimmer_plot_server <- function(input, output, session, data) {
         x_axis_start <- if (is_arrow) x_rng[1] - 0.03 * x_span else x_rng[1] + clip_pad
         x_axis_end <- if (is_arrow) x_rng[2] + 0.06 * x_span else x_rng[2] - clip_pad
         p_main <- p_main +
-          theme_classic(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
+          theme_classic(base_size = params$base_font_size, base_family = params$base_family %||% "sans") +
           theme(
             axis.line = element_blank(),
-            axis.text.y = if (isTRUE(input$show_subject_labels)) element_text() else element_blank(),
-            axis.ticks.y = if (isTRUE(input$show_subject_labels)) element_line() else element_blank(),
-            legend.position = if (isTRUE(input$show_legend)) (input$main_legend_position %||% "right") else "none",
+            axis.text.y = if (isTRUE(params$show_subject_labels)) element_text() else element_blank(),
+            axis.ticks.y = if (isTRUE(params$show_subject_labels)) element_line() else element_blank(),
+            legend.position = if (isTRUE(params$show_legend)) (params$main_legend_position %||% "right") else "none",
             plot.margin = margin(10, 20, 12, 16)
           ) +
           coord_cartesian(xlim = time_range, clip = "off")
@@ -1454,14 +1709,13 @@ swimmer_plot_server <- function(input, output, session, data) {
         p_main <- p_main + coord_cartesian(xlim = time_range)
       }
 
-      if (is.null(track_df) || !isTRUE(input$show_tracks)) {
+      if (is.null(track_df) || !isTRUE(params$show_tracks)) {
         p_combined <- p_main
       } else {
         track_mode_map <- setNames(
           vapply(selected_tracks, function(tr) {
-            id <- paste0("track_mode_", digest::digest(tr, algo = "crc32"))
-            mode_val <- input[[id]]
-            if (is.null(mode_val) || !nzchar(mode_val)) input$track_mode %||% "color" else mode_val
+            mode_val <- params$track_mode_map[[tr]]
+            if (is.null(mode_val) || !nzchar(mode_val)) params$track_mode %||% "color" else mode_val
           }, character(1)),
           selected_tracks
         )
@@ -1469,7 +1723,7 @@ swimmer_plot_server <- function(input, output, session, data) {
         track_df <- track_df %>%
           mutate(
             .track_mode = unname(track_mode_map[.track_name_raw]),
-            .track_mode = ifelse(is.na(.track_mode), input$track_mode %||% "color", .track_mode)
+            .track_mode = ifelse(is.na(.track_mode), params$track_mode %||% "color", .track_mode)
           )
 
         text_track_df <- track_df %>% filter(.track_mode == "text")
@@ -1479,17 +1733,14 @@ swimmer_plot_server <- function(input, output, session, data) {
         track_keys <- unique(color_track_df$.track_legend_key)
         track_colors <- setNames(palette_values(length(track_keys), "Set3"), track_keys)
         if (length(track_keys) > 0) {
-          manual_track_colors <- setNames(
-            lapply(track_keys, function(key) input[[paste0("track_col_", digest::digest(key, algo = "crc32"))]]),
-            track_keys
-          )
+          manual_track_colors <- setNames(lapply(track_keys, function(key) params$track_color_values[[key]]), track_keys)
           track_colors <- graphics_override_colors(track_colors, manual_track_colors)
         }
 
-        compact_mode <- isTRUE(input$track_compact_mode)
-        track_row_spacing_eff <- if (compact_mode) 0 else max(0, input$track_row_spacing %||% 0)
-        track_tile_height_eff <- if (track_row_spacing_eff <= 1e-8) 1 else (if (compact_mode) min(0.35, input$track_tile_height %||% 0.65) else (input$track_tile_height %||% 0.65))
-        track_rel_eff <- if (compact_mode) min(0.35, input$track_rel_height %||% 0.5) else (input$track_rel_height %||% 0.5)
+        compact_mode <- isTRUE(params$track_compact_mode)
+        track_row_spacing_eff <- if (compact_mode) 0 else max(0, params$track_row_spacing %||% 0)
+        track_tile_height_eff <- if (track_row_spacing_eff <= 1e-8) 1 else (if (compact_mode) min(0.35, params$track_tile_height %||% 0.65) else (params$track_tile_height %||% 0.65))
+        track_rel_eff <- if (compact_mode) min(0.35, params$track_rel_height %||% 0.5) else (params$track_rel_height %||% 0.5)
 
         p_track <- ggplot(track_df, aes(x = .subject_factor, y = .track_name))
         if (nrow(color_track_df) > 0) {
@@ -1498,16 +1749,16 @@ swimmer_plot_server <- function(input, output, session, data) {
         }
         if (nrow(text_track_df) > 0) {
           p_track <- p_track +
-            geom_tile(data = text_track_df, fill = input$track_text_bg_color, color = "white", height = track_tile_height_eff) +
-            geom_text(data = text_track_df, aes(label = .track_value), size = max(2.8, input$base_font_size * 0.22))
+            geom_tile(data = text_track_df, fill = params$track_text_bg_color, color = "white", height = track_tile_height_eff) +
+            geom_text(data = text_track_df, aes(label = .track_value), size = max(2.8, params$base_font_size * 0.22))
         }
         if (nrow(color_track_df) > 0) {
           p_track <- p_track + scale_fill_manual(values = track_colors)
         }
         p_track <- p_track +
-          labs(x = NULL, y = NULL, fill = graphics_resolve_legend_title(input$track_legend_title, "轨道分组")) +
+          labs(x = NULL, y = NULL, fill = graphics_resolve_legend_title(params$track_legend_title, "轨道分组")) +
           scale_y_discrete(expand = expansion(add = c(track_row_spacing_eff, track_row_spacing_eff))) +
-          theme_minimal(base_size = max(9, input$base_font_size - 1), base_family = input$base_family %||% "sans") +
+          theme_minimal(base_size = max(9, params$base_font_size - 1), base_family = params$base_family %||% "sans") +
           theme(
             axis.text.x = element_blank(),
             axis.ticks.x = element_blank(),
@@ -1515,8 +1766,8 @@ swimmer_plot_server <- function(input, output, session, data) {
           )
         p_track <- graphics_apply_legend_theme(
           p_track,
-          show_legend = isTRUE(input$show_legend) && nrow(color_track_df) > 0,
-          position = input$track_legend_position %||% "right"
+          show_legend = isTRUE(params$show_legend) && nrow(color_track_df) > 0,
+          position = params$track_legend_position %||% "right"
         )
 
         track_n <- length(unique(as.character(track_df$.track_name)))
@@ -1533,8 +1784,8 @@ swimmer_plot_server <- function(input, output, session, data) {
         )
       }
 
-      if (isTRUE(input$show_legend) && !is.null(event_legend_df) && nrow(event_legend_df) > 0) {
-        legend_title <- graphics_resolve_legend_title(input$event_legend_title, "", "")
+      if (isTRUE(params$show_legend) && !is.null(event_legend_df) && nrow(event_legend_df) > 0) {
+        legend_title <- graphics_resolve_legend_title(params$event_legend_title, "", "")
         group_levels <- unique(event_legend_df$.group[order(event_legend_df$.group_index)])
         legend_rows_list <- lapply(seq_along(group_levels), function(gidx) {
           g <- group_levels[[gidx]]
@@ -1575,7 +1826,7 @@ swimmer_plot_server <- function(input, output, session, data) {
           geom_point(
             data = legend_rows %>% filter(!.is_header, !.is_spacer),
             aes(x = 0.04, shape = .shape, color = .color),
-            size = input$event_size,
+            size = params$event_size,
             stroke = 0.4,
             show.legend = FALSE
           ) +
@@ -1583,7 +1834,7 @@ swimmer_plot_server <- function(input, output, session, data) {
             data = legend_rows %>% filter(!.is_spacer),
             aes(x = ifelse(.is_header, 0.02, 0.12), label = .label, fontface = ifelse(.is_header, "bold", "plain")),
             hjust = 0,
-            size = max(3, input$base_font_size * 0.24),
+            size = max(3, params$base_font_size * 0.24),
             show.legend = FALSE
           ) +
           scale_shape_identity() +
@@ -1593,34 +1844,35 @@ swimmer_plot_server <- function(input, output, session, data) {
           theme_void(base_family = "sans") +
           theme(
             plot.margin = margin(8, 8, 8, 8),
-            plot.title = element_text(size = max(10, input$base_font_size), face = "bold")
+            plot.title = element_text(size = max(10, params$base_font_size), face = "bold")
           )
         if (nzchar(legend_title)) {
           p_event_legend <- p_event_legend + ggtitle(legend_title)
         }
-        legend_pos <- input$event_legend_position %||% "right"
+        legend_pos <- params$event_legend_position %||% "right"
         p_combined <- graphics_place_aux_legend(
           p_combined,
           p_event_legend,
           position = legend_pos,
           outside_ratio = 0.35,
           inside_anchor = c(
-            input$event_legend_x_ratio %||% 0.72,
-            input$event_legend_y_ratio %||% 0.03,
-            input$event_legend_width_ratio %||% 0.26,
-            input$event_legend_height_ratio %||% 0.28
+            params$event_legend_x_ratio %||% 0.72,
+            params$event_legend_y_ratio %||% 0.03,
+            params$event_legend_width_ratio %||% 0.26,
+            params$event_legend_height_ratio %||% 0.28
           )
         )
       }
 
-      if (isTRUE(input$auto_mapping_caption) && isTRUE(input$show_tracks) && length(selected_tracks) > 0) {
+      if (isTRUE(params$auto_mapping_caption) && isTRUE(params$show_tracks) && length(selected_tracks) > 0) {
         auto_caption_lines <- c(auto_caption_lines, paste0("轨道图显示变量：", paste(unname(track_label_map[selected_tracks]), collapse = "、"), "。"))
       }
       p_combined <- graphics_append_bottom_caption(
         p_combined,
-        graphics_compose_caption(input$plot_caption %||% "", auto_caption_lines),
-        base_font_size = input$base_font_size %||% 12
+        graphics_compose_caption(params$plot_caption %||% "", auto_caption_lines),
+        base_font_size = params$base_font_size %||% 12
       )
+      committed_params(params)
       final_plot(p_combined)
       main_plot_obj(p_main)
       lane_data(lane_df)
@@ -1628,6 +1880,7 @@ swimmer_plot_server <- function(input, output, session, data) {
       track_data(track_df)
       showNotification("泳道图生成完成", type = "message")
     }, error = function(e) {
+      committed_params(NULL)
       final_plot(NULL)
       main_plot_obj(NULL)
       lane_data(NULL)
@@ -1804,6 +2057,13 @@ swimmer_plot_server <- function(input, output, session, data) {
                   if (!is.null(mapping$event_label)) updateSelectizeInput(session, paste0("event_label_", i), selected = mapping$event_label, server = TRUE)
                   if (!is.null(mapping$event_legend_title)) updateTextInput(session, paste0("event_legend_title_", i), value = mapping$event_legend_title)
                 }
+                session$onFlushed(function() {
+                  tryCatch({
+                    restore_swimmer_dynamic_style_inputs(extra_state)
+                  }, error = function(e) {
+                    message(sprintf("[SwimmerApplyStateDynamicStyleError] %s", conditionMessage(e)))
+                  })
+                }, once = TRUE)
               }, error = function(e) {
                 message(sprintf("[SwimmerApplyStateEventFlushError] %s", conditionMessage(e)))
               })
@@ -1822,14 +2082,9 @@ swimmer_plot_server <- function(input, output, session, data) {
 
   list(
     state = reactive({
-      event_mappings <- lapply(seq_len(event_map_count()), function(i) {
-        list(
-          event_time = input[[paste0("event_time_", i)]] %||% "",
-          event_type = input[[paste0("event_type_", i)]] %||% "",
-          event_label = input[[paste0("event_label_", i)]] %||% "",
-          event_legend_title = input[[paste0("event_legend_title_", i)]] %||% ""
-        )
-      })
+      df_state <- data()
+      event_mappings <- collect_swimmer_event_mappings(df_state)
+      track_mode_map <- capture_track_mode_map(input$tracks %||% character(0))
       time_axis_cfg <- graphics_collect_time_axis_config(input, unit_id = "x_unit", break_id = "x_break_step")
       graphics_build_task_state(
         input,
@@ -1847,8 +2102,11 @@ swimmer_plot_server <- function(input, output, session, data) {
           event_legend_title = input$event_legend_title,
           x_unit = time_axis_cfg$unit,
           x_break_step = time_axis_cfg$break_step,
-          time_range = graphics_state$time_range %||% input$time_range,
+          time_range = normalize_time_range(graphics_state$time_range %||% input$time_range),
           tracks = graphics_state$tracks %||% input$tracks %||% character(0),
+          track_mode_map = track_mode_map,
+          lane_manual_colors = capture_lane_manual_color_values(df_state),
+          track_color_values = capture_track_color_values(df_state, input$tracks %||% character(0), track_mode_map),
           size_mode = input$size_mode,
           export_width_in = size_config()$export_width,
           export_height_in = size_config()$export_height
