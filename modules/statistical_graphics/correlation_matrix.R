@@ -19,13 +19,17 @@ correlation_matrix_ui <- function(id) {
           tabPanel(
             "数据映射",
             br(),
-            fluidRow(
-              column(8, selectizeInput(ns("correlation_vars"), "选择数值变量", choices = NULL, multiple = TRUE)),
-              column(4, selectizeInput(ns("correlation_method"), "相关方法",
-                                       choices = c("pearson", "spearman", "kendall"),
-                                       selected = "pearson"))
-            ),
-            helpText("相关性矩阵显示变量间的相关系数")
+            graphics_column_mapping_panel_ui(
+              ns,
+              title = "数据映射",
+              fields = list(
+                list(
+                  list(id = "correlation_vars", label = "选择数值变量", type = "selectize", multiple = TRUE, column = 8),
+                  list(id = "correlation_method", label = "相关方法", type = "selectize", choices = c("pearson", "spearman", "kendall"), selected = "pearson", column = 4)
+                )
+              ),
+              help_text = "相关性矩阵显示变量间的相关系数"
+            )
           ),
           tabPanel(
             "样式主题",
@@ -49,8 +53,7 @@ correlation_matrix_ui <- function(id) {
           tabPanel(
             "输出与导出",
             br(),
-            graphics_primary_action_button_ui(ns, "render_plot", "生成图形", "chart-line"),
-            graphics_export_size_controls_ui(ns, download_id = "dl_plot", include_size_mode = FALSE)
+            graphics_export_panel_ui(ns, download_id = "dl_plot", include_size_mode = FALSE)
           )
         )
       )

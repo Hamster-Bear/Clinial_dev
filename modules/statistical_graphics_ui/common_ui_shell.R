@@ -152,6 +152,85 @@ graphics_font_family_ui <- function(ns, id = "base_family", label = "全局字�
   )
 }
 
+graphics_card_panel_ui <- function(title, body, status_class = "default") {
+  tags$div(
+    class = paste("panel", paste0("panel-", status_class)),
+    tags$div(class = "panel-heading", title),
+    tags$div(class = "panel-body", body)
+  )
+}
+
+graphics_mapping_field_ui <- function(ns, field_spec) {
+  input_type <- field_spec$type %||% "selectize"
+  input_id <- field_spec$id
+  label <- field_spec$label %||% input_id
+  choices <- field_spec$choices %||% NULL
+  width <- field_spec$width %||% "100%"
+  multiple <- isTRUE(field_spec$multiple)
+  selected <- field_spec$selected %||% NULL
+  options <- field_spec$options %||% list()
+  placeholder <- field_spec$placeholder %||% NULL
+  if (!is.null(placeholder) && is.null(options$placeholder)) {
+    options$placeholder <- placeholder
+  }
+  switch(
+    input_type,
+    "select" = selectInput(ns(input_id), label, choices = choices, selected = selected, width = width),
+    "selectize" = selectizeInput(ns(input_id), label, choices = choices, selected = selected, multiple = multiple, options = options, width = width),
+    "text" = textInput(ns(input_id), label, value = selected %||% field_spec$value %||% "", width = width),
+    "numeric" = numericInput(
+      ns(input_id),
+      label,
+      value = suppressWarnings(as.numeric(selected %||% field_spec$value %||% NA_real_)),
+      min = field_spec$min %||% NA,
+      max = field_spec$max %||% NA,
+      step = field_spec$step %||% NA,
+      width = width
+    ),
+    "checkbox" = checkboxInput(ns(input_id), label, value = isTRUE(field_spec$value)),
+    "radio" = radioButtons(ns(input_id), label, choices = choices, selected = selected, inline = isTRUE(field_spec$inline), width = width),
+    stop(sprintf("不支持的映射字段类型: %s", input_type))
+  )
+}
+
+graphics_column_mapping_panel_ui <- function(ns, title = "数据映射", fields, help_text = NULL, extra_ui = NULL, status_class = "default") {
+  rows <- lapply(fields, function(row_specs) {
+    fluidRow(
+      lapply(row_specs, function(field_spec) {
+        column(
+          field_spec$column %||% 12,
+          graphics_mapping_field_ui(ns, field_spec)
+        )
+      })
+    )
+  })
+  body <- tagList(rows, extra_ui, if (!is.null(help_text)) helpText(help_text))
+  graphics_card_panel_ui(title, body, status_class = status_class)
+}
+
+graphics_display_legend_panel_ui <- function(
+  ns,
+  title = "显示与图例",
+  fields,
+  prepend_ui = NULL,
+  extra_ui = NULL,
+  help_text = NULL,
+  status_class = "default"
+) {
+  rows <- lapply(fields, function(row_specs) {
+    fluidRow(
+      lapply(row_specs, function(field_spec) {
+        column(
+          field_spec$column %||% 12,
+          graphics_mapping_field_ui(ns, field_spec)
+        )
+      })
+    )
+  })
+  body <- tagList(prepend_ui, rows, extra_ui, if (!is.null(help_text)) helpText(help_text))
+  graphics_card_panel_ui(title, body, status_class = status_class)
+}
+
 #' 通用时间轴配置 UI
 #' @param ns Shiny 命名空间函数
 #' @param slider_id 滑块 UI 容器 ID (默认为 "time_range_slider")
@@ -228,6 +307,216 @@ graphics_time_axis_settings_ui <- function(
     column(6, selectInput(ns(unit_id), unit_label, choices = unit_choices, selected = selected_unit, width = "100%")),
     column(6, numericInput(ns(step_id), step_label, value = step_value, min = step_min, step = step_step, width = "100%"))
   )
+}
+
+graphics_time_axis_panel_ui <- function(
+  ns,
+  title = "时间轴设置",
+  unit_id,
+  unit_choices,
+  selected_unit = NULL,
+  unit_label = "时间单位换算",
+  step_id = "x_break_step",
+  step_label = "X轴刻度步长",
+  step_value = 0,
+  step_min = 0,
+  step_step = 0.1,
+  include_range_slider = FALSE,
+  slider_id = "time_range_slider",
+  slider_step_id = "time_step",
+  slider_step_label = "时间轴步长",
+  include_slider_step_input = FALSE,
+  extra_ui = NULL,
+  status_class = "default"
+) {
+  body <- tagList(
+    graphics_time_axis_settings_ui(
+      ns = ns,
+      unit_id = unit_id,
+      unit_label = unit_label,
+      unit_choices = unit_choices,
+      selected_unit = selected_unit,
+      step_id = step_id,
+      step_label = step_label,
+      step_value = step_value,
+      step_min = step_min,
+      step_step = step_step
+    ),
+    if (isTRUE(include_range_slider)) {
+      graphics_time_axis_controls_ui(
+        ns = ns,
+        slider_id = slider_id,
+        step_id = slider_step_id,
+        step_label = slider_step_label,
+        include_step_input = include_slider_step_input
+      )
+    },
+    extra_ui
+  )
+  graphics_card_panel_ui(title, body, status_class = status_class)
+}
+
+graphics_export_panel_ui <- function(
+  ns,
+  title = "输出与导出",
+  render_button_id = "render_plot",
+  render_button_label = "生成图形",
+  render_button_icon = "chart-line",
+  download_id = "dl_plot",
+  include_render_button = TRUE,
+  include_size_mode = TRUE,
+  include_download_button = TRUE,
+  extra_ui = NULL,
+  status_class = "default"
+) {
+  body <- tagList(
+    if (isTRUE(include_render_button)) graphics_primary_action_button_ui(ns, render_button_id, render_button_label, render_button_icon),
+    graphics_export_size_controls_ui(
+      ns = ns,
+      download_id = download_id,
+      include_size_mode = include_size_mode,
+      include_download_button = include_download_button
+    ),
+    extra_ui
+  )
+  graphics_card_panel_ui(title, body, status_class = status_class)
+}
+
+graphics_dynamic_mapping_row_ui <- function(title, body, status_class = "default") {
+  tags$div(
+    class = paste("panel", paste0("panel-", status_class)),
+    tags$div(class = "panel-heading", title),
+    tags$div(class = "panel-body", body)
+  )
+}
+
+graphics_dynamic_mapping_field_input_ui <- function(ns, field_spec) {
+  input_type <- field_spec$type %||% "selectize"
+  input_id <- field_spec$id
+  label <- field_spec$label %||% input_id
+  choices <- field_spec$choices %||% NULL
+  selected <- field_spec$selected %||% NULL
+  width <- field_spec$width %||% "100%"
+  multiple <- isTRUE(field_spec$multiple)
+  options <- field_spec$options %||% list()
+  switch(
+    input_type,
+    "select" = selectInput(ns(input_id), label, choices = choices, selected = selected, width = width),
+    "selectize" = selectizeInput(ns(input_id), label, choices = choices, selected = selected, multiple = multiple, options = options, width = width),
+    "text" = textInput(ns(input_id), label, value = selected %||% "", width = width),
+    "numeric" = numericInput(ns(input_id), label, value = suppressWarnings(as.numeric(selected %||% field_spec$value %||% NA_real_)), min = field_spec$min %||% NA, max = field_spec$max %||% NA, step = field_spec$step %||% NA, width = width),
+    stop(sprintf("不支持的动态映射字段类型: %s", input_type))
+  )
+}
+
+graphics_dynamic_mapping_fields_ui <- function(ns, fields) {
+  rows <- lapply(fields, function(row_specs) {
+    fluidRow(
+      lapply(row_specs, function(field_spec) {
+        column(
+          field_spec$column %||% 12,
+          graphics_dynamic_mapping_field_input_ui(ns, field_spec)
+        )
+      })
+    )
+  })
+  tagList(rows)
+}
+
+graphics_build_overlay_point_layer_fields_spec <- function(
+  row_index,
+  time_choices,
+  type_choices,
+  label_choices,
+  selected_time = "",
+  selected_type = "",
+  selected_label = "",
+  selected_legend_title = ""
+) {
+  list(
+    list(
+      list(
+        id = paste0("event_time_", row_index),
+        label = tags$span("事件时间变量 [数值/日期]", title = "该事件组的发生时间"),
+        type = "selectize",
+        choices = c("无" = "", time_choices),
+        selected = selected_time %||% "",
+        column = 6
+      ),
+      list(
+        id = paste0("event_type_", row_index),
+        label = tags$span("事件类型变量 [字符/因子]", title = "该事件组的类别变量"),
+        type = "selectize",
+        choices = c("无" = "", type_choices),
+        selected = selected_type %||% "",
+        column = 6
+      )
+    ),
+    list(
+      list(
+        id = paste0("event_label_", row_index),
+        label = tags$span("事件标签变量 [字符，可选]", title = "事件点旁展示的文本"),
+        type = "selectize",
+        choices = c("无" = "", label_choices),
+        selected = selected_label %||% "",
+        column = 12
+      )
+    ),
+    list(
+      list(
+        id = paste0("event_legend_title_", row_index),
+        label = paste0("事件图例主标题(组", row_index, ")"),
+        type = "text",
+        selected = selected_legend_title %||% "",
+        column = 12
+      )
+    )
+  )
+}
+
+graphics_build_event_mapping_fields_spec <- function(
+  row_index,
+  time_choices,
+  type_choices,
+  label_choices,
+  selected_time = "",
+  selected_type = "",
+  selected_label = "",
+  selected_legend_title = ""
+) {
+  graphics_build_overlay_point_layer_fields_spec(
+    row_index = row_index,
+    time_choices = time_choices,
+    type_choices = type_choices,
+    label_choices = label_choices,
+    selected_time = selected_time,
+    selected_type = selected_type,
+    selected_label = selected_label,
+    selected_legend_title = selected_legend_title
+  )
+}
+
+graphics_dynamic_mapping_rows_panel_ui <- function(
+  ns,
+  title = "动态映射",
+  rows_ui,
+  add_button_id = "add_mapping_row",
+  remove_button_id = "remove_mapping_row",
+  add_label = "添加映射",
+  remove_label = "减少映射",
+  help_text = NULL,
+  status_class = "default"
+) {
+  body <- tagList(
+    fluidRow(
+      column(6, actionButton(ns(add_button_id), add_label, class = "btn-primary btn-sm")),
+      column(6, actionButton(ns(remove_button_id), remove_label, class = "btn-default btn-sm"))
+    ),
+    br(),
+    rows_ui,
+    if (!is.null(help_text)) helpText(help_text)
+  )
+  graphics_card_panel_ui(title, body, status_class = status_class)
 }
 
 graphics_collect_axis_range_config <- function(input, min_id = "x_min", max_id = "x_max") {

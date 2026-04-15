@@ -117,3 +117,128 @@ test_that("graphics_time_axis_settings_ui 生成统一时间轴设置控件", {
   expect_match(html_str, 'id="test_module-x_break_step"')
   expect_match(html_str, 'X轴刻度步长')
 })
+
+test_that("graphics_column_mapping_panel_ui 生成统一列映射卡片", {
+  ns <- NS("test_module")
+  ui_output <- graphics_column_mapping_panel_ui(
+    ns = ns,
+    title = "数据映射",
+    fields = list(
+      list(
+        list(id = "var_a", label = "变量A", type = "selectize", column = 6),
+        list(id = "var_b", label = "变量B", type = "select", choices = c("A", "B"), column = 6)
+      )
+    ),
+    help_text = "用于测试"
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, "panel-heading")
+  expect_match(html_str, "数据映射")
+  expect_match(html_str, 'id="test_module-var_a"')
+  expect_match(html_str, 'id="test_module-var_b"')
+  expect_match(html_str, "用于测试")
+})
+
+test_that("graphics_time_axis_panel_ui 组合统一时间轴卡片", {
+  ns <- NS("test_module")
+  ui_output <- graphics_time_axis_panel_ui(
+    ns = ns,
+    title = "时间轴设置",
+    unit_id = "time_unit",
+    unit_choices = c("天" = "day"),
+    selected_unit = "day",
+    include_range_slider = TRUE,
+    include_slider_step_input = FALSE
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, "时间轴设置")
+  expect_match(html_str, 'id="test_module-time_unit"')
+  expect_match(html_str, 'id="test_module-time_range_slider"')
+})
+
+test_that("graphics_export_panel_ui 组合统一导出卡片", {
+  ns <- NS("test_module")
+  ui_output <- graphics_export_panel_ui(
+    ns = ns,
+    download_id = "dl_plot",
+    include_size_mode = TRUE,
+    include_download_button = FALSE
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, "输出与导出")
+  expect_match(html_str, 'id="test_module-render_plot"')
+  expect_match(html_str, 'id="test_module-export_width_in"')
+})
+
+test_that("graphics_dynamic_mapping_rows_panel_ui 生成统一动态映射容器", {
+  ns <- NS("test_module")
+  ui_output <- graphics_dynamic_mapping_rows_panel_ui(
+    ns = ns,
+    title = "事件映射",
+    rows_ui = tags$div("rows"),
+    add_button_id = "add_row",
+    remove_button_id = "remove_row",
+    add_label = "添加",
+    remove_label = "减少"
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, "事件映射")
+  expect_match(html_str, 'id="test_module-add_row"')
+  expect_match(html_str, 'id="test_module-remove_row"')
+  expect_match(html_str, "rows")
+})
+
+test_that("graphics_dynamic_mapping_fields_ui 生成 spec 驱动的动态映射字段", {
+  ns <- NS("test_module")
+  ui_output <- graphics_dynamic_mapping_fields_ui(
+    ns = ns,
+    fields = list(
+      list(
+        list(id = "field_a", label = "字段A", type = "selectize", choices = c("无" = "", "A" = "a"), selected = "a", column = 6),
+        list(id = "field_b", label = "字段B", type = "text", selected = "demo", column = 6)
+      )
+    )
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, 'id="test_module-field_a"')
+  expect_match(html_str, 'id="test_module-field_b"')
+  expect_match(html_str, "字段A")
+  expect_match(html_str, "字段B")
+})
+
+test_that("graphics_display_legend_panel_ui 生成统一显示与图例卡片", {
+  ns <- NS("test_module")
+  ui_output <- graphics_display_legend_panel_ui(
+    ns = ns,
+    title = "显示与图例",
+    fields = list(
+      list(list(id = "show_legend", label = "显示图例", type = "checkbox", value = TRUE)),
+      list(list(id = "legend_title", label = "图例标题", type = "text", selected = "标题")),
+      list(list(id = "decimals", label = "小数位", type = "numeric", value = 1, min = 0, max = 5, step = 1))
+    )
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, "显示与图例")
+  expect_match(html_str, 'id="test_module-show_legend"')
+  expect_match(html_str, 'id="test_module-legend_title"')
+  expect_match(html_str, 'id="test_module-decimals"')
+})
+
+test_that("graphics_build_overlay_point_layer_fields_spec 生成叠加点层字段定义", {
+  spec <- graphics_build_overlay_point_layer_fields_spec(
+    row_index = 2,
+    time_choices = c("ADT"),
+    type_choices = c("BOR"),
+    label_choices = c("AVALC"),
+    selected_time = "ADT",
+    selected_type = "BOR",
+    selected_label = "AVALC",
+    selected_legend_title = "事件标题"
+  )
+  expect_length(spec, 3)
+  expect_equal(spec[[1]][[1]]$id, "event_time_2")
+  expect_equal(spec[[1]][[2]]$id, "event_type_2")
+  expect_equal(spec[[2]][[1]]$id, "event_label_2")
+  expect_equal(spec[[3]][[1]]$id, "event_legend_title_2")
+  expect_equal(spec[[3]][[1]]$selected, "事件标题")
+})

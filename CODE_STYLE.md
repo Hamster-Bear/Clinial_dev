@@ -30,6 +30,7 @@
   - 涉及 `cowplot` / `grid` 组合测量的图形，字体族必须先走 common 的设备安全解析；`Arial` 等非 PostScript 通用族当前需优先回退到 `sans`，不能假定 `showtext/sysfonts` 已彻底消除设备侧字体告警。
   - 图形尺寸、页面距、画布边框、参考线与前端/导出换算必须优先复用 `graphics_common.R` 和 `common_ui_shell.R`；默认保持 PX 与英寸尺寸同步，禁止在子模块私写另一套尺寸/导出容器或 `geom_hline/geom_vline` 组装逻辑。
   - 坐标范围、刻度格式、时间轴单位换算等高重复图形控件，应优先复用 `graphics_axis_range_controls_ui()`、`graphics_axis_tick_format_controls_ui()`、`graphics_time_axis_settings_ui()` 等 common UI 组件。
+  - 首批图形参数抽象类统一限定为 `graphics_column_mapping_panel_ui()`、`graphics_time_axis_panel_ui()`、`graphics_export_panel_ui()` 三类；模块复用时允许字段命名不同，但不得再平行复制同语义卡片布局。
 
 ## 3. UI/UX 规范
 - **样式管理**: 优先使用 `bslib` 主题变量，自定义 CSS 统一存放在 `www/` 目录下。

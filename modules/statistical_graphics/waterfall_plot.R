@@ -58,22 +58,26 @@ waterfall_plot_ui <- function(id) {
                       tabPanel(
                         "显示与图例",
                         br(),
-                        checkboxInput(ns("show_symbols"), "显示柱符号分组", TRUE),
-                        checkboxInput(ns("show_subject_labels"), "显示受试者标签", FALSE),
-                        fluidRow(
-                          column(6, checkboxInput(ns("use_percent_label"), "Y轴默认显示百分比", TRUE)),
-                          column(6, conditionalPanel(
+                        graphics_display_legend_panel_ui(
+                          ns,
+                          title = "显示与图例",
+                          fields = list(
+                            list(list(id = "show_symbols", label = "显示柱符号分组", type = "checkbox", value = TRUE)),
+                            list(list(id = "show_subject_labels", label = "显示受试者标签", type = "checkbox", value = FALSE)),
+                            list(list(id = "use_percent_label", label = "Y轴默认显示百分比", type = "checkbox", value = TRUE)),
+                            list(list(id = "y_decimals", label = "Y轴保留小数位数", type = "numeric", value = 1, min = 0, max = 5, step = 1)),
+                            list(list(id = "show_grid_lines", label = "显示网格线", type = "checkbox", value = TRUE)),
+                            list(list(id = "axis_style", label = "坐标轴样式", type = "select", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default")),
+                            list(list(id = "show_legend", label = "显示图例", type = "checkbox", value = TRUE)),
+                            list(list(id = "auto_mapping_caption", label = "自动追加样式脚注", type = "checkbox", value = TRUE)),
+                            list(list(id = "main_legend_position", label = "主图图例位置", type = "select", choices = graphics_legend_position_choices("outer"), selected = "right")),
+                            list(list(id = "track_legend_position", label = "轨道图例位置", type = "select", choices = graphics_legend_position_choices("outer"), selected = "right"))
+                          ),
+                          extra_ui = conditionalPanel(
                             condition = paste0("input['", ns("use_percent_label"), "'] == true"),
                             checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
-                          ))
-                        ),
-                        numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 1, min = 0, max = 5, step = 1, width = "100%"),
-                        checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
-                        selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
-                        checkboxInput(ns("show_legend"), "显示图例", TRUE),
-                        checkboxInput(ns("auto_mapping_caption"), "自动追加样式脚注", TRUE),
-                        selectInput(ns("main_legend_position"), "主图图例位置", choices = graphics_legend_position_choices("outer"), selected = "right", width = "100%"),
-                        selectInput(ns("track_legend_position"), "轨道图例位置", choices = graphics_legend_position_choices("outer"), selected = "right", width = "100%")
+                          )
+                        )
                       )
                     )
                   )

@@ -22,13 +22,16 @@ swimmer_plot_ui <- function(id) {
             fluidRow(
               column(
                 4,
-                tags$div(
-                  class = "panel panel-default",
-                  tags$div(class = "panel-heading", "泳道核心映射"),
-                  tags$div(
-                    class = "panel-body",
-                    selectizeInput(ns("subject_id"), "受试者ID变量", choices = NULL, width = "100%"),
-                    selectInput(ns("lane_time_mode"), "泳道时间模式", choices = c("起始+结束时间" = "start_end", "ADY/时长变量" = "duration"), selected = "start_end", width = "100%"),
+                graphics_column_mapping_panel_ui(
+                  ns,
+                  title = "泳道核心映射",
+                  fields = list(
+                    list(list(id = "subject_id", label = "受试者ID变量", type = "selectize")),
+                    list(list(id = "lane_time_mode", label = "泳道时间模式", type = "select", choices = c("起始+结束时间" = "start_end", "ADY/时长变量" = "duration"), selected = "start_end")),
+                    list(list(id = "lane_color_by", label = "泳道颜色分组", type = "selectize")),
+                    list(list(id = "ongoing_var", label = "持续中标记变量", type = "selectize"))
+                  ),
+                  extra_ui = tagList(
                     conditionalPanel(
                       condition = sprintf("input['%s'] === 'start_end'", ns("lane_time_mode")),
                       fluidRow(
@@ -39,26 +42,20 @@ swimmer_plot_ui <- function(id) {
                     conditionalPanel(
                       condition = sprintf("input['%s'] === 'duration'", ns("lane_time_mode")),
                       selectizeInput(ns("duration_var"), "ADY/时长变量", choices = NULL, width = "100%")
-                    ),
-                    selectizeInput(ns("lane_color_by"), "泳道颜色分组", choices = NULL, width = "100%"),
-                    selectizeInput(ns("ongoing_var"), "持续中标记变量", choices = NULL, width = "100%")
+                    )
                   )
                 )
               ),
               column(
                 4,
-                tags$div(
-                  class = "panel panel-default",
-                  tags$div(class = "panel-heading", "事件映射"),
-                  tags$div(
-                    class = "panel-body",
-                    fluidRow(
-                      column(6, actionButton(ns("add_event_map"), "添加事件变量组", class = "btn-primary btn-sm")),
-                      column(6, actionButton(ns("remove_event_map"), "减少事件变量组", class = "btn-default btn-sm"))
-                    ),
-                    br(),
-                    uiOutput(ns("event_mapping_ui"))
-                  )
+                graphics_dynamic_mapping_rows_panel_ui(
+                  ns,
+                  title = "事件映射",
+                  rows_ui = uiOutput(ns("event_mapping_ui")),
+                  add_button_id = "add_event_map",
+                  remove_button_id = "remove_event_map",
+                  add_label = "添加事件变量组",
+                  remove_label = "减少事件变量组"
                 )
               ),
               column(
@@ -135,8 +132,9 @@ swimmer_plot_ui <- function(id) {
                       tags$div(
                         class = "panel-body",
                         selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
-                        graphics_time_axis_settings_ui(
+                        graphics_time_axis_panel_ui(
                           ns,
+                          title = "时间轴设置",
                           unit_id = "x_unit",
                           unit_label = "X轴单位换算",
                           unit_choices = c("天" = "day", "周" = "week", "月(30.44天)" = "month", "年(365.25天)" = "year"),
@@ -145,12 +143,10 @@ swimmer_plot_ui <- function(id) {
                           step_label = "X轴刻度步长(0为自动)",
                           step_value = 0,
                           step_min = 0,
-                          step_step = 0.1
-                        ),
-                        graphics_time_axis_controls_ui(
-                          ns,
+                          step_step = 0.1,
+                          include_range_slider = TRUE,
                           slider_id = "time_range_slider",
-                          include_step_input = FALSE
+                          include_slider_step_input = FALSE
                         ),
                         fluidRow(
                           column(6, sliderInput(ns("lane_size"), "泳道线宽", min = 0.8, max = 8, value = 4, step = 0.2, width = "100%")),
@@ -166,33 +162,26 @@ swimmer_plot_ui <- function(id) {
                 fluidRow(
                   column(
                     6,
-                    tags$div(
-                      class = "panel panel-default",
-                      tags$div(class = "panel-heading", "事件基础"),
-                      tags$div(
-                        class = "panel-body",
-                        checkboxInput(ns("show_event_labels"), "显示事件文本标签", FALSE),
-                        checkboxInput(ns("lock_event_style_refresh"), "锁定事件样式（变量刷新不重置）", TRUE),
-                        numericInput(ns("event_symbol_seed"), "随机符号种子", value = 2026, min = 1, step = 1, width = "100%"),
-                        selectInput(
-                          ns("event_palette"),
-                          "事件调色板",
-                          choices = c("默认Hue" = "hue", "Set1" = "Set1", "Set2" = "Set2", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"),
-                          selected = "Set1",
-                          width = "100%"
-                        ),
-                        checkboxInput(ns("auto_mapping_caption"), "自动追加样式脚注", TRUE),
-                        textInput(ns("event_legend_title"), "事件图例层标题(可选)", value = "", width = "100%"),
-                        selectInput(ns("event_legend_position"), "事件图例位置", choices = graphics_legend_position_choices("aux"), selected = "right", width = "100%"),
-                        graphics_aux_legend_anchor_controls_ui(
-                          ns,
-                          position_id = "event_legend_position",
-                          x_ratio_id = "event_legend_x_ratio",
-                          y_ratio_id = "event_legend_y_ratio",
-                          width_ratio_id = "event_legend_width_ratio",
-                          height_ratio_id = "event_legend_height_ratio",
-                          default_anchor = c(0.95, 0.85, 0.13, 0.14)
-                        )
+                    graphics_display_legend_panel_ui(
+                      ns,
+                      title = "事件基础",
+                      fields = list(
+                        list(list(id = "show_event_labels", label = "显示事件文本标签", type = "checkbox", value = FALSE)),
+                        list(list(id = "lock_event_style_refresh", label = "锁定事件样式（变量刷新不重置）", type = "checkbox", value = TRUE)),
+                        list(list(id = "event_palette", label = "事件调色板", type = "select", choices = c("默认Hue" = "hue", "Set1" = "Set1", "Set2" = "Set2", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"), selected = "Set1")),
+                        list(list(id = "auto_mapping_caption", label = "自动追加样式脚注", type = "checkbox", value = TRUE)),
+                        list(list(id = "event_legend_position", label = "事件图例位置", type = "select", choices = graphics_legend_position_choices("aux"), selected = "right")),
+                        list(list(id = "event_legend_title", label = "事件图例层标题(可选)", type = "text", selected = ""))
+                      ),
+                      prepend_ui = numericInput(ns("event_symbol_seed"), "随机符号种子", value = 2026, min = 1, step = 1, width = "100%"),
+                      extra_ui = graphics_aux_legend_anchor_controls_ui(
+                        ns,
+                        position_id = "event_legend_position",
+                        x_ratio_id = "event_legend_x_ratio",
+                        y_ratio_id = "event_legend_y_ratio",
+                        width_ratio_id = "event_legend_width_ratio",
+                        height_ratio_id = "event_legend_height_ratio",
+                        default_anchor = c(0.95, 0.85, 0.13, 0.14)
                       )
                     )
                   ),
@@ -285,7 +274,7 @@ swimmer_plot_ui <- function(id) {
           tabPanel(
             "输出与导出",
             br(),
-            graphics_export_size_controls_ui(ns, download_id = "dl_plot", include_size_mode = TRUE, include_download_button = FALSE)
+            graphics_export_panel_ui(ns, download_id = "dl_plot", include_size_mode = TRUE, include_download_button = FALSE)
           )
         )
       )
@@ -415,34 +404,53 @@ swimmer_plot_server <- function(input, output, session, data) {
     event_ui_state(st_new)
   }
 
-  refresh_event_mapping_choices <- function(all_vars, time_vars, event_time_candidates, event_type_candidates, event_label_candidates) {
-    n_maps <- event_map_count()
+  refresh_event_mapping_choices <- function(
+    all_vars,
+    time_vars,
+    event_time_candidates,
+    event_type_candidates,
+    event_label_candidates,
+    prefer_state = FALSE,
+    mapping_state_override = NULL,
+    row_count_override = NULL
+  ) {
+    n_maps <- if (!is.null(row_count_override)) row_count_override else event_map_count()
     for (i in seq_len(n_maps)) {
       id_time <- paste0("event_time_", i)
       id_type <- paste0("event_type_", i)
       id_label <- paste0("event_label_", i)
-      current_time <- isolate(input[[id_time]])
-      current_type <- isolate(input[[id_type]])
-      current_label <- isolate(input[[id_label]])
-      if (is.null(current_time)) current_time <- state_get(i, "event_time", NULL)
-      if (is.null(current_type)) current_type <- state_get(i, "event_type", NULL)
-      if (is.null(current_label)) current_label <- state_get(i, "event_label", NULL)
-      current_time <- graphics_remember_choice(current_time, state_get(i, "event_time", NULL), time_vars, pick_first(event_time_candidates, time_vars) %||% "", allow_empty = TRUE)
-      current_type <- graphics_remember_choice(current_type, state_get(i, "event_type", NULL), all_vars, pick_first(event_type_candidates, all_vars) %||% "", allow_empty = TRUE)
-      current_label <- graphics_remember_choice(current_label, state_get(i, "event_label", NULL), all_vars, pick_first(event_label_candidates, all_vars) %||% "", allow_empty = TRUE)
+      current_time <- if (isTRUE(prefer_state)) NULL else isolate(input[[id_time]])
+      current_type <- if (isTRUE(prefer_state)) NULL else isolate(input[[id_type]])
+      current_label <- if (isTRUE(prefer_state)) NULL else isolate(input[[id_label]])
+      state_time <- if (!is.null(mapping_state_override) && length(mapping_state_override) >= i) mapping_state_override[[i]]$event_time %||% NULL else state_get(i, "event_time", NULL)
+      state_type <- if (!is.null(mapping_state_override) && length(mapping_state_override) >= i) mapping_state_override[[i]]$event_type %||% NULL else state_get(i, "event_type", NULL)
+      state_label <- if (!is.null(mapping_state_override) && length(mapping_state_override) >= i) mapping_state_override[[i]]$event_label %||% NULL else state_get(i, "event_label", NULL)
+      if (is.null(current_time)) current_time <- state_time
+      if (is.null(current_type)) current_type <- state_type
+      if (is.null(current_label)) current_label <- state_label
+      current_time <- graphics_remember_choice(current_time, state_time, time_vars, pick_first(event_time_candidates, time_vars) %||% "", allow_empty = TRUE)
+      current_type <- graphics_remember_choice(current_type, state_type, all_vars, pick_first(event_type_candidates, all_vars) %||% "", allow_empty = TRUE)
+      current_label <- graphics_remember_choice(current_label, state_label, all_vars, pick_first(event_label_candidates, all_vars) %||% "", allow_empty = TRUE)
       updateSelectizeInput(session, id_time, choices = c("无" = "", time_vars), selected = current_time %||% "", server = TRUE)
       updateSelectizeInput(session, id_type, choices = c("无" = "", all_vars), selected = current_type %||% "", server = TRUE)
       updateSelectizeInput(session, id_label, choices = c("无" = "", all_vars), selected = current_label %||% "", server = TRUE)
     }
   }
 
-  observeEvent(data(), {
-    req(data())
-    snapshot_event_ui_state()
-    all_vars <- names(data())
-    time_vars <- get_time_vars(data())
+  restore_swimmer_mapping_inputs <- function(force = FALSE, df_current = NULL, state_snapshot = NULL) {
+    if (is.null(df_current)) {
+      df_current <- data()
+    }
+    shiny::req(df_current)
+    if (!isTRUE(force)) {
+      snapshot_event_ui_state()
+    }
+    all_vars <- names(df_current)
+    time_vars <- get_time_vars(df_current)
     current_signature <- paste(all_vars, collapse = "|")
-    if (!is.null(graphics_state$columns_signature) && identical(graphics_state$columns_signature, current_signature)) return()
+    if (!isTRUE(force) && !is.null(graphics_state$columns_signature) && identical(graphics_state$columns_signature, current_signature)) {
+      return(invisible(FALSE))
+    }
     graphics_state$columns_signature <- current_signature
 
     subject_candidates <- c("USUBJID", "SUBJID", "SUBJECT", "PATIENT", "subject_id", "ID")
@@ -454,31 +462,43 @@ swimmer_plot_server <- function(input, output, session, data) {
     event_time_candidates <- c("EVENT_TIME", "EVT_TIME", "ADT", "AVISITN", "event_time")
     event_type_candidates <- c("EVENT", "EVENT_TYPE", "BOR", "STATUS", "RESPONSE", "event_type")
     event_label_candidates <- c("EVENT_LABEL", "LABEL", "EVENT_TEXT", "AVALC", "event_label")
-
-    selected_subject <- graphics_remember_choice(isolate(input$subject_id), graphics_state$subject_id, all_vars, pick_first(subject_candidates, all_vars))
-
-    selected_lane_mode <- isolate(input$lane_time_mode)
-    if (is.null(selected_lane_mode) || !(selected_lane_mode %in% c("start_end", "duration"))) {
-      selected_lane_mode <- graphics_state$lane_time_mode %||% "start_end"
+    snapshot_get <- function(name, fallback = NULL) {
+      if (!is.null(state_snapshot) && !is.null(state_snapshot[[name]])) {
+        return(state_snapshot[[name]])
+      }
+      fallback
     }
 
-    selected_start <- isolate(input$start_time)
+    state_subject <- if (isTRUE(force)) snapshot_get("subject_id", NULL) else snapshot_get("subject_id", graphics_state$subject_id)
+    current_subject <- if (isTRUE(force)) state_subject else isolate(input$subject_id)
+    selected_subject <- graphics_remember_choice(current_subject, state_subject, all_vars, pick_first(subject_candidates, all_vars))
+
+    state_lane_mode <- if (isTRUE(force)) snapshot_get("lane_time_mode", NULL) else snapshot_get("lane_time_mode", graphics_state$lane_time_mode)
+    selected_lane_mode <- if (isTRUE(force)) state_lane_mode else isolate(input$lane_time_mode)
+    if (is.null(selected_lane_mode) || !(selected_lane_mode %in% c("start_end", "duration"))) {
+      selected_lane_mode <- state_lane_mode %||% "start_end"
+    }
+
+    state_start <- if (isTRUE(force)) snapshot_get("start_time", NULL) else snapshot_get("start_time", graphics_state$start_time)
+    selected_start <- if (isTRUE(force)) state_start else isolate(input$start_time)
     if (is.null(selected_start) || !nzchar(selected_start) || !(selected_start %in% time_vars)) {
-      selected_start <- graphics_state$start_time
+      selected_start <- state_start
       if (is.null(selected_start) || !(selected_start %in% time_vars)) selected_start <- pick_first(start_candidates, time_vars)
       if (is.null(selected_start) && length(time_vars) > 0) selected_start <- time_vars[[1]]
     }
 
-    selected_end <- isolate(input$end_time)
+    state_end <- if (isTRUE(force)) snapshot_get("end_time", NULL) else snapshot_get("end_time", graphics_state$end_time)
+    selected_end <- if (isTRUE(force)) state_end else isolate(input$end_time)
     if (is.null(selected_end) || !nzchar(selected_end) || !(selected_end %in% time_vars)) {
-      selected_end <- graphics_state$end_time
+      selected_end <- state_end
       if (is.null(selected_end) || !(selected_end %in% time_vars)) selected_end <- pick_first(end_candidates, time_vars)
       if (is.null(selected_end) && length(time_vars) > 1) selected_end <- time_vars[[2]]
     }
 
-    selected_duration <- isolate(input$duration_var)
+    state_duration <- if (isTRUE(force)) snapshot_get("duration_var", NULL) else snapshot_get("duration_var", graphics_state$duration_var)
+    selected_duration <- if (isTRUE(force)) state_duration else isolate(input$duration_var)
     if (is.null(selected_duration) || !nzchar(selected_duration) || !(selected_duration %in% time_vars)) {
-      selected_duration <- graphics_state$duration_var
+      selected_duration <- state_duration
       if (is.null(selected_duration) || !(selected_duration %in% time_vars)) {
         selected_duration <- pick_first(duration_candidates, time_vars)
       }
@@ -486,16 +506,21 @@ swimmer_plot_server <- function(input, output, session, data) {
     if (!nzchar(selected_duration %||% "") && selected_lane_mode == "duration") {
       selected_lane_mode <- "start_end"
     }
-    if ((is.null(input$lane_time_mode) || !nzchar(input$lane_time_mode %||% "")) && nzchar(selected_duration %||% "")) {
+    current_lane_time_mode <- if (isTRUE(force)) state_lane_mode else input$lane_time_mode
+    if ((is.null(current_lane_time_mode) || !nzchar(current_lane_time_mode %||% "")) && nzchar(selected_duration %||% "")) {
       selected_lane_mode <- "duration"
     }
 
-    selected_color <- graphics_remember_choice(isolate(input$lane_color_by), graphics_state$lane_color_by, all_vars, pick_first(color_candidates, setdiff(all_vars, c(selected_subject, selected_start, selected_end))) %||% "", allow_empty = TRUE)
+    state_color <- if (isTRUE(force)) snapshot_get("lane_color_by", NULL) else snapshot_get("lane_color_by", graphics_state$lane_color_by)
+    current_color <- if (isTRUE(force)) state_color else isolate(input$lane_color_by)
+    selected_color <- graphics_remember_choice(current_color, state_color, all_vars, pick_first(color_candidates, setdiff(all_vars, c(selected_subject, selected_start, selected_end))) %||% "", allow_empty = TRUE)
+    state_ongoing <- if (isTRUE(force)) snapshot_get("ongoing_var", NULL) else snapshot_get("ongoing_var", graphics_state$ongoing_var)
+    current_ongoing <- if (isTRUE(force)) state_ongoing else isolate(input$ongoing_var)
+    selected_ongoing <- graphics_remember_choice(current_ongoing, state_ongoing, all_vars, pick_first(ongoing_candidates, all_vars) %||% "", allow_empty = TRUE)
 
-    selected_ongoing <- graphics_remember_choice(isolate(input$ongoing_var), graphics_state$ongoing_var, all_vars, pick_first(ongoing_candidates, all_vars) %||% "", allow_empty = TRUE)
-
-    selected_tracks <- isolate(input$tracks)
-    if (is.null(selected_tracks) || length(selected_tracks) == 0) selected_tracks <- graphics_state$tracks
+    state_tracks <- if (isTRUE(force)) snapshot_get("tracks", character(0)) else snapshot_get("tracks", graphics_state$tracks)
+    selected_tracks <- if (isTRUE(force)) state_tracks else isolate(input$tracks)
+    if (is.null(selected_tracks) || length(selected_tracks) == 0) selected_tracks <- state_tracks
     selected_tracks <- intersect(selected_tracks, all_vars)
     if (length(selected_tracks) == 0) {
       suggested_tracks <- c("TRT", "TRTA", "ARM", "COHORT", "BOR", "SEX", "RACE", "SITEID")
@@ -510,8 +535,21 @@ swimmer_plot_server <- function(input, output, session, data) {
     updateSelectizeInput(session, "lane_color_by", choices = c("无" = "", all_vars), selected = selected_color, server = TRUE)
     updateSelectizeInput(session, "ongoing_var", choices = c("无" = "", all_vars), selected = selected_ongoing, server = TRUE)
     updateSelectizeInput(session, "tracks", choices = all_vars, selected = selected_tracks, server = TRUE)
+    refresh_event_mapping_choices(
+      all_vars,
+      time_vars,
+      event_time_candidates,
+      event_type_candidates,
+      event_label_candidates,
+      prefer_state = isTRUE(force),
+      mapping_state_override = if (isTRUE(force)) state_snapshot$event_mappings %||% list() else NULL,
+      row_count_override = if (isTRUE(force)) length(state_snapshot$event_mappings %||% list()) else NULL
+    )
+    invisible(TRUE)
+  }
 
-    refresh_event_mapping_choices(all_vars, time_vars, event_time_candidates, event_type_candidates, event_label_candidates)
+  observeEvent(data(), {
+    restore_swimmer_mapping_inputs(force = FALSE)
   }, ignoreInit = FALSE)
 
   observeEvent(input$add_event_map, {
@@ -569,17 +607,22 @@ swimmer_plot_server <- function(input, output, session, data) {
         if (is.null(selected_time)) selected_time <- ""
         if (is.null(selected_type)) selected_type <- ""
         if (is.null(selected_label)) selected_label <- ""
+        event_row_fields <- graphics_build_overlay_point_layer_fields_spec(
+          row_index = i,
+          time_choices = time_vars_ui,
+          type_choices = all_vars_ui,
+          label_choices = all_vars_ui,
+          selected_time = selected_time,
+          selected_type = selected_type,
+          selected_label = selected_label,
+          selected_legend_title = state_get(i, "event_legend_title", "")
+        )
         tags$div(
           class = "panel panel-default",
           tags$div(class = "panel-heading", paste0("事件变量组 ", i)),
           tags$div(
             class = "panel-body",
-            fluidRow(
-              column(6, selectizeInput(session$ns(paste0("event_time_", i)), tags$span("事件时间变量 [数值/日期]", title = "该事件组的发生时间"), choices = c("无" = "", time_vars_ui), selected = selected_time, width = "100%")),
-              column(6, selectizeInput(session$ns(paste0("event_type_", i)), tags$span("事件类型变量 [字符/因子]", title = "该事件组的类别变量"), choices = c("无" = "", all_vars_ui), selected = selected_type, width = "100%"))
-            ),
-            selectizeInput(session$ns(paste0("event_label_", i)), tags$span("事件标签变量 [字符，可选]", title = "事件点旁展示的文本"), choices = c("无" = "", all_vars_ui), selected = selected_label, width = "100%"),
-            textInput(session$ns(paste0("event_legend_title_", i)), paste0("事件图例主标题(组", i, ")"), value = state_get(i, "event_legend_title", ""), width = "100%")
+            graphics_dynamic_mapping_fields_ui(session$ns, event_row_fields)
           )
         )
       })
@@ -1691,12 +1734,30 @@ swimmer_plot_server <- function(input, output, session, data) {
         event_map_count(length(extra_state$event_mappings))
       }
 
+      df_restore <- isolate(data())
+      time_vars_restore <- if (!is.null(df_restore)) get_time_vars(df_restore) else character(0)
+      all_vars_restore <- if (!is.null(df_restore)) names(df_restore) else character(0)
+      event_time_candidates <- c("EVENT_TIME", "EVT_TIME", "ADT", "AVISITN", "event_time")
+      event_type_candidates <- c("EVENT", "EVENT_TYPE", "BOR", "STATUS", "RESPONSE", "event_type")
+      event_label_candidates <- c("EVENT_LABEL", "LABEL", "EVENT_TEXT", "AVALC", "event_label")
+      restore_snapshot <- list(
+        subject_id = extra_state$subject_id %||% NULL,
+        lane_time_mode = extra_state$lane_time_mode %||% NULL,
+        start_time = extra_state$start_time %||% NULL,
+        end_time = extra_state$end_time %||% NULL,
+        duration_var = extra_state$duration_var %||% NULL,
+        lane_color_by = extra_state$lane_color_by %||% NULL,
+        ongoing_var = extra_state$ongoing_var %||% NULL,
+        tracks = extra_state$tracks %||% character(0),
+        event_mappings = extra_state$event_mappings %||% list()
+      )
+
       graphics_restore_task_input_state(
         session,
         state,
         exclude_ids = c(
           "subject_id", "lane_time_mode", "start_time", "end_time",
-          "duration_var", "lane_color_by", "ongoing_var", "tracks", "time_range"
+          "duration_var", "lane_color_by", "ongoing_var", "tracks", "time_range", "time_range_slider"
         ),
         exclude_patterns = c(
           graphics_task_input_exclude_patterns(),
@@ -1713,25 +1774,32 @@ swimmer_plot_server <- function(input, output, session, data) {
 
       session$onFlushed(function() {
         tryCatch({
-          updateSelectizeInput(session, "subject_id", selected = extra_state$subject_id %||% input$subject_id, server = TRUE)
-          if (!is.null(extra_state$lane_time_mode)) updateSelectInput(session, "lane_time_mode", selected = extra_state$lane_time_mode)
-          updateSelectizeInput(session, "start_time", selected = extra_state$start_time %||% input$start_time, server = TRUE)
-          updateSelectizeInput(session, "end_time", selected = extra_state$end_time %||% input$end_time, server = TRUE)
-          updateSelectizeInput(session, "duration_var", selected = extra_state$duration_var %||% input$duration_var, server = TRUE)
-          updateSelectizeInput(session, "lane_color_by", selected = extra_state$lane_color_by %||% input$lane_color_by, server = TRUE)
-          updateSelectizeInput(session, "ongoing_var", selected = extra_state$ongoing_var %||% input$ongoing_var, server = TRUE)
-          updateSelectizeInput(session, "tracks", selected = extra_state$tracks %||% input$tracks, server = TRUE)
+          restore_swimmer_mapping_inputs(force = TRUE, df_current = df_restore, state_snapshot = restore_snapshot)
           if (!is.null(extra_state$time_range) && length(extra_state$time_range) == 2) {
             updateSliderInput(session, "time_range", value = extra_state$time_range)
           }
           if (is.list(extra_state$event_mappings) && length(extra_state$event_mappings) > 0) {
-            for (i in seq_len(length(extra_state$event_mappings))) {
-              mapping <- extra_state$event_mappings[[i]]
-              if (!is.null(mapping$event_time)) updateSelectizeInput(session, paste0("event_time_", i), selected = mapping$event_time, server = TRUE)
-              if (!is.null(mapping$event_type)) updateSelectizeInput(session, paste0("event_type_", i), selected = mapping$event_type, server = TRUE)
-              if (!is.null(mapping$event_label)) updateSelectizeInput(session, paste0("event_label_", i), selected = mapping$event_label, server = TRUE)
-              if (!is.null(mapping$event_legend_title)) updateTextInput(session, paste0("event_legend_title_", i), value = mapping$event_legend_title)
-            }
+            session$onFlushed(function() {
+              tryCatch({
+                refresh_event_mapping_choices(
+                  all_vars = all_vars_restore,
+                  time_vars = time_vars_restore,
+                  event_time_candidates = event_time_candidates,
+                  event_type_candidates = event_type_candidates,
+                  event_label_candidates = event_label_candidates,
+                  prefer_state = TRUE
+                )
+                for (i in seq_len(length(extra_state$event_mappings))) {
+                  mapping <- extra_state$event_mappings[[i]]
+                  if (!is.null(mapping$event_time)) updateSelectizeInput(session, paste0("event_time_", i), selected = mapping$event_time, server = TRUE)
+                  if (!is.null(mapping$event_type)) updateSelectizeInput(session, paste0("event_type_", i), selected = mapping$event_type, server = TRUE)
+                  if (!is.null(mapping$event_label)) updateSelectizeInput(session, paste0("event_label_", i), selected = mapping$event_label, server = TRUE)
+                  if (!is.null(mapping$event_legend_title)) updateTextInput(session, paste0("event_legend_title_", i), value = mapping$event_legend_title)
+                }
+              }, error = function(e) {
+                message(sprintf("[SwimmerApplyStateEventFlushError] %s", conditionMessage(e)))
+              })
+            }, once = TRUE)
           }
         }, error = function(e) {
           message(sprintf("[SwimmerApplyStateFlushError] %s", conditionMessage(e)))
@@ -1758,13 +1826,13 @@ swimmer_plot_server <- function(input, output, session, data) {
       graphics_build_task_state(
         input,
         extra_state = list(
-          subject_id = input$subject_id,
-          lane_time_mode = input$lane_time_mode,
-          start_time = input$start_time,
-          end_time = input$end_time,
-          duration_var = input$duration_var,
-          lane_color_by = input$lane_color_by,
-          ongoing_var = input$ongoing_var,
+          subject_id = graphics_state$subject_id %||% input$subject_id,
+          lane_time_mode = graphics_state$lane_time_mode %||% input$lane_time_mode,
+          start_time = graphics_state$start_time %||% input$start_time,
+          end_time = graphics_state$end_time %||% input$end_time,
+          duration_var = graphics_state$duration_var %||% input$duration_var,
+          lane_color_by = graphics_state$lane_color_by %||% input$lane_color_by,
+          ongoing_var = graphics_state$ongoing_var %||% input$ongoing_var,
           event_mappings = event_mappings,
           lock_event_style_refresh = input$lock_event_style_refresh,
           event_symbol_seed = input$event_symbol_seed,
@@ -1772,7 +1840,7 @@ swimmer_plot_server <- function(input, output, session, data) {
           x_unit = time_axis_cfg$unit,
           x_break_step = time_axis_cfg$break_step,
           time_range = graphics_state$time_range %||% input$time_range,
-          tracks = input$tracks %||% character(0),
+          tracks = graphics_state$tracks %||% input$tracks %||% character(0),
           size_mode = input$size_mode,
           export_width_in = size_config()$export_width,
           export_height_in = size_config()$export_height

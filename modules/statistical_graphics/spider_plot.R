@@ -22,43 +22,17 @@ spider_plot_ui <- function(id) {
             wellPanel(
               style = "height: 620px; overflow-y: auto;",
               h4("数据与变量设置", style = "color: #007bff; margin-top: 0;"),
-              tags$div(
-                class = "panel panel-default",
-                tags$div(class = "panel-heading", "数据映射"),
-                tags$div(
-                  class = "panel-body",
-                  selectizeInput(
-                    ns("subject_id"),
-                    tags$span("受试者ID变量 [字符/因子]", title = "每条轨迹所属受试者ID"),
-                    choices = NULL,
-                    width = "100%"
-                  ),
-                  selectizeInput(
-                    ns("time_var"),
-                    tags$span("时间变量 [数值/日期]", title = "纵向时间轴变量，支持数值或日期"),
-                    choices = NULL,
-                    width = "100%"
-                  ),
-                  selectizeInput(
-                    ns("value_var"),
-                    tags$span("变化值变量 [数值]", title = "连续数值型终点，通常为较基线变化百分比"),
-                    choices = NULL,
-                    width = "100%"
-                  ),
-                  selectizeInput(
-                    ns("line_color_by"),
-                    tags$span("线条颜色分组 [字符/因子，可选]", title = "按分组上色展示不同亚组轨迹"),
-                    choices = NULL,
-                    width = "100%"
-                  ),
-                  selectizeInput(
-                    ns("facet_var"),
-                    tags$span("分面变量 [字符/因子，可选]", title = "按分面变量拆分子图"),
-                    choices = NULL,
-                    width = "100%"
-                  ),
-                  helpText("提示：将鼠标悬停在字段标签上可查看变量类型要求。")
-                )
+              graphics_column_mapping_panel_ui(
+                ns,
+                title = "数据映射",
+                fields = list(
+                  list(list(id = "subject_id", label = tags$span("受试者ID变量 [字符/因子]", title = "每条轨迹所属受试者ID"), type = "selectize")),
+                  list(list(id = "time_var", label = tags$span("时间变量 [数值/日期]", title = "纵向时间轴变量，支持数值或日期"), type = "selectize")),
+                  list(list(id = "value_var", label = tags$span("变化值变量 [数值]", title = "连续数值型终点，通常为较基线变化百分比"), type = "selectize")),
+                  list(list(id = "line_color_by", label = tags$span("线条颜色分组 [字符/因子，可选]", title = "按分组上色展示不同亚组轨迹"), type = "selectize")),
+                  list(list(id = "facet_var", label = tags$span("分面变量 [字符/因子，可选]", title = "按分面变量拆分子图"), type = "selectize"))
+                ),
+                help_text = "提示：将鼠标悬停在字段标签上可查看变量类型要求。"
               ),
               tags$div(
                 class = "panel panel-default",
@@ -98,20 +72,22 @@ spider_plot_ui <- function(id) {
                   fluidRow(
                     column(
                       6,
-                      tags$div(
-                        class = "panel panel-default",
-                        tags$div(class = "panel-heading", "显示与图例"),
-                        tags$div(
-                          class = "panel-body",
-                          checkboxInput(ns("show_legend"), "显示图例", TRUE),
-                          graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "outer", default_position = "right"),
-                          selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
-                          checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
-                          checkboxInput(ns("show_points"), "显示测量点", FALSE),
-                          checkboxInput(ns("show_end_labels"), "显示末次标签", FALSE),
-                          checkboxInput(ns("add_baseline_zero"), "补充基线点(time=0, chg=0)", FALSE),
-                          graphics_time_axis_settings_ui(
+                      graphics_display_legend_panel_ui(
+                        ns,
+                        title = "显示与图例",
+                        fields = list(
+                          list(list(id = "show_legend", label = "显示图例", type = "checkbox", value = TRUE)),
+                          list(list(id = "axis_style", label = "坐标轴样式", type = "select", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default")),
+                          list(list(id = "show_grid_lines", label = "显示网格线", type = "checkbox", value = TRUE)),
+                          list(list(id = "show_points", label = "显示测量点", type = "checkbox", value = FALSE)),
+                          list(list(id = "show_end_labels", label = "显示末次标签", type = "checkbox", value = FALSE)),
+                          list(list(id = "add_baseline_zero", label = "补充基线点(time=0, chg=0)", type = "checkbox", value = FALSE))
+                        ),
+                        prepend_ui = graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "outer", default_position = "right"),
+                        extra_ui = tagList(
+                          graphics_time_axis_panel_ui(
                             ns,
+                            title = "时间轴设置",
                             unit_id = "time_unit",
                             unit_label = "时间单位换算",
                             unit_choices = c("原始数值/天" = "day", "周" = "week", "月(30.44天)" = "month", "年(365.25天)" = "year"),
@@ -128,16 +104,16 @@ spider_plot_ui <- function(id) {
                             column(4, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%"))
                           ),
                           fluidRow(
-                              column(6, checkboxInput(ns("use_percent_label"), "Y轴显示百分比", TRUE)),
-                              column(6, conditionalPanel(
-                                condition = paste0("input['", ns("use_percent_label"), "'] == true"),
-                                checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
-                              ))
-                            ),
-                            fluidRow(
-                              column(6, numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 1, min = 0, max = 5, step = 1, width = "100%")),
-                              column(6, graphics_font_family_ui(ns, id = "base_family"))
-                            )
+                            column(6, checkboxInput(ns("use_percent_label"), "Y轴显示百分比", TRUE)),
+                            column(6, conditionalPanel(
+                              condition = paste0("input['", ns("use_percent_label"), "'] == true"),
+                              checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
+                            ))
+                          ),
+                          fluidRow(
+                            column(6, numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 1, min = 0, max = 5, step = 1, width = "100%")),
+                            column(6, graphics_font_family_ui(ns, id = "base_family"))
+                          )
                         )
                       )
                     ),
@@ -175,7 +151,7 @@ spider_plot_ui <- function(id) {
                 tabPanel(
                   "输出与导出",
                   br(),
-                  graphics_export_size_controls_ui(ns, download_id = "dl_plot", include_size_mode = TRUE, include_download_button = FALSE)
+                  graphics_export_panel_ui(ns, download_id = "dl_plot", include_size_mode = TRUE, include_download_button = FALSE)
                 )
               )
             )
