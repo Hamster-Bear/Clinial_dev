@@ -1,6 +1,6 @@
 # R Shiny医学数据分析应用 Dockerfile
 # 使用rocker/shiny基础镜像
-FROM rocker/shiny:4.5.2
+FROM rocker/shiny:4.5.3
 
 # 维护者信息
 LABEL maintainer="AutoTFL Medical Data Analysis App"

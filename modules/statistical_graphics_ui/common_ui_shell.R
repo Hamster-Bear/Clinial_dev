@@ -157,11 +157,14 @@ graphics_font_family_ui <- function(ns, id = "base_family", label = "全局字�
 #' @param slider_id 滑块 UI 容器 ID (默认为 "time_range_slider")
 #' @param step_id 步长输入框 ID (默认为 "time_step")
 #' @param step_label 步长输入框标签
-graphics_time_axis_controls_ui <- function(ns, slider_id = "time_range_slider", step_id = "time_step", step_label = "时间轴步长") {
-  tagList(
-    uiOutput(ns(slider_id)),
-    numericInput(ns(step_id), step_label, value = NULL, min = 0, step = 1, width = "100%")
+graphics_time_axis_controls_ui <- function(ns, slider_id = "time_range_slider", step_id = "time_step", step_label = "时间轴步长", include_step_input = TRUE) {
+  controls <- list(
+    uiOutput(ns(slider_id))
   )
+  if (isTRUE(include_step_input)) {
+    controls[[length(controls) + 1]] <- numericInput(ns(step_id), step_label, value = NULL, min = 0, step = 1, width = "100%")
+  }
+  do.call(tagList, controls)
 }
 
 graphics_axis_range_controls_ui <- function(

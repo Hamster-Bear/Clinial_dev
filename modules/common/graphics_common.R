@@ -33,6 +33,52 @@ graphics_in_to_px <- function(inches, ppi = 96) {
   as.integer(round(inch_val * ppi_val))
 }
 
+graphics_pt_to_geom_text_size <- function(pt, fallback = 10) {
+  pt_val <- suppressWarnings(as.numeric(pt))
+  fallback_val <- suppressWarnings(as.numeric(fallback))
+  if (is.na(fallback_val) || !is.finite(fallback_val) || fallback_val <= 0) fallback_val <- 10
+  if (is.na(pt_val) || !is.finite(pt_val) || pt_val <= 0) pt_val <- fallback_val
+  pt_val / ggplot2::.pt
+}
+
+graphics_first_value_or_default <- function(x, default = NULL) {
+  if (is.null(x) || length(x) < 1) {
+    return(default)
+  }
+  value <- x[[1]]
+  if (is.null(value) || (length(value) == 1 && is.na(value))) {
+    return(default)
+  }
+  value
+}
+
+graphics_is_explicit_text_input <- function(value) {
+  !is.null(value) && length(value) >= 1 && !is.na(as.character(value[[1]]))
+}
+
+graphics_text_or_default <- function(value = NULL, default = "", allow_blank_string = FALSE) {
+  if (!graphics_is_explicit_text_input(value)) {
+    return(default)
+  }
+  text <- as.character(value[[1]])
+  if (!allow_blank_string && identical(text, "")) {
+    return(default)
+  }
+  text
+}
+
+graphics_normalize_anchor <- function(anchor = NULL, default_anchor = c(0.95, 0.85, 0.13, 0.14)) {
+  default_vals <- suppressWarnings(as.numeric(default_anchor))
+  if (length(default_vals) < 4 || any(is.na(default_vals))) {
+    default_vals <- c(0.95, 0.85, 0.13, 0.14)
+  }
+  anchor_vals <- suppressWarnings(as.numeric(anchor))
+  if (length(anchor_vals) < 4 || any(is.na(anchor_vals))) {
+    return(default_vals)
+  }
+  anchor_vals[1:4]
+}
+
 graphics_scale_export_height <- function(static_width_px, static_height_px, export_width_in, digits = 2) {
   width_px <- suppressWarnings(as.numeric(static_width_px))
   height_px <- suppressWarnings(as.numeric(static_height_px))
@@ -317,15 +363,28 @@ graphics_notify_error <- function(module_name, err, user_message = NULL, action 
   showNotification(user_message %||% graphics_user_safe_error_message(module_name, action), type = "error")
 }
 
-graphics_collect_task_input_state <- function(
-  input,
-  exclude_ids = character(0),
-  exclude_patterns = c(
+graphics_task_input_exclude_patterns <- function() {
+  c(
     "^(render_|refresh_|save_|load_|delete_|confirm_|add_|remove_)",
     "^(dl_|download_)",
     "_rows_selected$",
-    "^output_tabs$"
+    "_rows_(all|current)$",
+    "_search$",
+    "_search_columns$",
+    "_state$",
+    "_cell_(clicked|edited)$",
+    "_columns_selected$",
+    "_row_last_clicked$",
+    "_(click|hover|selected|relayout|restyle|brush)$",
+    "^output_tabs$",
+    "^config_tabs$"
   )
+}
+
+graphics_collect_task_input_state <- function(
+  input,
+  exclude_ids = character(0),
+  exclude_patterns = graphics_task_input_exclude_patterns()
 ) {
   state <- shiny::reactiveValuesToList(input)
   if (length(state) == 0) {
@@ -347,12 +406,7 @@ graphics_build_task_state <- function(input, extra_state = list(), exclude_ids =
     input_state = graphics_collect_task_input_state(
       input = input,
       exclude_ids = exclude_ids,
-      exclude_patterns = exclude_patterns %||% c(
-        "^(render_|refresh_|save_|load_|delete_|confirm_|add_|remove_)",
-        "^(dl_|download_)",
-        "_rows_selected$",
-        "^output_tabs$"
-      )
+      exclude_patterns = exclude_patterns %||% graphics_task_input_exclude_patterns()
     ),
     extra_state = extra_state %||% list()
   )
@@ -372,8 +426,32 @@ graphics_task_payload_extra_state <- function(state) {
   state %||% list()
 }
 
-graphics_restore_single_input_value <- function(session, input_id, value) {
+graphics_should_skip_task_input <- function(input_id, value = NULL, exclude_ids = character(0), exclude_patterns = graphics_task_input_exclude_patterns()) {
   if (!nzchar(input_id %||% "")) {
+    return(TRUE)
+  }
+  if (input_id %in% exclude_ids) {
+    return(TRUE)
+  }
+  if (length(exclude_patterns) > 0 && any(vapply(exclude_patterns, function(pattern) {
+    grepl(pattern, input_id)
+  }, logical(1)))) {
+    return(TRUE)
+  }
+  if (is.data.frame(value)) {
+    return(TRUE)
+  }
+  if (is.list(value) && !is.atomic(value)) {
+    return(TRUE)
+  }
+  FALSE
+}
+
+graphics_restore_single_input_value <- function(session, input_id, value, exclude_ids = character(0), exclude_patterns = graphics_task_input_exclude_patterns()) {
+  if (!nzchar(input_id %||% "")) {
+    return(invisible(FALSE))
+  }
+  if (graphics_should_skip_task_input(input_id, value, exclude_ids = exclude_ids, exclude_patterns = exclude_patterns)) {
     return(invisible(FALSE))
   }
   tryCatch({
@@ -385,15 +463,21 @@ graphics_restore_single_input_value <- function(session, input_id, value) {
   })
 }
 
-graphics_restore_task_input_state <- function(session, state, exclude_ids = character(0), defer = TRUE) {
+graphics_restore_task_input_state <- function(session, state, exclude_ids = character(0), exclude_patterns = graphics_task_input_exclude_patterns(), defer = TRUE) {
   input_state <- graphics_task_payload_input_state(state)
   if (length(input_state) == 0) {
     return(invisible(FALSE))
   }
   restore_fn <- function() {
-    input_names <- setdiff(names(input_state), exclude_ids)
+    input_names <- names(input_state)
     for (input_id in input_names) {
-      graphics_restore_single_input_value(session, input_id, input_state[[input_id]])
+      graphics_restore_single_input_value(
+        session,
+        input_id,
+        input_state[[input_id]],
+        exclude_ids = exclude_ids,
+        exclude_patterns = exclude_patterns
+      )
     }
   }
   if (isTRUE(defer)) {
@@ -552,18 +636,18 @@ graphics_mapping_caption_line <- function(subject_label, mode_label) {
 }
 
 graphics_compose_caption <- function(user_caption = NULL, auto_lines = character(0)) {
-  user_caption <- trimws(as.character(user_caption %||% ""))
+  user_caption <- graphics_text_or_default(user_caption, default = "", allow_blank_string = TRUE)
   auto_lines <- unique(auto_lines[nzchar(trimws(auto_lines))])
   pieces <- character(0)
-  if (nzchar(user_caption)) pieces <- c(pieces, user_caption)
+  if (!identical(user_caption, "")) pieces <- c(pieces, user_caption)
   if (length(auto_lines) > 0) pieces <- c(pieces, auto_lines)
   if (length(pieces) == 0) return("")
   paste(pieces, collapse = "\n")
 }
 
 graphics_append_bottom_caption <- function(plot_obj, caption_text, base_font_size = 12) {
-  caption_text <- trimws(as.character(caption_text %||% ""))
-  if (!nzchar(caption_text)) return(plot_obj)
+  caption_text <- graphics_text_or_default(caption_text, default = "", allow_blank_string = TRUE)
+  if (identical(caption_text, "")) return(plot_obj)
   caption_plot <- ggplot2::ggplot() +
     ggplot2::annotate("text", x = 0, y = 1, label = caption_text, hjust = 0, vjust = 1, size = max(3, base_font_size * 0.24), family = "sans") +
     ggplot2::coord_cartesian(xlim = c(0, 1), ylim = c(0, 1), clip = "off") +
@@ -573,11 +657,11 @@ graphics_append_bottom_caption <- function(plot_obj, caption_text, base_font_siz
 }
 
 graphics_resolve_legend_title <- function(custom_title = NULL, fallback_title = NULL, default_title = "") {
-  custom_title <- trimws(as.character(custom_title %||% ""))
-  fallback_title <- trimws(as.character(fallback_title %||% ""))
-  default_title <- trimws(as.character(default_title %||% ""))
-  if (nzchar(custom_title)) return(custom_title)
-  if (nzchar(fallback_title)) return(fallback_title)
+  custom_title <- graphics_text_or_default(custom_title, default = "", allow_blank_string = TRUE)
+  fallback_title <- graphics_text_or_default(fallback_title, default = "", allow_blank_string = TRUE)
+  default_title <- graphics_text_or_default(default_title, default = "", allow_blank_string = TRUE)
+  if (!identical(custom_title, "")) return(custom_title)
+  if (!identical(fallback_title, "")) return(fallback_title)
   default_title
 }
 
@@ -649,8 +733,7 @@ graphics_aux_legend_compact_defaults <- list(
 )
 
 graphics_resolve_device_safe_family <- function(family = "sans") {
-  resolved <- trimws(as.character(family %||% "sans"))
-  resolved <- resolved[[1]] %||% "sans"
+  resolved <- trimws(as.character(graphics_first_value_or_default(family, "sans")))
   if (!nzchar(resolved)) return("sans")
 
   # grid/cowplot may query PostScript metrics before showtext takes over.
@@ -910,23 +993,48 @@ graphics_format_number_labels <- function(decimals = 1) {
 #' @param data 反应式数据源 (或 data.frame)
 #' @param slider_id 内部滑块 ID (默认为 "time_range")
 #' @param buffer 时间轴最大值缓冲区 (默认为 30)
-graphics_render_time_range_slider <- function(ns, time_var_name, data, slider_id = "time_range", buffer = 30) {
+#' @param selected_range 当前已选择的范围，可为响应式或长度为2的数值向量
+graphics_resolve_time_range_slider_value <- function(selected_range = NULL, time_range_max, min_value = 0) {
+  slider_max <- suppressWarnings(as.numeric(time_range_max))
+  slider_min <- suppressWarnings(as.numeric(min_value))
+  if (is.na(slider_min) || !is.finite(slider_min)) slider_min <- 0
+  if (is.na(slider_max) || !is.finite(slider_max) || slider_max < slider_min) slider_max <- slider_min
+
+  selected <- selected_range
+  if (length(selected) == 2) {
+    selected <- suppressWarnings(as.numeric(selected))
+  }
+  if (length(selected) != 2 || any(is.na(selected)) || any(!is.finite(selected))) {
+    return(c(slider_min, slider_max))
+  }
+
+  selected <- sort(selected)
+  selected[1] <- max(slider_min, min(selected[1], slider_max))
+  selected[2] <- max(selected[1], min(selected[2], slider_max))
+  selected
+}
+
+graphics_render_time_range_slider <- function(ns, time_var_name, data, slider_id = "time_range", buffer = 30, selected_range = NULL) {
   shiny::renderUI({
-    shiny::req(time_var_name)
+    resolved_time_var_name <- if (shiny::is.reactive(time_var_name)) time_var_name() else time_var_name
     df <- if (shiny::is.reactive(data)) data() else data
     
-    if (is.null(df) || nrow(df) == 0) {
+    if (is.null(resolved_time_var_name) || !nzchar(as.character(resolved_time_var_name %||% ""))) {
+      shiny::helpText("请选择时间变量")
+    } else if (is.null(df) || nrow(df) == 0) {
       shiny::helpText("没有可用的数据")
-    } else if (time_var_name %in% names(df)) {
-      time_var <- df[[time_var_name]]
+    } else if (resolved_time_var_name %in% names(df)) {
+      time_var <- df[[resolved_time_var_name]]
       if (!is.null(time_var) && is.numeric(time_var)) {
         time_var <- time_var[!is.na(time_var)]
         if (length(time_var) > 0) {
           time_max <- max(time_var, na.rm = TRUE)
           time_range_max <- time_max + buffer
+          selected <- if (shiny::is.reactive(selected_range)) selected_range() else selected_range
+          selected <- graphics_resolve_time_range_slider_value(selected, time_range_max = time_range_max, min_value = 0)
           shiny::tagList(
             shiny::sliderInput(ns(slider_id), paste("时间范围 (最大值:", round(time_max, 2), ")"),
-                        min = 0, max = time_range_max, value = c(0, time_range_max)),
+                        min = 0, max = time_range_max, value = selected),
             shiny::tags$script(shiny::HTML(sprintf("
               $(document).ready(function() {
                 $('#%s').on('mousewheel DOMMouseScroll', function(e) { e.preventDefault(); e.stopPropagation(); });

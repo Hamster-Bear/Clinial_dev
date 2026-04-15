@@ -41,3 +41,22 @@ test_that("未点击生成时切换筛选后下拉不闪回", {
     }
   )
 })
+
+test_that("时间范围滑轴选中值解析遵循公共规则", {
+  expect_equal(
+    graphics_resolve_time_range_slider_value(c(0, 12), time_range_max = 50, min_value = 0),
+    c(0, 12)
+  )
+  expect_equal(
+    graphics_resolve_time_range_slider_value(c(20, 5), time_range_max = 50, min_value = 0),
+    c(5, 20)
+  )
+  expect_equal(
+    graphics_resolve_time_range_slider_value(c(-5, 80), time_range_max = 50, min_value = 0),
+    c(0, 50)
+  )
+  expect_equal(
+    graphics_resolve_time_range_slider_value(NULL, time_range_max = 50, min_value = 0),
+    c(0, 50)
+  )
+})

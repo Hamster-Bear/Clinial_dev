@@ -42,7 +42,7 @@ library(cowplot)
   if (!nzchar(label) || identical(tolower(label), "all")) return(overall_label %||% "all")
   label <- .strip_survival_strata_value(label, strata_var)
   mapped <- strata_labels[[label]]
-  if (!is.null(mapped) && nzchar(trimws(mapped))) trimws(mapped) else label
+  if (!is.null(mapped) && length(mapped) >= 1 && !is.na(as.character(mapped[[1]]))) as.character(mapped[[1]]) else label
 }
 
 .build_survival_strata_labeler <- function(strata_var = NULL, strata_labels = list(), overall_label = "all") {
@@ -56,6 +56,33 @@ library(cowplot)
       character(1)
     )
   }
+}
+
+.resolve_survival_risk_table_scale <- function(risk_table_plot, labeler) {
+  y_scale_idx <- which(vapply(risk_table_plot$scales$scales, function(x) "y" %in% x$aesthetics, logical(1)))
+  if (length(y_scale_idx) == 0) {
+    return(list(breaks = waiver(), labels = labeler))
+  }
+  orig_scale <- risk_table_plot$scales$scales[[y_scale_idx[1]]]
+  orig_breaks <- orig_scale$breaks
+  if (inherits(orig_breaks, "waiver") || is.null(orig_breaks)) {
+    return(list(breaks = waiver(), labels = labeler))
+  }
+
+  orig_labels <- tryCatch({
+    if (is.function(orig_scale$labels)) {
+      orig_scale$labels(orig_breaks)
+    } else if (!is.null(orig_scale$labels) && !inherits(orig_scale$labels, "waiver")) {
+      orig_scale$labels
+    } else {
+      orig_breaks
+    }
+  }, error = function(e) orig_breaks)
+
+  list(
+    breaks = orig_breaks,
+    labels = unname(labeler(orig_labels))
+  )
 }
 
 .extract_survival_legend_labs <- function(fit_obj, strata_var = NULL, strata_labels = list(), overall_label = "all") {
@@ -118,11 +145,16 @@ library(cowplot)
     return(list(position = position, anchor = NULL))
   }
   if (identical(position, "inside_custom")) {
+    anchor_vals <- if (exists("graphics_normalize_anchor", mode = "function")) {
+      graphics_normalize_anchor(inside_anchor, .survival_aux_legend_compact_spec$default_inside_anchor)
+    } else {
+      inside_anchor %||% .survival_aux_legend_compact_spec$default_inside_anchor
+    }
     return(list(position = "inside_custom", anchor = graphics_resolve_inside_anchor(
-      x_ratio = (inside_anchor %||% .survival_aux_legend_compact_spec$default_inside_anchor)[[1]],
-      y_ratio = (inside_anchor %||% .survival_aux_legend_compact_spec$default_inside_anchor)[[2]],
-      width_ratio = (inside_anchor %||% .survival_aux_legend_compact_spec$default_inside_anchor)[[3]],
-      height_ratio = (inside_anchor %||% .survival_aux_legend_compact_spec$default_inside_anchor)[[4]]
+      x_ratio = anchor_vals[[1]],
+      y_ratio = anchor_vals[[2]],
+      width_ratio = anchor_vals[[3]],
+      height_ratio = anchor_vals[[4]]
     )))
   }
   anchor_map <- list(
@@ -146,7 +178,72 @@ library(cowplot)
   if (exists("graphics_resolve_device_safe_family", mode = "function")) {
     return(graphics_resolve_device_safe_family(base_family))
   }
-  trimws(as.character(base_family %||% "sans"))
+  trimws(as.character(graphics_first_value_or_default(base_family, "sans")))
+}
+
+.resolve_survival_text_size_pt <- function(size_pt = 10, fallback = 10) {
+  resolved <- suppressWarnings(as.numeric(size_pt %||% fallback))
+  fallback_resolved <- suppressWarnings(as.numeric(fallback))
+  if (is.na(fallback_resolved) || !is.finite(fallback_resolved) || fallback_resolved <= 0) fallback_resolved <- 10
+  if (is.na(resolved) || !is.finite(resolved) || resolved <= 0) fallback_resolved else resolved
+}
+
+.resolve_survival_risk_table_geom_size <- function(size_pt = 10, fallback = 10) {
+  resolved_pt <- .resolve_survival_text_size_pt(size_pt, fallback = fallback)
+  if (exists("graphics_pt_to_geom_text_size", mode = "function")) {
+    return(graphics_pt_to_geom_text_size(resolved_pt, fallback = fallback))
+  }
+  resolved_pt / ggplot2::.pt
+}
+
+.build_survival_risk_table_axis_text_element <- function(existing = NULL, size_pt = 10, family = "sans", face = "plain") {
+  resolved_size <- .resolve_survival_text_size_pt(size_pt, fallback = 10)
+  resolved_family <- .resolve_survival_base_family(family)
+  resolved_face <- if (isTRUE(face %in% c("plain", "bold", "italic", "bold.italic"))) face else "plain"
+
+  if (inherits(existing, "element_text") || inherits(existing, "element_markdown")) {
+    existing$size <- resolved_size
+    existing$family <- resolved_family
+    existing$face <- resolved_face
+    return(existing)
+  }
+
+  element_text(size = resolved_size, family = resolved_family, face = resolved_face)
+}
+
+.apply_survival_risk_table_text_style <- function(risk_table_plot, number_size_pt = 10, y_text_size = 10, base_family = "sans", bold = FALSE) {
+  if (is.null(risk_table_plot)) return(risk_table_plot)
+  plot_family <- .resolve_survival_base_family(base_family)
+  number_size <- .resolve_survival_risk_table_geom_size(number_size_pt, fallback = 10)
+  y_axis_size <- .resolve_survival_text_size_pt(y_text_size, fallback = 10)
+  number_face <- if (isTRUE(bold)) "bold" else "plain"
+
+  risk_table_plot <- risk_table_plot +
+    theme(
+      text = element_text(family = plot_family, face = "plain")
+    )
+  risk_table_plot$theme$axis.text.y <- .build_survival_risk_table_axis_text_element(
+    existing = risk_table_plot$theme$axis.text.y,
+    size_pt = y_axis_size,
+    family = plot_family,
+    face = "plain"
+  )
+
+  if (length(risk_table_plot$layers) > 0) {
+    for (idx in seq_along(risk_table_plot$layers)) {
+      geom_name <- class(risk_table_plot$layers[[idx]]$geom)[1] %||% ""
+      if (identical(geom_name, "GeomText")) {
+        risk_table_plot$layers[[idx]]$aes_params$family <- plot_family
+        risk_table_plot$layers[[idx]]$aes_params$fontface <- number_face
+        risk_table_plot$layers[[idx]]$aes_params$size <- number_size
+        risk_table_plot$layers[[idx]]$geom_params$family <- plot_family
+        risk_table_plot$layers[[idx]]$geom_params$fontface <- number_face
+        risk_table_plot$layers[[idx]]$geom_params$size <- number_size
+      }
+    }
+  }
+
+  risk_table_plot
 }
 
 .build_survival_legend_rows <- function(labels, row_gap = .survival_aux_legend_compact_spec$row_gap) {
@@ -230,8 +327,8 @@ library(cowplot)
 }
 
 .resolve_survival_median_label <- function(label_value = NULL, fallback = "mPFS") {
-  label_value <- trimws(as.character(label_value %||% fallback))
-  if (!nzchar(label_value)) fallback else label_value
+  label_value <- graphics_text_or_default(label_value, default = fallback, allow_blank_string = TRUE)
+  if (identical(label_value, "")) fallback else label_value
 }
 
 .resolve_survival_censor_point_colors <- function(raw_strata, display_strata, main_legend_colors = NULL, fallback_colors = NULL) {
@@ -493,7 +590,7 @@ library(cowplot)
             ),
             fluidRow(
               column(4, numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1, width = "100%")),
-              column(4, numericInput(ns("risk_table_fontsize"), "风险表数字大小", value = 4, min = 2, max = 10, step = 0.5, width = "100%")),
+              column(4, numericInput(ns("risk_table_fontsize"), "风险表数字字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
               column(4, tags$div(style = "margin-top: 25px;", checkboxInput(ns("risk_table_fontbold"), "风险表数字加粗", value = FALSE)))
             ),
             numericInput(ns("legend_row_gap"), "图例行间距(row_gap)", value = 1.0, min = 0.1, max = 3.0, step = 0.1, width = "100%"),
@@ -607,6 +704,7 @@ survival_analysis_server <- function(input, output, session, data) {
   graphics_state <- reactiveValues(
     km_time = NULL,
     km_status = NULL,
+    time_range = NULL,
     km_censor_value = "0",
     km_strata = "None",
     km_facet = "None",
@@ -621,6 +719,8 @@ survival_analysis_server <- function(input, output, session, data) {
     km_censor_size = 3,
     km_censor_shape = 3,
     y_text_size = 10,
+    risk_table_fontsize = 10,
+    risk_table_fontbold = FALSE,
     title_size = 14,
     caption_size = 10,
     xlab_size = 12,
@@ -659,6 +759,7 @@ survival_analysis_server <- function(input, output, session, data) {
   view_state <- reactiveValues(
     km_time = NULL,
     km_status = NULL,
+    time_range = NULL,
     km_strata = "None",
     km_facet = "None",
     km_facet_values = NULL
@@ -875,8 +976,8 @@ survival_analysis_server <- function(input, output, session, data) {
           km_facet_values <- .resolve_survival_choice(input$facet_value, view_state$km_facet_values, facet_choices, facet_choices[1] %||% NULL)
           if (is.null(km_facet_values) || !km_facet_values %in% facet_choices) stop("请选择有效的分面值")
         }
-        overall_group_label <- trimws(input$overall_group_label %||% "all")
-        if (!nzchar(overall_group_label)) overall_group_label <- "all"
+        overall_group_label <- graphics_text_or_default(input$overall_group_label, default = "all", allow_blank_string = TRUE)
+        if (identical(overall_group_label, "")) overall_group_label <- "all"
         strata_labels <- list()
         if (!is.null(km_strata) && km_strata != "None") {
           strata_col <- current_data[[km_strata]]
@@ -894,6 +995,7 @@ survival_analysis_server <- function(input, output, session, data) {
         params <- list(
           km_time = km_time,
           km_status = km_status,
+          time_range = input$time_range,
           km_strata = km_strata,
           km_facet = km_facet,
           km_facet_values = km_facet_values,
@@ -948,6 +1050,7 @@ survival_analysis_server <- function(input, output, session, data) {
         )
         graphics_state$km_time <- params$km_time
         graphics_state$km_status <- params$km_status
+        graphics_state$time_range <- params$time_range
         graphics_state$km_strata <- params$km_strata
         graphics_state$km_facet <- params$km_facet
         graphics_state$km_facet_values <- params$km_facet_values
@@ -1039,9 +1142,27 @@ survival_analysis_server <- function(input, output, session, data) {
     }
     df
   })
+
+  current_survival_time_var <- reactive({
+    req(data())
+    current_data <- data()
+    numeric_vars <- get_numeric_vars(current_data)
+    default_time <- if (length(numeric_vars) >= 1) numeric_vars[1] else NULL
+    .resolve_survival_choice(
+      input$km_time,
+      view_state$km_time %||% graphics_state$km_time,
+      numeric_vars,
+      default_time
+    )
+  })
   
   # 动态时间范围滑块UI
-  output$time_range_slider <- graphics_render_time_range_slider(ns, input$km_time, data)
+  output$time_range_slider <- graphics_render_time_range_slider(
+    ns,
+    current_survival_time_var,
+    data,
+    selected_range = reactive(view_state$time_range %||% graphics_state$time_range %||% input$time_range)
+  )
   
   extract_median_ci <- function(fit_obj) {
     tbl <- tryCatch(summary(fit_obj)$table, error = function(e) NULL)
@@ -1222,6 +1343,12 @@ survival_analysis_server <- function(input, output, session, data) {
   observeEvent(input$facet_value, {
     view_state$km_facet_values <- input$facet_value
   }, ignoreInit = TRUE)
+
+  observeEvent(input$time_range, {
+    if (!is.null(input$time_range) && length(input$time_range) == 2) {
+      view_state$time_range <- input$time_range
+    }
+  }, ignoreInit = TRUE)
   
   # 获取标签映射后的分层变量值
   mapped_strata <- reactive({
@@ -1255,7 +1382,11 @@ survival_analysis_server <- function(input, output, session, data) {
     status_var_name <- params$km_status
     strata_var <- params$km_strata
     overall_label <- params$overall_group_label %||% "all"
-    time_range <- if (!is.null(input$time_range)) input$time_range else {
+    time_range <- if (!is.null(params$time_range) && length(params$time_range) == 2) {
+      suppressWarnings(as.numeric(params$time_range))
+    } else if (!is.null(input$time_range) && length(input$time_range) == 2) {
+      suppressWarnings(as.numeric(input$time_range))
+    } else {
       time_max <- max(data[[time_var_name]], na.rm = TRUE)
       c(0, time_max + 30)
     }
@@ -1302,8 +1433,8 @@ survival_analysis_server <- function(input, output, session, data) {
         fit_local,
         data = plot_data,
         risk.table = params$km_show_risktable,
-        fontsize = params$risk_table_fontsize %||% 4.0,
-        font.tickslab = c(params$y_text_size %||% 10, "plain"),
+        fontsize = .resolve_survival_risk_table_geom_size(params$risk_table_fontsize %||% 10, fallback = 10),
+        font.tickslab = c(.resolve_survival_text_size_pt(params$y_text_size %||% 10, fallback = 10), "plain"),
         surv.median.line = params$surv_median_line %||% "none",
         conf.int = FALSE,
         pval = FALSE,
@@ -1316,14 +1447,14 @@ survival_analysis_server <- function(input, output, session, data) {
         legend.labs = legend_labs,
         font.family = plot_family
       ))
-      if (params$km_show_risktable && isTRUE(params$risk_table_fontbold)) {
-        p$table$layers[[1]]$aes_params$fontface <- "bold"
-      }
-      if (params$km_show_risktable && !is.null(p$table) && length(p$table$layers) > 0) {
-        for (idx in seq_along(p$table$layers)) {
-          p$table$layers[[idx]]$aes_params$family <- plot_family
-          p$table$layers[[idx]]$geom_params$family <- plot_family
-        }
+      if (params$km_show_risktable && !is.null(p$table)) {
+        p$table <- .apply_survival_risk_table_text_style(
+          risk_table_plot = p$table,
+          number_size_pt = params$risk_table_fontsize %||% 10,
+          y_text_size = params$y_text_size %||% 10,
+          base_family = plot_family,
+          bold = isTRUE(params$risk_table_fontbold)
+        )
       }
     main_legend_colors <- stats::setNames(unname(legend_colors_raw[legend_breaks]), legend_labs)
     if (params$show_median) {
@@ -1545,20 +1676,31 @@ survival_analysis_server <- function(input, output, session, data) {
       p$plot <- p$plot + labs(y = "Survival Probability")
     }
     if (params$km_show_risktable && !is.null(p$table)) {
+      risk_table_scale <- .resolve_survival_risk_table_scale(p$table, risk_table_labeler)
       p$table <- p$table +
         theme_minimal() +
         theme(
-          text = element_text(family = plot_family),
+          text = element_text(family = plot_family, face = "plain"),
           axis.title.x = element_blank(),
           axis.title.y = element_blank(),
           axis.text.x = element_blank(),
           axis.ticks = element_blank(),
           panel.grid = element_blank(),
-          plot.margin = margin(params$risk_table_plot_gap, 0, 0, 0, "pt"),
-          axis.text.y = element_text(size = params$y_text_size)
+          plot.margin = margin(params$risk_table_plot_gap, 0, 0, 0, "pt")
         )
       group_gap <- params$risk_table_group_gap %||% 1.2
-      p$table <- p$table + scale_y_discrete(labels = risk_table_labeler, expand = expansion(mult = c(group_gap, group_gap)))
+      p$table <- p$table + scale_y_discrete(
+        breaks = risk_table_scale$breaks,
+        labels = risk_table_scale$labels,
+        expand = expansion(mult = c(group_gap, group_gap))
+      )
+      p$table <- .apply_survival_risk_table_text_style(
+        risk_table_plot = p$table,
+        number_size_pt = params$risk_table_fontsize %||% 10,
+        y_text_size = params$y_text_size %||% 10,
+        base_family = plot_family,
+        bold = isTRUE(params$risk_table_fontbold)
+      )
     }
     p$main_legend_labels <- unname(legend_labs)
     p$main_legend_colors <- main_legend_colors
@@ -1777,7 +1919,13 @@ survival_analysis_server <- function(input, output, session, data) {
     # 获取生存分析结果数据
     tryCatch({
       params <- committed_params()
-      surv_df <- build_km_summary_df(fit(), strata_var = params$km_strata, strata_labels = params$strata_labels, overall_label = params$overall_group_label)
+      surv_df <- build_km_summary_df(
+        fit(),
+        time_range = params$time_range,
+        strata_var = params$km_strata,
+        strata_labels = params$strata_labels,
+        overall_label = params$overall_group_label
+      )
       if (!is.null(surv_df)) {
         
         DT::datatable(surv_df, options = list(
@@ -1927,6 +2075,10 @@ survival_analysis_server <- function(input, output, session, data) {
     extra_state <- graphics_task_payload_extra_state(state)
     if (!is.null(extra_state$time_var)) view_state$km_time <- extra_state$time_var
     if (!is.null(extra_state$status_var)) view_state$km_status <- extra_state$status_var
+    if (!is.null(extra_state$time_range) && length(extra_state$time_range) == 2) {
+      view_state$time_range <- extra_state$time_range
+      graphics_state$time_range <- extra_state$time_range
+    }
     if (!is.null(extra_state$km_censor_value)) view_state$km_censor_value <- extra_state$km_censor_value
     if (!is.null(extra_state$strata_var)) view_state$km_strata <- extra_state$strata_var
     if (!is.null(extra_state$facet_var)) view_state$km_facet <- extra_state$facet_var
@@ -1943,6 +2095,11 @@ survival_analysis_server <- function(input, output, session, data) {
         updateSelectInput(session, "facet_value", selected = extra_state$facet_value)
       }, once = TRUE)
     }
+    if (!is.null(extra_state$time_range) && length(extra_state$time_range) == 2) {
+      session$onFlushed(function() {
+        updateSliderInput(session, "time_range", value = extra_state$time_range)
+      }, once = TRUE)
+    }
     invisible(TRUE)
   }
 
@@ -1953,6 +2110,7 @@ survival_analysis_server <- function(input, output, session, data) {
         extra_state = list(
           time_var = graphics_state$km_time %||% input$km_time,
           status_var = graphics_state$km_status %||% input$km_status,
+          time_range = graphics_state$time_range %||% input$time_range,
           km_censor_value = graphics_state$km_censor_value %||% input$km_censor_value,
           strata_var = graphics_state$km_strata %||% input$strata_var,
           facet_var = graphics_state$km_facet %||% input$facet_var,

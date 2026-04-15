@@ -67,6 +67,12 @@ test_that("图形子模块统一使用完整快照保存，并保留复杂字段
   expect_match(survival_text, "facet_value")
   expect_match(spider_text, "graphics_restore_task_input_state\\(")
   expect_match(swimmer_text, "event_ui_state\\(extra_state\\$event_mappings\\)")
+  expect_match(swimmer_text, "lane_color_by = input\\$lane_color_by")
+  expect_match(swimmer_text, "ongoing_var = input\\$ongoing_var")
+  expect_match(swimmer_text, "graphics_state\\$lane_color_by <- extra_state\\$lane_color_by")
+  expect_match(swimmer_text, "graphics_state\\$ongoing_var <- extra_state\\$ongoing_var")
+  expect_match(swimmer_text, "SwimmerApplyStateError")
+  expect_match(swimmer_text, "SwimmerApplyStateFlushError")
 })
 
 test_that("analysis_states 同时写入运行时建表与初始化 SQL", {

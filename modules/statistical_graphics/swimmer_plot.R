@@ -147,6 +147,11 @@ swimmer_plot_ui <- function(id) {
                           step_min = 0,
                           step_step = 0.1
                         ),
+                        graphics_time_axis_controls_ui(
+                          ns,
+                          slider_id = "time_range_slider",
+                          include_step_input = FALSE
+                        ),
                         fluidRow(
                           column(6, sliderInput(ns("lane_size"), "泳道线宽", min = 0.8, max = 8, value = 4, step = 0.2, width = "100%")),
                           column(6, sliderInput(ns("event_size"), "事件点大小", min = 1, max = 8, value = 3.2, step = 0.2, width = "100%"))
@@ -370,6 +375,7 @@ swimmer_plot_server <- function(input, output, session, data) {
     start_time = NULL,
     end_time = NULL,
     duration_var = NULL,
+    time_range = NULL,
     lane_color_by = "",
     ongoing_var = "",
     tracks = character(0),
@@ -800,6 +806,63 @@ swimmer_plot_server <- function(input, output, session, data) {
     )
   })
 
+  swimmer_time_slider_source <- reactive({
+    df <- data()
+    if (is.null(df) || nrow(df) == 0) {
+      return(NULL)
+    }
+    unit_divisor <- switch(input$x_unit %||% "day", day = 1, week = 7, month = 30.4375, year = 365.25, 1)
+    use_duration_mode <- identical(input$lane_time_mode %||% "start_end", "duration")
+
+    if (use_duration_mode) {
+      if (!nzchar(input$duration_var %||% "")) return(NULL)
+      if (!(input$duration_var %in% names(df))) return(NULL)
+      duration_vec <- df[[input$duration_var]]
+      if (inherits(duration_vec, "Date") || inherits(duration_vec, "POSIXt")) {
+        duration_vec <- as.Date(duration_vec)
+        duration_vec <- as.numeric(difftime(duration_vec, min(duration_vec, na.rm = TRUE), units = "days"))
+      } else {
+        duration_vec <- suppressWarnings(as.numeric(duration_vec))
+      }
+      duration_vec <- duration_vec[is.finite(duration_vec)]
+      if (length(duration_vec) == 0) return(NULL)
+      return(data.frame(.slider_end = duration_vec / unit_divisor))
+    }
+
+    if (!nzchar(input$start_time %||% "") || !nzchar(input$end_time %||% "")) {
+      return(NULL)
+    }
+    if (!(input$start_time %in% names(df)) || !(input$end_time %in% names(df))) return(NULL)
+    start_vec <- df[[input$start_time]]
+    end_vec <- df[[input$end_time]]
+    if ((inherits(start_vec, "Date") || inherits(start_vec, "POSIXt")) &&
+        (inherits(end_vec, "Date") || inherits(end_vec, "POSIXt"))) {
+      start_vec <- as.Date(start_vec)
+      end_vec <- as.Date(end_vec)
+      slider_end <- as.numeric(difftime(end_vec, start_vec, units = "days"))
+      swap_idx <- which(is.finite(slider_end) & slider_end < 0)
+      if (length(swap_idx) > 0) slider_end[swap_idx] <- abs(slider_end[swap_idx])
+    } else {
+      slider_end <- suppressWarnings(as.numeric(end_vec))
+    }
+    slider_end <- slider_end[is.finite(slider_end)]
+    if (length(slider_end) == 0) return(NULL)
+    data.frame(.slider_end = slider_end / unit_divisor)
+  })
+
+  output$time_range_slider <- graphics_render_time_range_slider(
+    ns,
+    ".slider_end",
+    swimmer_time_slider_source,
+    selected_range = reactive(graphics_state$time_range %||% input$time_range)
+  )
+
+  observeEvent(input$time_range, {
+    if (!is.null(input$time_range) && length(input$time_range) == 2) {
+      graphics_state$time_range <- input$time_range
+    }
+  }, ignoreInit = TRUE)
+
   observeEvent(input$render_plot, {
     req(data(), input$subject_id)
 
@@ -820,6 +883,11 @@ swimmer_plot_server <- function(input, output, session, data) {
       }
       unit_divisor <- switch(input$x_unit %||% "day", day = 1, week = 7, month = 30.4375, year = 365.25, 1)
       unit_label <- switch(input$x_unit %||% "day", day = "天", week = "周", month = "月", year = "年", "天")
+      time_range <- NULL
+      if (!is.null(input$time_range) && length(input$time_range) == 2) {
+        time_range <- suppressWarnings(as.numeric(input$time_range))
+        if (any(is.na(time_range)) || any(!is.finite(time_range))) time_range <- NULL
+      }
 
       selected_tracks <- input$tracks %||% character(0)
       selected_tracks <- selected_tracks[selected_tracks %in% names(df)]
@@ -1305,10 +1373,11 @@ swimmer_plot_server <- function(input, output, session, data) {
       if ((input$axis_style %||% "default") %in% c("classic_arrow", "classic")) {
         is_arrow <- (input$axis_style %||% "default") == "classic_arrow"
         n_y <- length(levels(lane_df$.subject_factor))
-        x_rng <- range(c(lane_df$.start_plot, lane_df$.end_plot), na.rm = TRUE)
+        x_rng <- if (!is.null(time_range)) time_range else range(c(lane_df$.start_plot, lane_df$.end_plot), na.rm = TRUE)
         x_span <- max(1e-6, diff(x_rng))
-        x_axis_start <- x_rng[1] - 0.03 * x_span
-        x_axis_end <- x_rng[2] + 0.06 * x_span
+        clip_pad <- max(1e-6, 0.001 * x_span)
+        x_axis_start <- if (is_arrow) x_rng[1] - 0.03 * x_span else x_rng[1] + clip_pad
+        x_axis_end <- if (is_arrow) x_rng[2] + 0.06 * x_span else x_rng[2] - clip_pad
         p_main <- p_main +
           theme_classic(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
           theme(
@@ -1318,7 +1387,7 @@ swimmer_plot_server <- function(input, output, session, data) {
             legend.position = if (isTRUE(input$show_legend)) (input$main_legend_position %||% "right") else "none",
             plot.margin = margin(10, 20, 12, 16)
           ) +
-          coord_cartesian(clip = "off")
+          coord_cartesian(xlim = time_range, clip = "off")
         
         p_main <- graphics_add_classic_axis_segments(
           p_main,
@@ -1330,6 +1399,8 @@ swimmer_plot_server <- function(input, output, session, data) {
           linewidth = 0.45,
           color = "black"
         )
+      } else if (!is.null(time_range)) {
+        p_main <- p_main + coord_cartesian(xlim = time_range)
       }
 
       if (is.null(track_df) || !isTRUE(input$show_tracks)) {
@@ -1593,36 +1664,84 @@ swimmer_plot_server <- function(input, output, session, data) {
 
   apply_state <- function(state) {
     if (!is.list(state)) return(invisible(FALSE))
-    graphics_restore_task_input_state(session, state)
-    extra_state <- graphics_task_payload_extra_state(state)
-    updateSelectizeInput(session, "subject_id", selected = extra_state$subject_id %||% input$subject_id, server = TRUE)
-    if (!is.null(extra_state$lane_time_mode)) updateSelectInput(session, "lane_time_mode", selected = extra_state$lane_time_mode)
-    updateSelectizeInput(session, "start_time", selected = extra_state$start_time %||% input$start_time, server = TRUE)
-    updateSelectizeInput(session, "end_time", selected = extra_state$end_time %||% input$end_time, server = TRUE)
-    updateSelectizeInput(session, "duration_var", selected = extra_state$duration_var %||% input$duration_var, server = TRUE)
-    if (!is.null(extra_state$event_legend_title)) updateTextInput(session, "event_legend_title", value = extra_state$event_legend_title)
-    if (!is.null(extra_state$lock_event_style_refresh)) updateCheckboxInput(session, "lock_event_style_refresh", value = isTRUE(extra_state$lock_event_style_refresh))
-    if (!is.null(extra_state$event_symbol_seed)) updateNumericInput(session, "event_symbol_seed", value = extra_state$event_symbol_seed)
-    if (!is.null(extra_state$x_unit)) updateSelectInput(session, "x_unit", selected = extra_state$x_unit)
-    if (!is.null(extra_state$x_break_step)) updateNumericInput(session, "x_break_step", value = extra_state$x_break_step)
-    if (!is.null(extra_state$tracks)) updateSelectizeInput(session, "tracks", selected = extra_state$tracks, server = TRUE)
-    if (!is.null(extra_state$size_mode)) updateSelectInput(session, "size_mode", selected = extra_state$size_mode)
-    if (!is.null(extra_state$export_width_in)) updateNumericInput(session, "export_width_in", value = extra_state$export_width_in)
-    if (!is.null(extra_state$export_height_in)) updateNumericInput(session, "export_height_in", value = extra_state$export_height_in)
-    if (is.list(extra_state$event_mappings) && length(extra_state$event_mappings) > 0) {
-      event_ui_state(extra_state$event_mappings)
-      event_map_count(length(extra_state$event_mappings))
+    tryCatch({
+      extra_state <- graphics_task_payload_extra_state(state)
+
+      if (!is.null(extra_state$subject_id)) graphics_state$subject_id <- extra_state$subject_id
+      if (!is.null(extra_state$lane_time_mode)) graphics_state$lane_time_mode <- extra_state$lane_time_mode
+      if (!is.null(extra_state$start_time)) graphics_state$start_time <- extra_state$start_time
+      if (!is.null(extra_state$end_time)) graphics_state$end_time <- extra_state$end_time
+      if (!is.null(extra_state$duration_var)) graphics_state$duration_var <- extra_state$duration_var
+      if (!is.null(extra_state$lane_color_by)) graphics_state$lane_color_by <- extra_state$lane_color_by
+      if (!is.null(extra_state$ongoing_var)) graphics_state$ongoing_var <- extra_state$ongoing_var
+      if (!is.null(extra_state$tracks)) graphics_state$tracks <- extra_state$tracks
+      if (!is.null(extra_state$event_legend_title)) updateTextInput(session, "event_legend_title", value = extra_state$event_legend_title)
+      if (!is.null(extra_state$lock_event_style_refresh)) updateCheckboxInput(session, "lock_event_style_refresh", value = isTRUE(extra_state$lock_event_style_refresh))
+      if (!is.null(extra_state$event_symbol_seed)) updateNumericInput(session, "event_symbol_seed", value = extra_state$event_symbol_seed)
+      if (!is.null(extra_state$x_unit)) updateSelectInput(session, "x_unit", selected = extra_state$x_unit)
+      if (!is.null(extra_state$x_break_step)) updateNumericInput(session, "x_break_step", value = extra_state$x_break_step)
+      if (!is.null(extra_state$time_range) && length(extra_state$time_range) == 2) {
+        graphics_state$time_range <- extra_state$time_range
+      }
+      if (!is.null(extra_state$size_mode)) updateSelectInput(session, "size_mode", selected = extra_state$size_mode)
+      if (!is.null(extra_state$export_width_in)) updateNumericInput(session, "export_width_in", value = extra_state$export_width_in)
+      if (!is.null(extra_state$export_height_in)) updateNumericInput(session, "export_height_in", value = extra_state$export_height_in)
+      if (is.list(extra_state$event_mappings) && length(extra_state$event_mappings) > 0) {
+        event_ui_state(extra_state$event_mappings)
+        event_map_count(length(extra_state$event_mappings))
+      }
+
+      graphics_restore_task_input_state(
+        session,
+        state,
+        exclude_ids = c(
+          "subject_id", "lane_time_mode", "start_time", "end_time",
+          "duration_var", "lane_color_by", "ongoing_var", "tracks", "time_range"
+        ),
+        exclude_patterns = c(
+          graphics_task_input_exclude_patterns(),
+          "^event_time_",
+          "^event_type_",
+          "^event_label_",
+          "^event_legend_title_[0-9]+$",
+          "^event_grp_",
+          "^track_mode_[0-9a-f]+$",
+          "^lane_col_",
+          "^track_col_"
+        )
+      )
+
       session$onFlushed(function() {
-        for (i in seq_len(length(extra_state$event_mappings))) {
-          mapping <- extra_state$event_mappings[[i]]
-          if (!is.null(mapping$event_time)) updateSelectizeInput(session, paste0("event_time_", i), selected = mapping$event_time, server = TRUE)
-          if (!is.null(mapping$event_type)) updateSelectizeInput(session, paste0("event_type_", i), selected = mapping$event_type, server = TRUE)
-          if (!is.null(mapping$event_label)) updateSelectizeInput(session, paste0("event_label_", i), selected = mapping$event_label, server = TRUE)
-          if (!is.null(mapping$event_legend_title)) updateTextInput(session, paste0("event_legend_title_", i), value = mapping$event_legend_title)
-        }
+        tryCatch({
+          updateSelectizeInput(session, "subject_id", selected = extra_state$subject_id %||% input$subject_id, server = TRUE)
+          if (!is.null(extra_state$lane_time_mode)) updateSelectInput(session, "lane_time_mode", selected = extra_state$lane_time_mode)
+          updateSelectizeInput(session, "start_time", selected = extra_state$start_time %||% input$start_time, server = TRUE)
+          updateSelectizeInput(session, "end_time", selected = extra_state$end_time %||% input$end_time, server = TRUE)
+          updateSelectizeInput(session, "duration_var", selected = extra_state$duration_var %||% input$duration_var, server = TRUE)
+          updateSelectizeInput(session, "lane_color_by", selected = extra_state$lane_color_by %||% input$lane_color_by, server = TRUE)
+          updateSelectizeInput(session, "ongoing_var", selected = extra_state$ongoing_var %||% input$ongoing_var, server = TRUE)
+          updateSelectizeInput(session, "tracks", selected = extra_state$tracks %||% input$tracks, server = TRUE)
+          if (!is.null(extra_state$time_range) && length(extra_state$time_range) == 2) {
+            updateSliderInput(session, "time_range", value = extra_state$time_range)
+          }
+          if (is.list(extra_state$event_mappings) && length(extra_state$event_mappings) > 0) {
+            for (i in seq_len(length(extra_state$event_mappings))) {
+              mapping <- extra_state$event_mappings[[i]]
+              if (!is.null(mapping$event_time)) updateSelectizeInput(session, paste0("event_time_", i), selected = mapping$event_time, server = TRUE)
+              if (!is.null(mapping$event_type)) updateSelectizeInput(session, paste0("event_type_", i), selected = mapping$event_type, server = TRUE)
+              if (!is.null(mapping$event_label)) updateSelectizeInput(session, paste0("event_label_", i), selected = mapping$event_label, server = TRUE)
+              if (!is.null(mapping$event_legend_title)) updateTextInput(session, paste0("event_legend_title_", i), value = mapping$event_legend_title)
+            }
+          }
+        }, error = function(e) {
+          message(sprintf("[SwimmerApplyStateFlushError] %s", conditionMessage(e)))
+        })
       }, once = TRUE)
-    }
-    invisible(TRUE)
+      invisible(TRUE)
+    }, error = function(e) {
+      message(sprintf("[SwimmerApplyStateError] %s", conditionMessage(e)))
+      invisible(FALSE)
+    })
   }
 
   list(
@@ -1644,12 +1763,15 @@ swimmer_plot_server <- function(input, output, session, data) {
           start_time = input$start_time,
           end_time = input$end_time,
           duration_var = input$duration_var,
+          lane_color_by = input$lane_color_by,
+          ongoing_var = input$ongoing_var,
           event_mappings = event_mappings,
           lock_event_style_refresh = input$lock_event_style_refresh,
           event_symbol_seed = input$event_symbol_seed,
           event_legend_title = input$event_legend_title,
           x_unit = time_axis_cfg$unit,
           x_break_step = time_axis_cfg$break_step,
+          time_range = graphics_state$time_range %||% input$time_range,
           tracks = input$tracks %||% character(0),
           size_mode = input$size_mode,
           export_width_in = size_config()$export_width,

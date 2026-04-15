@@ -351,15 +351,17 @@ AutoTFL/
 | 复现代码 | `graphics_repro.R` | 为图形模块生成可复现代码片段 |
 | UI 壳层 | `statistical_graphics_ui/common_ui_shell.R` | 统一页签容器、导出控件、主按钮样式，以及图形输出居中容器 |
 | 导出 | `plot_export.R` | 图形导出辅助能力 |
-| 任务历史 | `task_history.R` + `account_service.R` | 共享任务历史模块负责保存/加载入口、最近任务列表、用户自定义 note、删除操作与用户友好提示；底层使用 PostgreSQL `analysis_states` 表持久化图形子模块完整参数、UI 状态与模块类型 JSON 快照，不保存图对象、结果对象或原始数据副本 |
+| 任务历史 | `task_history.R` + `account_service.R` | 共享任务历史模块负责保存/加载入口、最近任务列表、用户自定义 note、删除操作与用户友好提示；底层使用 PostgreSQL `analysis_states` 表持久化图形子模块完整参数、UI 状态与模块类型 JSON 快照，不保存图对象、结果对象或原始数据副本；快照只保留业务参数，不应混入 DT/Plotly 等派生交互输入，也不应保存配置折叠/页签这类导航态；旧任务恢复时也要跳过这些临时字段，避免加载任务触发未定义列、过滤异常或动态 UI 异步崩溃 |
 
 ### 7.4 生存分析当前实现口径
 
 | 主题 | 当前实现 |
 | --- | --- |
 | 状态管理 | 采用 view state 与 committed state 分离，只有点击“生成图形”才提交分析参数 |
-| 风险表 | 风险表主要用于静态图组合输出；交互页并不是“Plotly + 风险表”同页布局。当前已暴露 `risk_table_height_ratio`、`risk_table_plot_gap`、`risk_table_group_gap` 三个参数，分别控制风险表相对高度、主图与风险表之间的垂直留白、风险表分组行之间的额外扩展；默认值收紧为 `0.15 / 0 / 1.2`。风险表数字层、Y轴标签、主图统计文本与辅助图例当前统一复用同一 `base_family` 字体链路；当用户选择 `Arial` 时，内部会自动映射为设备安全的 `sans`，以规避 `cowplot/grid` 组合阶段的 PostScript 字体度量告警 |
+| 时间范围 | “处理与筛选”面板中的 X 轴最大值滑轴已统一复用 common 的 `graphics_time_axis_controls_ui()` + `graphics_render_time_range_slider()` 抽象；生存分析模块必须将 `time_range` 同时接入 `view_state`、committed state、任务历史 extra_state 与回填链路，并同时作用于主图 `xlim`、统计文本定位和结果表时间过滤，不能只渲染滑块 UI 而不串通状态；动态 `renderUI` 重建滑轴时，`selected_range` 必须优先读取 `view_state$time_range` 以避免 UI 回退到默认最大值 |
+| 风险表 | 风险表主要用于静态图组合输出；交互页并不是“Plotly + 风险表”同页布局。当前已暴露 `risk_table_height_ratio`、`risk_table_plot_gap`、`risk_table_group_gap` 三个参数，分别控制风险表相对高度、主图与风险表之间的垂直留白、风险表分组行之间的额外扩展；默认值收紧为 `0.15 / 0 / 1.2`。风险表数字字号控件 `risk_table_fontsize` 现已统一改为与其他字号控件一致的 pt 口径，默认值为 `10`，内部再通过 common 换算成 `ggsurvplot` 风险表文本 size；风险表数字层、Y轴标签、主图统计文本与辅助图例当前统一复用同一 `base_family` 字体链路，并显式指定 `plain/bold` 字重，避免 risk 表数字出现无法受全局字体控制、比其他文本更粗的视觉偏差。风险表 Y 轴标签样式更新时必须保留 `ggsurvplot` 预设主题元素类型（例如 `element_markdown`），只能更新其字号/字体属性，不能直接用 `element_text` 覆盖，以避免 theme merge 报错；在分层场景下，risk table 顺序应保持 `ggsurvplot` 内置的 `y = rev(strata)` 映射，只允许在保留原 `breaks/labels` 结构的前提下做标签文案映射，不再额外通过 `scale_y_discrete(limits=...)` 重排分组顺序，也不要通过上游直接覆写 factor levels 的方式替换显示名，否则在自定义标签重复时会破坏组别与人数的对应关系；当用户选择 `Arial` 时，内部会自动映射为设备安全的 `sans`，以规避 `cowplot/grid` 组合阶段的 PostScript 字体度量告警 |
 | 分层标签 | 主图图例、删失图例、统计文本、风险表与数据表统一复用同一标签格式化链路；比较符号及原始值中的 `=`, `>=`, `<` 必须原样保留并可映射自定义标签 |
+| 文本输入 | 图例标题、分层标签、中位生存时间标签、坐标轴标题等文本输入，只有真正的空串 `""` 才允许回退默认值；用户显式输入的纯空格 `"   "` 必须按原样保留，不能因 `trimws()` 被吞掉后再回退为默认文案 |
 | 删失图例 | 交互图中的主图分组图例优先复用 `ggsurvplot` 默认图例能力，仅负责标题与标签定制；静态图则统一改为辅助图例方案：主图分组图例与删失图例都以 common 图例绘制器生成并组合，其中 Censor 图例在分层场景下必须优先复用主图最终 legend 颜色，确保删失符号颜色与曲线颜色一致。曲线上的删失点形状在所有分组中统一取自 `km_censor_shape`，不能因分组再次映射为圆形/三角等离散形状；静态图中主图分组图例固定在前、Censor 图例固定在后，且通过 common 的 inside-anchor/aux-legend 摆放抽象和公共 ratio 滑条控件控制紧凑间距与定位；图例自定义滑轨初始化值统一为 `X/Y/宽/高 = 0.95/0.85/0.13/0.14`，避免重复图例、原始 `变量=取值` 文本泄漏、颜色失配与 `Ignoring unknown labels` 警告。当前 `legend_row_gap` 已暴露到 UI，主图线条图例与删失图例必须共享同一 row-gap 参数，并在叠加时按各自真实行数动态分配高度，禁止再将删失图例行数硬编码为 `1` |
 | 统计文本 | 各组中位生存时间文本改为自由编辑标签，默认使用 `mPFS`，并统一左对齐；其组间距与 Cox 多组文本块保持一致的紧凑行距。统计文本自定义坐标统一复用 common 的比例坐标控件；统计报告中三组以上时需明确 Log-rank 为全局检验，只表示至少一组与其他组存在差异，不代表所有两两比较均显著 |
 | 坐标轴默认值 | X 轴标签默认填入 `Duration`，除非用户显式改写 |
@@ -374,11 +376,12 @@ AutoTFL/
 
 - Survival、Spider、Waterfall、Swimmer、Forest 已逐步接入 common 图例与统一尺寸/画布能力。
 - Swimmer 保留事件图例的自绘特例，但标题解析、inside-anchor 摆放与 ratio 滑条控件应继续优先复用 common。
+- Survival 的时间范围滑轴已复用 common 的 `graphics_time_axis_controls_ui()` + `graphics_render_time_range_slider()`；Swimmer 当前也接入同一组件，用于控制主图 X 轴最大显示范围。泳道图在时间映射尚未选定时必须保留该 UI 位置并显示提示，不能因 `req()` 中断而整块空白，任务历史恢复后也要继续回填 `time_range`。
 - Waterfall 与 Swimmer 的符号/颜色分别指定能力已经存在，但仍属于高复杂 UI，后续应继续抽象公共组件。
 - Survival、Spider、Waterfall 当前都已接入统一 Y 轴格式化口径：百分比显示、是否带 `%`、保留小数位数都应优先复用 common 的标签格式化函数。
 - Survival 静态图的主图线条图例与删失图例，当前被视为两个独立辅助图例：内部行距使用同一 `legend_row_gap` 参数，叠加拼接时按照各自真实行数分配 `rel_heights`，不得依赖固定比例常量推断高度。
 - 涉及 `cowplot` / `grid` 组合测量的文本（如 Survival 静态图、辅助图例、风险表）若用户选择 `Arial`，必须先经过 common 的设备安全字体解析并回退为 `sans`；仅依赖 `showtext::font_add()` 不能消除组合阶段的 `PostScript字体数据库里找不到'Arial'` 告警。
-- 森林图、蜘蛛图、泳道图当前已开始复用 common UI 高阶组件收口坐标范围、刻度格式与时间轴单位换算；经典轴线手动画段也已抽到 `graphics_add_classic_axis_segments()`，减少模块内重复 `annotate("segment")` 逻辑。
+- 森林图、蜘蛛图、泳道图当前已开始复用 common UI 高阶组件收口坐标范围、刻度格式与时间轴单位换算；经典轴线手动画段也已抽到 `graphics_add_classic_axis_segments()`，减少模块内重复 `annotate("segment")` 逻辑。泳道图在 `classic` 无箭头模式下，X 轴线段终点需保持在面板裁剪边界内侧，避免最右端方头线帽被裁掉后出现“断裂”视觉。
 
 ## 8. 预设图表实现
 
@@ -454,6 +457,7 @@ AutoTFL/
 - 新增或改动 common 函数时，至少同步更新本指南中的“可复用函数清单”和相关测试，确保后续开发按同一契约收紧。
 - 任务历史当前采用“共享模块先内嵌、一级导航后置”的演进策略：在统计图形/统计分析形成统一 `state/apply_state` 契约前，不直接迁移为左侧一级菜单。
 - 任务历史载入的本质是“状态快照恢复”：当前由 `task_history.R` 解析 `state_payload`，再调用各业务模块的 `apply_state()` 回填控件；图形模块需尽量覆盖当前子模块全部参数的保存/回填，但是否自动重新生成结果，仍取决于业务模块自身的交互设计。
+- 任务历史保存/恢复要区分“业务输入”与“派生交互输入”：DT 行选择、列过滤、Plotly relayout/hover，以及 `config_tabs` 这类配置页签导航态都不得写入快照；恢复旧任务时若 payload 中仍含这些字段，common 层也必须跳过，避免回填时把表格/交互组件带入异常状态。
 
 ## 10. 数据、存储与规范
 

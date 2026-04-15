@@ -61,6 +61,16 @@ test_that("主图图例 breaks 与 labels 走统一解析", {
   )
 })
 
+test_that("risk表标签映射只改文案，不再额外覆盖分组顺序", {
+  labeler <- .build_survival_strata_labeler(
+    strata_var = "age group",
+    strata_labels = list(">=65" = "Older", "<65" = "Younger"),
+    overall_label = "Overall"
+  )
+
+  expect_equal(unname(labeler(c("age group=>=65", "age group=<65"))), c("Older", "Younger"))
+})
+
 test_that("分层标签输入ID对特殊符号稳定", {
   input_id <- .survival_strata_label_input_id(">=65")
   expect_match(input_id, "^strata_label_[A-Za-z0-9]+$")
@@ -149,6 +159,16 @@ test_that("删失符号解析与静态图约定一致", {
 test_that("生存分析字体解析对 Arial 做设备安全回退", {
   expect_equal(.resolve_survival_base_family("Arial"), "sans")
   expect_equal(.resolve_survival_base_family("serif"), "serif")
+  expect_equal(.resolve_survival_base_family(character(0)), "sans")
+})
+
+test_that("risk表数字字号改为统一pt口径后再内部换算", {
+  expect_equal(.resolve_survival_text_size_pt(10), 10)
+  expect_equal(.resolve_survival_text_size_pt("bad", fallback = 12), 12)
+  expect_equal(
+    .resolve_survival_risk_table_geom_size(10),
+    graphics_pt_to_geom_text_size(10)
+  )
 })
 
 test_that("删失点颜色优先复用主图最终 legend 颜色", {
@@ -164,10 +184,19 @@ test_that("删失点颜色优先复用主图最终 legend 颜色", {
 test_that("中位生存时间文本默认使用 mPFS 并支持自由编辑", {
   expect_equal(.resolve_survival_median_label(NULL), "mPFS")
   expect_equal(.resolve_survival_median_label(""), "mPFS")
+  expect_equal(.resolve_survival_median_label("   "), "   ")
   expect_equal(.resolve_survival_median_label("Median Survival Time"), "Median Survival Time")
   expect_equal(
     .build_survival_median_summary_label("F", "mPFS", "12.30", "10.00", "15.00", overall_label = "all"),
     "F: mPFS: 12.30 (95%CI 10.00-15.00)"
+  )
+})
+
+test_that("图例和分层标签文本输入保留空格而不回退默认值", {
+  expect_equal(graphics_resolve_legend_title("   ", "Default", ""), "   ")
+  expect_equal(
+    .format_survival_group_label("SEX=A", "SEX", strata_labels = list(A = "   "), overall_label = "all"),
+    "   "
   )
 })
 
@@ -193,6 +222,56 @@ test_that("生存分析辅助图例复用统一字体族", {
   expect_equal(line_legend$layers[[2]]$aes_params$family, "serif")
 })
 
+test_that("risk表数字层复用全局字体并支持统一字重控制", {
+  risk_plot <- ggplot(data.frame(x = 1, y = 1, label = "12"), aes(x, y, label = label)) +
+    geom_text() +
+    theme_void()
+
+  styled_plot <- .apply_survival_risk_table_text_style(
+    risk_table_plot = risk_plot,
+    number_size_pt = 10,
+    y_text_size = 11,
+    base_family = "Arial",
+    bold = TRUE
+  )
+
+  expect_equal(styled_plot$layers[[1]]$aes_params$family, "sans")
+  expect_equal(styled_plot$layers[[1]]$aes_params$fontface, "bold")
+  expect_equal(
+    styled_plot$layers[[1]]$aes_params$size,
+    graphics_pt_to_geom_text_size(10)
+  )
+})
+
+test_that("risk表Y轴标签样式更新时保留原主题元素类型", {
+  existing <- ggtext::element_markdown(size = 12, family = "sans")
+  updated <- .build_survival_risk_table_axis_text_element(
+    existing = existing,
+    size_pt = 10,
+    family = "Arial",
+    face = "plain"
+  )
+
+  expect_s3_class(updated, "element_markdown")
+  expect_equal(updated$size, 10)
+  expect_equal(updated$family, "sans")
+  expect_equal(updated$face, "plain")
+})
+
+test_that("删失图例布局对长度不足的锚点配置做安全回退", {
+  layout <- .resolve_survival_censor_legend_layout("inside_custom", inside_anchor = numeric(0))
+  expect_equal(layout$position, "inside_custom")
+  expect_equal(
+    layout$anchor,
+    graphics_resolve_inside_anchor(
+      x_ratio = .survival_aux_legend_compact_spec$default_inside_anchor[[1]],
+      y_ratio = .survival_aux_legend_compact_spec$default_inside_anchor[[2]],
+      width_ratio = .survival_aux_legend_compact_spec$default_inside_anchor[[3]],
+      height_ratio = .survival_aux_legend_compact_spec$default_inside_anchor[[4]]
+    )
+  )
+})
+
 test_that("多组 log-rank 解释明确全局检验含义", {
   explanation <- .build_survival_logrank_interpretation(0.012, n_groups = 4)
   expect_length(explanation, 2)
@@ -207,4 +286,36 @@ test_that("生存分析P值展示遵循AMA格式", {
   expect_equal(.compose_survival_p_text("Log-rank P", 0.0004), "Log-rank P <0.001")
   expect_equal(.compose_survival_p_text("Log-rank P", 0.0344), "Log-rank P = 0.034")
   expect_equal(.compose_survival_p_text("Log-rank 检验 P值", 0.0004, with_spaces = FALSE), "Log-rank 检验 P值<0.001")
+})
+
+test_that("risk表重构保留原始坐标轴标签映射", {
+  library(survival)
+  library(survminer)
+  library(ggplot2)
+  fit <- survfit(Surv(time, status) ~ rx, data = colon)
+  p <- ggsurvplot(fit, data = colon, risk.table = TRUE)
+  
+  # 提取原始 scale
+  y_scale_idx <- which(sapply(p$table$scales$scales, function(x) "y" %in% x$aesthetics))
+  orig_scale <- p$table$scales$scales[[y_scale_idx[1]]]
+  
+  # 假设的 labeler
+  risk_table_labeler <- function(x) paste0("NEW_", x)
+  risk_table_scale <- .resolve_survival_risk_table_scale(p$table, risk_table_labeler)
+  
+  # 重构的 table
+  p$table <- p$table + scale_y_discrete(
+    breaks = risk_table_scale$breaks,
+    labels = risk_table_scale$labels
+  )
+  
+  b <- ggplot_build(p$table)
+  # 测试: ggsurvplot 默认 labels 会被反转
+  # 例如 breaks: rx=Obs, rx=Lev, rx=Lev+5FU
+  # labels: rx=Lev+5FU, rx=Lev, rx=Obs
+  # 所以新的标签应该是 NEW_rx=Lev+5FU, NEW_rx=Lev, NEW_rx=Obs
+  expect_equal(
+    b$layout$panel_params[[1]]$y$get_labels(),
+    c("NEW_rx=Lev+5FU", "NEW_rx=Lev", "NEW_rx=Obs")
+  )
 })

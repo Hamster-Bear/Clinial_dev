@@ -14,6 +14,7 @@
   - 跨模块复用的逻辑必须沉淀至 `modules/common/`，禁止模块间交叉引用。
   - 任务历史、权限管理、任务列表等跨业务复用的 Shiny 区块，应先抽为共享模块并嵌入现有业务页验证；未形成跨统计图形/统计分析稳定契约前，不应直接升级为左侧一级菜单。
   - 接入任务历史的业务模块必须显式维护 `state` / `apply_state` 契约；凡写入 `state_payload` 的图形子模块参数，应尽量提供对称的回填逻辑，目标是覆盖当前子模块全部用户可配置参数，避免“可保存不可载入”。
+  - 任务历史快照仅保存业务输入；`DT`/`plotly`/输出表格产生的派生交互输入（如行选择、列过滤、relayout、hover）以及 `config_tabs` 等导航态不得写入 `state_payload`，恢复旧快照时也必须跳过这些临时字段。
   - Shiny module 的 server 端若在 `renderUI()` / `renderPlot()` / `renderPlotly()` 中动态创建 namespaced output/input，必须显式定义 `ns <- session$ns`，避免运行时出现“没有 ns 这个函数”。
   - 在 Shiny `reactive()` / `render*()` 链路中使用校验时，必须显式写成 `shiny::validate()` 与 `shiny::need()`，不要依赖裸函数名，避免被其他包的同名函数覆盖。
 - **依赖管理**: 
