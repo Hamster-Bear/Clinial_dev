@@ -60,11 +60,9 @@ swimmer_plot_ui <- function(id) {
               ),
               column(
                 4,
-                tags$div(
-                  class = "panel panel-default",
-                  tags$div(class = "panel-heading", "轨道与排序"),
-                  tags$div(
-                    class = "panel-body",
+                graphics_card_panel_ui(
+                  "轨道与排序",
+                  tagList(
                     selectizeInput(ns("tracks"), "下方分组轨道(可多选)", choices = NULL, multiple = TRUE, width = "100%"),
                     selectInput(
                       ns("sort_mode"),
@@ -94,43 +92,47 @@ swimmer_plot_ui <- function(id) {
             tabsetPanel(
               tabPanel(
                 "文本与标题",
-                textInput(ns("plot_title"), "主标题", value = "泳道图", width = "100%"),
-                textInput(ns("plot_subtitle"), "副标题", value = "", width = "100%"),
-                textAreaInput(ns("plot_caption"), "脚注", value = "", rows = 2, width = "100%"),
-                fluidRow(
-                  column(6, textInput(ns("plot_xlab"), "X轴标签", value = "时间", width = "100%")),
-                  column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "受试者", width = "100%"))
-                ),
-                textInput(ns("lane_legend_title"), "泳道图例标题", value = "", width = "100%")
+                graphics_text_label_panel_ui(
+                  ns,
+                  title = "文本与标题",
+                  fields = list(
+                    list(list(id = "plot_title", label = "主标题", type = "text", selected = "泳道图")),
+                    list(list(id = "plot_subtitle", label = "副标题", type = "text", selected = "")),
+                    list(list(id = "plot_caption", label = "脚注", type = "text", selected = "")),
+                    list(
+                      list(id = "plot_xlab", label = "X轴标签", type = "text", selected = "时间", column = 6),
+                      list(id = "plot_ylab", label = "Y轴标签", type = "text", selected = "受试者", column = 6)
+                    ),
+                    list(list(id = "lane_legend_title", label = "泳道图例标题", type = "text", selected = ""))
+                  )
+                )
               ),
               tabPanel(
                 "坐标与显示",
                 fluidRow(
                   column(
                     6,
-                    tags$div(
-                      class = "panel panel-default",
-                      tags$div(class = "panel-heading", "显示与图例"),
-                      tags$div(
-                        class = "panel-body",
-                        checkboxInput(ns("show_legend"), "显示图例", TRUE),
-                        fluidRow(
-                          column(6, selectInput(ns("main_legend_position"), "主图图例位置", choices = graphics_legend_position_choices("outer"), selected = "right", width = "100%")),
-                          column(6, selectInput(ns("track_legend_position"), "轨道图例位置", choices = graphics_legend_position_choices("outer"), selected = "right", width = "100%"))
+                    graphics_display_legend_panel_ui(
+                      ns,
+                      title = "显示与图例",
+                      fields = list(
+                        list(list(id = "show_legend", label = "显示图例", type = "checkbox", value = TRUE)),
+                        list(
+                          list(id = "main_legend_position", label = "主图图例位置", type = "select", choices = graphics_legend_position_choices("outer"), selected = "right", column = 6),
+                          list(id = "track_legend_position", label = "轨道图例位置", type = "select", choices = graphics_legend_position_choices("outer"), selected = "right", column = 6)
                         ),
-                        checkboxInput(ns("show_grid_lines"), "显示网格线", TRUE),
-                        checkboxInput(ns("show_subject_labels"), "显示受试者标签", TRUE),
-                        checkboxInput(ns("show_ongoing_arrow"), "持续中显示箭头", TRUE)
+                        list(list(id = "show_grid_lines", label = "显示网格线", type = "checkbox", value = TRUE)),
+                        list(list(id = "show_subject_labels", label = "显示受试者标签", type = "checkbox", value = TRUE)),
+                        list(list(id = "show_ongoing_arrow", label = "持续中显示箭头", type = "checkbox", value = TRUE))
                       )
                     )
                   ),
                   column(
                     6,
-                    tags$div(
-                      class = "panel panel-default",
-                      tags$div(class = "panel-heading", "坐标与尺寸"),
-                      tags$div(
-                        class = "panel-body",
+                    graphics_axis_proportion_panel_ui(
+                      ns,
+                      title = "坐标与尺寸",
+                      prepend_ui = tagList(
                         selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
                         graphics_time_axis_panel_ui(
                           ns,
@@ -147,10 +149,12 @@ swimmer_plot_ui <- function(id) {
                           include_range_slider = TRUE,
                           slider_id = "time_range_slider",
                           include_slider_step_input = FALSE
-                        ),
-                        fluidRow(
-                          column(6, sliderInput(ns("lane_size"), "泳道线宽", min = 0.8, max = 8, value = 4, step = 0.2, width = "100%")),
-                          column(6, sliderInput(ns("event_size"), "事件点大小", min = 1, max = 8, value = 3.2, step = 0.2, width = "100%"))
+                        )
+                      ),
+                      fields = list(
+                        list(
+                          list(id = "lane_size", label = "泳道线宽", type = "slider", value = 4, min = 0.8, max = 8, step = 0.2, column = 6),
+                          list(id = "event_size", label = "事件点大小", type = "slider", value = 3.2, min = 1, max = 8, step = 0.2, column = 6)
                         )
                       )
                     )
@@ -162,7 +166,7 @@ swimmer_plot_ui <- function(id) {
                 fluidRow(
                   column(
                     6,
-                    graphics_display_legend_panel_ui(
+                    graphics_symbol_style_panel_ui(
                       ns,
                       title = "事件基础",
                       fields = list(
@@ -187,10 +191,9 @@ swimmer_plot_ui <- function(id) {
                   ),
                   column(
                     6,
-                    tags$div(
-                      class = "panel panel-default",
-                      tags$div(class = "panel-heading", "事件分组样式"),
-                      tags$div(class = "panel-body", uiOutput(ns("event_group_style_controls")))
+                    graphics_group_style_mapping_panel_ui(
+                      "事件分组样式",
+                      uiOutput(ns("event_group_style_controls"))
                     )
                   )
                 )
@@ -200,29 +203,21 @@ swimmer_plot_ui <- function(id) {
                 fluidRow(
                   column(
                     6,
-                    tags$div(
-                      class = "panel panel-default",
-                      tags$div(class = "panel-heading", "泳道主色"),
-                      tags$div(
-                        class = "panel-body",
-                        sliderInput(ns("lane_alpha"), "泳道透明度", min = 0.3, max = 1, value = 0.9, step = 0.05, width = "100%"),
-                        selectInput(
-                          ns("lane_palette"),
-                          "泳道调色板",
-                          choices = c("默认Hue" = "hue", "Set2" = "Set2", "Set3" = "Set3", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"),
-                          selected = "Set2",
-                          width = "100%"
-                        ),
-                        selectInput(ns("lane_color_mode"), "泳道颜色分配", choices = c("调色板自动" = "palette", "分别指定" = "manual_each"), selected = "palette", width = "100%")
+                    graphics_palette_layout_panel_ui(
+                      ns,
+                      title = "泳道主色",
+                      fields = list(
+                        list(list(id = "lane_alpha", label = "泳道透明度", type = "slider", value = 0.9, min = 0.3, max = 1, step = 0.05)),
+                        list(list(id = "lane_palette", label = "泳道调色板", type = "select", choices = graphics_palette_choice_values("qualitative"), selected = "Set2")),
+                        list(list(id = "lane_color_mode", label = "泳道颜色分配", type = "select", choices = c("调色板自动" = "palette", "分别指定" = "manual_each"), selected = "palette"))
                       )
                     )
                   ),
                   column(
                     6,
-                    tags$div(
-                      class = "panel panel-default",
-                      tags$div(class = "panel-heading", "分组颜色映射"),
-                      tags$div(class = "panel-body", uiOutput(ns("lane_color_controls")))
+                    graphics_group_style_mapping_panel_ui(
+                      "分组颜色映射",
+                      uiOutput(ns("lane_color_controls"))
                     )
                   )
                 )
@@ -232,11 +227,9 @@ swimmer_plot_ui <- function(id) {
                 fluidRow(
                   column(
                     6,
-                    tags$div(
-                      class = "panel panel-default",
-                      tags$div(class = "panel-heading", "轨道显示"),
-                      tags$div(
-                        class = "panel-body",
+                    graphics_card_panel_ui(
+                      "轨道显示",
+                      tagList(
                         colourpicker::colourInput(ns("track_text_bg_color"), "轨道文本底色", value = "#F7F7F7", width = "100%"),
                         textInput(ns("track_legend_title"), "轨道图例标题", value = "轨道分组", width = "100%"),
                         checkboxInput(ns("track_compact_mode"), "轨道紧凑模式", TRUE),
@@ -249,11 +242,9 @@ swimmer_plot_ui <- function(id) {
                   ),
                   column(
                     6,
-                    tags$div(
-                      class = "panel panel-default",
-                      tags$div(class = "panel-heading", "缺失值与版式"),
-                      tags$div(
-                        class = "panel-body",
+                    graphics_card_panel_ui(
+                      "缺失值与版式",
+                      tagList(
                         selectInput(ns("missing_display_mode"), "空值显示方式", choices = c("空白" = "blank", "无" = "none", "NA" = "na", "破折号" = "dash", "自定义" = "custom"), selected = "na", width = "100%"),
                         conditionalPanel(
                           condition = sprintf("input['%s'] === 'custom'", ns("missing_display_mode")),
@@ -690,55 +681,72 @@ swimmer_plot_server <- function(input, output, session, data) {
         } else {
           character(0)
         }
+        color_manual_each_ui <- if (length(event_levels) > 0) {
+          graphics_group_style_mapping_panel_ui(
+            title = paste0(legend_title, " 颜色分别指定"),
+            body = graphics_group_symbol_controls_ui(
+              session = session,
+              levels = event_levels,
+              color_input_prefix = paste0("event_grp_col_each_", i, "_"),
+              default_colors = rep(color_default, length(event_levels)),
+              title = paste0(legend_title, " 颜色分别指定"),
+              color_label_suffix = "颜色",
+              show_symbol = FALSE,
+              show_color = TRUE
+            )
+          )
+        } else {
+          NULL
+        }
+        symbol_manual_each_ui <- if (length(event_levels) > 0) {
+          graphics_group_style_mapping_panel_ui(
+            title = paste0(legend_title, " 符号分别指定"),
+            body = graphics_group_symbol_controls_ui(
+              session = session,
+              levels = event_levels,
+              symbol_input_prefix = paste0("event_grp_shape_each_", i, "_"),
+              symbol_choices = shape_choice_values,
+              default_symbols = as.numeric(rep(unname(shape_choice_values), length.out = length(event_levels))),
+              title = paste0(legend_title, " 符号分别指定"),
+              show_symbol = TRUE,
+              show_color = FALSE
+            )
+          )
+        } else {
+          NULL
+        }
         tagList(
           fluidRow(
-            column(3, selectInput(session$ns(paste0("event_grp_color_mode_", i)), label = paste0(legend_title, " 颜色分配"), choices = c("随机且不重复" = "random_unique", "单一指定" = "single", "分别指定" = "manual_each"), selected = color_mode_default, width = "100%")),
             column(
-              3,
-              conditionalPanel(
-                condition = sprintf("input['%s'] === 'single'", session$ns(paste0("event_grp_color_mode_", i))),
-                colourpicker::colourInput(session$ns(paste0("event_grp_col_", i)), label = paste0(legend_title, " 指定颜色"), value = color_default, width = "100%")
+              6,
+              graphics_group_style_rule_ui(
+                session = session,
+                mode_input_id = paste0("event_grp_color_mode_", i),
+                mode_label = paste0(legend_title, " 颜色分配"),
+                selected_mode = color_mode_default,
+                single_input_id = paste0("event_grp_col_", i),
+                single_input_label = paste0(legend_title, " 指定颜色"),
+                single_input_type = "color",
+                single_value = color_default,
+                manual_each_ui = color_manual_each_ui
               )
             ),
-            column(3, selectInput(session$ns(paste0("event_grp_symbol_mode_", i)), label = paste0(legend_title, " 符号分配"), choices = c("随机且不重复" = "random_unique", "单一指定" = "single", "分别指定" = "manual_each"), selected = symbol_mode_default, width = "100%")),
             column(
-              3,
-              conditionalPanel(
-                condition = sprintf("input['%s'] === 'single'", session$ns(paste0("event_grp_symbol_mode_", i))),
-                selectInput(session$ns(paste0("event_grp_shape_", i)), label = paste0(legend_title, " 指定符号"), choices = shape_choice_values, selected = shape_default, width = "100%")
+              6,
+              graphics_group_style_rule_ui(
+                session = session,
+                mode_input_id = paste0("event_grp_symbol_mode_", i),
+                mode_label = paste0(legend_title, " 符号分配"),
+                selected_mode = symbol_mode_default,
+                single_input_id = paste0("event_grp_shape_", i),
+                single_input_label = paste0(legend_title, " 指定符号"),
+                single_input_type = "select",
+                single_value = shape_default,
+                single_choices = shape_choice_values,
+                manual_each_ui = symbol_manual_each_ui
               )
             )
-          ),
-          if (length(event_levels) > 0) {
-            tagList(
-              conditionalPanel(
-                condition = sprintf("input['%s'] === 'manual_each'", session$ns(paste0("event_grp_color_mode_", i))),
-                graphics_group_symbol_controls_ui(
-                  session = session,
-                  levels = event_levels,
-                  color_input_prefix = paste0("event_grp_col_each_", i, "_"),
-                  default_colors = rep(color_default, length(event_levels)),
-                  title = paste0(legend_title, " 颜色分别指定"),
-                  color_label_suffix = "颜色",
-                  show_symbol = FALSE,
-                  show_color = TRUE
-                )
-              ),
-              conditionalPanel(
-                condition = sprintf("input['%s'] === 'manual_each'", session$ns(paste0("event_grp_symbol_mode_", i))),
-                graphics_group_symbol_controls_ui(
-                  session = session,
-                  levels = event_levels,
-                  symbol_input_prefix = paste0("event_grp_shape_each_", i, "_"),
-                  symbol_choices = shape_choice_values,
-                  default_symbols = as.numeric(rep(unname(shape_choice_values), length.out = length(event_levels))),
-                  title = paste0(legend_title, " 符号分别指定"),
-                  show_symbol = TRUE,
-                  show_color = FALSE
-                )
-              )
-            )
-          }
+          )
         )
       })
     )

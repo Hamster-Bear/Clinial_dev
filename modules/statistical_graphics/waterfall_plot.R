@@ -26,57 +26,52 @@ waterfall_plot_ui <- function(id) {
             fluidRow(
               column(
                 4,
-                tags$div(
-                  class = "panel panel-default",
-                  tags$div(class = "panel-heading", "核心变量映射"),
-                  tags$div(
-                    class = "panel-body",
-                    selectizeInput(ns("subject_id"), "受试者ID变量", choices = NULL, width = "100%"),
-                    selectizeInput(ns("value_var"), "变化值变量", choices = NULL, width = "100%"),
-                    selectizeInput(ns("bar_color_by"), "柱颜色分组", choices = NULL, width = "100%"),
-                    selectizeInput(ns("symbol_by"), "柱符号分组(可选)", choices = NULL, width = "100%"),
-                    selectizeInput(ns("tracks"), "下方分组轨道(可多选)", choices = NULL, multiple = TRUE, width = "100%")
+                graphics_column_mapping_panel_ui(
+                  ns,
+                  title = "核心变量映射",
+                  fields = list(
+                    list(list(id = "subject_id", label = "受试者ID变量", type = "selectize")),
+                    list(list(id = "value_var", label = "变化值变量", type = "selectize")),
+                    list(list(id = "bar_color_by", label = "柱颜色分组", type = "selectize")),
+                    list(list(id = "symbol_by", label = "柱符号分组(可选)", type = "selectize")),
+                    list(list(id = "tracks", label = "下方分组轨道(可多选)", type = "selectize", multiple = TRUE))
                   )
                 )
               ),
               column(
                 4,
-                tags$div(
-                  class = "panel panel-default",
-                  tags$div(class = "panel-heading", "排序和显示"),
-                  tags$div(
-                    class = "panel-body",
-                    tabsetPanel(
-                      tabPanel(
-                        "排序与轨道",
-                        br(),
-                        selectInput(ns("sort_order"), "排序方向", choices = c("从低到高" = "asc", "从高到低" = "desc"), selected = "asc", width = "100%"),
-                        selectInput(ns("track_mode"), "轨道默认展示方式", choices = c("颜色填充" = "color", "文本填充" = "text"), selected = "color", width = "100%"),
-                        checkboxInput(ns("show_tracks"), "显示下方分组轨道", TRUE),
-                        uiOutput(ns("track_mode_controls"))
-                      ),
-                      tabPanel(
-                        "显示与图例",
-                        br(),
-                        graphics_display_legend_panel_ui(
-                          ns,
-                          title = "显示与图例",
-                          fields = list(
-                            list(list(id = "show_symbols", label = "显示柱符号分组", type = "checkbox", value = TRUE)),
-                            list(list(id = "show_subject_labels", label = "显示受试者标签", type = "checkbox", value = FALSE)),
-                            list(list(id = "use_percent_label", label = "Y轴默认显示百分比", type = "checkbox", value = TRUE)),
-                            list(list(id = "y_decimals", label = "Y轴保留小数位数", type = "numeric", value = 1, min = 0, max = 5, step = 1)),
-                            list(list(id = "show_grid_lines", label = "显示网格线", type = "checkbox", value = TRUE)),
-                            list(list(id = "axis_style", label = "坐标轴样式", type = "select", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default")),
-                            list(list(id = "show_legend", label = "显示图例", type = "checkbox", value = TRUE)),
-                            list(list(id = "auto_mapping_caption", label = "自动追加样式脚注", type = "checkbox", value = TRUE)),
-                            list(list(id = "main_legend_position", label = "主图图例位置", type = "select", choices = graphics_legend_position_choices("outer"), selected = "right")),
-                            list(list(id = "track_legend_position", label = "轨道图例位置", type = "select", choices = graphics_legend_position_choices("outer"), selected = "right"))
-                          ),
-                          extra_ui = conditionalPanel(
-                            condition = paste0("input['", ns("use_percent_label"), "'] == true"),
-                            checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
-                          )
+                graphics_card_panel_ui(
+                  "排序和显示",
+                  tabsetPanel(
+                    tabPanel(
+                      "排序与轨道",
+                      br(),
+                      selectInput(ns("sort_order"), "排序方向", choices = c("从低到高" = "asc", "从高到低" = "desc"), selected = "asc", width = "100%"),
+                      selectInput(ns("track_mode"), "轨道默认展示方式", choices = c("颜色填充" = "color", "文本填充" = "text"), selected = "color", width = "100%"),
+                      checkboxInput(ns("show_tracks"), "显示下方分组轨道", TRUE),
+                      uiOutput(ns("track_mode_controls"))
+                    ),
+                    tabPanel(
+                      "显示与图例",
+                      br(),
+                      graphics_display_legend_panel_ui(
+                        ns,
+                        title = "显示与图例",
+                        fields = list(
+                          list(list(id = "show_symbols", label = "显示柱符号分组", type = "checkbox", value = TRUE)),
+                          list(list(id = "show_subject_labels", label = "显示受试者标签", type = "checkbox", value = FALSE)),
+                          list(list(id = "use_percent_label", label = "Y轴默认显示百分比", type = "checkbox", value = TRUE)),
+                          list(list(id = "y_decimals", label = "Y轴保留小数位数", type = "numeric", value = 1, min = 0, max = 5, step = 1)),
+                          list(list(id = "show_grid_lines", label = "显示网格线", type = "checkbox", value = TRUE)),
+                          list(list(id = "axis_style", label = "坐标轴样式", type = "select", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default")),
+                          list(list(id = "show_legend", label = "显示图例", type = "checkbox", value = TRUE)),
+                          list(list(id = "auto_mapping_caption", label = "自动追加样式脚注", type = "checkbox", value = TRUE)),
+                          list(list(id = "main_legend_position", label = "主图图例位置", type = "select", choices = graphics_legend_position_choices("outer"), selected = "right")),
+                          list(list(id = "track_legend_position", label = "轨道图例位置", type = "select", choices = graphics_legend_position_choices("outer"), selected = "right"))
+                        ),
+                        extra_ui = conditionalPanel(
+                          condition = paste0("input['", ns("use_percent_label"), "'] == true"),
+                          checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
                         )
                       )
                     )
@@ -85,22 +80,20 @@ waterfall_plot_ui <- function(id) {
               ),
               column(
                 4,
-                tags$div(
-                  class = "panel panel-default",
-                  tags$div(class = "panel-heading", "阈值与临床线"),
-                    tags$div(
-                      class = "panel-body",
-                      checkboxInput(ns("show_recist"), "显示RECIST阈值线", TRUE),
-                      conditionalPanel(
-                        condition = paste0("input['", ns("show_recist"), "'] == true"),
-                        graphics_reference_line_ui(ns, "recist_lower", label = "RECIST下阈值", default_value = -30, default_color = "#2C7BB6"),
-                        graphics_reference_line_ui(ns, "recist_upper", label = "RECIST上阈值", default_value = 20, default_color = "#D7191C"),
-                        checkboxInput(ns("show_recist_labels"), "显示阈值文本标签", TRUE),
-                        textInput(ns("recist_lower_label"), "下阈值标签", value = "RECIST -30%", width = "100%"),
-                        textInput(ns("recist_upper_label"), "上阈值标签", value = "RECIST +20%", width = "100%")
-                      )
-                    )
+                graphics_reference_threshold_panel_ui(
+                  ns,
+                  title = "阈值与临床线",
+                  toggle_id = "show_recist",
+                  toggle_label = "显示RECIST阈值线",
+                  toggle_value = TRUE,
+                  conditional_ui = tagList(
+                    graphics_reference_line_ui(ns, "recist_lower", label = "RECIST下阈值", default_value = -30, default_color = "#2C7BB6"),
+                    graphics_reference_line_ui(ns, "recist_upper", label = "RECIST上阈值", default_value = 20, default_color = "#D7191C"),
+                    checkboxInput(ns("show_recist_labels"), "显示阈值文本标签", TRUE),
+                    textInput(ns("recist_lower_label"), "下阈值标签", value = "RECIST -30%", width = "100%"),
+                    textInput(ns("recist_upper_label"), "上阈值标签", value = "RECIST +20%", width = "100%")
                   )
+                )
               )
             )
           ),
@@ -110,66 +103,62 @@ waterfall_plot_ui <- function(id) {
             tabsetPanel(
               tabPanel(
                 "文本与标签",
-                textInput(ns("plot_title"), "主标题", value = "瀑布图", width = "100%"),
-                textInput(ns("plot_subtitle"), "副标题", value = "", width = "100%"),
-                textAreaInput(ns("plot_caption"), "脚注", value = "", rows = 2, width = "100%"),
-                fluidRow(
-                  column(6, textInput(ns("plot_xlab"), "X轴标签", value = "受试者", width = "100%")),
-                  column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "较基线变化 (%)", width = "100%"))
-                ),
-                textInput(ns("legend_title"), "图例标题", value = "", width = "100%")
+                graphics_text_label_panel_ui(
+                  ns,
+                  title = "文本与标签",
+                  fields = list(
+                    list(list(id = "plot_title", label = "主标题", type = "text", selected = "瀑布图")),
+                    list(list(id = "plot_subtitle", label = "副标题", type = "text", selected = "")),
+                    list(list(id = "plot_caption", label = "脚注", type = "text", selected = "")),
+                    list(
+                      list(id = "plot_xlab", label = "X轴标签", type = "text", selected = "受试者", column = 6),
+                      list(id = "plot_ylab", label = "Y轴标签", type = "text", selected = "较基线变化 (%)", column = 6)
+                    ),
+                    list(list(id = "legend_title", label = "图例标题", type = "text", selected = ""))
+                  )
+                )
               ),
               tabPanel(
                 "配色与布局",
                 fluidRow(
                   column(
                     6,
-                    tags$div(
-                      class = "panel panel-default",
-                      tags$div(class = "panel-heading", "柱体配色"),
-                      tags$div(
-                        class = "panel-body",
-                        selectInput(
-                          ns("bar_palette"),
-                          "柱图调色板",
-                          choices = c("默认Hue" = "hue", "Set2" = "Set2", "Set3" = "Set3", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"),
-                          selected = "Set2",
-                          width = "100%"
+                    graphics_palette_layout_panel_ui(
+                      ns,
+                      title = "柱体配色",
+                      fields = list(
+                        list(list(id = "bar_palette", label = "柱图调色板", type = "select", choices = graphics_palette_choice_values("qualitative"), selected = "Set2")),
+                        list(list(id = "bar_single_color", label = "单组柱颜色", type = "color", value = "#4E79A7")),
+                        list(
+                          list(id = "bar_border_color", label = "柱边框颜色", type = "color", value = "#4D4D4D", column = 6),
+                          list(id = "zero_line_color", label = "零线颜色", type = "color", value = "#000000", column = 6)
                         ),
-                        uiOutput(ns("bar_color_controls")),
-                        colourpicker::colourInput(ns("bar_single_color"), "单组柱颜色", value = "#4E79A7", width = "100%"),
-                        fluidRow(
-                          column(6, colourpicker::colourInput(ns("bar_border_color"), "柱边框颜色", value = "#4D4D4D", width = "100%")),
-                          column(6, colourpicker::colourInput(ns("zero_line_color"), "零线颜色", value = "#000000", width = "100%"))
-                        ),
-                        numericInput(ns("bar_width"), "柱宽", value = 0.9, min = 0.2, max = 1, step = 0.05, width = "100%")
-                      )
+                        list(list(id = "bar_width", label = "柱宽", type = "numeric", value = 0.9, min = 0.2, max = 1, step = 0.05))
+                      ),
+                      prepend_ui = uiOutput(ns("bar_color_controls"))
                     )
                   ),
                   column(
                     6,
-                    tags$div(
-                      class = "panel panel-default",
-                      tags$div(class = "panel-heading", "符号样式"),
-                      tags$div(
-                        class = "panel-body",
-                        uiOutput(ns("symbol_controls")),
-                        fluidRow(
-                          column(6, colourpicker::colourInput(ns("symbol_text_color"), "默认符号颜色", value = "#1A1A1A", width = "100%")),
-                          column(6, numericInput(ns("symbol_text_size"), "符号大小", value = 4, min = 2, max = 10, step = 0.2, width = "100%"))
+                    graphics_symbol_style_panel_ui(
+                      ns,
+                      title = "符号样式",
+                      fields = list(
+                        list(
+                          list(id = "symbol_text_color", label = "默认符号颜色", type = "color", value = "#1A1A1A", column = 6),
+                          list(id = "symbol_text_size", label = "符号大小", type = "numeric", value = 4, min = 2, max = 10, step = 0.2, column = 6)
                         )
-                      )
+                      ),
+                      prepend_ui = uiOutput(ns("symbol_controls"))
                     )
                   )
                 ),
                 fluidRow(
                   column(
                     6,
-                    tags$div(
-                      class = "panel panel-default",
-                      tags$div(class = "panel-heading", "轨道与缺失值"),
-                      tags$div(
-                        class = "panel-body",
+                    graphics_card_panel_ui(
+                      "轨道与缺失值",
+                      tagList(
                         selectInput(
                           ns("track_palette"),
                           "轨道调色板",
@@ -198,20 +187,21 @@ waterfall_plot_ui <- function(id) {
                   ),
                   column(
                     6,
-                    tags$div(
-                      class = "panel panel-default",
-                      tags$div(class = "panel-heading", "坐标与版式"),
-                      tags$div(
-                        class = "panel-body",
-                        fluidRow(
-                          column(4, numericInput(ns("y_breaks_n"), "Y轴刻度数量", value = 9, min = 4, max = 20, step = 1, width = "100%")),
-                          column(4, numericInput(ns("y_break_step"), "Y轴刻度步长", value = 0, min = 0, step = 0.1, width = "100%")),
-                          column(4, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%"))
+                    graphics_axis_proportion_panel_ui(
+                      ns,
+                      title = "坐标与版式",
+                      fields = list(
+                        list(
+                          list(id = "y_breaks_n", label = "Y轴刻度数量", type = "numeric", value = 9, min = 4, max = 20, step = 1, column = 4),
+                          list(id = "y_break_step", label = "Y轴刻度步长", type = "numeric", value = 0, min = 0, step = 0.1, column = 4),
+                          list(id = "base_font_size", label = "全局字号", type = "numeric", value = 12, min = 8, max = 22, step = 1, column = 4)
                         ),
-                        fluidRow(
-                          column(8, sliderInput(ns("track_rel_height"), "下方表格占比", min = 0.5, max = 4, value = 0.5, step = 0.1, width = "100%")),
-                          column(4, graphics_font_family_ui(ns, id = "base_family"))
+                        list(
+                          list(id = "track_rel_height", label = "下方表格占比", type = "slider", value = 0.5, min = 0.5, max = 4, step = 0.1, column = 8)
                         )
+                      ),
+                      extra_ui = fluidRow(
+                        column(4, graphics_font_family_ui(ns, id = "base_family"))
                       )
                     )
                   )
@@ -426,14 +416,17 @@ waterfall_plot_server <- function(input, output, session, data) {
     symbol_levels <- head(symbol_levels, 12)
     if (length(symbol_levels) == 0) return(NULL)
     default_colors <- rep(input$symbol_text_color %||% "#1A1A1A", length(symbol_levels))
-    graphics_group_symbol_controls_ui(
-      session = session,
-      levels = symbol_levels,
-      symbol_input_prefix = "symbol_lbl_",
-      color_input_prefix = "symbol_col_",
-      symbol_choices = .waterfall_symbol_choices(),
-      default_colors = default_colors,
-      title = "符号分组映射"
+    graphics_group_style_mapping_panel_ui(
+      title = "符号分组映射",
+      body = graphics_group_symbol_controls_ui(
+        session = session,
+        levels = symbol_levels,
+        symbol_input_prefix = "symbol_lbl_",
+        color_input_prefix = "symbol_col_",
+        symbol_choices = .waterfall_symbol_choices(),
+        default_colors = default_colors,
+        title = "符号分组映射"
+      )
     )
   })
 

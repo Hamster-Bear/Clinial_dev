@@ -471,7 +471,7 @@ library(cowplot)
                   6,
                   selectInput(
                     ns("km_censor_shape"), "删失点形状",
-                    choices = c("+" = 3, "I" = 124, "□" = 0, "○" = 1, "△" = 2, "◇" = 5, "☆" = 8),
+                    choices = graphics_point_shape_choices(),
                     selected = 3, width = "100%"
                   )
                 )

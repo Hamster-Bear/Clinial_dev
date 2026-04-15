@@ -178,6 +178,16 @@ graphics_mapping_field_ui <- function(ns, field_spec) {
     "select" = selectInput(ns(input_id), label, choices = choices, selected = selected, width = width),
     "selectize" = selectizeInput(ns(input_id), label, choices = choices, selected = selected, multiple = multiple, options = options, width = width),
     "text" = textInput(ns(input_id), label, value = selected %||% field_spec$value %||% "", width = width),
+    "color" = colourpicker::colourInput(ns(input_id), label, value = selected %||% field_spec$value %||% "#000000", width = width),
+    "slider" = sliderInput(
+      ns(input_id),
+      label,
+      min = field_spec$min %||% 0,
+      max = field_spec$max %||% 1,
+      value = suppressWarnings(as.numeric(selected %||% field_spec$value %||% field_spec$min %||% 0)),
+      step = field_spec$step %||% 0.1,
+      width = width
+    ),
     "numeric" = numericInput(
       ns(input_id),
       label,
@@ -211,6 +221,211 @@ graphics_column_mapping_panel_ui <- function(ns, title = "数据映射", fields,
 graphics_display_legend_panel_ui <- function(
   ns,
   title = "显示与图例",
+  fields,
+  prepend_ui = NULL,
+  extra_ui = NULL,
+  help_text = NULL,
+  status_class = "default"
+) {
+  rows <- lapply(fields, function(row_specs) {
+    fluidRow(
+      lapply(row_specs, function(field_spec) {
+        column(
+          field_spec$column %||% 12,
+          graphics_mapping_field_ui(ns, field_spec)
+        )
+      })
+    )
+  })
+  body <- tagList(prepend_ui, rows, extra_ui, if (!is.null(help_text)) helpText(help_text))
+  graphics_card_panel_ui(title, body, status_class = status_class)
+}
+
+graphics_palette_choice_values <- function(kind = c("qualitative", "tracks")) {
+  kind <- match.arg(kind)
+  switch(
+    kind,
+    qualitative = c("默认Hue" = "hue", "Set1" = "Set1", "Set2" = "Set2", "Set3" = "Set3", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"),
+    tracks = c("默认Hue" = "hue", "Set3" = "Set3", "Paired" = "Paired", "Dark2" = "Dark2", "Viridis" = "viridis")
+  )
+}
+
+graphics_palette_layout_panel_ui <- function(
+  ns,
+  title = "配色与布局",
+  fields,
+  prepend_ui = NULL,
+  extra_ui = NULL,
+  help_text = NULL,
+  status_class = "default"
+) {
+  rows <- lapply(fields, function(row_specs) {
+    fluidRow(
+      lapply(row_specs, function(field_spec) {
+        column(
+          field_spec$column %||% 12,
+          graphics_mapping_field_ui(ns, field_spec)
+        )
+      })
+    )
+  })
+  body <- tagList(prepend_ui, rows, extra_ui, if (!is.null(help_text)) helpText(help_text))
+  graphics_card_panel_ui(title, body, status_class = status_class)
+}
+
+graphics_axis_proportion_panel_ui <- function(
+  ns,
+  title = "坐标与比例",
+  fields,
+  prepend_ui = NULL,
+  extra_ui = NULL,
+  help_text = NULL,
+  status_class = "default"
+) {
+  rows <- lapply(fields, function(row_specs) {
+    fluidRow(
+      lapply(row_specs, function(field_spec) {
+        column(
+          field_spec$column %||% 12,
+          graphics_mapping_field_ui(ns, field_spec)
+        )
+      })
+    )
+  })
+  body <- tagList(prepend_ui, rows, extra_ui, if (!is.null(help_text)) helpText(help_text))
+  graphics_card_panel_ui(title, body, status_class = status_class)
+}
+
+graphics_reference_threshold_panel_ui <- function(
+  ns,
+  title = "参考线与阈值",
+  toggle_id = "show_reference_lines",
+  toggle_label = "显示参考线",
+  toggle_value = TRUE,
+  conditional_ui = NULL,
+  extra_ui = NULL,
+  help_text = NULL,
+  status_class = "default"
+) {
+  body <- tagList(
+    checkboxInput(ns(toggle_id), toggle_label, toggle_value),
+    conditionalPanel(
+      condition = paste0("input['", ns(toggle_id), "'] == true"),
+      conditional_ui
+    ),
+    extra_ui,
+    if (!is.null(help_text)) helpText(help_text)
+  )
+  graphics_card_panel_ui(title, body, status_class = status_class)
+}
+
+graphics_point_shape_choices <- function() {
+  c("+" = 3, "I" = 124, "□" = 0, "○" = 1, "△" = 2, "◇" = 5, "☆" = 8)
+}
+
+graphics_symbol_style_panel_ui <- function(
+  ns,
+  title = "符号与样式",
+  fields,
+  prepend_ui = NULL,
+  extra_ui = NULL,
+  help_text = NULL,
+  status_class = "default"
+) {
+  rows <- lapply(fields, function(row_specs) {
+    fluidRow(
+      lapply(row_specs, function(field_spec) {
+        column(
+          field_spec$column %||% 12,
+          graphics_mapping_field_ui(ns, field_spec)
+        )
+      })
+    )
+  })
+  body <- tagList(prepend_ui, rows, extra_ui, if (!is.null(help_text)) helpText(help_text))
+  graphics_card_panel_ui(title, body, status_class = status_class)
+}
+
+graphics_group_style_mode_choices <- function() {
+  c("随机且不重复" = "random_unique", "单一指定" = "single", "分别指定" = "manual_each")
+}
+
+graphics_group_style_mapping_panel_ui <- function(title, body, status_class = "default") {
+  graphics_card_panel_ui(title, body, status_class = status_class)
+}
+
+graphics_group_style_rule_ui <- function(
+  session,
+  mode_input_id,
+  mode_label,
+  selected_mode = "random_unique",
+  single_input_id = NULL,
+  single_input_label = NULL,
+  single_input_type = "color",
+  single_value = NULL,
+  single_choices = NULL,
+  manual_each_ui = NULL
+) {
+  ns <- session$ns
+  tagList(
+    selectInput(
+      ns(mode_input_id),
+      mode_label,
+      choices = graphics_group_style_mode_choices(),
+      selected = selected_mode,
+      width = "100%"
+    ),
+    if (!is.null(single_input_id) && !is.null(single_input_label)) {
+      conditionalPanel(
+        condition = sprintf("input['%s'] === 'single'", ns(mode_input_id)),
+        graphics_mapping_field_ui(
+          ns,
+          list(
+            id = single_input_id,
+            label = single_input_label,
+            type = single_input_type,
+            value = single_value,
+            selected = single_value,
+            choices = single_choices
+          )
+        )
+      )
+    },
+    if (!is.null(manual_each_ui)) {
+      conditionalPanel(
+        condition = sprintf("input['%s'] === 'manual_each'", ns(mode_input_id)),
+        manual_each_ui
+      )
+    }
+  )
+}
+
+graphics_text_label_panel_ui <- function(
+  ns,
+  title = "文本与标签",
+  fields,
+  prepend_ui = NULL,
+  extra_ui = NULL,
+  help_text = NULL,
+  status_class = "default"
+) {
+  rows <- lapply(fields, function(row_specs) {
+    fluidRow(
+      lapply(row_specs, function(field_spec) {
+        column(
+          field_spec$column %||% 12,
+          graphics_mapping_field_ui(ns, field_spec)
+        )
+      })
+    )
+  })
+  body <- tagList(prepend_ui, rows, extra_ui, if (!is.null(help_text)) helpText(help_text))
+  graphics_card_panel_ui(title, body, status_class = status_class)
+}
+
+graphics_palette_layout_panel_ui <- function(
+  ns,
+  title = "配色与布局",
   fields,
   prepend_ui = NULL,
   extra_ui = NULL,

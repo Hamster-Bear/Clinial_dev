@@ -224,6 +224,145 @@ test_that("graphics_display_legend_panel_ui 生成统一显示与图例卡片", 
   expect_match(html_str, 'id="test_module-decimals"')
 })
 
+test_that("graphics_text_label_panel_ui 生成统一文本与标签卡片", {
+  ns <- NS("test_module")
+  ui_output <- graphics_text_label_panel_ui(
+    ns = ns,
+    title = "文本与标签",
+    fields = list(
+      list(list(id = "plot_title", label = "主标题", type = "text", selected = "标题")),
+      list(
+        list(id = "plot_xlab", label = "X轴标签", type = "text", selected = "X", column = 6),
+        list(id = "plot_ylab", label = "Y轴标签", type = "text", selected = "Y", column = 6)
+      )
+    )
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, "文本与标签")
+  expect_match(html_str, 'id="test_module-plot_title"')
+  expect_match(html_str, 'id="test_module-plot_xlab"')
+  expect_match(html_str, 'id="test_module-plot_ylab"')
+})
+
+test_that("graphics_palette_layout_panel_ui 生成统一配色与布局卡片", {
+  ns <- NS("test_module")
+  ui_output <- graphics_palette_layout_panel_ui(
+    ns = ns,
+    title = "配色与布局",
+    fields = list(
+      list(list(id = "palette", label = "调色板", type = "select", choices = graphics_palette_choice_values("qualitative"), selected = "Set2")),
+      list(
+        list(id = "alpha", label = "透明度", type = "slider", value = 0.8, min = 0.2, max = 1, step = 0.05, column = 6),
+        list(id = "size", label = "线宽", type = "numeric", value = 1, min = 0.5, max = 5, step = 0.1, column = 6)
+      )
+    )
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, "配色与布局")
+  expect_match(html_str, 'id="test_module-palette"')
+  expect_match(html_str, 'id="test_module-alpha"')
+  expect_match(html_str, 'id="test_module-size"')
+})
+
+test_that("graphics_palette_choice_values 提供共享调色板枚举", {
+  pal_choices <- graphics_palette_choice_values("qualitative")
+  expect_true("默认Hue" %in% names(pal_choices))
+  expect_equal(unname(pal_choices[["Set2"]]), "Set2")
+})
+
+test_that("graphics_axis_proportion_panel_ui 生成统一坐标与比例卡片", {
+  ns <- NS("test_module")
+  ui_output <- graphics_axis_proportion_panel_ui(
+    ns = ns,
+    title = "坐标与比例",
+    fields = list(
+      list(
+        list(id = "breaks_n", label = "刻度数量", type = "numeric", value = 9, min = 4, max = 20, step = 1, column = 6),
+        list(id = "rel_height", label = "占比", type = "slider", value = 0.5, min = 0.2, max = 4, step = 0.1, column = 6)
+      )
+    )
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, "坐标与比例")
+  expect_match(html_str, 'id="test_module-breaks_n"')
+  expect_match(html_str, 'id="test_module-rel_height"')
+})
+
+test_that("graphics_reference_threshold_panel_ui 生成统一参考线与阈值卡片", {
+  ns <- NS("test_module")
+  ui_output <- graphics_reference_threshold_panel_ui(
+    ns = ns,
+    title = "参考线与阈值",
+    toggle_id = "show_ref",
+    toggle_label = "显示参考线",
+    toggle_value = TRUE,
+    conditional_ui = tags$div("ref-body")
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, "参考线与阈值")
+  expect_match(html_str, 'id="test_module-show_ref"')
+  expect_match(html_str, "ref-body")
+})
+
+test_that("graphics_symbol_style_panel_ui 生成统一符号与样式卡片", {
+  ns <- NS("test_module")
+  ui_output <- graphics_symbol_style_panel_ui(
+    ns = ns,
+    title = "符号与样式",
+    fields = list(
+      list(
+        list(id = "point_color", label = "默认颜色", type = "color", value = "#112233", column = 6),
+        list(id = "point_size", label = "点大小", type = "numeric", value = 3, min = 1, max = 10, step = 1, column = 6)
+      )
+    )
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, "符号与样式")
+  expect_match(html_str, 'id="test_module-point_color"')
+  expect_match(html_str, 'id="test_module-point_size"')
+})
+
+test_that("graphics_point_shape_choices 提供共享点形状枚举", {
+  shape_choices <- graphics_point_shape_choices()
+  expect_true("+" %in% names(shape_choices))
+  expect_equal(unname(shape_choices[["+"]]), 3)
+  expect_true("☆" %in% names(shape_choices))
+})
+
+test_that("graphics_group_style_mode_choices 提供共享样式模式枚举", {
+  mode_choices <- graphics_group_style_mode_choices()
+  expect_equal(unname(mode_choices[["随机且不重复"]]), "random_unique")
+  expect_equal(unname(mode_choices[["单一指定"]]), "single")
+  expect_equal(unname(mode_choices[["分别指定"]]), "manual_each")
+})
+
+test_that("graphics_group_style_rule_ui 生成统一按组样式规则控件", {
+  ns <- NS("test_module")
+  session <- list(ns = ns)
+  ui_output <- graphics_group_style_rule_ui(
+    session = session,
+    mode_input_id = "color_mode",
+    mode_label = "颜色分配",
+    selected_mode = "single",
+    single_input_id = "single_color",
+    single_input_label = "指定颜色",
+    single_input_type = "color",
+    single_value = "#112233",
+    manual_each_ui = tags$div("manual-ui")
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, 'id="test_module-color_mode"')
+  expect_match(html_str, 'id="test_module-single_color"')
+  expect_match(html_str, "manual-ui")
+})
+
+test_that("graphics_group_style_mapping_panel_ui 生成统一按组样式映射面板", {
+  ui_output <- graphics_group_style_mapping_panel_ui("符号分组映射", tags$div("mapping-body"))
+  html_str <- as.character(ui_output)
+  expect_match(html_str, "符号分组映射")
+  expect_match(html_str, "mapping-body")
+})
+
 test_that("graphics_build_overlay_point_layer_fields_spec 生成叠加点层字段定义", {
   spec <- graphics_build_overlay_point_layer_fields_spec(
     row_index = 2,

@@ -34,17 +34,15 @@ spider_plot_ui <- function(id) {
                 ),
                 help_text = "提示：将鼠标悬停在字段标签上可查看变量类型要求。"
               ),
-              tags$div(
-                class = "panel panel-default",
-                tags$div(class = "panel-heading", "参考线与阈值"),
-                tags$div(
-                  class = "panel-body",
-                  checkboxInput(ns("show_recist"), "显示RECIST阈值线", TRUE),
-                  conditionalPanel(
-                    condition = paste0("input['", ns("show_recist"), "'] == true"),
-                    graphics_reference_line_ui(ns, "recist_lower", label = "下阈值", default_value = -30, default_color = "#2C7BB6", default_linewidth = 0.7),
-                    graphics_reference_line_ui(ns, "recist_upper", label = "上阈值", default_value = 20, default_color = "#D7191C", default_linewidth = 0.7)
-                  )
+              graphics_reference_threshold_panel_ui(
+                ns,
+                title = "参考线与阈值",
+                toggle_id = "show_recist",
+                toggle_label = "显示RECIST阈值线",
+                toggle_value = TRUE,
+                conditional_ui = tagList(
+                  graphics_reference_line_ui(ns, "recist_lower", label = "下阈值", default_value = -30, default_color = "#2C7BB6", default_linewidth = 0.7),
+                  graphics_reference_line_ui(ns, "recist_upper", label = "上阈值", default_value = 20, default_color = "#D7191C", default_linewidth = 0.7)
                 )
               )
             )
@@ -58,12 +56,18 @@ spider_plot_ui <- function(id) {
                 tabPanel(
                   "文本与布局",
                   br(),
-                  textInput(ns("plot_title"), "主标题", value = "蜘蛛图", width = "100%"),
-                  textInput(ns("plot_subtitle"), "副标题", value = "", width = "100%"),
-                  textAreaInput(ns("plot_caption"), "脚注", value = "", rows = 2, width = "100%"),
-                  fluidRow(
-                    column(6, textInput(ns("plot_xlab"), "X轴标签", value = "时间", width = "100%")),
-                    column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "较基线变化(%)", width = "100%"))
+                  graphics_text_label_panel_ui(
+                    ns,
+                    title = "文本与布局",
+                    fields = list(
+                      list(list(id = "plot_title", label = "主标题", type = "text", selected = "蜘蛛图")),
+                      list(list(id = "plot_subtitle", label = "副标题", type = "text", selected = "")),
+                      list(list(id = "plot_caption", label = "脚注", type = "text", selected = "")),
+                      list(
+                        list(id = "plot_xlab", label = "X轴标签", type = "text", selected = "时间", column = 6),
+                        list(id = "plot_ylab", label = "Y轴标签", type = "text", selected = "较基线变化(%)", column = 6)
+                      )
+                    )
                   )
                 ),
                 tabPanel(
@@ -98,10 +102,16 @@ spider_plot_ui <- function(id) {
                             step_min = 0,
                             step_step = 0.1
                           ),
-                          fluidRow(
-                            column(4, numericInput(ns("y_breaks_n"), "Y轴刻度数量", value = 9, min = 4, max = 20, step = 1, width = "100%")),
-                            column(4, numericInput(ns("y_break_step"), "Y轴刻度步长", value = 0, min = 0, step = 0.1, width = "100%")),
-                            column(4, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%"))
+                          graphics_axis_proportion_panel_ui(
+                            ns,
+                            title = "Y轴与字号",
+                            fields = list(
+                              list(
+                                list(id = "y_breaks_n", label = "Y轴刻度数量", type = "numeric", value = 9, min = 4, max = 20, step = 1, column = 4),
+                                list(id = "y_break_step", label = "Y轴刻度步长", type = "numeric", value = 0, min = 0, step = 0.1, column = 4),
+                                list(id = "base_font_size", label = "全局字号", type = "numeric", value = 12, min = 8, max = 22, step = 1, column = 4)
+                              )
+                            )
                           ),
                           fluidRow(
                             column(6, checkboxInput(ns("use_percent_label"), "Y轴显示百分比", TRUE)),
@@ -119,30 +129,17 @@ spider_plot_ui <- function(id) {
                     ),
                     column(
                       6,
-                      tags$div(
-                        class = "panel panel-default",
-                        tags$div(class = "panel-heading", "坐标与配色"),
-                        tags$div(
-                          class = "panel-body",
-                          selectInput(
-                            ns("line_linetype"),
-                            "线条样式",
-                            choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted", "点划线" = "dotdash", "长虚线" = "longdash"),
-                            selected = "solid",
-                            width = "100%"
+                      graphics_palette_layout_panel_ui(
+                        ns,
+                        title = "坐标与配色",
+                        fields = list(
+                          list(list(id = "line_linetype", label = "线条样式", type = "select", choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted", "点划线" = "dotdash", "长虚线" = "longdash"), selected = "solid")),
+                          list(list(id = "line_palette", label = "线条调色板", type = "select", choices = graphics_palette_choice_values("qualitative"), selected = "Set1")),
+                          list(
+                            list(id = "line_size", label = "线宽", type = "slider", value = 0.9, min = 0.4, max = 3, step = 0.1, column = 6),
+                            list(id = "line_alpha", label = "线条透明度", type = "slider", value = 0.8, min = 0.2, max = 1, step = 0.05, column = 6)
                           ),
-                          selectInput(
-                            ns("line_palette"),
-                            "线条调色板",
-                            choices = c("默认Hue" = "hue", "Set1" = "Set1", "Set2" = "Set2", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"),
-                            selected = "Set1",
-                            width = "100%"
-                          ),
-                          fluidRow(
-                            column(6, sliderInput(ns("line_size"), "线宽", min = 0.4, max = 3, value = 0.9, step = 0.1, width = "100%")),
-                            column(6, sliderInput(ns("line_alpha"), "线条透明度", min = 0.2, max = 1, value = 0.8, step = 0.05, width = "100%"))
-                          ),
-                          sliderInput(ns("point_size"), "点大小", min = 0.5, max = 6, value = 1.8, step = 0.1, width = "100%")
+                          list(list(id = "point_size", label = "点大小", type = "slider", value = 1.8, min = 0.5, max = 6, step = 0.1))
                         )
                       )
                     )
