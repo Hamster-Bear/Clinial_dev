@@ -201,7 +201,7 @@ waterfall_plot_ui <- function(id) {
                         )
                       ),
                       extra_ui = fluidRow(
-                        column(4, graphics_font_family_ui(ns, id = "base_family"))
+                        column(12, graphics_font_family_pair_ui(ns, latin_id = "base_family", cjk_id = "cjk_family"))
                       )
                     )
                   )
@@ -647,6 +647,11 @@ waterfall_plot_server <- function(input, output, session, data) {
       x_axis_title <- if (nzchar(input$plot_xlab %||% "")) input$plot_xlab else "受试者"
       legend_title <- graphics_resolve_legend_title(input$legend_title, get_var_label(df, input$bar_color_by), "分组")
       auto_caption_lines <- character(0)
+      font_spec <- graphics_resolve_font_spec(
+        base_family = input$base_family %||% "sans",
+        cjk_family = input$cjk_family %||% "Noto Sans SC"
+      )
+      plot_family <- font_spec$unified
 
       p_main <- ggplot(plot_df, aes(x = .subject_factor, y = .value, fill = .bar_color, text = .tooltip)) +
         geom_col(width = input$bar_width, color = input$bar_border_color) +
@@ -658,7 +663,7 @@ waterfall_plot_server <- function(input, output, session, data) {
           y = y_axis_title,
           fill = legend_title
         ) +
-        theme_minimal(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
+        theme_minimal(base_size = input$base_font_size, base_family = plot_family) +
         theme(
           axis.text.x = if (isTRUE(input$show_subject_labels)) element_text(angle = 90, vjust = 0.5, hjust = 1) else element_blank(),
           axis.ticks.x = if (isTRUE(input$show_subject_labels)) element_line() else element_blank(),
@@ -741,7 +746,8 @@ waterfall_plot_server <- function(input, output, session, data) {
                 data = symbol_df,
                 aes(x = .subject_factor, y = .symbol_y, label = .symbol_label, color = .symbol_group),
                 inherit.aes = FALSE,
-                size = input$symbol_text_size
+                size = input$symbol_text_size,
+                family = plot_family
               ) +
               scale_color_manual(values = symbol_color_map, guide = "none")
           }
@@ -758,8 +764,8 @@ waterfall_plot_server <- function(input, output, session, data) {
         )
         if (isTRUE(input$show_recist_labels)) {
           p_main <- p_main +
-            annotate("text", x = Inf, y = input$recist_lower, label = input$recist_lower_label %||% "", hjust = 1.02, vjust = -0.2, color = input$recist_lower_color, size = 3.5) +
-            annotate("text", x = Inf, y = input$recist_upper, label = input$recist_upper_label %||% "", hjust = 1.02, vjust = -0.2, color = input$recist_upper_color, size = 3.5)
+            annotate("text", x = Inf, y = input$recist_lower, label = input$recist_lower_label %||% "", hjust = 1.02, vjust = -0.2, color = input$recist_lower_color, size = 3.5, family = plot_family) +
+            annotate("text", x = Inf, y = input$recist_upper, label = input$recist_upper_label %||% "", hjust = 1.02, vjust = -0.2, color = input$recist_upper_color, size = 3.5, family = plot_family)
         }
       }
 
@@ -774,7 +780,7 @@ waterfall_plot_server <- function(input, output, session, data) {
         y_axis_base <- y_rng[1] - 0.06 * y_span
         y_axis_top <- y_rng[2] + 0.08 * y_span
         p_main <- p_main +
-          theme_classic(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
+          theme_classic(base_size = input$base_font_size, base_family = plot_family) +
           theme(
             axis.text.x = if (isTRUE(input$show_subject_labels)) element_text(angle = 90, vjust = 0.5, hjust = 1) else element_blank(),
             axis.ticks.x = if (isTRUE(input$show_subject_labels)) element_line() else element_blank(),
@@ -850,7 +856,7 @@ waterfall_plot_server <- function(input, output, session, data) {
         if (nrow(text_track_df) > 0) {
           p_track <- p_track +
             geom_tile(data = text_track_df, fill = input$track_text_bg_color, color = "white", height = track_tile_height_eff) +
-            geom_text(data = text_track_df, aes(label = .track_value), size = max(2.8, input$base_font_size * 0.22), color = input$track_text_color)
+            geom_text(data = text_track_df, aes(label = .track_value), size = max(2.8, input$base_font_size * 0.22), color = input$track_text_color, family = plot_family)
         }
         if (nrow(color_track_df) > 0) {
           p_track <- p_track + scale_fill_manual(values = track_colors)
@@ -858,7 +864,7 @@ waterfall_plot_server <- function(input, output, session, data) {
         p_track <- p_track +
           labs(x = NULL, y = NULL, fill = graphics_resolve_legend_title(input$track_legend_title, "轨道分组")) +
           scale_y_discrete(expand = expansion(add = c(track_row_spacing_eff, track_row_spacing_eff))) +
-          theme_minimal(base_size = max(9, input$base_font_size - 1), base_family = input$base_family %||% "sans") +
+          theme_minimal(base_size = max(9, input$base_font_size - 1), base_family = plot_family) +
           theme(
             axis.text.x = element_blank(),
             axis.ticks.x = element_blank(),
@@ -887,7 +893,10 @@ waterfall_plot_server <- function(input, output, session, data) {
       p_combined <- graphics_append_bottom_caption(
         p_combined,
         graphics_compose_caption(input$plot_caption %||% "", auto_caption_lines),
-        base_font_size = input$base_font_size %||% 12
+        base_font_size = input$base_font_size %||% 12,
+        font_family = input$base_family %||% "sans",
+        cjk_family = input$cjk_family %||% "Noto Sans SC",
+        layout_family = font_spec$layout
       )
 
       final_plot(p_combined)

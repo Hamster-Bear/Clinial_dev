@@ -222,10 +222,11 @@ test_that("graphics 辅助图例绘制器支持点线图例与堆叠组合", {
   expect_false(is.null(stacked))
 })
 
-test_that("graphics 设备安全字体解析对 Arial 回退到 sans", {
+test_that("graphics 设备安全字体解析与统一字体方案职责分离", {
   expect_equal(graphics_resolve_device_safe_family("Arial"), "sans")
   expect_equal(graphics_resolve_device_safe_family(" serif "), "serif")
   expect_equal(graphics_resolve_device_safe_family(NULL), "sans")
+  expect_true(graphics_resolve_font_spec("sans")$unified %in% c("sans", "Noto Sans SC"))
 })
 
 test_that("graphics 辅助图例支持透传统一字体族", {

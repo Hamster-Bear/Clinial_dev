@@ -118,8 +118,12 @@ forest_plot_ui <- function(id) {
                   tags$div(class = "panel-heading", "尺寸与显示"),
                   tags$div(
                     class = "panel-body",
+                    fluidRow(
+                      column(6, numericInput(ns("plot_width"), "宽度(英寸)", value = 14, min = 8, max = 20, step = 1, width = "100%")),
+                      column(6, numericInput(ns("plot_height"), "高度(英寸)", value = 10, min = 6, max = 16, step = 1, width = "100%"))
+                    ),
                     sliderInput(ns("plot_ratio"), "表格/图形宽度比", min = 0.3, max = 0.7, value = 0.55, step = 0.05, width = "100%"),
-                    helpText("画布尺寸、页面距与导出设置已统一移动到“输出与导出”页签。")
+                    sliderInput(ns("display_height"), "显示高度(像素)", min = 400, max = 1200, value = 800, step = 50, width = "100%")
                   )
                 )
               ),
@@ -130,35 +134,16 @@ forest_plot_ui <- function(id) {
                   tags$div(class = "panel-heading", "坐标与线条"),
                   tags$div(
                     class = "panel-body",
-                    graphics_axis_range_controls_ui(
-                      ns,
-                      min_id = "x_min",
-                      max_id = "x_max",
-                      axis_label = "X轴",
-                      min_value = 0,
-                      max_value = 100,
-                      min_step = 1,
-                      max_step = 1
+                    fluidRow(
+                      column(6, numericInput(ns("x_min"), "X轴下限", value = 0, min = 0, step = 1, width = "100%")),
+                      column(6, numericInput(ns("x_max"), "X轴上限", value = 100, min = 0, step = 1, width = "100%"))
                     ),
-                    graphics_reference_line_ui(
-                      ns,
-                      "ref_line",
-                      label = "参考线",
-                      default_value = 1,
-                      default_color = "#1A1A1A",
-                      default_linetype = "solid",
-                      default_linewidth = 0.8
-                    ),
+                    numericInput(ns("ref_line"), "参考线位置", value = 1.0, step = 1, width = "100%"),
                     sliderInput(ns("line_width"), "线条粗细", min = 0.5, max = 3, value = 1.2, step = 0.1, width = "100%"),
                     sliderInput(ns("line_height"), "短线长度", min = 0.05, max = 0.3, value = 0.15, step = 0.01, width = "100%"),
-                    graphics_axis_tick_format_controls_ui(
-                      ns,
-                      decimals_id = "x_axis_decimals",
-                      decimals_label = "X轴小数位数",
-                      decimals_value = 1,
-                      percent_id = "percentage_format",
-                      percent_label = "显示百分号(%)",
-                      percent_value = FALSE
+                    fluidRow(
+                      column(6, numericInput(ns("x_axis_decimals"), "X轴小数位数", value = 1, min = 0, max = 5, step = 1, width = "100%")),
+                      column(6, checkboxInput(ns("percentage_format"), "显示百分号(%)", value = FALSE))
                     )
                   )
                 )
@@ -214,7 +199,10 @@ forest_plot_ui <- function(id) {
                       column(6, numericInput(ns("footer_size"), "脚注字体大小", min = 6, max = 14, value = 10, step = 1, width = "100%")),
                       column(6, colourInput(ns("footer_color"), "脚注颜色", value = "gray40", width = "100%"))
                     ),
-                    checkboxInput(ns("show_footer"), "显示脚注", value = TRUE)
+                    fluidRow(
+                      column(6, checkboxInput(ns("show_footer"), "显示脚注", value = TRUE)),
+                      column(6, graphics_font_family_pair_ui(ns, latin_id = "base_family", cjk_id = "cjk_family"))
+                    )
                   )
                 )
               )
@@ -223,7 +211,10 @@ forest_plot_ui <- function(id) {
           tabPanel(
             "输出与导出",
             br(),
-            graphics_export_size_controls_ui(ns, download_id = "download_plot", include_size_mode = TRUE, include_download_button = FALSE)
+            fluidRow(
+              column(6, selectInput(ns("export_format"), "导出格式", choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "png", width = "100%")),
+              column(6, numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%"))
+            )
           )
         )
       )
@@ -263,28 +254,6 @@ forest_plot_ui <- function(id) {
 
 forest_plot_server <- function(input, output, session, data) {
   ns <- session$ns
-  size_config <- reactive({
-    graphics_collect_size_config(
-      input,
-      defaults = list(
-        static_width = 1200,
-        static_height = 800,
-        interactive_width = 1200,
-        interactive_height = 800,
-        export_width = graphics_px_to_in(1200, 96),
-        export_height = graphics_px_to_in(800, 96),
-        sync_ppi = 96,
-        page_margin_top = 24,
-        page_margin_right = 24,
-        page_margin_bottom = 24,
-        page_margin_left = 24,
-        canvas_border = TRUE,
-        canvas_border_color = "#D9D9D9",
-        canvas_border_size = 0.8,
-        canvas_background = "white"
-      )
-    )
-  })
   
   # 存储用户选择和变量历史
   user_selections <- reactiveValues(
@@ -1146,12 +1115,7 @@ forest_plot_server <- function(input, output, session, data) {
   
   # 动态设置图形高度
   output$plot_ui <- renderUI({
-    cfg <- size_config()
-    graphics_centered_output_container(
-      plotOutput(ns("forest_plot"), height = paste0(cfg$static_height, "px"), width = "100%"),
-      frame_width_px = cfg$static_width,
-      frame_height_px = cfg$static_height
-    )
+    plotOutput(ns("forest_plot"), height = paste0(input$display_height, "px"))
   })
   
   # 生成森林图
@@ -1161,6 +1125,7 @@ forest_plot_server <- function(input, output, session, data) {
     data <- processed_data()
     x_min <- input$x_min
     x_max <- input$x_max
+    ref_line <- input$ref_line
     line_width <- input$line_width
     line_height <- input$line_height
     table_font_size <- input$table_font_size
@@ -1179,6 +1144,12 @@ forest_plot_server <- function(input, output, session, data) {
     footer_size <- input$footer_size
     footer_color <- input$footer_color
     show_footer <- input$show_footer
+    font_spec <- graphics_resolve_font_spec(
+      base_family = input$base_family %||% "sans",
+      cjk_family = input$cjk_family %||% "Noto Sans SC"
+    )
+    plot_family <- font_spec$unified
+    layout_family <- font_spec$layout
     
     column_alignments <- get_column_alignments()
     custom_column_names <- get_custom_column_names()
@@ -1208,21 +1179,12 @@ forest_plot_server <- function(input, output, session, data) {
       x_labels <- sprintf(fmt, x_breaks)
     }
     
-    ref_line_spec <- graphics_collect_reference_line_spec(
-      input,
-      id_prefix = "ref_line",
-      orientation = "v",
-      fallback_value = 1,
-      fallback_color = "#1A1A1A",
-      fallback_linetype = "solid",
-      fallback_linewidth = 0.8
-    )
-    
     # 1. 创建森林图形部分
     forest_plot <- ggplot(data, aes(x = estimate_adj, y = y_pos)) +
       geom_rect(aes(xmin = x_min, xmax = x_max, 
                     ymin = y_pos - 0.45, ymax = y_pos + 0.45,
                     fill = bg_color), alpha = alpha) +
+      geom_vline(xintercept = ref_line, linetype = "solid", color = "black", linewidth = 0.8) +
       geom_vline(xintercept = seq(x_min, x_max, length.out = 8), linetype = "dotted", 
                  color = "gray70", alpha = 0.6, linewidth = 0.3) +
       geom_errorbar(data = filter(data, !is.na(estimate_adj)),
@@ -1276,7 +1238,7 @@ forest_plot_server <- function(input, output, session, data) {
         x = x_axis_label,
         y = NULL
       ) +
-      theme_minimal(base_size = 12, base_family = "sans") +
+      theme_minimal(base_size = 12, base_family = layout_family) +
       theme(
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank(),
@@ -1288,12 +1250,12 @@ forest_plot_server <- function(input, output, session, data) {
         axis.text.x = element_text(color = "black", size = 10),
         plot.margin = margin(10, 15, 10, 5)
       )
-    forest_plot <- graphics_add_reference_lines(forest_plot, list(ref_line_spec))
     
     # 2. 创建表格部分
     create_table_plot <- function(data, table_cols, table_font_size, header_font_size,
                                   alpha, header_offset, line_offset, y_upper_limit,
-                                  alignments, custom_names, first_col_width, max_chars_per_line) {
+                                  alignments, custom_names, first_col_width, max_chars_per_line,
+                                  font_family) {
       
       n_cols <- length(table_cols)
       
@@ -1439,13 +1401,13 @@ forest_plot_server <- function(input, output, session, data) {
           geom_text(data = header_row,
                     aes(x = x, y = y, label = label),
                     hjust = hjust_val, vjust = 0.5,
-                    fontface = "bold", size = header_font_size, family = "sans")
+                    fontface = "bold", size = header_font_size, family = font_family)
         
         # 添加列内容
         table_plot <- table_plot +
           geom_text(aes_string(x = adjusted_x_pos, y = "y_pos",
                                label = paste0("table_col_", i)),
-                    hjust = hjust_val, vjust = 0.5, size = table_font_size, family = "sans",
+                    hjust = hjust_val, vjust = 0.5, size = table_font_size, family = font_family,
                     lineheight = 0.8)
       }
       
@@ -1476,7 +1438,7 @@ forest_plot_server <- function(input, output, session, data) {
         ) +
         scale_x_continuous(limits = c(0, 1)) +
         labs(x = NULL, y = NULL) +
-        theme_void() +
+        theme_void(base_family = font_family) +
         theme(
           plot.margin = margin(10, 5, 10, 15)
         )
@@ -1489,7 +1451,8 @@ forest_plot_server <- function(input, output, session, data) {
     
     table_plot <- create_table_plot(data, table_cols, table_font_size, header_font_size,
                                     alpha, header_offset, line_offset, y_upper_limit,
-                                    column_alignments, custom_column_names, first_col_width, max_chars_per_line)
+                                    column_alignments, custom_column_names, first_col_width, max_chars_per_line,
+                                    layout_family)
     
     # 3. 组合图形
     aligned_plots <- align_plots(table_plot, forest_plot, align = "v", axis = "lr")
@@ -1505,7 +1468,8 @@ forest_plot_server <- function(input, output, session, data) {
     # 4. 添加标题和脚注 - 使用自定义设置
     title_gg <- ggdraw() +
       draw_label(plot_title,
-                 fontface = 'bold', size = title_size, hjust = 0.5)
+                 fontface = 'bold', size = title_size, hjust = 0.5,
+                 fontfamily = layout_family)
     
     # 动态生成脚注
     footer_text <- plot_footer
@@ -1516,7 +1480,8 @@ forest_plot_server <- function(input, output, session, data) {
     footer_gg <- ggdraw() +
       draw_label(footer_text,
                  size = footer_size, hjust = 0, x = 0.02,
-                 color = footer_color)
+                 color = footer_color,
+                 fontfamily = layout_family)
     
     # 5. 最终组合
     if (show_footer) {
@@ -1546,18 +1511,8 @@ forest_plot_server <- function(input, output, session, data) {
       plot(1, 1, type = "n", axes = FALSE, xlab = "", ylab = "")
       text(1, 1, "无法生成图形，请检查数据设置", col = "red", cex = 1.5)
     } else {
-      cfg <- size_config()
-      graphics_apply_canvas_frame(
-        plot_obj,
-        frame_width_px = cfg$static_width,
-        frame_height_px = cfg$static_height,
-        canvas_config = cfg
-      )
+      plot_obj
     }
-  }, width = function() {
-    as.integer(size_config()$static_width)
-  }, height = function() {
-    as.integer(size_config()$static_height)
   })
   
   # 下载图形
@@ -1570,65 +1525,26 @@ forest_plot_server <- function(input, output, session, data) {
       export_fmt <- if (is.null(input$export_format) || !nzchar(input$export_format)) "png" else input$export_format
       export_dpi <- suppressWarnings(as.numeric(input$export_dpi))
       if (is.na(export_dpi) || !is.finite(export_dpi)) export_dpi <- 600
-      cfg <- size_config()
       save_plot_export(
         file = file,
-        plot_obj = graphics_apply_canvas_frame(
-          forest_plot_reactive(),
-          frame_width_px = cfg$static_width,
-          frame_height_px = cfg$static_height,
-          canvas_config = cfg
-        ),
+        plot_obj = forest_plot_reactive(),
         format = export_fmt,
-        width = cfg$export_width,
-        height = cfg$export_height,
+        width = input$plot_width,
+        height = input$plot_height,
         dpi = export_dpi,
         bg = "white"
       )
     }
   )
   
-  apply_state <- function(state) {
-    if (!is.list(state)) return(invisible(FALSE))
-    graphics_restore_task_input_state(session, state)
-    extra_state <- graphics_task_payload_extra_state(state)
-    updateSelectInput(session, "subgroup_col", selected = extra_state$subgroup_col %||% input$subgroup_col)
-    updateSelectInput(session, "study_col", selected = extra_state$study_col %||% input$study_col)
-    updateSelectInput(session, "estimate_col", selected = extra_state$estimate_col %||% input$estimate_col)
-    updateSelectInput(session, "lower_col", selected = extra_state$lower_col %||% input$lower_col)
-    updateSelectInput(session, "upper_col", selected = extra_state$upper_col %||% input$upper_col)
-    if (!is.null(extra_state$plot_title)) updateTextInput(session, "plot_title", value = extra_state$plot_title)
-    if (!is.null(extra_state$x_min)) updateNumericInput(session, "x_min", value = extra_state$x_min)
-    if (!is.null(extra_state$x_max)) updateNumericInput(session, "x_max", value = extra_state$x_max)
-    if (!is.null(extra_state$line_width)) updateSliderInput(session, "line_width", value = extra_state$line_width)
-    if (!is.null(extra_state$line_height)) updateSliderInput(session, "line_height", value = extra_state$line_height)
-    if (!is.null(extra_state$x_axis_decimals)) updateNumericInput(session, "x_axis_decimals", value = extra_state$x_axis_decimals)
-    if (!is.null(extra_state$percentage_format)) updateCheckboxInput(session, "percentage_format", value = isTRUE(extra_state$percentage_format))
-    invisible(TRUE)
-  }
-
-  list(
-    state = reactive({
-      axis_range <- graphics_collect_axis_range_config(input, "x_min", "x_max")
-      axis_tick <- graphics_collect_axis_tick_config(input, decimals_id = "x_axis_decimals", percent_id = "percentage_format")
-      graphics_build_task_state(
-        input,
-        extra_state = list(
-          subgroup_col = input$subgroup_col,
-          study_col = input$study_col,
-          estimate_col = input$estimate_col,
-          lower_col = input$lower_col,
-          upper_col = input$upper_col,
-          plot_title = input$plot_title,
-          x_min = axis_range$min,
-          x_max = axis_range$max,
-          line_width = input$line_width,
-          line_height = input$line_height,
-          x_axis_decimals = axis_tick$decimals,
-          percentage_format = isTRUE(axis_tick$show_percent)
-        )
-      )
-    }),
-    apply_state = apply_state
-  )
+  # 返回模块状态（可选）
+  return(reactive({
+    list(
+      subgroup_col = input$subgroup_col,
+      study_col = input$study_col,
+      estimate_col = input$estimate_col,
+      lower_col = input$lower_col,
+      upper_col = input$upper_col
+    )
+  }))
 }

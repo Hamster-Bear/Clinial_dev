@@ -104,6 +104,7 @@ correlation_matrix_server <- function(input, output, session, data) {
   # 创建相关性矩阵图
   create_correlation_plot <- function() {
     req(data(), input$correlation_vars, input$correlation_method)
+    plot_family <- graphics_resolve_font_spec("sans")$unified
     
     cor_data <- data()[, input$correlation_vars, drop = FALSE]
     cor_matrix <- cor(cor_data, method = input$correlation_method, use = "complete.obs")
@@ -128,7 +129,7 @@ correlation_matrix_server <- function(input, output, session, data) {
                              text = paste("相关系数:", round(Correlation, 3)))) +
       geom_tile(size = input$tile_size) +
       color_gradient +
-      theme_minimal() +
+      theme_minimal(base_family = plot_family) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1, size = input$text_size),
             axis.text.y = element_text(size = input$text_size)) +
       labs(title = ifelse(nchar(input$plot_title) > 0, input$plot_title, "相关性矩阵"),
@@ -137,7 +138,7 @@ correlation_matrix_server <- function(input, output, session, data) {
     
     # 添加数值标签
     if (input$show_values) {
-      p <- p + geom_text(aes(label = round(Correlation, 2)), color = "black", size = input$text_size/3)
+      p <- p + geom_text(aes(label = round(Correlation, 2)), color = "black", size = input$text_size/3, family = plot_family)
     }
     
     return(p)

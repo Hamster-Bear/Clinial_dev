@@ -257,7 +257,7 @@ swimmer_plot_ui <- function(id) {
                         sliderInput(ns("track_rel_height"), "下方轨道区占比", min = 0.5, max = 4, value = 0.5, step = 0.1, width = "100%"),
                         fluidRow(
                           column(6, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%")),
-                          column(6, graphics_font_family_ui(ns, id = "base_family"))
+                          column(6, graphics_font_family_pair_ui(ns, latin_id = "base_family", cjk_id = "cjk_family"))
                         ),
                         helpText("“空值显示方式”影响轨道和数据表中的缺失文本；“下方轨道区占比”和“全局字号”影响主图与下方轨道区的版式比例。")
                       )
@@ -641,6 +641,7 @@ swimmer_plot_server <- function(input, output, session, data) {
       event_legend_height_ratio = input$event_legend_height_ratio %||% 0.28,
       base_font_size = input$base_font_size %||% 12,
       base_family = input$base_family %||% "sans",
+      cjk_family = input$cjk_family %||% "Noto Sans SC",
       event_mappings = collect_swimmer_event_mappings(df_current),
       lane_manual_colors = capture_lane_manual_color_values(df_current),
       track_color_values = capture_track_color_values(df_current, selected_tracks, track_mode_map)
@@ -1434,6 +1435,11 @@ swimmer_plot_server <- function(input, output, session, data) {
       lane_single_color <- lane_colors[[1]] %||% "#4E79A7"
       has_event_data <- !is.null(event_df) && nrow(event_df) > 0
       auto_caption_lines <- character(0)
+      font_spec <- graphics_resolve_font_spec(
+        base_family = params$base_family %||% "sans",
+        cjk_family = params$cjk_family %||% "Noto Sans SC"
+      )
+      plot_family <- font_spec$unified
       if (isTRUE(params$auto_mapping_caption) && isTRUE(lane_has_group) && identical(params$lane_color_mode, "manual_each")) {
         auto_caption_lines <- c(auto_caption_lines, graphics_mapping_caption_line(get_var_label(data(), lane_color_source), "泳道颜色"))
       }
@@ -1455,7 +1461,7 @@ swimmer_plot_server <- function(input, output, session, data) {
               x = ifelse(nzchar(params$plot_xlab %||% ""), params$plot_xlab, "时间"),
               y = ifelse(nzchar(params$plot_ylab %||% ""), params$plot_ylab, "受试者")
             ) +
-            theme_minimal(base_size = params$base_font_size, base_family = params$base_family %||% "sans") +
+            theme_minimal(base_size = params$base_font_size, base_family = plot_family) +
             theme(
               panel.grid.major.y = element_blank(),
               axis.text.y = if (isTRUE(params$show_subject_labels)) element_text() else element_blank(),
@@ -1477,7 +1483,7 @@ swimmer_plot_server <- function(input, output, session, data) {
               y = ifelse(nzchar(params$plot_ylab %||% ""), params$plot_ylab, "受试者"),
               color = graphics_resolve_legend_title(params$lane_legend_title, get_var_label(data(), lane_color_source %||% params$subject_id))
             ) +
-            theme_minimal(base_size = params$base_font_size, base_family = params$base_family %||% "sans") +
+            theme_minimal(base_size = params$base_font_size, base_family = plot_family) +
             theme(
               panel.grid.major.y = element_blank(),
               axis.text.y = if (isTRUE(params$show_subject_labels)) element_text() else element_blank(),
@@ -1499,7 +1505,7 @@ swimmer_plot_server <- function(input, output, session, data) {
             x = ifelse(nzchar(params$plot_xlab %||% ""), params$plot_xlab, "时间"),
             y = ifelse(nzchar(params$plot_ylab %||% ""), params$plot_ylab, "受试者")
           ) +
-          theme_minimal(base_size = params$base_font_size, base_family = params$base_family %||% "sans") +
+          theme_minimal(base_size = params$base_font_size, base_family = plot_family) +
           theme(
             panel.grid.major.y = element_blank(),
             axis.text.y = if (isTRUE(params$show_subject_labels)) element_text() else element_blank(),
@@ -1629,7 +1635,8 @@ swimmer_plot_server <- function(input, output, session, data) {
               aes(x = .event_time_plot, y = .subject_factor, label = .event_label),
               nudge_y = 0.3,
               size = max(2.8, params$base_font_size * 0.22),
-              check_overlap = TRUE
+              check_overlap = TRUE,
+              family = plot_family
             )
         }
 
@@ -1685,7 +1692,7 @@ swimmer_plot_server <- function(input, output, session, data) {
         x_axis_start <- if (is_arrow) x_rng[1] - 0.03 * x_span else x_rng[1] + clip_pad
         x_axis_end <- if (is_arrow) x_rng[2] + 0.06 * x_span else x_rng[2] - clip_pad
         p_main <- p_main +
-          theme_classic(base_size = params$base_font_size, base_family = params$base_family %||% "sans") +
+          theme_classic(base_size = params$base_font_size, base_family = plot_family) +
           theme(
             axis.line = element_blank(),
             axis.text.y = if (isTRUE(params$show_subject_labels)) element_text() else element_blank(),
@@ -1750,7 +1757,7 @@ swimmer_plot_server <- function(input, output, session, data) {
         if (nrow(text_track_df) > 0) {
           p_track <- p_track +
             geom_tile(data = text_track_df, fill = params$track_text_bg_color, color = "white", height = track_tile_height_eff) +
-            geom_text(data = text_track_df, aes(label = .track_value), size = max(2.8, params$base_font_size * 0.22))
+            geom_text(data = text_track_df, aes(label = .track_value), size = max(2.8, params$base_font_size * 0.22), family = plot_family)
         }
         if (nrow(color_track_df) > 0) {
           p_track <- p_track + scale_fill_manual(values = track_colors)
@@ -1758,7 +1765,7 @@ swimmer_plot_server <- function(input, output, session, data) {
         p_track <- p_track +
           labs(x = NULL, y = NULL, fill = graphics_resolve_legend_title(params$track_legend_title, "轨道分组")) +
           scale_y_discrete(expand = expansion(add = c(track_row_spacing_eff, track_row_spacing_eff))) +
-          theme_minimal(base_size = max(9, params$base_font_size - 1), base_family = params$base_family %||% "sans") +
+          theme_minimal(base_size = max(9, params$base_font_size - 1), base_family = plot_family) +
           theme(
             axis.text.x = element_blank(),
             axis.ticks.x = element_blank(),
@@ -1835,16 +1842,17 @@ swimmer_plot_server <- function(input, output, session, data) {
             aes(x = ifelse(.is_header, 0.02, 0.12), label = .label, fontface = ifelse(.is_header, "bold", "plain")),
             hjust = 0,
             size = max(3, params$base_font_size * 0.24),
-            show.legend = FALSE
+            show.legend = FALSE,
+            family = plot_family
           ) +
           scale_shape_identity() +
           scale_color_identity() +
           scale_y_continuous(limits = c(y_lower_limit, 0), expand = c(0, 0)) +
           coord_cartesian(xlim = c(0, 1), clip = "off") +
-          theme_void(base_family = "sans") +
+          theme_void(base_family = plot_family) +
           theme(
             plot.margin = margin(8, 8, 8, 8),
-            plot.title = element_text(size = max(10, params$base_font_size), face = "bold")
+            plot.title = element_text(size = max(10, params$base_font_size), family = plot_family, face = "bold")
           )
         if (nzchar(legend_title)) {
           p_event_legend <- p_event_legend + ggtitle(legend_title)
@@ -1870,7 +1878,10 @@ swimmer_plot_server <- function(input, output, session, data) {
       p_combined <- graphics_append_bottom_caption(
         p_combined,
         graphics_compose_caption(params$plot_caption %||% "", auto_caption_lines),
-        base_font_size = params$base_font_size %||% 12
+        base_font_size = params$base_font_size %||% 12,
+        font_family = params$base_family %||% "sans",
+        cjk_family = params$cjk_family %||% "Noto Sans SC",
+        layout_family = font_spec$layout
       )
       committed_params(params)
       final_plot(p_combined)

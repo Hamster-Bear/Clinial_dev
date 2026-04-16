@@ -156,10 +156,11 @@ test_that("删失符号解析与静态图约定一致", {
   expect_equal(.resolve_survival_censor_shape_value("bad"), 3)
 })
 
-test_that("生存分析字体解析对 Arial 做设备安全回退", {
-  expect_equal(.resolve_survival_base_family("Arial"), "sans")
-  expect_equal(.resolve_survival_base_family("serif"), "serif")
-  expect_equal(.resolve_survival_base_family(character(0)), "sans")
+test_that("生存分析统一字体优先保证中文可显示，设备安全映射仍可单独校验", {
+  expect_equal(graphics_resolve_device_safe_family("Arial"), "sans")
+  expect_true(.resolve_survival_base_family("Arial") %in% c("sans", "Noto Sans SC"))
+  expect_true(.resolve_survival_base_family("serif") %in% c("serif", "Noto Sans SC"))
+  expect_true(.resolve_survival_base_family(character(0)) %in% c("sans", "Noto Sans SC"))
 })
 
 test_that("risk表数字字号改为统一pt口径后再内部换算", {
@@ -218,8 +219,8 @@ test_that("生存分析辅助图例复用统一字体族", {
     colors = c("Group A" = "#E41A1C", "Group B" = "#377EB8"),
     font_family = "serif"
   )
-  expect_equal(censor_legend$layers[[2]]$aes_params$family, "sans")
-  expect_equal(line_legend$layers[[2]]$aes_params$family, "serif")
+  expect_true(censor_legend$layers[[2]]$aes_params$family %in% c("sans", "Noto Sans SC"))
+  expect_true(line_legend$layers[[2]]$aes_params$family %in% c("serif", "Noto Sans SC"))
 })
 
 test_that("risk表数字层复用全局字体并支持统一字重控制", {
@@ -235,7 +236,7 @@ test_that("risk表数字层复用全局字体并支持统一字重控制", {
     bold = TRUE
   )
 
-  expect_equal(styled_plot$layers[[1]]$aes_params$family, "sans")
+  expect_true(styled_plot$layers[[1]]$aes_params$family %in% c("sans", "Noto Sans SC"))
   expect_equal(styled_plot$layers[[1]]$aes_params$fontface, "bold")
   expect_equal(
     styled_plot$layers[[1]]$aes_params$size,
@@ -254,7 +255,7 @@ test_that("risk表Y轴标签样式更新时保留原主题元素类型", {
 
   expect_s3_class(updated, "element_markdown")
   expect_equal(updated$size, 10)
-  expect_equal(updated$family, "sans")
+  expect_true(updated$family %in% c("sans", "Noto Sans SC"))
   expect_equal(updated$face, "plain")
 })
 

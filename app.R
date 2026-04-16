@@ -28,21 +28,113 @@ invisible(lapply(required_packages, function(pkg) {
 
 # 启用 showtext 以增强跨平台字体渲染稳定性
 if (requireNamespace("showtext", quietly = TRUE) && requireNamespace("sysfonts", quietly = TRUE)) {
-  # 尝试注册本地字体作为后备
-  tryCatch({
-    sysfonts::font_add("Arial", 
-                      regular = "arial.ttf", 
-                      bold = "arialbd.ttf", 
-                      italic = "ariali.ttf", 
-                      bolditalic = "arialbi.ttf")
-  }, error = function(e) {
-    # 若本地无Arial，则尝试从 Google Fonts 下载高度相似的开源字体 Arimo，并伪装为 Arial
-    try(sysfonts::font_add_google("Arimo", "Arial"), silent = TRUE)
-  })
-  
-  # 注册中文字体以防 Docker 内缺失
-  try(sysfonts::font_add_google("Noto Sans SC", "Noto Sans SC"), silent = TRUE)
-  
+  .or_else <- function(x, y) if (is.null(x)) y else x
+
+  .first_existing_font_file <- function(paths) {
+    valid_paths <- unique(Filter(function(path) {
+      is.character(path) && length(path) == 1 && nzchar(path) && file.exists(path)
+    }, paths))
+    if (length(valid_paths) == 0) return(NULL)
+    valid_paths[[1]]
+  }
+
+  .font_family_registered <- function(family) {
+    if (is.null(family) || !nzchar(family)) return(FALSE)
+    registered <- tryCatch(sysfonts::font_families(), error = function(e) character(0))
+    family %in% registered
+  }
+
+  .register_font_family <- function(alias, regular_candidates, bold_candidates = NULL, italic_candidates = NULL, bolditalic_candidates = NULL, google_name = NULL) {
+    if (.font_family_registered(alias)) return(invisible(TRUE))
+
+    regular_path <- .first_existing_font_file(regular_candidates)
+    if (!is.null(regular_path)) {
+      font_args <- list(family = alias, regular = regular_path)
+      bold_path <- .first_existing_font_file(.or_else(bold_candidates, regular_candidates))
+      italic_path <- .first_existing_font_file(.or_else(italic_candidates, regular_candidates))
+      bolditalic_path <- .first_existing_font_file(.or_else(bolditalic_candidates, .or_else(bold_candidates, regular_candidates)))
+      if (!is.null(bold_path)) font_args$bold <- bold_path
+      if (!is.null(italic_path)) font_args$italic <- italic_path
+      if (!is.null(bolditalic_path)) font_args$bolditalic <- bolditalic_path
+      ok <- tryCatch({
+        do.call(sysfonts::font_add, font_args)
+        TRUE
+      }, error = function(e) FALSE)
+      if (ok) return(invisible(TRUE))
+    }
+
+    if (!is.null(google_name) && nzchar(google_name)) {
+      try(sysfonts::font_add_google(google_name, alias), silent = TRUE)
+    }
+
+    invisible(.font_family_registered(alias))
+  }
+
+  # 注册西文字体别名，便于旧配置继续工作
+  .register_font_family(
+    alias = "Arial",
+    regular_candidates = c(
+      "arial.ttf",
+      "C:/Windows/Fonts/arial.ttf",
+      "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf"
+    ),
+    bold_candidates = c(
+      "arialbd.ttf",
+      "C:/Windows/Fonts/arialbd.ttf",
+      "/usr/share/fonts/truetype/msttcorefonts/Arial_Bold.ttf"
+    ),
+    italic_candidates = c(
+      "ariali.ttf",
+      "C:/Windows/Fonts/ariali.ttf",
+      "/usr/share/fonts/truetype/msttcorefonts/Arial_Italic.ttf"
+    ),
+    bolditalic_candidates = c(
+      "arialbi.ttf",
+      "C:/Windows/Fonts/arialbi.ttf",
+      "/usr/share/fonts/truetype/msttcorefonts/Arial_Bold_Italic.ttf"
+    ),
+    google_name = "Arimo"
+  )
+
+  # 优先使用本地 CJK 字体，离线容器下也能稳定显示中文
+  .register_font_family(
+    alias = "Noto Sans SC",
+    regular_candidates = c(
+      "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+      "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
+      "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+      "C:/Windows/Fonts/msyh.ttc",
+      "C:/Windows/Fonts/simhei.ttf"
+    ),
+    bold_candidates = c(
+      "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+      "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Bold.otf",
+      "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+      "C:/Windows/Fonts/msyhbd.ttc",
+      "C:/Windows/Fonts/simhei.ttf"
+    ),
+    google_name = "Noto Sans SC"
+  )
+
+  .register_font_family(
+    alias = "Microsoft YaHei",
+    regular_candidates = c(
+      "C:/Windows/Fonts/msyh.ttc",
+      "C:/Windows/Fonts/msyh.ttf"
+    ),
+    bold_candidates = c(
+      "C:/Windows/Fonts/msyhbd.ttc",
+      "C:/Windows/Fonts/msyhbd.ttf"
+    )
+  )
+
+  .register_font_family(
+    alias = "SimHei",
+    regular_candidates = c(
+      "C:/Windows/Fonts/simhei.ttf"
+    )
+  )
+
   showtext::showtext_auto()
   showtext::showtext_opts(dpi = 96) # 匹配 Shiny 默认 DPI
 }

@@ -103,10 +103,11 @@ boxplot_server <- function(input, output, session, data) {
   # 创建箱线图
   create_boxplot <- function() {
     req(data(), input$boxplot_x, input$boxplot_y)
+    plot_family <- graphics_resolve_font_spec("sans")$unified
     
     p <- ggplot(data(), aes(x = .data[[input$boxplot_x]], y = .data[[input$boxplot_y]])) +
       geom_boxplot(fill = "lightblue", alpha = 0.7) +
-      theme_minimal() +
+      theme_minimal(base_family = plot_family) +
       labs(title = ifelse(nchar(input$plot_title) > 0, input$plot_title, "箱线图"),
            x = ifelse(nchar(input$plot_xlab) > 0, input$plot_xlab, input$boxplot_x),
            y = ifelse(nchar(input$plot_ylab) > 0, input$plot_ylab, input$boxplot_y))

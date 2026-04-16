@@ -240,6 +240,11 @@ perform_ae_sidebyside_analysis <- function(data, term_col, sev_col, subj_col, gr
   # 计算 X 轴动态上限
   max_val <- max(c(plot_prep$total_teae_pct, plot_prep$total_trae_pct), na.rm = TRUE) * 1.25
   if (!is.finite(max_val) || max_val == 0) max_val <- 10 # 默认值
+  plot_family <- if (exists("graphics_resolve_device_safe_family", mode = "function")) {
+    graphics_resolve_font_spec("sans")$unified
+  } else {
+    "sans"
+  }
   
   # 3. 绘图
   p <- ggplot(plot_prep) +
@@ -255,10 +260,10 @@ perform_ae_sidebyside_analysis <- function(data, term_col, sev_col, subj_col, gr
     # 汇总标注
     geom_text(aes(x = -total_teae_pct - (max_val * 0.05), y = as.numeric(AEDECOD), 
                   label = paste0(total_teae_n, " (", sprintf("%.1f", total_teae_pct), "%)")),
-              hjust = 1, size = 4, fontface = "bold", family = "sans", check_overlap = TRUE) +
+              hjust = 1, size = 4, fontface = "bold", family = plot_family, check_overlap = TRUE) +
     geom_text(aes(x = total_trae_pct + (max_val * 0.05), y = as.numeric(AEDECOD), 
                   label = paste0(total_trae_n, " (", sprintf("%.1f", total_trae_pct), "%)")),
-              hjust = 0, size = 4, fontface = "bold", family = "sans", check_overlap = TRUE) +
+              hjust = 0, size = 4, fontface = "bold", family = plot_family, check_overlap = TRUE) +
     
     # 中心分隔线
     geom_vline(xintercept = 0, color = "black", linewidth = 1.2) +
@@ -279,7 +284,7 @@ perform_ae_sidebyside_analysis <- function(data, term_col, sev_col, subj_col, gr
       y = NULL
     ) +
     
-    theme_minimal() +
+    theme_minimal(base_family = plot_family) +
     theme(
       plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
       plot.subtitle = element_text(hjust = 0.5, size = 12),

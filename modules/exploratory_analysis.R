@@ -195,6 +195,7 @@ exploratory_analysis_server <- function(id, data) {
   # 探索性图形
   output$exploratory_plot <- plotly::renderPlotly({
     req(data(), input$plot_type_exp)
+    plot_family <- graphics_resolve_font_spec("sans")$unified
     
     # 验证必要的输入
     if (input$plot_type_exp %in% c("散点图", "箱线图") &&
@@ -203,8 +204,8 @@ exploratory_analysis_server <- function(id, data) {
       return(
         ggplot() +
           annotate("text", x = 0.5, y = 0.5,
-                   label = "请选择X轴和Y轴变量", size = 6, color = "red") +
-          theme_void()
+                   label = "请选择X轴和Y轴变量", size = 6, color = "red", family = plot_family) +
+          theme_void(base_family = plot_family)
       ) %>% ggplotly() %>% layout(height = 600)
     }
     
@@ -214,8 +215,8 @@ exploratory_analysis_server <- function(id, data) {
       return(
         ggplot() +
           annotate("text", x = 0.5, y = 0.5,
-                   label = "请选择X轴变量", size = 6, color = "red") +
-          theme_void()
+                   label = "请选择X轴变量", size = 6, color = "red", family = plot_family) +
+          theme_void(base_family = plot_family)
       ) %>% ggplotly() %>% layout(height = 600)
     }
     
@@ -255,7 +256,7 @@ exploratory_analysis_server <- function(id, data) {
                     } else {
                       p <- p + geom_point(alpha = 0.6, size = 3)
                     }
-                    p + theme_minimal(base_size = 14) +
+                    p + theme_minimal(base_size = 14, base_family = plot_family) +
                       labs(x = input$x_var, y = input$y_var)
                   },
                   "箱线图" = {
@@ -271,7 +272,7 @@ exploratory_analysis_server <- function(id, data) {
                     } else {
                       p <- p + geom_boxplot(alpha = 0.7)
                     }
-                    p + theme_minimal(base_size = 14) +
+                    p + theme_minimal(base_size = 14, base_family = plot_family) +
                       labs(x = input$x_var, y = input$y_var)
                   },
                   "直方图" = {
@@ -287,7 +288,7 @@ exploratory_analysis_server <- function(id, data) {
                     } else {
                       p <- p + geom_histogram(bins = 30, alpha = 0.7, color = "white")
                     }
-                    p + theme_minimal(base_size = 14) +
+                    p + theme_minimal(base_size = 14, base_family = plot_family) +
                       labs(x = input$x_var, y = "频数")
                   },
                   "条形图" = {
@@ -298,7 +299,7 @@ exploratory_analysis_server <- function(id, data) {
                     } else {
                       p <- p + geom_bar(alpha = 0.7, color = "white")
                     }
-                    p + theme_minimal(base_size = 14) +
+                    p + theme_minimal(base_size = 14, base_family = plot_family) +
                       labs(x = input$x_var, y = "计数")
                   })
       
@@ -343,8 +344,8 @@ exploratory_analysis_server <- function(id, data) {
       p <- ggplot() +
         annotate("text", x = 0.5, y = 0.5,
                  label = paste("图形生成失败:\n", e$message),
-                 size = 4, color = "red") +
-        theme_void()
+                 size = 4, color = "red", family = plot_family) +
+        theme_void(base_family = plot_family)
       
       ggplotly(p) %>% layout(height = 600)
     })

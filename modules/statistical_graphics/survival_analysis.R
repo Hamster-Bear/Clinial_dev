@@ -174,11 +174,29 @@ library(cowplot)
   if (is.na(resolved) || !is.finite(resolved)) fallback else resolved
 }
 
-.resolve_survival_base_family <- function(base_family = "sans") {
+.resolve_survival_font_spec <- function(base_family = "sans", cjk_family = "Noto Sans SC") {
+  if (exists("graphics_resolve_font_spec", mode = "function")) {
+    return(graphics_resolve_font_spec(base_family = base_family, cjk_family = cjk_family))
+  }
+  latin <- trimws(as.character(graphics_first_value_or_default(base_family, "sans")))
+  list(latin = latin, cjk = latin, layout = latin, unified = latin)
+}
+
+.resolve_survival_base_family <- function(base_family = "sans", cjk_family = "Noto Sans SC") {
+  if (exists("graphics_resolve_font_spec", mode = "function")) {
+    return(.resolve_survival_font_spec(base_family = base_family, cjk_family = cjk_family)$unified)
+  }
   if (exists("graphics_resolve_device_safe_family", mode = "function")) {
     return(graphics_resolve_device_safe_family(base_family))
   }
   trimws(as.character(graphics_first_value_or_default(base_family, "sans")))
+}
+
+.resolve_survival_layout_family <- function(base_family = "sans", cjk_family = "Noto Sans SC") {
+  if (exists("graphics_resolve_font_spec", mode = "function")) {
+    return(.resolve_survival_font_spec(base_family = base_family, cjk_family = cjk_family)$layout)
+  }
+  .resolve_survival_base_family(base_family = base_family, cjk_family = cjk_family)
 }
 
 .resolve_survival_text_size_pt <- function(size_pt = 10, fallback = 10) {
@@ -211,9 +229,9 @@ library(cowplot)
   element_text(size = resolved_size, family = resolved_family, face = resolved_face)
 }
 
-.apply_survival_risk_table_text_style <- function(risk_table_plot, number_size_pt = 10, y_text_size = 10, base_family = "sans", bold = FALSE) {
+.apply_survival_risk_table_text_style <- function(risk_table_plot, number_size_pt = 10, y_text_size = 10, base_family = "sans", cjk_family = "Noto Sans SC", bold = FALSE) {
   if (is.null(risk_table_plot)) return(risk_table_plot)
-  plot_family <- .resolve_survival_base_family(base_family)
+  plot_family <- .resolve_survival_base_family(base_family, cjk_family = cjk_family)
   number_size <- .resolve_survival_risk_table_geom_size(number_size_pt, fallback = 10)
   y_axis_size <- .resolve_survival_text_size_pt(y_text_size, fallback = 10)
   number_face <- if (isTRUE(bold)) "bold" else "plain"
@@ -592,7 +610,7 @@ library(cowplot)
                 column(4, numericInput(ns("stats_text_size"), "统计标注字号", value = 10, min = 6, max = 20, step = 1, width = "100%"))
               ),
               numericInput(ns("legend_row_gap"), "图例行间距(row_gap)", value = 1.0, min = 0.1, max = 3.0, step = 0.1, width = "100%"),
-              graphics_font_family_ui(ns, id = "base_family"),
+              graphics_font_family_pair_ui(ns, latin_id = "base_family", cjk_id = "cjk_family"),
               graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "corners_aux_none", default_position = "top-right"),
               graphics_aux_legend_anchor_controls_ui(
                 ns,
@@ -1039,6 +1057,7 @@ survival_analysis_server <- function(input, output, session, data) {
           y_show_percent_sign = input$y_show_percent_sign,
           axis_style = input$axis_style,
           base_family = input$base_family,
+          cjk_family = input$cjk_family %||% "Noto Sans SC",
           axis_text_size = input$axis_text_size,
           legend_text_size = input$legend_text_size,
           stats_text_size = input$stats_text_size,
@@ -1098,6 +1117,7 @@ survival_analysis_server <- function(input, output, session, data) {
         graphics_state$y_as_percent <- params$y_as_percent
         graphics_state$y_show_percent_sign <- params$y_show_percent_sign
         graphics_state$base_family <- params$base_family
+        graphics_state$cjk_family <- params$cjk_family
         graphics_state$axis_text_size <- params$axis_text_size
         graphics_state$axis_style <- params$axis_style
         graphics_state$risk_table_fontsize <- params$risk_table_fontsize
@@ -1446,7 +1466,7 @@ survival_analysis_server <- function(input, output, session, data) {
       fit_local <- fit()
     }
     legend_title_text <- graphics_resolve_legend_title(params$legend_title, "", "")
-    plot_family <- .resolve_survival_base_family(params$base_family %||% "sans")
+    plot_family <- .resolve_survival_base_family(params$base_family %||% "sans", cjk_family = params$cjk_family %||% "Noto Sans SC")
     legend_breaks <- .extract_survival_legend_breaks(fit_local, strata_var, overall_label)
     legend_labs <- .extract_survival_legend_labs(fit_local, strata_var, params$strata_labels, overall_label)
     legend_colors_raw <- .build_survival_legend_colors(legend_breaks, palette_name = "Set1")
@@ -1479,6 +1499,7 @@ survival_analysis_server <- function(input, output, session, data) {
           number_size_pt = params$risk_table_fontsize %||% 10,
           y_text_size = params$y_text_size %||% 10,
           base_family = plot_family,
+          cjk_family = params$cjk_family %||% "Noto Sans SC",
           bold = isTRUE(params$risk_table_fontbold)
         )
       }
@@ -1725,6 +1746,7 @@ survival_analysis_server <- function(input, output, session, data) {
         number_size_pt = params$risk_table_fontsize %||% 10,
         y_text_size = params$y_text_size %||% 10,
         base_family = plot_family,
+        cjk_family = params$cjk_family %||% "Noto Sans SC",
         bold = isTRUE(params$risk_table_fontbold)
       )
     }
@@ -1740,7 +1762,7 @@ survival_analysis_server <- function(input, output, session, data) {
     params <- committed_params()
     req(params)
     p <- base_surv_plot()
-    plot_family <- .resolve_survival_base_family(params$base_family %||% "sans")
+    plot_family <- .resolve_survival_base_family(params$base_family %||% "sans", cjk_family = params$cjk_family %||% "Noto Sans SC")
     p$plot <- p$plot + theme(legend.position = "none")
     main_legend_plot <- .build_survival_line_legend_plot(
       labels = p$main_legend_labels,

@@ -69,6 +69,8 @@ RUN apt-get update && \
         libmagick++-dev \
         libarchive-dev \
         libv8-dev \
+        fonts-noto-cjk \
+        fonts-wqy-zenhei \
     && ldconfig \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

@@ -27,11 +27,11 @@
 
 ### 1.2 名称约定
 
-| 名称 | 当前含义 | 备注 |
-| --- | --- | --- |
-| Hamster Analysis | 平台级命名 | 当前用于 Landing 页与部分部署资源，承载平台入口语义 |
-| AutoTFL | 当前核心应用名 | 当前已上线并由 Hamster Analysis Landing 页承载入口的主应用 |
-| Hamster Analysis · AutoTFL | 当前应用页头与浏览器标题 | 已用于 `app.R` 的 dashboardHeader 与浏览器标题 |
+| 名称                         | 当前含义         | 备注                                         |
+| -------------------------- | ------------ | ------------------------------------------ |
+| Hamster Analysis           | 平台级命名        | 当前用于 Landing 页与部分部署资源，承载平台入口语义             |
+| AutoTFL                    | 当前核心应用名      | 当前已上线并由 Hamster Analysis Landing 页承载入口的主应用 |
+| Hamster Analysis · AutoTFL | 当前应用页头与浏览器标题 | 已用于 `app.R` 的 dashboardHeader 与浏览器标题       |
 
 ### 1.3 文档使用原则
 
@@ -49,13 +49,13 @@
 
 ### 2.2 核心技术栈
 
-| 分层 | 当前使用 |
-| --- | --- |
+| 分层     | 当前使用                                                                     |
+| ------ | ------------------------------------------------------------------------ |
 | UI 与交互 | Shiny、shinydashboard、shinyjs、shinyBS、bslib、shinyWidgets、reactable、plotly |
-| 数据处理 | dplyr、tidyr、purrr、stringr、readxl、haven、vroom、memoise |
-| 统计分析 | survival、broom、gtsummary、rtables、tern、corrplot |
-| 导出能力 | gt、flextable、officer、rmarkdown、pagedown、r2rtf |
-| 基础设施 | PostgreSQL、Redis、Nginx、Docker Compose |
+| 数据处理   | dplyr、tidyr、purrr、stringr、readxl、haven、vroom、memoise                     |
+| 统计分析   | survival、broom、gtsummary、rtables、tern、corrplot                           |
+| 导出能力   | gt、flextable、officer、rmarkdown、pagedown、r2rtf                            |
+| 基础设施   | PostgreSQL、Redis、Nginx、Docker Compose                                    |
 
 ### 2.3 架构摘要
 
@@ -69,14 +69,14 @@
 
 ### 2.4 六步主流程
 
-| 步骤 | 模块 | 作用 |
-| --- | --- | --- |
-| 1 | `database_manager.R` | 管理 workspace / folder / dataset 元数据，并负责数据入库登记 |
-| 2 | `data_preparation.R` | 上传、加载、筛选、预览、变量元数据整理 |
-| 3 | `exploratory_analysis.R` | 快速探索性图形分析 |
-| 4 | `statistical_analysis.R` | 统计分析总入口与结果导出 |
-| 5 | `statistical_graphics.R` | 统计图形总入口与图形导出 |
-| 6 | `tables.R` | 预设 Table / Figure / Listing 输出 |
+| 步骤 | 模块                       | 作用                                            |
+| -- | ------------------------ | --------------------------------------------- |
+| 1  | `database_manager.R`     | 管理 workspace / folder / dataset 元数据，并负责数据入库登记 |
+| 2  | `data_preparation.R`     | 上传、加载、筛选、预览、变量元数据整理                           |
+| 3  | `exploratory_analysis.R` | 快速探索性图形分析                                     |
+| 4  | `statistical_analysis.R` | 统计分析总入口与结果导出                                  |
+| 5  | `statistical_graphics.R` | 统计图形总入口与图形导出                                  |
+| 6  | `tables.R`               | 预设 Table / Figure / Listing 输出                |
 
 ## 3. 运行入口与部署形态
 
@@ -84,12 +84,12 @@
 
 ### 3.1 运行矩阵
 
-| 场景 | 入口 | 访问方式 | 说明 |
-| --- | --- | --- | --- |
-| 本地开发直跑 | `run_app.R` | 默认 `127.0.0.1:8109` | 自动检查依赖并直接运行 `app.R` |
-| 开发编排 | `docker-compose.yml` | `http://localhost` | Nginx 直接反代 Shiny 根路径，不带 Landing 页 |
-| 本地联调 | `docker-compose.local.yml` | `http://localhost:8080` | 含 Landing 页，应用入口为 `/app/` |
-| 服务器生产 | `docker-compose.server.yml` | `https://<domain>` | HTTPS + Landing 页，应用入口为 `/app/` |
+| 场景     | 入口                          | 访问方式                    | 说明                                |
+| ------ | --------------------------- | ----------------------- | --------------------------------- |
+| 本地开发直跑 | `run_app.R`                 | 默认 `127.0.0.1:8109`     | 自动检查依赖并直接运行 `app.R`               |
+| 开发编排   | `docker-compose.yml`        | `http://localhost`      | Nginx 直接反代 Shiny 根路径，不带 Landing 页 |
+| 本地联调   | `docker-compose.local.yml`  | `http://localhost:8080` | 含 Landing 页，应用入口为 `/app/`         |
+| 服务器生产  | `docker-compose.server.yml` | `https://<domain>`      | HTTPS + Landing 页，应用入口为 `/app/`   |
 
 ### 3.2 当前入口规则
 
@@ -116,17 +116,17 @@
 
 ### 3.5 生产环境关键变量
 
-| 变量 | 默认值 | 用途 |
-| --- | --- | --- |
-| `DB_PASSWORD` | 无安全默认值，部署时必须覆盖 | PostgreSQL 连接密码 |
-| `DATA_ROOT` | `/data/hamster-analysis` | 生产持久化根目录 |
-| `CERT_ROOT` | `/etc/hamster-analysis/certs` | 证书目录 |
-| `SSL_CERT_FILE` | `kyyin.xyz.pem` | 证书文件名 |
-| `SSL_KEY_FILE` | `kyyin.xyz.key` | 私钥文件名 |
-| `APP_STORAGE_ROOT` | `/app/data_storage` | 容器内数据体挂载目录 |
-| `APP_ADMIN_USERNAME` | 空 | 可选的预置管理员用户名 |
-| `APP_ADMIN_EMAIL` | 空 | 可选的预置管理员邮箱 |
-| `APP_ADMIN_PASSWORD` | 空 | 可选的预置管理员密码 |
+| 变量                   | 默认值                           | 用途              |
+| -------------------- | ----------------------------- | --------------- |
+| `DB_PASSWORD`        | 无安全默认值，部署时必须覆盖                | PostgreSQL 连接密码 |
+| `DATA_ROOT`          | `/data/hamster-analysis`      | 生产持久化根目录        |
+| `CERT_ROOT`          | `/etc/hamster-analysis/certs` | 证书目录            |
+| `SSL_CERT_FILE`      | `kyyin.xyz.pem`               | 证书文件名           |
+| `SSL_KEY_FILE`       | `kyyin.xyz.key`               | 私钥文件名           |
+| `APP_STORAGE_ROOT`   | `/app/data_storage`           | 容器内数据体挂载目录      |
+| `APP_ADMIN_USERNAME` | 空                             | 可选的预置管理员用户名     |
+| `APP_ADMIN_EMAIL`    | 空                             | 可选的预置管理员邮箱      |
+| `APP_ADMIN_PASSWORD` | 空                             | 可选的预置管理员密码      |
 
 ### 3.6 当前访问控制边界
 
@@ -252,22 +252,22 @@ AutoTFL/
 
 ### 5.1 主入口
 
-| 文件 | 当前职责 | 关键说明 |
-| --- | --- | --- |
-| `app.R` | 加载依赖、source 模块、定义 dashboard UI 与 server | 六个侧边栏页签都在这里挂载 |
-| `run_app.R` | 本地启动脚本 | 先执行依赖检查，再启动 `app.R` |
-| `install_dependencies.R` | 依赖安装脚本 | 支持本地离线仓库优先、在线镜像回退 |
+| 文件                       | 当前职责                                    | 关键说明                |
+| ------------------------ | --------------------------------------- | ------------------- |
+| `app.R`                  | 加载依赖、source 模块、定义 dashboard UI 与 server | 六个侧边栏页签都在这里挂载       |
+| `run_app.R`              | 本地启动脚本                                  | 先执行依赖检查，再启动 `app.R` |
+| `install_dependencies.R` | 依赖安装脚本                                  | 支持本地离线仓库优先、在线镜像回退   |
 
 ### 5.2 业务模块
 
-| 模块 | 主要职责 | 当前状态 |
-| --- | --- | --- |
-| `database_manager.R` | 管理工作区、文件夹、数据集，支持单文件上传、批量上传、按服务器目录导入 | 已实现 |
-| `data_preparation.R` | 上传或从数据库加载数据，做高级筛选、列选择、数据预览和概览卡片 | 已实现 |
-| `exploratory_analysis.R` | 提供基础探索图形与变量映射交互 | 已实现 |
-| `statistical_analysis.R` | 统计分析总入口，路由到描述性统计、回归、组间比较等子模块 | 已实现 |
-| `statistical_graphics.R` | 图形总入口，路由到生存图、森林图、泳道图等子模块 | 已实现 |
-| `tables.R` | 预设表格/图形/Listing 总入口 | 已实现 |
+| 模块                       | 主要职责                                | 当前状态 |
+| ------------------------ | ----------------------------------- | ---- |
+| `database_manager.R`     | 管理工作区、文件夹、数据集，支持单文件上传、批量上传、按服务器目录导入 | 已实现  |
+| `data_preparation.R`     | 上传或从数据库加载数据，做高级筛选、列选择、数据预览和概览卡片     | 已实现  |
+| `exploratory_analysis.R` | 提供基础探索图形与变量映射交互                     | 已实现  |
+| `statistical_analysis.R` | 统计分析总入口，路由到描述性统计、回归、组间比较等子模块        | 已实现  |
+| `statistical_graphics.R` | 图形总入口，路由到生存图、森林图、泳道图等子模块            | 已实现  |
+| `tables.R`               | 预设表格/图形/Listing 总入口                 | 已实现  |
 
 ### 5.3 数据流摘要
 
@@ -287,26 +287,26 @@ AutoTFL/
 
 ### 6.2 子模块清单
 
-| 文件 | 功能 | 当前实现要点 |
-| --- | --- | --- |
-| `desc.R` | 描述性统计 | 基于 `gtsummary` 生成汇总表，支持总计列扩展 |
-| `cox.R` | Cox 回归 | 使用 `survival::coxph`，支持 strata、split、列分组 |
+| 文件           | 功能          | 当前实现要点                                       |
+| ------------ | ----------- | -------------------------------------------- |
+| `desc.R`     | 描述性统计       | 基于 `gtsummary` 生成汇总表，支持总计列扩展                 |
+| `cox.R`      | Cox 回归      | 使用 `survival::coxph`，支持 strata、split、列分组     |
 | `logistic.R` | Logistic 回归 | 使用 `stats::glm(family = binomial())`，支持事件值映射 |
-| `linear.R` | 线性回归 | 使用 `stats::lm`，支持多预测变量和列分组 |
-| `anova.R` | 方差分析 | 连续变量组间比较 |
-| `chisq.R` | 卡方 / CMH | 分类变量组间比较与分层检验 |
+| `linear.R`   | 线性回归        | 使用 `stats::lm`，支持多预测变量和列分组                   |
+| `anova.R`    | 方差分析        | 连续变量组间比较                                     |
+| `chisq.R`    | 卡方 / CMH    | 分类变量组间比较与分层检验                                |
 
 ### 6.3 当前共享引擎
 
-| 文件 | 核心职责 | 当前作用 |
-| --- | --- | --- |
-| `analysis_shared.R` | 回归公共校验、交互项 P 值计算、统一结果整理 | Cox / Logistic / Linear 共享核心 |
-| `account_service.R` | 用户、workspace、membership 与数据入口服务封装 | 管理员入口与数据模块复用服务层 |
-| `auth.R` | 注册、登录、密码摘要、权限过滤与管理员引导 | `app.R`、数据库管理、数据准备共享认证边界 |
-| `auth_manager.R` | 登录/注册页面、认证交互与 loading 反馈 | 精简 `app.R` 并统一认证入口 UI |
-| `workspace_access_manager.R` | owner 邮箱授权、撤销权限、invite 与 owner 迁移入口 | 用户自助管理自己拥有的数据空间权限 |
-| `analysis_format.R` | 数值格式化、统计值格式化、复现代码模板 | 控制结果显示和导出文案 |
-| `table_export.R` | `gt` 风格注入与导出辅助 | 统一表格样式与 P 值显示 |
+| 文件                           | 核心职责                                | 当前作用                         |
+| ---------------------------- | ----------------------------------- | ---------------------------- |
+| `analysis_shared.R`          | 回归公共校验、交互项 P 值计算、统一结果整理             | Cox / Logistic / Linear 共享核心 |
+| `account_service.R`          | 用户、workspace、membership 与数据入口服务封装   | 管理员入口与数据模块复用服务层              |
+| `auth.R`                     | 注册、登录、密码摘要、权限过滤与管理员引导               | `app.R`、数据库管理、数据准备共享认证边界     |
+| `auth_manager.R`             | 登录/注册页面、认证交互与 loading 反馈            | 精简 `app.R` 并统一认证入口 UI        |
+| `workspace_access_manager.R` | owner 邮箱授权、撤销权限、invite 与 owner 迁移入口 | 用户自助管理自己拥有的数据空间权限            |
+| `analysis_format.R`          | 数值格式化、统计值格式化、复现代码模板                 | 控制结果显示和导出文案                  |
+| `table_export.R`             | `gt` 风格注入与导出辅助                      | 统一表格样式与 P 值显示                |
 
 ### 6.4 统计分析当前约束
 
@@ -329,48 +329,48 @@ AutoTFL/
 
 ### 7.2 子模块清单
 
-| 文件 | 图形类型 | 当前说明 |
-| --- | --- | --- |
-| `survival_analysis.R` | Kaplan-Meier 生存曲线 | 支持静态图、交互图、风险表、统计报告和复现代码 |
-| `forest_plot.R` | 森林图 | 用于回归结果或亚组一致性展示 |
-| `correlation_matrix.R` | 相关矩阵图 | 支持相关性探索 |
-| `boxplot.R` | 箱线图 | 用于组间分布比较 |
-| `heatmap.R` | 热图 | 用于矩阵热区展示 |
-| `combo_plot.R` | 组合图 | 复合图层展示 |
-| `spider_plot.R` | Spider 图 | 肿瘤负荷/时间变化 |
-| `swimmer_plot.R` | Swimmer 图 | 疗程轨迹与事件展示 |
-| `waterfall_plot.R` | Waterfall 图 | 个体疗效下降/上升幅度展示 |
+| 文件                     | 图形类型              | 当前说明                    |
+| ---------------------- | ----------------- | ----------------------- |
+| `survival_analysis.R`  | Kaplan-Meier 生存曲线 | 支持静态图、交互图、风险表、统计报告和复现代码 |
+| `forest_plot.R`        | 森林图               | 用于回归结果或亚组一致性展示          |
+| `correlation_matrix.R` | 相关矩阵图             | 支持相关性探索                 |
+| `boxplot.R`            | 箱线图               | 用于组间分布比较                |
+| `heatmap.R`            | 热图                | 用于矩阵热区展示                |
+| `combo_plot.R`         | 组合图               | 复合图层展示                  |
+| `spider_plot.R`        | Spider 图          | 肿瘤负荷/时间变化               |
+| `swimmer_plot.R`       | Swimmer 图         | 疗程轨迹与事件展示               |
+| `waterfall_plot.R`     | Waterfall 图       | 个体疗效下降/上升幅度展示           |
 
 ### 7.3 共享图形能力
 
-| 能力 | 当前来源 | 说明 |
-| --- | --- | --- |
-| 尺寸与画布解析 | `graphics_common.R` | 统一静态图、交互图和导出尺寸解析，并收口画布边框、页面距、PX/英寸换算与导出高度同步 |
-| 图形通知 | `graphics_common.R` | 统一成功/失败提示 |
-| 辅助线抽象 | `graphics_common.R` + `common_ui_shell.R` | 统一参考线 UI 原子控件与 plot 层辅助线叠加逻辑 |
-| 复现代码 | `graphics_repro.R` | 为图形模块生成可复现代码片段 |
-| UI 壳层 | `statistical_graphics_ui/common_ui_shell.R` | 统一页签容器、导出控件、主按钮样式，以及图形输出居中容器 |
-| 导出 | `plot_export.R` | 图形导出辅助能力 |
-| 任务历史 | `task_history.R` + `account_service.R` | 共享任务历史模块负责保存/加载入口、最近任务列表、用户自定义 note、删除操作与用户友好提示；底层使用 PostgreSQL `analysis_states` 表持久化图形子模块完整参数、UI 状态与模块类型 JSON 快照，不保存图对象、结果对象或原始数据副本；快照只保留业务参数，不应混入 DT/Plotly 等派生交互输入，也不应保存配置折叠/页签这类导航态；旧任务恢复时也要跳过这些临时字段，避免加载任务触发未定义列、过滤异常或动态 UI 异步崩溃 |
+| 能力      | 当前来源                                        | 说明                                                                                                                                                                                                                                     |
+| ------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 尺寸与画布解析 | `graphics_common.R`                         | 统一静态图、交互图和导出尺寸解析，并收口画布边框、页面距、PX/英寸换算与导出高度同步                                                                                                                                                                                            |
+| 图形通知    | `graphics_common.R`                         | 统一成功/失败提示                                                                                                                                                                                                                              |
+| 辅助线抽象   | `graphics_common.R` + `common_ui_shell.R`   | 统一参考线 UI 原子控件与 plot 层辅助线叠加逻辑                                                                                                                                                                                                           |
+| 复现代码    | `graphics_repro.R`                          | 为图形模块生成可复现代码片段                                                                                                                                                                                                                         |
+| UI 壳层   | `statistical_graphics_ui/common_ui_shell.R` | 统一页签容器、导出控件、主按钮样式，以及图形输出居中容器                                                                                                                                                                                                           |
+| 导出      | `plot_export.R`                             | 图形导出辅助能力                                                                                                                                                                                                                               |
+| 任务历史    | `task_history.R` + `account_service.R`      | 共享任务历史模块负责保存/加载入口、最近任务列表、用户自定义 note、删除操作与用户友好提示；底层使用 PostgreSQL `analysis_states` 表持久化图形子模块完整参数、UI 状态与模块类型 JSON 快照，不保存图对象、结果对象或原始数据副本；快照只保留业务参数，不应混入 DT/Plotly 等派生交互输入，也不应保存配置折叠/页签这类导航态；旧任务恢复时也要跳过这些临时字段，避免加载任务触发未定义列、过滤异常或动态 UI 异步崩溃 |
 
 ### 7.4 生存分析当前实现口径
 
-| 主题 | 当前实现 |
-| --- | --- |
-| 状态管理 | 采用 view state 与 committed state 分离，只有点击“生成图形”才提交分析参数 |
-| 时间范围 | “处理与筛选”面板中的 X 轴最大值滑轴已统一复用 common 的 `graphics_time_axis_controls_ui()` + `graphics_render_time_range_slider()` 抽象；生存分析模块必须将 `time_range` 同时接入 `view_state`、committed state、任务历史 extra_state 与回填链路，并同时作用于主图 `xlim`、统计文本定位和结果表时间过滤，不能只渲染滑块 UI 而不串通状态；动态 `renderUI` 重建滑轴时，`selected_range` 必须优先读取 `view_state$time_range` 以避免 UI 回退到默认最大值 |
-| 风险表 | 风险表主要用于静态图组合输出；交互页并不是“Plotly + 风险表”同页布局。当前已暴露 `risk_table_height_ratio`、`risk_table_plot_gap`、`risk_table_group_gap` 三个参数，分别控制风险表相对高度、主图与风险表之间的垂直留白、风险表分组行之间的额外扩展；默认值收紧为 `0.15 / 0 / 1.2`。风险表数字字号控件 `risk_table_fontsize` 现已统一改为与其他字号控件一致的 pt 口径，默认值为 `10`，内部再通过 common 换算成 `ggsurvplot` 风险表文本 size；风险表数字层、Y轴标签、主图统计文本与辅助图例当前统一复用同一 `base_family` 字体链路，并显式指定 `plain/bold` 字重，避免 risk 表数字出现无法受全局字体控制、比其他文本更粗的视觉偏差。风险表 Y 轴标签样式更新时必须保留 `ggsurvplot` 预设主题元素类型（例如 `element_markdown`），只能更新其字号/字体属性，不能直接用 `element_text` 覆盖，以避免 theme merge 报错；在分层场景下，risk table 顺序应保持 `ggsurvplot` 内置的 `y = rev(strata)` 映射，只允许在保留原 `breaks/labels` 结构的前提下做标签文案映射，不再额外通过 `scale_y_discrete(limits=...)` 重排分组顺序，也不要通过上游直接覆写 factor levels 的方式替换显示名，否则在自定义标签重复时会破坏组别与人数的对应关系；当用户选择 `Arial` 时，内部会自动映射为设备安全的 `sans`，以规避 `cowplot/grid` 组合阶段的 PostScript 字体度量告警 |
-| 分层标签 | 主图图例、删失图例、统计文本、风险表与数据表统一复用同一标签格式化链路；比较符号及原始值中的 `=`, `>=`, `<` 必须原样保留并可映射自定义标签 |
-| 文本输入 | 图例标题、分层标签、中位生存时间标签、坐标轴标题等文本输入，只有真正的空串 `""` 才允许回退默认值；用户显式输入的纯空格 `"   "` 必须按原样保留，不能因 `trimws()` 被吞掉后再回退为默认文案 |
-| 删失图例 | 交互图中的主图分组图例优先复用 `ggsurvplot` 默认图例能力，仅负责标题与标签定制；静态图则统一改为辅助图例方案：主图分组图例与删失图例都以 common 图例绘制器生成并组合，其中 Censor 图例在分层场景下必须优先复用主图最终 legend 颜色，确保删失符号颜色与曲线颜色一致。曲线上的删失点形状在所有分组中统一取自 `km_censor_shape`，不能因分组再次映射为圆形/三角等离散形状；静态图中主图分组图例固定在前、Censor 图例固定在后，且通过 common 的 inside-anchor/aux-legend 摆放抽象和公共 ratio 滑条控件控制紧凑间距与定位；图例自定义滑轨初始化值统一为 `X/Y/宽/高 = 0.95/0.85/0.13/0.14`，避免重复图例、原始 `变量=取值` 文本泄漏、颜色失配与 `Ignoring unknown labels` 警告。当前 `legend_row_gap` 已暴露到 UI，主图线条图例与删失图例必须共享同一 row-gap 参数，并在叠加时按各自真实行数动态分配高度，禁止再将删失图例行数硬编码为 `1` |
-| 统计文本 | 各组中位生存时间文本改为自由编辑标签，默认使用 `mPFS`，并统一左对齐；其组间距与 Cox 多组文本块保持一致的紧凑行距。统计文本自定义坐标统一复用 common 的比例坐标控件；统计报告中三组以上时需明确 Log-rank 为全局检验，只表示至少一组与其他组存在差异，不代表所有两两比较均显著 |
-| 坐标轴默认值 | X 轴标签默认填入 `Duration`，除非用户显式改写 |
-| Y轴格式 | 当前已暴露 `y_break_step`、`y_decimals`、`y_as_percent`、`y_show_percent_sign` 参数：支持控制步长、小数位、是否按百分比显示、以及百分比场景下是否带 `%`；普通数值与百分比数值统一走 common 格式化函数，避免三图间显示口径分叉 |
-| 中位线 | 当前已暴露 `surv_median_line` 选项，允许 `none / hv / h / v` 四种模式控制主图中位线显示 |
-| P值格式 | Log-rank 与生存分析内联 P 值统一采用 AMA 风格：`<0.001`、`>0.99` 或三位小数，避免 `P=0.000` |
-| 交互页 | 当前以交互主图和单独结果页签为主 |
-| 尺寸配置 | 已接入统一尺寸接口；静态图、交互图与导出图共享同一尺寸模式，并新增页面距、画布边框和 PX/英寸同步换算。默认按 `96 px = 1 in` 保持前端与导出比例一致；包含下方轨道的图形在导出时也需按当前静态画布高度同步扩展导出高度，避免前端不截断但导出截断 |
-| 测试覆盖 | 已有选择解析、中位生存时间基线、view/committed 状态测试，并新增显示契约测试覆盖比较符号/等号标签、Cox 标签映射、删失图例颜色链路、辅助图例布局、删失符号一致性与 P 值格式 |
+| 主题     | 当前实现                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 状态管理   | 采用 view state 与 committed state 分离，只有点击“生成图形”才提交分析参数                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 时间范围   | “处理与筛选”面板中的 X 轴最大值滑轴已统一复用 common 的 `graphics_time_axis_controls_ui()` + `graphics_render_time_range_slider()` 抽象；生存分析模块必须将 `time_range` 同时接入 `view_state`、committed state、任务历史 extra\_state 与回填链路，并同时作用于主图 `xlim`、统计文本定位和结果表时间过滤，不能只渲染滑块 UI 而不串通状态；动态 `renderUI` 重建滑轴时，`selected_range` 必须优先读取 `view_state$time_range` 以避免 UI 回退到默认最大值                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 风险表    | 风险表主要用于静态图组合输出；交互页并不是“Plotly + 风险表”同页布局。当前已暴露 `risk_table_height_ratio`、`risk_table_plot_gap`、`risk_table_group_gap` 三个参数，分别控制风险表相对高度、主图与风险表之间的垂直留白、风险表分组行之间的额外扩展；默认值收紧为 `0.15 / 0 / 1.2`。风险表数字字号控件 `risk_table_fontsize` 现已统一改为与其他字号控件一致的 pt 口径，默认值为 `10`，内部再通过 common 换算成 `ggsurvplot` 风险表文本 size；风险表数字层、Y轴标签、主图统计文本与辅助图例当前统一复用同一 `base_family` 字体链路，并显式指定 `plain/bold` 字重，避免 risk 表数字出现无法受全局字体控制、比其他文本更粗的视觉偏差。风险表 Y 轴标签样式更新时必须保留 `ggsurvplot` 预设主题元素类型（例如 `element_markdown`），只能更新其字号/字体属性，不能直接用 `element_text` 覆盖，以避免 theme merge 报错；在分层场景下，risk table 顺序应保持 `ggsurvplot` 内置的 `y = rev(strata)` 映射，只允许在保留原 `breaks/labels` 结构的前提下做标签文案映射，不再额外通过 `scale_y_discrete(limits=...)` 重排分组顺序，也不要通过上游直接覆写 factor levels 的方式替换显示名，否则在自定义标签重复时会破坏组别与人数的对应关系；当用户选择 `Arial` 或沿用默认 `sans` 时，内部需先走设备安全解析，并在已注册时优先落到 `Noto Sans SC`，以兼顾 `cowplot/grid` 组合阶段的度量稳定性与中文显示能力 |
+| 分层标签   | 主图图例、删失图例、统计文本、风险表与数据表统一复用同一标签格式化链路；比较符号及原始值中的 `=`, `>=`, `<` 必须原样保留并可映射自定义标签                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 文本输入   | 图例标题、分层标签、中位生存时间标签、坐标轴标题等文本输入，只有真正的空串 `""` 才允许回退默认值；用户显式输入的纯空格 `"   "` 必须按原样保留，不能因 `trimws()` 被吞掉后再回退为默认文案                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 删失图例   | 交互图中的主图分组图例优先复用 `ggsurvplot` 默认图例能力，仅负责标题与标签定制；静态图则统一改为辅助图例方案：主图分组图例与删失图例都以 common 图例绘制器生成并组合，其中 Censor 图例在分层场景下必须优先复用主图最终 legend 颜色，确保删失符号颜色与曲线颜色一致。曲线上的删失点形状在所有分组中统一取自 `km_censor_shape`，不能因分组再次映射为圆形/三角等离散形状；静态图中主图分组图例固定在前、Censor 图例固定在后，且通过 common 的 inside-anchor/aux-legend 摆放抽象和公共 ratio 滑条控件控制紧凑间距与定位；图例自定义滑轨初始化值统一为 `X/Y/宽/高 = 0.95/0.85/0.13/0.14`，避免重复图例、原始 `变量=取值` 文本泄漏、颜色失配与 `Ignoring unknown labels` 警告。当前 `legend_row_gap` 已暴露到 UI，主图线条图例与删失图例必须共享同一 row-gap 参数，并在叠加时按各自真实行数动态分配高度，禁止再将删失图例行数硬编码为 `1`                                                                                                                                                                                                                                                                                                                |
+| 统计文本   | 各组中位生存时间文本改为自由编辑标签，默认使用 `mPFS`，并统一左对齐；其组间距与 Cox 多组文本块保持一致的紧凑行距。统计文本自定义坐标统一复用 common 的比例坐标控件；统计报告中三组以上时需明确 Log-rank 为全局检验，只表示至少一组与其他组存在差异，不代表所有两两比较均显著                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 坐标轴默认值 | X 轴标签默认填入 `Duration`，除非用户显式改写                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Y轴格式   | 当前已暴露 `y_break_step`、`y_decimals`、`y_as_percent`、`y_show_percent_sign` 参数：支持控制步长、小数位、是否按百分比显示、以及百分比场景下是否带 `%`；普通数值与百分比数值统一走 common 格式化函数，避免三图间显示口径分叉                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 中位线    | 当前已暴露 `surv_median_line` 选项，允许 `none / hv / h / v` 四种模式控制主图中位线显示                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| P值格式   | Log-rank 与生存分析内联 P 值统一采用 AMA 风格：`<0.001`、`>0.99` 或三位小数，避免 `P=0.000`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 交互页    | 当前以交互主图和单独结果页签为主                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 尺寸配置   | 已接入统一尺寸接口；静态图、交互图与导出图共享同一尺寸模式，并新增页面距、画布边框和 PX/英寸同步换算。默认按 `96 px = 1 in` 保持前端与导出比例一致；包含下方轨道的图形在导出时也需按当前静态画布高度同步扩展导出高度，避免前端不截断但导出截断                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 测试覆盖   | 已有选择解析、中位生存时间基线、view/committed 状态测试，并新增显示契约测试覆盖比较符号/等号标签、Cox 标签映射、删失图例颜色链路、辅助图例布局、删失符号一致性与 P 值格式                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ### 7.5 图例与样式当前状态
 
@@ -382,7 +382,8 @@ AutoTFL/
 - Waterfall 与 Swimmer 的符号/颜色分别指定能力已经存在，但仍属于高复杂 UI，后续应继续抽象公共组件。
 - Survival、Spider、Waterfall 当前都已接入统一 Y 轴格式化口径：百分比显示、是否带 `%`、保留小数位数都应优先复用 common 的标签格式化函数。
 - Survival 静态图的主图线条图例与删失图例，当前被视为两个独立辅助图例：内部行距使用同一 `legend_row_gap` 参数，叠加拼接时按照各自真实行数分配 `rel_heights`，不得依赖固定比例常量推断高度。
-- 涉及 `cowplot` / `grid` 组合测量的文本（如 Survival 静态图、辅助图例、风险表）若用户选择 `Arial`，必须先经过 common 的设备安全字体解析并回退为 `sans`；仅依赖 `showtext::font_add()` 不能消除组合阶段的 `PostScript字体数据库里找不到'Arial'` 告警。
+- 涉及 `cowplot` / `grid` 组合测量的文本（如 Survival 静态图、辅助图例、风险表、森林图表头、泳道图事件图例、底部 caption）必须先走 common 的三层字体策略：`graphics_resolve_device_safe_family()` 只负责设备安全映射（如 `Arial -> sans`），`graphics_resolve_font_spec()` / `graphics_resolve_text_family()` 负责拉丁与 CJK 文本分流，`graphics_resolve_layout_family()` 专门处理布局测量链路。`draw_label()`、辅助图例和 common caption 不得再直接吃 `Noto Sans SC` 等自定义字体名。仅依赖 `showtext::font_add_google()` 不能保证离线容器内的中文字体可用。
+- 同类规则也适用于非统计图形主入口中的文本层：`exploratory_analysis.R` 的错误占位/标题文本，以及 `tables/ae_sidebyside.R` 的汇总标注，不得再硬编码 `sans` 或依赖设备默认字体。
 - 森林图、蜘蛛图、泳道图当前已开始复用 common UI 高阶组件收口坐标范围、刻度格式与时间轴单位换算；经典轴线手动画段也已抽到 `graphics_add_classic_axis_segments()`，减少模块内重复 `annotate("segment")` 逻辑。泳道图在 `classic` 无箭头模式下，X 轴线段终点需保持在面板裁剪边界内侧，避免最右端方头线帽被裁掉后出现“断裂”视觉。
 
 ## 8. 预设图表实现
@@ -394,12 +395,12 @@ AutoTFL/
 
 ### 8.2 子模块清单
 
-| 文件 | 类型 | 当前说明 |
-| --- | --- | --- |
-| `t_dm.R` | Table | 人口统计学和基线特征表 |
-| `t_ae_soc_pt.R` | Table | 不良事件 SOC/PT 汇总 |
-| `listing_general.R` | Listing | 通用审阅明细清单 |
-| `ae_sidebyside.R` | Figure | AE 并列对比图 |
+| 文件                  | 类型      | 当前说明           |
+| ------------------- | ------- | -------------- |
+| `t_dm.R`            | Table   | 人口统计学和基线特征表    |
+| `t_ae_soc_pt.R`     | Table   | 不良事件 SOC/PT 汇总 |
+| `listing_general.R` | Listing | 通用审阅明细清单       |
+| `ae_sidebyside.R`   | Figure  | AE 并列对比图       |
 
 ### 8.3 当前引擎边界
 
@@ -412,17 +413,17 @@ AutoTFL/
 
 ### 9.1 公共文件清单
 
-| 文件 | 当前职责 |
-| --- | --- |
-| `data_metadata.R` | 统一变量标签、类型推断、元数据回写 |
-| `data_filter.R` | 统一筛选 UI / server 与变量过滤行为 |
-| `analysis_shared.R` | 统一回归校验和结果组装 |
-| `analysis_format.R` | 统一统计值、P 值、复现代码模板 |
+| 文件                  | 当前职责                         |
+| ------------------- | ---------------------------- |
+| `data_metadata.R`   | 统一变量标签、类型推断、元数据回写            |
+| `data_filter.R`     | 统一筛选 UI / server 与变量过滤行为     |
+| `analysis_shared.R` | 统一回归校验和结果组装                  |
+| `analysis_format.R` | 统一统计值、P 值、复现代码模板             |
 | `graphics_common.R` | 统一图形变量筛选、尺寸、图例绘制、坐标轴样式和标签格式化 |
-| `graphics_repro.R` | 图形复现代码 |
-| `plot_export.R` | 图形导出 |
-| `table_export.R` | 表格导出与样式注入 |
-| `storage_backend.R` | 本地 / S3 数据存储抽象 |
+| `graphics_repro.R`  | 图形复现代码                       |
+| `plot_export.R`     | 图形导出                         |
+| `table_export.R`    | 表格导出与样式注入                    |
+| `storage_backend.R` | 本地 / S3 数据存储抽象               |
 
 ### 9.2 当前共享层原则
 
@@ -432,24 +433,24 @@ AutoTFL/
 
 ### 9.3 当前可复用函数清单
 
-| 主题 | 文件 | 当前可复用函数 | 当前约束 |
-| --- | --- | --- | --- |
-| 图例标题与位置枚举 | `graphics_common.R` | `graphics_resolve_legend_title()`、`graphics_legend_position_choices()`、`graphics_legend_controls_ui()` | 图例标题统一走 `custom > fallback > default`；位置值只能来自 common 枚举，子模块不得自造私有位置字符串 |
-| 图例锚点、ratio 滑条与辅助图例摆放 | `graphics_common.R` | `graphics_resolve_inside_anchor()`、`graphics_aux_legend_anchor_controls_ui()`、`graphics_place_aux_legend()`、`graphics_apply_legend_theme()` | 图内锚点必须先归一化；辅助图例位置、统计文本自定义坐标与 x/y/width/height ratio 控件优先复用 common；隐藏图例统一使用 `"none"` |
-| 辅助图例绘制器 | `graphics_common.R` | `graphics_aux_legend_compact_defaults`、`graphics_resolve_device_safe_family()`、`graphics_build_legend_rows()`、`graphics_build_point_legend_plot()`、`graphics_build_line_legend_plot()`、`graphics_compose_stacked_legends()` | 自绘辅助图例的行距、标题间距、外边距、组间 spacer 统一由 common 控制；收紧通用规则为所有图例的每个因子之间保持约一个字符大小的间距，且线条图例与删失图例必须复用同一 row-gap 约束；拼接多个辅助图例时必须按真实行数传入 `primary_rows / secondary_rows`，不得硬编码删失图例高度。涉及 `cowplot/grid` 组合测量的字体需先走 `graphics_resolve_device_safe_family()`，当前 `Arial` 必须回退为 `sans` |
-| 轴线、辅助线与标签格式 | `graphics_common.R` | `graphics_apply_axis_style()`、`graphics_collect_reference_line_spec()`、`graphics_add_reference_lines()`、`graphics_format_percent_labels()`、`graphics_format_number_labels()` | 经典 XY 轴样式、用户可配置辅助线、百分比显示、是否带 `%`、保留小数位数统一走 common；模块内不得各写一套刻度/辅助线拼装逻辑 |
-| 通用 UI 控件 | `common_ui_shell.R` | `graphics_reference_line_ui()`、`graphics_primary_action_button_ui()`、`graphics_font_family_ui()`、`graphics_export_size_controls_ui()`、`graphics_centered_output_container()`、`graphics_axis_range_controls_ui()`、`graphics_axis_tick_format_controls_ui()`、`graphics_time_axis_settings_ui()` | 高度重复的 UI 块（如参考线配置、主按钮、字体族选择、尺寸/导出表单、输出区居中容器、坐标范围、刻度格式、时间轴单位换算）必须复用 common 控件，统一参数收集逻辑 |
-| 通用 UI 状态收集 | `common_ui_shell.R` | `graphics_collect_axis_range_config()`、`graphics_collect_axis_tick_config()`、`graphics_collect_time_axis_config()` | server 端若需收集上述 common UI 的值，应优先复用配套收集函数，避免模块内重复拼装输入解析 |
-| 图形尺寸解析 | `graphics_common.R` | `graphics_px_to_in()`、`graphics_in_to_px()`、`graphics_scale_export_height()`、`resolve_plot_size_config()`、`graphics_collect_size_config()`、`graphics_apply_canvas_frame()` | 静态图、交互图、导出尺寸与画布边框/页面距统一从 common 解析；默认保持前端像素尺寸与导出英寸尺寸同步，模块内不得各自硬编码三套尺寸或手写导出高度换算 |
-| 经典坐标轴线段 | `graphics_common.R` | `graphics_add_classic_axis_segments()`、`graphics_apply_axis_style()` | 需要自绘经典轴线或箭头轴线时，优先复用 common 线段拼装函数，避免模块继续复制 `annotate("segment") + lineend = "square"` 逻辑 |
-| 图形说明文字 | `graphics_common.R` | `graphics_mapping_caption_line()`、`graphics_compose_caption()`、`graphics_append_bottom_caption()` | caption 统一由 common 拼接，禁止模块内再拼第二套底部说明逻辑 |
-| 元数据标签与类型 | `data_metadata.R` | `metadata_get_var_label()`、`metadata_get_var_type()`、`metadata_build_column_choices()`、`metadata_attach_to_data()` | 标签解析顺序固定为 `override > metadata表 > 列label > var_name`；元数据变更后必须重新回写到数据对象 |
-| 元数据底层推断 | `data_metadata.R` | `metadata_determine_var_type()`、`metadata_coerce_var_data()`、`metadata_safe_numeric_range()` | 字符变量低基数判定与日期/数值转换规则统一由 common 维护，子模块不得各写一套推断逻辑 |
-| 统计格式化与复现模板 | `analysis_format.R` | `format_p_value_regression()`、`format_regression_stat()`、`build_repro_code_template()` | 回归统计值、缺失占位符、复现代码模板统一走 common，禁止模块各自维护格式 |
-| 图形复现代码 | `graphics_repro.R` | `graphics_quote_value()`、`graphics_quote_vector()`、`generate_graphics_repro_code()` | 图形复现代码输入必须来自 committed 状态快照；新增图形类型时必须补 common 入口分支 |
-| 表格样式与导出 | `table_export.R` | `format_p_value_ama()`、`normalize_footnotes()`、`extract_table_dataframe()`、`apply_sci_gt_style()` | P 值显示、脚注清洗、gt 风格统一由 common 注入，禁止模块私有化导出样式 |
-| 图形导出 | `plot_export.R` | `build_plot_export_filename()`、`save_plot_export()` | 导出文件名与支持格式统一由 common 维护；业务模块不得扩展不一致的私有导出参数 |
-| 存储抽象 | `storage_backend.R` | `storage_backend_get()`、`storage_data_key_build()`、`storage_save_dataset()`、`storage_load_dataset()`、`storage_delete_dataset()` | 数据体读写删除统一走 common；业务模块不得拼接本地/S3 细节路径 |
+| 主题                   | 文件                  | 当前可复用函数                                                                                                                                                                                                                                                                                       | 当前约束                                                                                                                                                                                                                                                              |
+| -------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 图例标题与位置枚举            | `graphics_common.R` | `graphics_resolve_legend_title()`、`graphics_legend_position_choices()`、`graphics_legend_controls_ui()`                                                                                                                                                                                        | 图例标题统一走 `custom > fallback > default`；位置值只能来自 common 枚举，子模块不得自造私有位置字符串                                                                                                                                                                                            |
+| 图例锚点、ratio 滑条与辅助图例摆放 | `graphics_common.R` | `graphics_resolve_inside_anchor()`、`graphics_aux_legend_anchor_controls_ui()`、`graphics_place_aux_legend()`、`graphics_apply_legend_theme()`                                                                                                                                                   | 图内锚点必须先归一化；辅助图例位置、统计文本自定义坐标与 x/y/width/height ratio 控件优先复用 common；隐藏图例统一使用 `"none"`                                                                                                                                                                               |
+| 辅助图例绘制器              | `graphics_common.R` | `graphics_aux_legend_compact_defaults`、`graphics_resolve_device_safe_family()`、`graphics_resolve_font_spec()`、`graphics_resolve_text_family()`、`graphics_build_legend_rows()`、`graphics_build_point_legend_plot()`、`graphics_build_line_legend_plot()`、`graphics_compose_stacked_legends()`                                                                   | 自绘辅助图例的行距、标题间距、外边距、组间 spacer 统一由 common 控制；收紧通用规则为所有图例的每个因子之间保持约一个字符大小的间距，且线条图例与删失图例必须复用同一 row-gap 约束；拼接多个辅助图例时必须按真实行数传入 `primary_rows / secondary_rows`，不得硬编码删失图例高度。涉及 `cowplot/grid` 组合测量时先做设备安全映射，再按文本内容选择拉丁/CJK 字体；单个文本 grob 若混排且无法拆分，应优先落到统一 CJK 覆盖字体 |
+| 轴线、辅助线与标签格式          | `graphics_common.R` | `graphics_apply_axis_style()`、`graphics_collect_reference_line_spec()`、`graphics_add_reference_lines()`、`graphics_format_percent_labels()`、`graphics_format_number_labels()`                                                                                                                  | 经典 XY 轴样式、用户可配置辅助线、百分比显示、是否带 `%`、保留小数位数统一走 common；模块内不得各写一套刻度/辅助线拼装逻辑                                                                                                                                                                                             |
+| 通用 UI 控件             | `common_ui_shell.R` | `graphics_reference_line_ui()`、`graphics_primary_action_button_ui()`、`graphics_font_family_ui()`、`graphics_font_family_pair_ui()`、`graphics_export_size_controls_ui()`、`graphics_centered_output_container()`、`graphics_axis_range_controls_ui()`、`graphics_axis_tick_format_controls_ui()`、`graphics_time_axis_settings_ui()` | 高度重复的 UI 块（如参考线配置、主按钮、字体族选择、尺寸/导出表单、输出区居中容器、坐标范围、刻度格式、时间轴单位换算）必须复用 common 控件，统一参数收集逻辑；复杂图形模块优先改用 `graphics_font_family_pair_ui()` 暴露“西文字体 + 中文字体”双配置，`graphics_font_family_ui()` 保留向后兼容与轻量场景                                                                                                                                                                             |
+| 通用 UI 状态收集           | `common_ui_shell.R` | `graphics_collect_axis_range_config()`、`graphics_collect_axis_tick_config()`、`graphics_collect_time_axis_config()`                                                                                                                                                                            | server 端若需收集上述 common UI 的值，应优先复用配套收集函数，避免模块内重复拼装输入解析                                                                                                                                                                                                             |
+| 图形尺寸解析               | `graphics_common.R` | `graphics_px_to_in()`、`graphics_in_to_px()`、`graphics_scale_export_height()`、`resolve_plot_size_config()`、`graphics_collect_size_config()`、`graphics_apply_canvas_frame()`                                                                                                                    | 静态图、交互图、导出尺寸与画布边框/页面距统一从 common 解析；默认保持前端像素尺寸与导出英寸尺寸同步，模块内不得各自硬编码三套尺寸或手写导出高度换算                                                                                                                                                                                    |
+| 经典坐标轴线段              | `graphics_common.R` | `graphics_add_classic_axis_segments()`、`graphics_apply_axis_style()`                                                                                                                                                                                                                          | 需要自绘经典轴线或箭头轴线时，优先复用 common 线段拼装函数，避免模块继续复制 `annotate("segment") + lineend = "square"` 逻辑                                                                                                                                                                          |
+| 图形说明文字               | `graphics_common.R` | `graphics_mapping_caption_line()`、`graphics_compose_caption()`、`graphics_append_bottom_caption()`                                                                                                                                                                                             | caption 统一由 common 拼接，禁止模块内再拼第二套底部说明逻辑                                                                                                                                                                                                                            |
+| 元数据标签与类型             | `data_metadata.R`   | `metadata_get_var_label()`、`metadata_get_var_type()`、`metadata_build_column_choices()`、`metadata_attach_to_data()`                                                                                                                                                                            | 标签解析顺序固定为 `override > metadata表 > 列label > var_name`；元数据变更后必须重新回写到数据对象                                                                                                                                                                                            |
+| 元数据底层推断              | `data_metadata.R`   | `metadata_determine_var_type()`、`metadata_coerce_var_data()`、`metadata_safe_numeric_range()`                                                                                                                                                                                                  | 字符变量低基数判定与日期/数值转换规则统一由 common 维护，子模块不得各写一套推断逻辑                                                                                                                                                                                                                    |
+| 统计格式化与复现模板           | `analysis_format.R` | `format_p_value_regression()`、`format_regression_stat()`、`build_repro_code_template()`                                                                                                                                                                                                        | 回归统计值、缺失占位符、复现代码模板统一走 common，禁止模块各自维护格式                                                                                                                                                                                                                           |
+| 图形复现代码               | `graphics_repro.R`  | `graphics_quote_value()`、`graphics_quote_vector()`、`generate_graphics_repro_code()`                                                                                                                                                                                                           | 图形复现代码输入必须来自 committed 状态快照；新增图形类型时必须补 common 入口分支                                                                                                                                                                                                                |
+| 表格样式与导出              | `table_export.R`    | `format_p_value_ama()`、`normalize_footnotes()`、`extract_table_dataframe()`、`apply_sci_gt_style()`                                                                                                                                                                                             | P 值显示、脚注清洗、gt 风格统一由 common 注入，禁止模块私有化导出样式                                                                                                                                                                                                                         |
+| 图形导出                 | `plot_export.R`     | `build_plot_export_filename()`、`save_plot_export()`                                                                                                                                                                                                                                           | 导出文件名与支持格式统一由 common 维护；业务模块不得扩展不一致的私有导出参数                                                                                                                                                                                                                        |
+| 存储抽象                 | `storage_backend.R` | `storage_backend_get()`、`storage_data_key_build()`、`storage_save_dataset()`、`storage_load_dataset()`、`storage_delete_dataset()`                                                                                                                                                               | 数据体读写删除统一走 common；业务模块不得拼接本地/S3 细节路径                                                                                                                                                                                                                              |
 
 ### 9.4 后续开发收紧声明
 
@@ -535,21 +536,21 @@ AutoTFL/
 
 ### 10.1 数据输入来源
 
-| 入口 | 当前支持 |
-| --- | --- |
-| 本地文件上传 | `.csv`、`.xlsx`、`.xls`、`.sas7bdat`、`.sav`、`.dta`、`.por` |
-| 数据库加载 | 从 PostgreSQL 中按 workspace / folder / dataset 选择已登记数据集 |
-| 服务器目录导入 | `database_manager.R` 支持按服务器绝对路径导入工作区 |
-| 批量导入 | `database_manager.R` 支持多文件批量保存 |
+| 入口      | 当前支持                                                   |
+| ------- | ------------------------------------------------------ |
+| 本地文件上传  | `.csv`、`.xlsx`、`.xls`、`.sas7bdat`、`.sav`、`.dta`、`.por` |
+| 数据库加载   | 从 PostgreSQL 中按 workspace / folder / dataset 选择已登记数据集  |
+| 服务器目录导入 | `database_manager.R` 支持按服务器绝对路径导入工作区                   |
+| 批量导入    | `database_manager.R` 支持多文件批量保存                         |
 
 ### 10.2 存储架构
 
-| 层级 | 当前实现 |
-| --- | --- |
-| 元数据 | PostgreSQL 表 `users`、`workspaces`、`workspace_memberships`、`folders`、`datasets` |
-| 数据体 | 本地 `RDS` 文件或 S3 对象 |
-| 存储切换 | 通过 `STORAGE_BACKEND` 控制 `local` / `s3` |
-| S3 前置条件 | 必须安装 `aws.s3`，并设置 `STORAGE_S3_BUCKET` |
+| 层级      | 当前实现                                                                           |
+| ------- | ------------------------------------------------------------------------------ |
+| 元数据     | PostgreSQL 表 `users`、`workspaces`、`workspace_memberships`、`folders`、`datasets` |
+| 数据体     | 本地 `RDS` 文件或 S3 对象                                                             |
+| 存储切换    | 通过 `STORAGE_BACKEND` 控制 `local` / `s3`                                         |
+| S3 前置条件 | 必须安装 `aws.s3`，并设置 `STORAGE_S3_BUCKET`                                          |
 
 ### 10.2.1 当前数据接入边界
 
@@ -568,14 +569,14 @@ AutoTFL/
 
 ### 10.3 当前统计显示规范
 
-| 项目 | 当前规则 |
-| --- | --- |
-| P 值风格 | AMA 风格 |
-| 极小 P 值 | `<0.001` |
-| 极大 P 值 | `>0.99` |
-| 无法计算 P 值 | 显示为 `—` |
-| 无法计算效应量 | 显示为 `—` |
-| 效应量保留位数 | `HR / OR / Beta` 及其 95% CI 通常保留 2 位小数 |
+| 项目       | 当前规则                                  |
+| -------- | ------------------------------------- |
+| P 值风格    | AMA 风格                                |
+| 极小 P 值   | `<0.001`                              |
+| 极大 P 值   | `>0.99`                               |
+| 无法计算 P 值 | 显示为 `—`                               |
+| 无法计算效应量  | 显示为 `—`                               |
+| 效应量保留位数  | `HR / OR / Beta` 及其 95% CI 通常保留 2 位小数 |
 
 ### 10.4 回归变量约束
 
@@ -605,7 +606,7 @@ AutoTFL/
 - 图形公共进度、图例/颜色覆盖与 Waterfall 符号选择。
 - 计算层与渲染层解耦相关回归。
 - Landing 文案、访问控制边界与导入入口文案守卫。
-- 图形任务历史持久化守卫、analysis_states 建表契约、以及 common UI 新增控件。
+- 图形任务历史持久化守卫、analysis\_states 建表契约、以及 common UI 新增控件。
 
 ### 11.2 当前测试契约
 
@@ -626,11 +627,11 @@ AutoTFL/
 
 ### 12.1 已确认但未落地
 
-| 项目 | 当前状态 | 说明 |
-| --- | --- | --- |
-| MMRM | 占位 | 菜单可见，分析链路未实现 |
-| 多重填补（MI） | 占位 | 菜单可见，分析链路未实现 |
-| Kubernetes 部署 | 未提供 | 仓库中暂无相关编排或清单 |
+| 项目            | 当前状态 | 说明           |
+| ------------- | ---- | ------------ |
+| MMRM          | 占位   | 菜单可见，分析链路未实现 |
+| 多重填补（MI）      | 占位   | 菜单可见，分析链路未实现 |
+| Kubernetes 部署 | 未提供  | 仓库中暂无相关编排或清单 |
 
 ### 12.2 下一步优先方向
 
@@ -640,10 +641,10 @@ AutoTFL/
 4. 在现有个人隔离与 workspace 权限基础上，评估组织级、项目级隔离、邮箱验证与共享协作模型。
 5. 在高级方法真正落地后，再补充对应章节与测试。
 6. **UI 状态隔离与响应式重构**：优化图形模块（如森林图）动态渲染配置项时的循环依赖问题，大规模采用 `isolate()` 技巧防止输入过程中的焦点丢失和异常跳出。
-7. **通用 UI 组件 (Common UI Components) [已落地]**：已继续以 `common_ui_shell.R` 作为真实承载文件，新增 `graphics_axis_range_controls_ui()`、`graphics_axis_tick_format_controls_ui()`、`graphics_time_axis_settings_ui()` 及配套收集函数；森林图、蜘蛛图、泳道图已开始接入这套高阶组件，持续减少模块私有 UI 冗余。
-8. **测试工具链引入 [已落地]**：已引入 `.pre-commit-config.yaml`、`.lintr`、`styler`、`lintr`、`shinytest2` 依赖入口，并通过 pre-commit 串联格式化、静态检查与 `tests/` 守卫；复杂浏览器级交互测试仍保留给后续 `shinytest2` 场景补齐。
-9. **分析参数与UI状态持久化 [已落地增强中]**：已新增 PostgreSQL `analysis_states` 表，并在 `auth_ensure_schema()` 与 `postgres/init.sql` 双处同步建表；任务历史 UI 现抽离为共享 `task_history` 模块，并先嵌入统计图形页，支持按用户保存/加载图形子模块完整参数、UI 状态、模块类型与用户 note，底层将状态序列化为 JSON 存储，并展示最近任务列表与删除操作。当前保存的是状态快照而非结果对象；载入时由各图形模块按 `state/apply_state` 契约恢复字段。当前 workspace 为空时保存为个人任务；在统计图形与统计分析形成统一契约前，暂不升为左侧一级菜单，统计分析模块接入留待下一轮扩展。
-10. **精细化图形样式控制 [已落地首期]**：已将经典坐标轴线段抽到 `graphics_add_classic_axis_segments()`，并把时间轴单位换算/步长配置继续收敛到 common UI；泳道图与蜘蛛图已开始复用统一时间轴控件，森林图也已收敛坐标范围与刻度格式。其余时间序列图形继续按同一公共契约扩展。
+7. **通用 UI 组件 (Common UI Components) \[已落地]**：已继续以 `common_ui_shell.R` 作为真实承载文件，新增 `graphics_axis_range_controls_ui()`、`graphics_axis_tick_format_controls_ui()`、`graphics_time_axis_settings_ui()` 及配套收集函数；森林图、蜘蛛图、泳道图已开始接入这套高阶组件，持续减少模块私有 UI 冗余。
+8. **测试工具链引入 \[已落地]**：已引入 `.pre-commit-config.yaml`、`.lintr`、`styler`、`lintr`、`shinytest2` 依赖入口，并通过 pre-commit 串联格式化、静态检查与 `tests/` 守卫；复杂浏览器级交互测试仍保留给后续 `shinytest2` 场景补齐。
+9. **分析参数与UI状态持久化 \[已落地增强中]**：已新增 PostgreSQL `analysis_states` 表，并在 `auth_ensure_schema()` 与 `postgres/init.sql` 双处同步建表；任务历史 UI 现抽离为共享 `task_history` 模块，并先嵌入统计图形页，支持按用户保存/加载图形子模块完整参数、UI 状态、模块类型与用户 note，底层将状态序列化为 JSON 存储，并展示最近任务列表与删除操作。当前保存的是状态快照而非结果对象；载入时由各图形模块按 `state/apply_state` 契约恢复字段。当前 workspace 为空时保存为个人任务；在统计图形与统计分析形成统一契约前，暂不升为左侧一级菜单，统计分析模块接入留待下一轮扩展。
+10. **精细化图形样式控制 \[已落地首期]**：已将经典坐标轴线段抽到 `graphics_add_classic_axis_segments()`，并把时间轴单位换算/步长配置继续收敛到 common UI；泳道图与蜘蛛图已开始复用统一时间轴控件，森林图也已收敛坐标范围与刻度格式。其余时间序列图形继续按同一公共契约扩展。
 
 ## 13. 研发治理约束
 
@@ -693,8 +694,8 @@ AutoTFL/
 - 主 Landing 改版时优先检查是否仍然足够精简，避免把 AutoTFL 详细内容重新堆回 `index.html`。
 - Landing 页如强调 AutoTFL，应优先说明“能产出什么”“如何开始使用”和“从哪里进入”，避免引入技术栈宣传、兼容性提示或抽象分层说明；应用页头与浏览器标题应统一为 `Hamster Analysis · AutoTFL`。
 
----
+***
 
-文档校验基线：2026-04-14  
-校验范围：仓库结构、核心模块、部署编排、共享层、测试目录  
+文档校验基线：2026-04-14\
+校验范围：仓库结构、核心模块、部署编排、共享层、测试目录\
 状态说明：本文仅记录当前仓库已实现或已明确暴露的能力

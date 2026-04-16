@@ -7,7 +7,7 @@ AutoTFL 旨在为医学和临床数据分析提供一套自动化、可复现的
 ## 2. 核心架构
 
 - **表现层**: R Shiny (shinydashboard + bslib)，采用模块化 (Shiny Modules) 开发。
-- **逻辑层**: 纯 R 驱动，核心统计依赖 `survival`, `gtsummary`, `rtables`；图形渲染采用 `showtext` 以确保跨平台（如 Docker/Windows/Linux）中文字体显示一致性。对于经 `cowplot` / `grid` 组合的图形，字体选择还需经过设备安全映射；`Arial` 在组合测量阶段会回退为 `sans`，避免 `PostScript` 字体数据库告警。
+- **逻辑层**: 纯 R 驱动，核心统计依赖 `survival`, `gtsummary`, `rtables`；图形渲染采用 `showtext` 以确保跨平台（如 Docker/Windows/Linux）中文字体显示一致性。应用入口需优先注册本地 CJK 字体别名 `Noto Sans SC`，Docker 镜像需内置 `fonts-noto-cjk` / `fonts-wqy-zenhei` 等离线可用字体；字体策略上需拆为三层：拉丁字体 `latin_family`、中文字体 `cjk_family`、版式测量字体 `layout_family`。`Arial` 等在 `cowplot` / `grid` 组合测量阶段先回退到 `layout_family`，包含 CJK 的绘图文本再优先选择已注册的 CJK 字体，避免同时出现 `PostScript` 字体告警与中文缺字。
 - **图形共享层**: `graphics_common.R` 与 `common_ui_shell.R` 统一维护图形尺寸模式、画布边框、页面距、前端居中容器、参考线抽象以及 PX/英寸换算；默认按 `96 px = 1 in` 同步前端与导出比例，避免页面不截断但导出截断。
 - **持久层**:
   - 元数据：PostgreSQL (管理 Workspace, Folder, Dataset 关系)。

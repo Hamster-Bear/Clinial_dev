@@ -133,22 +133,63 @@ graphics_reference_line_ui <- function(ns, id_prefix, label = "参考线", defau
 #' @param ns Shiny 命名空间函数
 #' @param id 控件 ID (默认为 "base_family")
 #' @param label 控件显示名称 (默认为 "全局字体")
-#' @param default_family 默认字体族 (默认为 "sans")
-graphics_font_family_ui <- function(ns, id = "base_family", label = "全局字体", default_family = "sans") {
+#' @param default_family 默认字体族 (默认为 "Noto Sans SC")
+graphics_font_family_choices <- function() {
+  c(
+    "中文推荐 (Noto Sans SC)" = "Noto Sans SC",
+    "无衬线体 (Sans)" = "sans",
+    "衬线体 (Serif)" = "serif",
+    "等宽体 (Mono)" = "mono",
+    "Helvetica" = "Helvetica",
+    "Times New Roman" = "Times",
+    "Courier" = "Courier",
+    "Arial" = "Arial"
+  )
+}
+
+graphics_font_family_ui <- function(ns, id = "base_family", label = "全局字体", default_family = "Noto Sans SC") {
   selectInput(
     ns(id),
     label,
-    choices = c(
-      "无衬线体 (Sans)" = "sans",
-      "衬线体 (Serif)" = "serif",
-      "等宽体 (Mono)" = "mono",
-      "Helvetica" = "Helvetica",
-      "Times New Roman" = "Times",
-      "Courier" = "Courier",
-      "Arial" = "Arial"
-    ),
+    choices = graphics_font_family_choices(),
     selected = default_family,
     width = "100%"
+  )
+}
+
+graphics_cjk_font_family_choices <- function() {
+  c(
+    "中文推荐 (Noto Sans SC)" = "Noto Sans SC",
+    "微软雅黑 (Microsoft YaHei)" = "Microsoft YaHei",
+    "黑体 (SimHei)" = "SimHei",
+    "无衬线兜底 (Sans)" = "sans",
+    "衬线兜底 (Serif)" = "serif",
+    "等宽兜底 (Mono)" = "mono"
+  )
+}
+
+graphics_font_family_pair_ui <- function(ns, latin_id = "base_family", cjk_id = "cjk_family", latin_label = "西文字体", cjk_label = "中文字体", latin_default = "sans", cjk_default = "Noto Sans SC") {
+  shiny::fluidRow(
+    shiny::column(
+      6,
+      shiny::selectInput(
+        ns(latin_id),
+        latin_label,
+        choices = graphics_font_family_choices(),
+        selected = latin_default,
+        width = "100%"
+      )
+    ),
+    shiny::column(
+      6,
+      shiny::selectInput(
+        ns(cjk_id),
+        cjk_label,
+        choices = graphics_cjk_font_family_choices(),
+        selected = cjk_default,
+        width = "100%"
+      )
+    )
   )
 }
 

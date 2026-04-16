@@ -122,7 +122,7 @@ spider_plot_ui <- function(id) {
                           ),
                           fluidRow(
                             column(6, numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 1, min = 0, max = 5, step = 1, width = "100%")),
-                            column(6, graphics_font_family_ui(ns, id = "base_family"))
+                            column(6, graphics_font_family_pair_ui(ns, latin_id = "base_family", cjk_id = "cjk_family"))
                           )
                         )
                       )
@@ -373,6 +373,11 @@ spider_plot_server <- function(input, output, session, data) {
       line_levels <- unique(plot_df$.line_group)
       line_colors <- setNames(palette_values(length(line_levels), input$line_palette %||% "Set1"), line_levels)
       line_single_color <- line_colors[[1]] %||% "#4E79A7"
+      font_spec <- graphics_resolve_font_spec(
+        base_family = input$base_family %||% "sans",
+        cjk_family = input$cjk_family %||% "Noto Sans SC"
+      )
+      plot_family <- font_spec$unified
 
       if (isTRUE(line_has_group)) {
         p <- ggplot(plot_df, aes(x = .time_plot, y = .value, group = .subject_id, text = .tooltip, color = .line_group)) +
@@ -387,7 +392,7 @@ spider_plot_server <- function(input, output, session, data) {
             y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "较基线变化(%)"),
             color = graphics_resolve_legend_title(input$legend_title, input$line_color_by)
           ) +
-          theme_minimal(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
+          theme_minimal(base_size = input$base_font_size, base_family = plot_family) +
           theme(
             panel.grid.minor = element_blank()
           )
@@ -407,7 +412,7 @@ spider_plot_server <- function(input, output, session, data) {
             x = ifelse(nzchar(input$plot_xlab %||% ""), input$plot_xlab, ifelse(time_mode == "categorical", "时间序列", "时间")),
             y = ifelse(nzchar(input$plot_ylab %||% ""), input$plot_ylab, "较基线变化(%)")
           ) +
-          theme_minimal(base_size = input$base_font_size, base_family = input$base_family %||% "sans") +
+          theme_minimal(base_size = input$base_font_size, base_family = plot_family) +
           theme(
             legend.position = "none",
             panel.grid.minor = element_blank()
@@ -431,7 +436,7 @@ spider_plot_server <- function(input, output, session, data) {
 
       if ((input$axis_style %||% "default") %in% c("classic_arrow", "classic")) {
         p <- p +
-          theme_classic(base_size = input$base_font_size, base_family = input$base_family %||% "sans")
+          theme_classic(base_size = input$base_font_size, base_family = plot_family)
         p <- graphics_apply_axis_style(p, input$axis_style, arrow_size = 0.12)
         p <- graphics_apply_legend_theme(
           p,
@@ -474,7 +479,8 @@ spider_plot_server <- function(input, output, session, data) {
             color = "#333333",
             size = max(2.8, input$base_font_size * 0.2),
             nudge_x = diff(range(plot_df$.time_plot, na.rm = TRUE)) * 0.01,
-            check_overlap = TRUE
+            check_overlap = TRUE,
+            family = plot_family
           )
       }
 

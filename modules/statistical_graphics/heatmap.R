@@ -104,6 +104,7 @@ heatmap_server <- function(input, output, session, data) {
   # 创建热图
   create_heatmap <- function() {
     req(data(), input$heatmap_vars)
+    plot_family <- graphics_resolve_font_spec("sans")$unified
     
     heatmap_data <- data()[, input$heatmap_vars, drop = FALSE]
     
@@ -129,7 +130,7 @@ heatmap_server <- function(input, output, session, data) {
     p <- ggplot(cor_long, aes(Var1, Var2, fill = Correlation)) +
       geom_tile(size = input$tile_size) +
       color_gradient +
-      theme_minimal() +
+      theme_minimal(base_family = plot_family) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1, size = input$text_size),
             axis.text.y = element_text(size = input$text_size)) +
       labs(title = ifelse(nchar(input$plot_title) > 0, input$plot_title, "相关性热图"),
@@ -138,7 +139,7 @@ heatmap_server <- function(input, output, session, data) {
     
     # 添加数值标签
     if (input$show_values) {
-      p <- p + geom_text(aes(label = round(Correlation, 2)), color = "black", size = input$text_size/3)
+      p <- p + geom_text(aes(label = round(Correlation, 2)), color = "black", size = input$text_size/3, family = plot_family)
     }
     
     return(p)

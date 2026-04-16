@@ -26,8 +26,9 @@
   - 提交前优先通过仓库根目录 `.pre-commit-config.yaml` 执行 `styler`、`lintr` 与 `testthat` 守卫，避免多文件改动后出现格式漂移或文档/实现不一致。
 - **图形与字体**: 
   - 统计图形统一启用 `showtext_auto()`（已在 `app.R` 入口初始化），确保在不同操作系统环境下字体（特别是 CJK 字符）渲染的一致性。
-  - 开发新图形模块时应优先使用系统通用字体族（如 "sans"），避免硬编码特定物理路径的字体文件。
-  - 涉及 `cowplot` / `grid` 组合测量的图形，字体族必须先走 common 的设备安全解析；`Arial` 等非 PostScript 通用族当前需优先回退到 `sans`，不能假定 `showtext/sysfonts` 已彻底消除设备侧字体告警。
+  - 开发新图形模块时不得硬编码具体物理字体路径；默认中文场景优先使用已注册的 `Noto Sans SC`，并允许通过 `graphics_font_family_ui()` 暴露给用户选择。
+  - 字体解析需拆分为三层：`graphics_resolve_device_safe_family()` 只负责设备安全映射（如 `Arial -> sans`），`graphics_resolve_font_spec()` / `graphics_resolve_text_family()` 负责拉丁字体与中文 fallback，`graphics_resolve_layout_family()` 专门处理 `cowplot` / `grid` / `draw_label()` 这类需要先做版式测量的文本，避免把设备兼容、中文 fallback 与布局测量混在一个函数里。
+  - 所有自由文本层（如 `geom_text()`、`annotate("text")`、`draw_label()`、底部 caption、自绘图例/表格文本）必须显式继承解析后的字体族；纯英文可落到拉丁字体，包含 CJK 的文本应优先落到已注册的 CJK 字体。单个文本 grob 若中英混排且不能按片段拆分，应优先使用覆盖中英字符集的统一字体；但进入 `cowplot/grid` 测量链路时必须切回 `layout_family`，不得直接把 `Noto Sans SC` 之类自定义字体名传给 `draw_label()`.
   - 图形尺寸、页面距、画布边框、参考线与前端/导出换算必须优先复用 `graphics_common.R` 和 `common_ui_shell.R`；默认保持 PX 与英寸尺寸同步，禁止在子模块私写另一套尺寸/导出容器或 `geom_hline/geom_vline` 组装逻辑。
   - 坐标范围、刻度格式、时间轴单位换算等高重复图形控件，应优先复用 `graphics_axis_range_controls_ui()`、`graphics_axis_tick_format_controls_ui()`、`graphics_time_axis_settings_ui()` 等 common UI 组件。
   - 首批图形参数抽象类统一限定为 `graphics_column_mapping_panel_ui()`、`graphics_time_axis_panel_ui()`、`graphics_export_panel_ui()` 三类；模块复用时允许字段命名不同，但不得再平行复制同语义卡片布局。

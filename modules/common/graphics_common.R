@@ -645,15 +645,72 @@ graphics_compose_caption <- function(user_caption = NULL, auto_lines = character
   paste(pieces, collapse = "\n")
 }
 
-graphics_append_bottom_caption <- function(plot_obj, caption_text, base_font_size = 12) {
+graphics_append_bottom_caption <- function(plot_obj, caption_text, base_font_size = 12, font_family = "sans", cjk_family = "Noto Sans SC", layout_family = NULL) {
   caption_text <- graphics_text_or_default(caption_text, default = "", allow_blank_string = TRUE)
   if (identical(caption_text, "")) return(plot_obj)
+  caption_family <- graphics_resolve_layout_family(
+    layout_family %||% font_family
+  )
   caption_plot <- ggplot2::ggplot() +
-    ggplot2::annotate("text", x = 0, y = 1, label = caption_text, hjust = 0, vjust = 1, size = max(3, base_font_size * 0.24), family = "sans") +
+    ggplot2::annotate("text", x = 0, y = 1, label = caption_text, hjust = 0, vjust = 1, size = max(3, base_font_size * 0.24), family = caption_family) +
     ggplot2::coord_cartesian(xlim = c(0, 1), ylim = c(0, 1), clip = "off") +
-    ggplot2::theme_void() +
+    ggplot2::theme_void(base_family = caption_family) +
     ggplot2::theme(plot.margin = ggplot2::margin(2, 8, 8, 8))
   cowplot::plot_grid(plot_obj, caption_plot, ncol = 1, rel_heights = c(1, 0.08), align = "v", axis = "lr")
+}
+
+graphics_resolve_latin_family <- function(family = "sans") {
+  graphics_resolve_device_safe_family(family)
+}
+
+graphics_resolve_layout_family <- function(family = "sans") {
+  resolved <- trimws(as.character(graphics_first_value_or_default(family, "sans")))
+  if (!nzchar(resolved)) return("sans")
+  layout_alias <- c(
+    "Arial" = "sans",
+    "Helvetica" = "sans",
+    "Noto Sans SC" = "sans",
+    "Microsoft YaHei" = "sans",
+    "SimHei" = "sans",
+    "Times" = "serif",
+    "Times New Roman" = "serif",
+    "Courier" = "mono"
+  )
+  if (resolved %in% names(layout_alias)) {
+    return(unname(layout_alias[[resolved]]))
+  }
+  if (resolved %in% c("sans", "serif", "mono")) {
+    return(resolved)
+  }
+  "sans"
+}
+
+graphics_resolve_font_spec <- function(base_family = "sans", cjk_family = "Noto Sans SC", layout_family = NULL) {
+  latin <- graphics_resolve_latin_family(base_family)
+  cjk <- graphics_resolve_cjk_family(cjk_family = cjk_family, fallback_family = base_family)
+  layout <- graphics_resolve_layout_family(layout_family %||% base_family)
+  unified <- if (identical(cjk, "sans")) latin else cjk
+  list(
+    latin = latin,
+    cjk = cjk,
+    layout = layout,
+    unified = unified
+  )
+}
+
+graphics_resolve_text_family <- function(text, base_family = "sans", cjk_family = "Noto Sans SC", layout_family = NULL, context = c("plot", "layout")) {
+  context <- match.arg(context)
+  spec <- graphics_resolve_font_spec(
+    base_family = base_family,
+    cjk_family = cjk_family,
+    layout_family = layout_family
+  )
+  if (identical(context, "layout")) {
+    return(spec$layout)
+  }
+  values <- as.character(text %||% character(0))
+  if (length(values) == 0) return(spec$unified)
+  ifelse(graphics_text_has_cjk(values), spec$cjk, spec$latin)
 }
 
 graphics_resolve_legend_title <- function(custom_title = NULL, fallback_title = NULL, default_title = "") {
@@ -732,6 +789,17 @@ graphics_aux_legend_compact_defaults <- list(
   secondary_rel_height = 0.68
 )
 
+graphics_registered_font_families <- function() {
+  if (!requireNamespace("sysfonts", quietly = TRUE)) return(character(0))
+  tryCatch(sysfonts::font_families(), error = function(e) character(0))
+}
+
+graphics_has_registered_font_family <- function(family) {
+  family <- trimws(as.character(graphics_first_value_or_default(family, "")))
+  if (!nzchar(family)) return(FALSE)
+  family %in% graphics_registered_font_families()
+}
+
 graphics_resolve_device_safe_family <- function(family = "sans") {
   resolved <- trimws(as.character(graphics_first_value_or_default(family, "sans")))
   if (!nzchar(resolved)) return("sans")
@@ -743,9 +811,29 @@ graphics_resolve_device_safe_family <- function(family = "sans") {
     "Arial" = "sans"
   )
   if (resolved %in% names(family_alias)) {
-    return(unname(family_alias[[resolved]]))
+    resolved <- unname(family_alias[[resolved]])
+  }
+  if (!(resolved %in% c("sans", "serif", "mono")) && !graphics_has_registered_font_family(resolved)) {
+    return("sans")
   }
   resolved
+}
+
+graphics_resolve_cjk_family <- function(cjk_family = "Noto Sans SC", fallback_family = "sans") {
+  preferred <- trimws(as.character(graphics_first_value_or_default(cjk_family, "Noto Sans SC")))
+  if (nzchar(preferred) && graphics_has_registered_font_family(preferred)) {
+    return(preferred)
+  }
+  if (graphics_has_registered_font_family("Noto Sans SC")) {
+    return("Noto Sans SC")
+  }
+  graphics_resolve_device_safe_family(fallback_family)
+}
+
+graphics_text_has_cjk <- function(text) {
+  values <- as.character(text %||% character(0))
+  if (length(values) == 0) return(logical(0))
+  grepl("[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]", values, perl = TRUE)
 }
 
 graphics_build_legend_rows <- function(labels, row_gap = graphics_aux_legend_compact_defaults$row_gap) {
@@ -771,7 +859,7 @@ graphics_build_point_legend_plot <- function(labels, colors, shape_value = 3, ti
   if (length(color_vals) != length(labels) || any(is.na(color_vals) | !nzchar(color_vals))) return(NULL)
   legend_df <- graphics_build_legend_rows(labels, row_gap = row_gap)
   legend_df$color <- color_vals
-  font_family <- graphics_resolve_device_safe_family(font_family)
+  font_family <- graphics_resolve_layout_family(font_family)
   
   y_max <- max(legend_df$y) + (row_gap / 2)
   y_min <- min(legend_df$y) - (row_gap / 2)
@@ -800,7 +888,7 @@ graphics_build_line_legend_plot <- function(labels, colors, title = "", line_siz
   if (length(color_vals) != length(labels) || any(is.na(color_vals) | !nzchar(color_vals))) return(NULL)
   legend_df <- graphics_build_legend_rows(labels, row_gap = row_gap)
   legend_df$color <- color_vals
-  font_family <- graphics_resolve_device_safe_family(font_family)
+  font_family <- graphics_resolve_layout_family(font_family)
   
   y_max <- max(legend_df$y) + (row_gap / 2)
   y_min <- min(legend_df$y) - (row_gap / 2)
