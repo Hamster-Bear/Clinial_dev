@@ -11,266 +11,341 @@ swimmer_plot_ui <- function(id) {
 
   tagList(
     fluidRow(
-      graphics_config_tabs_box(
-        id = id,
+      box(
+        width = 12,
         title = "泳道图参数配置",
+        status = "primary",
+        solidHeader = TRUE,
+        collapsible = TRUE,
         collapsed = TRUE,
-        tabs = list(
-          tabPanel(
-            "数据映射",
-            br(),
-            fluidRow(
-              column(
-                4,
-                graphics_column_mapping_panel_ui(
-                  ns,
-                  title = "泳道核心映射",
-                  fields = list(
-                    list(list(id = "subject_id", label = "受试者ID变量", type = "selectize")),
-                    list(list(id = "lane_time_mode", label = "泳道时间模式", type = "select", choices = c("起始+结束时间" = "start_end", "ADY/时长变量" = "duration"), selected = "start_end")),
-                    list(list(id = "lane_color_by", label = "泳道颜色分组", type = "selectize")),
-                    list(list(id = "ongoing_var", label = "持续中标记变量", type = "selectize"))
-                  ),
-                  extra_ui = tagList(
-                    conditionalPanel(
-                      condition = sprintf("input['%s'] === 'start_end'", ns("lane_time_mode")),
-                      fluidRow(
-                        column(6, selectizeInput(ns("start_time"), "起始时间变量", choices = NULL, width = "100%")),
-                        column(6, selectizeInput(ns("end_time"), "结束时间变量", choices = NULL, width = "100%"))
-                      )
+        fluidRow(
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("数据与变量", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "核心映射",
+                  br(),
+                  graphics_column_mapping_panel_ui(
+                    ns,
+                    title = "核心映射",
+                    fields = list(
+                      list(list(id = "subject_id", label = "受试者ID变量", type = "selectize")),
+                      list(list(id = "lane_time_mode", label = "泳道时间模式", type = "select", choices = c("起始+结束时间" = "start_end", "ADY/时长变量" = "duration"), selected = "start_end"))
                     ),
-                    conditionalPanel(
-                      condition = sprintf("input['%s'] === 'duration'", ns("lane_time_mode")),
-                      selectizeInput(ns("duration_var"), "ADY/时长变量", choices = NULL, width = "100%")
+                    extra_ui = tagList(
+                      conditionalPanel(
+                        condition = sprintf("input['%s'] === 'start_end'", ns("lane_time_mode")),
+                        fluidRow(
+                          column(6, selectizeInput(ns("start_time"), "起始时间变量", choices = NULL, width = "100%")),
+                          column(6, selectizeInput(ns("end_time"), "结束时间变量", choices = NULL, width = "100%"))
+                        )
+                      ),
+                      conditionalPanel(
+                        condition = sprintf("input['%s'] === 'duration'", ns("lane_time_mode")),
+                        selectizeInput(ns("duration_var"), "ADY/时长变量", choices = NULL, width = "100%")
+                      )
                     )
                   )
-                )
-              ),
-              column(
-                4,
-                graphics_dynamic_mapping_rows_panel_ui(
-                  ns,
-                  title = "事件映射",
-                  rows_ui = uiOutput(ns("event_mapping_ui")),
-                  add_button_id = "add_event_map",
-                  remove_button_id = "remove_event_map",
-                  add_label = "添加事件变量组",
-                  remove_label = "减少事件变量组"
-                )
-              ),
-              column(
-                4,
-                graphics_card_panel_ui(
-                  "轨道与排序",
-                  tagList(
-                    selectizeInput(ns("tracks"), "下方分组轨道(可多选)", choices = NULL, multiple = TRUE, width = "100%"),
-                    selectInput(
-                      ns("sort_mode"),
-                      "受试者排序方式",
-                      choices = c(
-                        "随访时长-降序" = "duration_desc",
-                        "随访时长-升序" = "duration_asc",
-                        "泳道终点-降序" = "end_desc",
-                        "泳道终点-升序" = "end_asc",
-                        "受试者ID" = "subject"
-                      ),
-                      selected = "duration_desc",
-                      width = "100%"
+                ),
+                tabPanel(
+                  "分组/分面/轨道/附加变量",
+                  br(),
+                  graphics_column_mapping_panel_ui(
+                    ns,
+                    title = "分组/轨道/附加变量",
+                    fields = list(
+                      list(list(id = "lane_color_by", label = "泳道颜色分组", type = "selectize")),
+                      list(list(id = "ongoing_var", label = "持续中标记变量", type = "selectize"))
                     ),
-                    helpText("排序基于每位受试者汇总后的主泳道长度或绘图终点位置；若使用日期型起止时间，这里的“泳道终点”指换算后的随访终点位置，而不是原始日历日期。"),
-                    checkboxInput(ns("show_tracks"), "显示下方分组轨道", TRUE),
-                    selectInput(ns("track_mode"), "轨道默认展示方式", choices = c("颜色填充" = "color", "文本填充" = "text"), selected = "color", width = "100%"),
-                    helpText("这里设置的是新选轨道的默认展示方式；下方“分组轨道展示方式”可对每条轨道分别改成颜色填充或文本填充。"),
-                    uiOutput(ns("track_mode_controls")),
-                    uiOutput(ns("track_color_controls"))
+                    help_text = "泳道图当前没有独立分面变量；事件映射和轨道变量统一收纳在本页签。"
+                  ),
+                  graphics_dynamic_mapping_rows_panel_ui(
+                    ns,
+                    title = "事件映射",
+                    rows_ui = uiOutput(ns("event_mapping_ui")),
+                    add_button_id = "add_event_map",
+                    remove_button_id = "remove_event_map",
+                    add_label = "添加事件变量组",
+                    remove_label = "减少事件变量组"
+                  ),
+                  graphics_card_panel_ui(
+                    title = "轨道变量与排序",
+                    tagList(
+                      selectizeInput(ns("tracks"), "下方分组轨道(可多选)", choices = NULL, multiple = TRUE, width = "100%"),
+                      helpText("默认不自动填入轨道变量；仅当你明确选择后，才在下方轨道区和分组轨道数据中显示。"),
+                      selectInput(
+                        ns("sort_mode"),
+                        "受试者排序方式",
+                        choices = c(
+                          "随访时长-降序" = "duration_desc",
+                          "随访时长-升序" = "duration_asc",
+                          "泳道终点-降序" = "end_desc",
+                          "泳道终点-升序" = "end_asc",
+                          "受试者ID" = "subject"
+                        ),
+                        selected = "duration_desc",
+                        width = "100%"
+                      ),
+                      helpText("排序基于每位受试者汇总后的主泳道长度或绘图终点位置；若使用日期型起止时间，这里的“泳道终点”指换算后的随访终点位置，而不是原始日历日期。"),
+                      checkboxInput(ns("show_tracks"), "显示下方分组轨道", TRUE),
+                      selectInput(ns("track_mode"), "轨道默认展示方式", choices = c("颜色填充" = "color", "文本填充" = "text"), selected = "color", width = "100%"),
+                      helpText("这里设置的是新选轨道的默认展示方式；下方“分组轨道展示方式”可对每条轨道分别改成颜色填充或文本填充。"),
+                      uiOutput(ns("track_mode_controls")),
+                      uiOutput(ns("track_color_controls"))
+                    )
                   )
                 )
               )
             )
           ),
-          tabPanel(
-            "样式主题",
-            br(),
-            tabsetPanel(
-              tabPanel(
-                "文本与标题",
-                graphics_text_label_panel_ui(
-                  ns,
-                  title = "文本与标题",
-                  fields = list(
-                    list(list(id = "plot_title", label = "主标题", type = "text", selected = "泳道图")),
-                    list(list(id = "plot_subtitle", label = "副标题", type = "text", selected = "")),
-                    list(list(id = "plot_caption", label = "脚注", type = "text", selected = "")),
-                    list(
-                      list(id = "plot_xlab", label = "X轴标签", type = "text", selected = "时间", column = 6),
-                      list(id = "plot_ylab", label = "Y轴标签", type = "text", selected = "受试者", column = 6)
-                    ),
-                    list(list(id = "lane_legend_title", label = "泳道图例标题", type = "text", selected = ""))
-                  )
-                )
-              ),
-              tabPanel(
-                "坐标与显示",
-                fluidRow(
-                  column(
-                    6,
-                    graphics_display_legend_panel_ui(
-                      ns,
-                      title = "显示与图例",
-                      fields = list(
-                        list(list(id = "show_legend", label = "显示图例", type = "checkbox", value = TRUE)),
-                        list(
-                          list(id = "main_legend_position", label = "主图图例位置", type = "select", choices = graphics_legend_position_choices("outer"), selected = "right", column = 6),
-                          list(id = "track_legend_position", label = "轨道图例位置", type = "select", choices = graphics_legend_position_choices("outer"), selected = "right", column = 6)
-                        ),
-                        list(list(id = "show_grid_lines", label = "显示网格线", type = "checkbox", value = TRUE)),
-                        list(list(id = "show_subject_labels", label = "显示受试者标签", type = "checkbox", value = TRUE)),
-                        list(list(id = "show_ongoing_arrow", label = "持续中显示箭头", type = "checkbox", value = TRUE))
-                      )
-                    )
-                  ),
-                  column(
-                    6,
-                    graphics_axis_proportion_panel_ui(
-                      ns,
-                      title = "坐标与尺寸",
-                      prepend_ui = tagList(
-                        selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
-                        graphics_time_axis_panel_ui(
-                          ns,
-                          title = "时间轴设置",
-                          unit_id = "x_unit",
-                          unit_label = "X轴单位换算",
-                          unit_choices = c("天" = "day", "周" = "week", "月(30.44天)" = "month", "年(365.25天)" = "year"),
-                          selected_unit = "day",
-                          step_id = "x_break_step",
-                          step_label = "X轴刻度步长(0为自动)",
-                          step_value = 0,
-                          step_min = 0,
-                          step_step = 0.1,
-                          include_range_slider = TRUE,
-                          slider_id = "time_range_slider",
-                          include_slider_step_input = FALSE
-                        )
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("图形与样式", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "标题与说明",
+                  br(),
+                  graphics_text_label_panel_ui(
+                    ns,
+                    title = "标题与说明",
+                    fields = list(
+                      list(list(id = "plot_title", label = "主标题", type = "text", selected = "泳道图")),
+                      list(list(id = "plot_subtitle", label = "副标题", type = "text", selected = "")),
+                      list(list(id = "plot_caption", label = "脚注", type = "text", selected = "")),
+                      list(
+                        list(id = "plot_xlab", label = "X轴标签", type = "text", selected = "时间", column = 6),
+                        list(id = "plot_ylab", label = "Y轴标签", type = "text", selected = "受试者", column = 6)
                       ),
-                      fields = list(
-                        list(
-                          list(id = "lane_size", label = "泳道线宽", type = "slider", value = 4, min = 0.8, max = 8, step = 0.2, column = 6),
-                          list(id = "event_size", label = "事件点大小", type = "slider", value = 3.2, min = 1, max = 8, step = 0.2, column = 6)
-                        )
-                      )
+                      list(list(id = "lane_legend_title", label = "泳道图例标题", type = "text", selected = ""))
                     )
                   )
-                )
-              ),
-              tabPanel(
-                "事件样式",
-                fluidRow(
-                  column(
-                    6,
-                    graphics_symbol_style_panel_ui(
-                      ns,
-                      title = "事件基础",
-                      fields = list(
-                        list(list(id = "show_event_labels", label = "显示事件文本标签", type = "checkbox", value = FALSE)),
-                        list(list(id = "lock_event_style_refresh", label = "锁定事件样式（变量刷新不重置）", type = "checkbox", value = TRUE)),
-                        list(list(id = "event_palette", label = "事件调色板", type = "select", choices = c("默认Hue" = "hue", "Set1" = "Set1", "Set2" = "Set2", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"), selected = "Set1")),
-                        list(list(id = "auto_mapping_caption", label = "自动追加样式脚注", type = "checkbox", value = TRUE)),
-                        list(list(id = "event_legend_position", label = "事件图例位置", type = "select", choices = graphics_legend_position_choices("aux"), selected = "right")),
-                        list(list(id = "event_legend_title", label = "事件总图例标题(可选)", type = "text", selected = ""))
-                      ),
-                      prepend_ui = numericInput(ns("event_symbol_seed"), "随机符号种子", value = 2026, min = 1, step = 1, width = "100%"),
-                      extra_ui = graphics_aux_legend_anchor_controls_ui(
+                ),
+                tabPanel(
+                  "显示与坐标",
+                  br(),
+                  fluidRow(
+                    column(
+                      6,
+                      graphics_display_legend_panel_ui(
                         ns,
-                        position_id = "event_legend_position",
-                        x_ratio_id = "event_legend_x_ratio",
-                        y_ratio_id = "event_legend_y_ratio",
-                        width_ratio_id = "event_legend_width_ratio",
-                        height_ratio_id = "event_legend_height_ratio",
-                        default_anchor = c(0.95, 0.85, 0.13, 0.14)
-                      ),
-                      help_text = "这里控制事件图例整体层级；每个事件变量组自己的图例标题在“事件映射”中逐组设置。"
-                    )
-                  ),
-                  column(
-                    6,
-                    graphics_group_style_mapping_panel_ui(
-                      "事件分组样式",
-                      uiOutput(ns("event_group_style_controls"))
+                        title = "显示与图例",
+                        fields = list(
+                          list(list(id = "show_legend", label = "显示图例", type = "checkbox", value = TRUE)),
+                          list(
+                            list(id = "main_legend_position", label = "主图图例位置", type = "select", choices = graphics_legend_position_choices("outer"), selected = "right", column = 6),
+                            list(id = "track_legend_position", label = "轨道图例位置", type = "select", choices = graphics_legend_position_choices("outer"), selected = "right", column = 6)
+                          ),
+                          list(list(id = "show_grid_lines", label = "显示网格线", type = "checkbox", value = TRUE)),
+                          list(list(id = "show_subject_labels", label = "显示受试者标签", type = "checkbox", value = TRUE)),
+                          list(list(id = "show_ongoing_arrow", label = "持续中显示箭头", type = "checkbox", value = TRUE))
+                        )
+                      )
+                    ),
+                    column(
+                      6,
+                      graphics_axis_proportion_panel_ui(
+                        ns,
+                        title = "坐标与尺寸",
+                        prepend_ui = tagList(
+                          selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
+                          graphics_time_axis_panel_ui(
+                            ns,
+                            title = "时间轴设置",
+                            unit_id = "x_unit",
+                            unit_label = "X轴单位换算",
+                            unit_choices = c("天" = "day", "周" = "week", "月(30.44天)" = "month", "年(365.25天)" = "year"),
+                            selected_unit = "day",
+                            step_id = "x_break_step",
+                            step_label = "X轴刻度步长(0为自动)",
+                            step_value = 0,
+                            step_min = 0,
+                            step_step = 0.1,
+                            include_range_slider = TRUE,
+                            slider_id = "time_range_slider",
+                            include_slider_step_input = FALSE
+                          )
+                        ),
+                        fields = list(
+                          list(
+                            list(id = "lane_size", label = "泳道线宽", type = "slider", value = 4, min = 0.8, max = 8, step = 0.2, column = 6),
+                            list(id = "event_size", label = "事件点大小", type = "slider", value = 3.2, min = 1, max = 8, step = 0.2, column = 6)
+                          )
+                        )
+                      )
                     )
                   )
-                )
-              ),
-              tabPanel(
-                "泳道配色",
-                fluidRow(
-                  column(
-                    6,
-                    graphics_palette_layout_panel_ui(
+                ),
+                tabPanel(
+                  "图层样式",
+                  br(),
+                  graphics_symbol_style_panel_ui(
+                    ns,
+                    title = "事件图例与样式",
+                    fields = list(
+                      list(list(id = "show_event_labels", label = "显示事件文本标签", type = "checkbox", value = FALSE)),
+                      list(list(id = "lock_event_style_refresh", label = "锁定事件样式（变量刷新不重置）", type = "checkbox", value = TRUE)),
+                      list(list(id = "event_palette", label = "事件调色板", type = "select", choices = c("默认Hue" = "hue", "Set1" = "Set1", "Set2" = "Set2", "Dark2" = "Dark2", "Paired" = "Paired", "Viridis" = "viridis"), selected = "Set1")),
+                      list(list(id = "auto_mapping_caption", label = "自动追加样式脚注", type = "checkbox", value = TRUE)),
+                      list(list(id = "event_legend_position", label = "事件图例位置", type = "select", choices = graphics_legend_position_choices("aux"), selected = "right")),
+                      list(list(id = "event_legend_title", label = "事件总图例标题(可选)", type = "text", selected = ""))
+                    ),
+                    prepend_ui = numericInput(ns("event_symbol_seed"), "随机符号种子", value = 2026, min = 1, step = 1, width = "100%"),
+                    extra_ui = graphics_aux_legend_anchor_controls_ui(
                       ns,
-                      title = "泳道主色",
-                      fields = list(
-                        list(list(id = "lane_alpha", label = "泳道透明度", type = "slider", value = 0.9, min = 0.3, max = 1, step = 0.05)),
-                        list(list(id = "lane_palette", label = "泳道调色板", type = "select", choices = graphics_palette_choice_values("qualitative"), selected = "Set2")),
-                        list(list(id = "lane_color_mode", label = "泳道颜色分配", type = "select", choices = c("调色板自动" = "palette", "分别指定" = "manual_each"), selected = "palette"))
+                      position_id = "event_legend_position",
+                      x_ratio_id = "event_legend_x_ratio",
+                      y_ratio_id = "event_legend_y_ratio",
+                      width_ratio_id = "event_legend_width_ratio",
+                      height_ratio_id = "event_legend_height_ratio",
+                      default_anchor = c(0.95, 0.85, 0.13, 0.14)
+                    ),
+                    help_text = "这里控制事件图例整体层级；每个事件变量组自己的图例标题在“事件映射”中逐组设置。"
+                  ),
+                  fluidRow(
+                    column(
+                      6,
+                      graphics_group_style_mapping_panel_ui(
+                        "事件分组样式",
+                        uiOutput(ns("event_group_style_controls"))
+                      )
+                    ),
+                    column(
+                      6,
+                      graphics_palette_layout_panel_ui(
+                        ns,
+                        title = "泳道主色",
+                        fields = list(
+                          list(list(id = "lane_alpha", label = "泳道透明度", type = "slider", value = 0.9, min = 0.3, max = 1, step = 0.05)),
+                          list(list(id = "lane_palette", label = "泳道调色板", type = "select", choices = graphics_palette_choice_values("qualitative"), selected = "Set2")),
+                          list(list(id = "lane_color_mode", label = "泳道颜色分配", type = "select", choices = c("调色板自动" = "palette", "分别指定" = "manual_each"), selected = "palette"))
+                        )
                       )
                     )
                   ),
-                  column(
-                    6,
-                    graphics_group_style_mapping_panel_ui(
-                      "分组颜色映射",
-                      uiOutput(ns("lane_color_controls"))
+                  graphics_group_style_mapping_panel_ui(
+                    "分组颜色映射",
+                    uiOutput(ns("lane_color_controls"))
+                  ),
+                  fluidRow(
+                    column(
+                      6,
+                      graphics_card_panel_ui(
+                        title = "轨道显示",
+                        tagList(
+                          colourpicker::colourInput(ns("track_text_bg_color"), "轨道文本底色", value = "#F7F7F7", width = "100%"),
+                          textInput(ns("track_legend_title"), "轨道总图例标题", value = "轨道分组", width = "100%"),
+                          checkboxInput(ns("track_compact_mode"), "轨道紧凑模式", TRUE),
+                          fluidRow(
+                            column(6, sliderInput(ns("track_tile_height"), "轨道方框高度", min = 0.1, max = 1.4, value = 0.65, step = 0.05, width = "100%")),
+                            column(6, sliderInput(ns("track_row_spacing"), "轨道行间距", min = 0, max = 0.8, value = 0.08, step = 0.02, width = "100%"))
+                          ),
+                          helpText("这里控制下方分组轨道区的显示方式与总图例标题，不影响泳道主图的颜色分组图例。")
+                        )
+                      )
+                    ),
+                    column(
+                      6,
+                      graphics_card_panel_ui(
+                        title = "缺失值与版式",
+                        tagList(
+                          selectInput(ns("missing_display_mode"), "空值显示方式", choices = c("空白" = "blank", "无" = "none", "NA" = "na", "破折号" = "dash", "自定义" = "custom"), selected = "na", width = "100%"),
+                          conditionalPanel(
+                            condition = sprintf("input['%s'] === 'custom'", ns("missing_display_mode")),
+                            textInput(ns("missing_display_custom"), "自定义空值文本", value = "NA", width = "100%")
+                          ),
+                          sliderInput(ns("track_rel_height"), "下方轨道区占比", min = 0.5, max = 4, value = 0.5, step = 0.1, width = "100%"),
+                          fluidRow(
+                            column(6, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%")),
+                            column(6, graphics_font_family_pair_ui(ns, latin_id = "base_family", cjk_id = "cjk_family"))
+                          ),
+                          helpText("“空值显示方式”影响轨道和数据表中的缺失文本；“下方轨道区占比”和“全局字号”影响主图与下方轨道区的版式比例。")
+                        )
+                      )
                     )
                   )
-                )
-              ),
-              tabPanel(
-                "轨道与比例",
-                fluidRow(
-                  column(
-                    6,
-                    graphics_card_panel_ui(
-                      "轨道显示",
-                      tagList(
-                        colourpicker::colourInput(ns("track_text_bg_color"), "轨道文本底色", value = "#F7F7F7", width = "100%"),
-                        textInput(ns("track_legend_title"), "轨道总图例标题", value = "轨道分组", width = "100%"),
-                        checkboxInput(ns("track_compact_mode"), "轨道紧凑模式", TRUE),
-                        fluidRow(
-                          column(6, sliderInput(ns("track_tile_height"), "轨道方框高度", min = 0.1, max = 1.4, value = 0.65, step = 0.05, width = "100%")),
-                          column(6, sliderInput(ns("track_row_spacing"), "轨道行间距", min = 0, max = 0.8, value = 0.08, step = 0.02, width = "100%"))
-                        ),
-                        helpText("这里控制下方分组轨道区的显示方式与总图例标题，不影响泳道主图的颜色分组图例。")
-                      )
-                    )
-                  ),
-                  column(
-                    6,
-                    graphics_card_panel_ui(
-                      "缺失值与版式",
-                      tagList(
-                        selectInput(ns("missing_display_mode"), "空值显示方式", choices = c("空白" = "blank", "无" = "none", "NA" = "na", "破折号" = "dash", "自定义" = "custom"), selected = "na", width = "100%"),
-                        conditionalPanel(
-                          condition = sprintf("input['%s'] === 'custom'", ns("missing_display_mode")),
-                          textInput(ns("missing_display_custom"), "自定义空值文本", value = "NA", width = "100%")
-                        ),
-                        sliderInput(ns("track_rel_height"), "下方轨道区占比", min = 0.5, max = 4, value = 0.5, step = 0.1, width = "100%"),
-                        fluidRow(
-                          column(6, numericInput(ns("base_font_size"), "全局字号", value = 12, min = 8, max = 22, step = 1, width = "100%")),
-                          column(6, graphics_font_family_pair_ui(ns, latin_id = "base_family", cjk_id = "cjk_family"))
-                        ),
-                        helpText("“空值显示方式”影响轨道和数据表中的缺失文本；“下方轨道区占比”和“全局字号”影响主图与下方轨道区的版式比例。")
-                      )
+                ),
+                tabPanel(
+                  "参考线与阈值",
+                  br(),
+                  graphics_card_panel_ui(
+                    title = "参考线与阈值",
+                    tagList(
+                      helpText("泳道图当前没有独立的参考线或阈值控件。"),
+                      helpText("统一保留该页签位，后续如补充业务阈值线，可直接按同一结构接入。")
                     )
                   )
                 )
               )
             )
           ),
-          tabPanel(
-            "输出与导出",
-            br(),
-            graphics_export_panel_ui(ns, download_id = "dl_plot", include_size_mode = TRUE, include_download_button = FALSE)
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("输出与导出", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "尺寸与画布",
+                  br(),
+                  graphics_card_panel_ui(
+                    "尺寸与画布",
+                    tagList(
+                      selectInput(ns("size_mode"), "尺寸模式", choices = c("宽图标准" = "wide_standard", "自定义尺寸" = "custom"), selected = "wide_standard", width = "100%"),
+                      conditionalPanel(
+                        condition = sprintf("input['%s'] === 'custom'", ns("size_mode")),
+                        tagList(
+                          fluidRow(
+                            column(6, numericInput(ns("static_width_px"), "静态图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
+                            column(6, numericInput(ns("static_height_px"), "静态图基础高度(px)", value = 760, min = 400, max = 1800, step = 20, width = "100%"))
+                          ),
+                          fluidRow(
+                            column(6, numericInput(ns("interactive_width_px"), "交互图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
+                            column(6, numericInput(ns("interactive_height_px"), "交互图高度(px)", value = 620, min = 350, max = 1600, step = 20, width = "100%"))
+                          ),
+                          fluidRow(
+                            column(4, checkboxInput(ns("sync_export_size"), "导出尺寸跟随前端画布", value = TRUE, width = "100%")),
+                            column(4, numericInput(ns("size_sync_ppi"), "PX/英寸换算", value = 96, min = 72, max = 300, step = 1, width = "100%")),
+                            column(4, checkboxInput(ns("canvas_border"), "显示画布边框", value = TRUE, width = "100%"))
+                          ),
+                          fluidRow(
+                            column(3, numericInput(ns("page_margin_top_px"), "上边距(px)", value = 24, min = 0, max = 240, step = 2, width = "100%")),
+                            column(3, numericInput(ns("page_margin_right_px"), "右边距(px)", value = 24, min = 0, max = 240, step = 2, width = "100%")),
+                            column(3, numericInput(ns("page_margin_bottom_px"), "下边距(px)", value = 24, min = 0, max = 240, step = 2, width = "100%")),
+                            column(3, numericInput(ns("page_margin_left_px"), "左边距(px)", value = 24, min = 0, max = 240, step = 2, width = "100%"))
+                          )
+                        )
+                      ),
+                      helpText("默认按 PX/英寸换算同步导出尺寸，并保持前端静态图与导出比例一致。")
+                    )
+                  )
+                ),
+                tabPanel(
+                  "导出参数",
+                  br(),
+                  graphics_card_panel_ui(
+                    "导出参数",
+                    tagList(
+                      fluidRow(
+                        column(6, selectInput(ns("export_format"), "导出格式", choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "pdf", width = "100%")),
+                        column(6, numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%"))
+                      ),
+                      conditionalPanel(
+                        condition = sprintf("input['%s'] === false", ns("sync_export_size")),
+                        fluidRow(
+                          column(6, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 12.5, min = 6, max = 30, step = 0.5, width = "100%")),
+                          column(6, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 7.9, min = 4, max = 24, step = 0.5, width = "100%"))
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
           )
         )
       )
@@ -278,20 +353,22 @@ swimmer_plot_ui <- function(id) {
     fluidRow(
       box(
         width = 12,
-        title = "泳道图输出",
+        title = "结果区",
         status = "success",
         solidHeader = TRUE,
-        fluidRow(
-          column(6, div(style = "text-align: left; margin-bottom: 10px;", actionButton(ns("render_plot"), "生成图形", class = "btn-primary"))),
-          column(6, div(style = "text-align: right; margin-bottom: 10px;", downloadButton(ns("dl_plot"), "下载图形", class = "btn-primary")))
-        ),
+        graphics_output_action_bar_ui(ns, render_button_id = "render_plot", download_id = "dl_plot"),
         tabsetPanel(
           id = ns("output_tabs"),
           tabPanel("静态图", uiOutput(ns("static_plot_ui"))),
-          tabPanel("交互式图", uiOutput(ns("interactive_plot_ui"))),
-          tabPanel("泳道数据", DTOutput(ns("lane_table"))),
-          tabPanel("事件数据", DTOutput(ns("event_table"))),
-          tabPanel("分组轨道数据", DTOutput(ns("track_table")))
+          tabPanel("交互图", uiOutput(ns("interactive_plot_ui"))),
+          tabPanel(
+            "数据",
+            tabsetPanel(
+              tabPanel("泳道数据", DTOutput(ns("lane_table"))),
+              tabPanel("事件数据", DTOutput(ns("event_table"))),
+              tabPanel("分组轨道数据", DTOutput(ns("track_table")))
+            )
+          )
         )
       )
     )
@@ -380,6 +457,7 @@ swimmer_plot_server <- function(input, output, session, data) {
   )
   event_map_count <- reactiveVal(1)
   event_ui_state <- reactiveVal(list())
+  restoring_event_controls <- reactiveVal(FALSE)
   committed_params <- reactiveVal(NULL)
 
   state_get <- function(i, key, default = NULL) {
@@ -766,10 +844,6 @@ swimmer_plot_server <- function(input, output, session, data) {
     selected_tracks <- if (isTRUE(force)) state_tracks else isolate(input$tracks)
     if (is.null(selected_tracks) || length(selected_tracks) == 0) selected_tracks <- state_tracks
     selected_tracks <- intersect(selected_tracks, all_vars)
-    if (length(selected_tracks) == 0) {
-      suggested_tracks <- c("TRT", "TRTA", "ARM", "COHORT", "BOR", "SEX", "RACE", "SITEID")
-      selected_tracks <- head(setdiff(suggested_tracks[suggested_tracks %in% all_vars], c(selected_subject, selected_start, selected_end, selected_duration)), 3)
-    }
 
     updateSelectizeInput(session, "subject_id", choices = all_vars, selected = selected_subject, server = TRUE)
     updateSelectInput(session, "lane_time_mode", selected = selected_lane_mode)
@@ -845,9 +919,13 @@ swimmer_plot_server <- function(input, output, session, data) {
     event_label_candidates <- c("EVENT_LABEL", "LABEL", "EVENT_TEXT", "AVALC", "event_label")
     tagList(
       lapply(seq_len(n_maps), function(i) {
-        selected_time <- isolate(input[[paste0("event_time_", i)]]) %||% state_get(i, "event_time", NULL)
-        selected_type <- isolate(input[[paste0("event_type_", i)]]) %||% state_get(i, "event_type", NULL)
-        selected_label <- isolate(input[[paste0("event_label_", i)]]) %||% state_get(i, "event_label", NULL)
+        prefer_state <- isTRUE(restoring_event_controls())
+        state_time <- state_get(i, "event_time", NULL)
+        state_type <- state_get(i, "event_type", NULL)
+        state_label <- state_get(i, "event_label", NULL)
+        selected_time <- if (prefer_state) state_time %||% isolate(input[[paste0("event_time_", i)]]) else isolate(input[[paste0("event_time_", i)]]) %||% state_time
+        selected_type <- if (prefer_state) state_type %||% isolate(input[[paste0("event_type_", i)]]) else isolate(input[[paste0("event_type_", i)]]) %||% state_type
+        selected_label <- if (prefer_state) state_label %||% isolate(input[[paste0("event_label_", i)]]) else isolate(input[[paste0("event_label_", i)]]) %||% state_label
         if (is.null(selected_time)) selected_time <- ""
         if (is.null(selected_type)) selected_type <- ""
         if (is.null(selected_label)) selected_label <- ""
@@ -914,16 +992,20 @@ swimmer_plot_server <- function(input, output, session, data) {
     defaults <- palette_values(n_maps, input$event_palette %||% "hue")
     default_shapes <- as.numeric(rep(unname(shape_choice_values), length.out = n_maps))
     lock_style <- isTRUE(input$lock_event_style_refresh)
+    prefer_state <- isTRUE(restoring_event_controls())
     tagList(
       h5("事件组样式(每组独立图例)"),
       lapply(seq_len(n_maps), function(i) {
-        legend_title <- trimws(input[[paste0("event_legend_title_", i)]] %||% state_get(i, "event_legend_title", ""))
+        state_legend_title <- state_get(i, "event_legend_title", "")
+        legend_title_raw <- if (prefer_state) state_legend_title %||% input[[paste0("event_legend_title_", i)]] else input[[paste0("event_legend_title_", i)]] %||% state_legend_title
+        legend_title <- trimws(legend_title_raw %||% "")
         if (!nzchar(legend_title)) legend_title <- paste0("事件组", i)
         color_default <- if (lock_style) state_get(i, "event_grp_col", defaults[[i]]) else defaults[[i]]
         color_mode_default <- state_get(i, "event_grp_color_mode", "random_unique")
         symbol_mode_default <- state_get(i, "event_grp_symbol_mode", "random_unique")
         shape_default <- state_get(i, "event_grp_shape", default_shapes[[i]])
-        event_type_var <- input[[paste0("event_type_", i)]] %||% state_get(i, "event_type", "")
+        state_event_type <- state_get(i, "event_type", "")
+        event_type_var <- if (prefer_state) state_event_type %||% input[[paste0("event_type_", i)]] else input[[paste0("event_type_", i)]] %||% state_event_type
         event_levels <- if (!is.null(event_type_var) && nzchar(event_type_var) && event_type_var %in% names(data())) {
           vals <- unique(as.character(data()[[event_type_var]]))
           vals[!is.na(vals) & nzchar(vals)]
@@ -1061,6 +1143,12 @@ swimmer_plot_server <- function(input, output, session, data) {
       })
     )
   })
+
+  outputOptions(output, "event_mapping_ui", suspendWhenHidden = FALSE)
+  outputOptions(output, "event_group_style_controls", suspendWhenHidden = FALSE)
+  outputOptions(output, "lane_color_controls", suspendWhenHidden = FALSE)
+  outputOptions(output, "track_mode_controls", suspendWhenHidden = FALSE)
+  outputOptions(output, "track_color_controls", suspendWhenHidden = FALSE)
 
   final_plot <- reactiveVal(NULL)
   main_plot_obj <- reactiveVal(NULL)
@@ -1981,6 +2069,7 @@ swimmer_plot_server <- function(input, output, session, data) {
     if (!is.list(state)) return(invisible(FALSE))
     tryCatch({
       extra_state <- graphics_task_payload_extra_state(state)
+      restoring_event_controls(TRUE)
 
       if (!is.null(extra_state$subject_id)) graphics_state$subject_id <- extra_state$subject_id
       if (!is.null(extra_state$lane_time_mode)) graphics_state$lane_time_mode <- extra_state$lane_time_mode
@@ -2071,21 +2160,28 @@ swimmer_plot_server <- function(input, output, session, data) {
                 session$onFlushed(function() {
                   tryCatch({
                     restore_swimmer_dynamic_style_inputs(extra_state)
+                    restoring_event_controls(FALSE)
                   }, error = function(e) {
+                    restoring_event_controls(FALSE)
                     message(sprintf("[SwimmerApplyStateDynamicStyleError] %s", conditionMessage(e)))
                   })
                 }, once = TRUE)
               }, error = function(e) {
+                restoring_event_controls(FALSE)
                 message(sprintf("[SwimmerApplyStateEventFlushError] %s", conditionMessage(e)))
               })
             }, once = TRUE)
+          } else {
+            restoring_event_controls(FALSE)
           }
         }, error = function(e) {
+          restoring_event_controls(FALSE)
           message(sprintf("[SwimmerApplyStateFlushError] %s", conditionMessage(e)))
         })
       }, once = TRUE)
       invisible(TRUE)
     }, error = function(e) {
+      restoring_event_controls(FALSE)
       message(sprintf("[SwimmerApplyStateError] %s", conditionMessage(e)))
       invisible(FALSE)
     })

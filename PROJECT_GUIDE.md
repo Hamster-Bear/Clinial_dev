@@ -378,6 +378,15 @@ AutoTFL/
 - Swimmer 保留事件图例的自绘特例，但标题解析、inside-anchor 摆放与 ratio 滑条控件应继续优先复用 common。
 - Swimmer 当前也开始采用 view state 与 committed state 分离的输出口径：点击“生成图形”后，主图、交互图、下方轨道组合高度与导出所依赖的图形参数统一锁定到同一份提交快照，避免生成后继续修改控件导致图形结果与当前面板值漂移；剩余待讨论项应尽量限定在统计/业务语义，而不是状态恢复或 UI 实现分叉。
 - Swimmer 在最后一轮语义收口中继续修正文案与实现边界：`end_desc/end_asc` 当前表示按汇总后的“泳道终点”排序，而不是原始日历结束日期；`track_rel_height` 当前控制的是主图与下方轨道区的相对高度，不是数据表控件本身的高度。
+- Swimmer 的事件映射恢复链路当前增加了“恢复期间优先读 state、平时优先读当前 input”的短暂切换标志，避免加载任务历史或回填动态 UI 时，事件时间/类型/标签选择框和事件样式面板误读页面残留输入，导致控件选择看起来未正确载入。
+- Swimmer 当前进一步约束动态 UI 恢复与归类边界：事件映射、事件样式、泳道颜色、轨道展示方式和轨道颜色映射在配置盒折叠或页签隐藏时也不得挂起；`tracks` 默认不再自动推荐变量，只允许用户显式选择或从历史快照恢复。
+- Waterfall 当前与 Swimmer 保持同一条高动态恢复约束：柱颜色映射、符号分组映射、轨道展示方式和轨道颜色映射在配置盒折叠或页签隐藏时也不得挂起；`tracks` 默认不再自动推荐变量，只允许用户显式选择或从历史快照恢复，避免未确认业务字段自动进入下方轨道区。
+- Waterfall 当前也开始采用 committed 输出口径：点击“生成图形”后，主图柱体样式、符号映射、RECIST 线、轨道区配色/文本、缺失值文本、轨道区相对高度与底部脚注统一锁定到同一份提交快照，避免生成后继续修改控件造成静态图高度、下方轨道区或导出内容与已生成结果漂移。<mccoremem id="03fyfynhnwuokzwfqrr50glne" />
+- Waterfall 第三轮继续收紧实现语义文案：`symbol_by` / `show_symbols` 当前控制的是柱顶文本符号映射，不是点形状图层；`use_percent_label` 只影响 Y 轴标签格式，不会重新换算原始变化值；`legend_title` 仅作用于主图柱分组图例，`track_legend_title` 仅作用于下方轨道区总图例。
+- Spider 当前开始采用 committed 输出口径：点击“生成图形”后，时间单位换算、Y 轴刻度与百分比标签、线条样式、点层、末次标签、参考线、分面、标题图例以及静态图/交互图/导出尺寸统一锁定到同一份提交快照，避免生成后继续修改控件导致前端框体尺寸或图形结果与已生成状态漂移。
+- Spider 第二轮继续收紧实现语义文案：`use_percent_label` 只影响 Y 轴标签与 tooltip 的显示格式，不会重新换算原始变化值；`add_baseline_zero` 当前为每条轨迹补一个 `(time=0, value=0)` 的基线原点，不代表原始数据里存在该观测；`show_end_labels` 当前显示的是每条轨迹末次点对应的受试者标签，而不是时间点标签或数值标签。
+- Spider 第三轮继续做 UI 归类收紧：将右侧参数从“文本与布局 / 配色与比例 / 输出与导出”改为“标题与说明 / 显示与坐标 / 线条与点层 / 输出与导出”，把标题文字、显示行为与图例、时间轴与 Y 轴格式、线条/点层样式明确拆开，避免“显示与图例”“时间轴设置”“Y轴与字号”“线条调色板”继续混在同一分组里。
+- Spider 第四轮开始按统一布局规范落地：`输出与导出` 页签只保留尺寸与导出参数，并显式关闭内置 `生成图形` 按钮；结果区顶部统一改用 `graphics_output_action_bar_ui()` 承载 `生成图形 / 下载图形`，从而把“参数配置”和“执行动作”彻底拆开，避免结果区和参数区同时出现动作入口。 
 - Survival 的时间范围滑轴已复用 common 的 `graphics_time_axis_controls_ui()` + `graphics_render_time_range_slider()`；Swimmer 当前也接入同一组件，用于控制主图 X 轴最大显示范围。泳道图在时间映射尚未选定时必须保留该 UI 位置并显示提示，不能因 `req()` 中断而整块空白，任务历史恢复后也要继续回填 `time_range`。
 - Waterfall 与 Swimmer 的符号/颜色分别指定能力已经存在，但仍属于高复杂 UI，后续应继续抽象公共组件。
 - Survival、Spider、Waterfall 当前都已接入统一 Y 轴格式化口径：百分比显示、是否带 `%`、保留小数位数都应优先复用 common 的标签格式化函数。
@@ -385,6 +394,7 @@ AutoTFL/
 - 涉及 `cowplot` / `grid` 组合测量的文本（如 Survival 静态图、辅助图例、风险表、森林图表头、泳道图事件图例、底部 caption）必须先走 common 的三层字体策略：`graphics_resolve_device_safe_family()` 只负责设备安全映射（如 `Arial -> sans`），`graphics_resolve_font_spec()` / `graphics_resolve_text_family()` 负责拉丁与 CJK 文本分流，`graphics_resolve_layout_family()` 专门处理布局测量链路。`draw_label()`、辅助图例和 common caption 不得再直接吃 `Noto Sans SC` 等自定义字体名。仅依赖 `showtext::font_add_google()` 不能保证离线容器内的中文字体可用。
 - 同类规则也适用于非统计图形主入口中的文本层：`exploratory_analysis.R` 的错误占位/标题文本，以及 `tables/ae_sidebyside.R` 的汇总标注，不得再硬编码 `sans` 或依赖设备默认字体。
 - 森林图、蜘蛛图、泳道图当前已开始复用 common UI 高阶组件收口坐标范围、刻度格式与时间轴单位换算；经典轴线手动画段也已抽到 `graphics_add_classic_axis_segments()`，减少模块内重复 `annotate("segment")` 逻辑。泳道图在 `classic` 无箭头模式下，X 轴线段终点需保持在面板裁剪边界内侧，避免最右端方头线帽被裁掉后出现“断裂”视觉。
+- 森林图当前已补齐任务历史最小契约：统一通过 `graphics_build_task_state()` 保存 `data_mode`、列映射、原始数据分析字段、表格列选择、列显示名/对齐方式及导出参数，并通过 `apply_state()` + `graphics_restore_task_input_state()` 回填；本轮只收口状态快照，不等同于森林图 UI 已完成与蜘蛛图相同级别的页签化重构。
 
 ## 8. 预设图表实现
 
@@ -439,7 +449,7 @@ AutoTFL/
 | 图例锚点、ratio 滑条与辅助图例摆放 | `graphics_common.R` | `graphics_resolve_inside_anchor()`、`graphics_aux_legend_anchor_controls_ui()`、`graphics_place_aux_legend()`、`graphics_apply_legend_theme()`                                                                                                                                                   | 图内锚点必须先归一化；辅助图例位置、统计文本自定义坐标与 x/y/width/height ratio 控件优先复用 common；隐藏图例统一使用 `"none"`                                                                                                                                                                               |
 | 辅助图例绘制器              | `graphics_common.R` | `graphics_aux_legend_compact_defaults`、`graphics_resolve_device_safe_family()`、`graphics_resolve_font_spec()`、`graphics_resolve_text_family()`、`graphics_build_legend_rows()`、`graphics_build_point_legend_plot()`、`graphics_build_line_legend_plot()`、`graphics_compose_stacked_legends()`                                                                   | 自绘辅助图例的行距、标题间距、外边距、组间 spacer 统一由 common 控制；收紧通用规则为所有图例的每个因子之间保持约一个字符大小的间距，且线条图例与删失图例必须复用同一 row-gap 约束；拼接多个辅助图例时必须按真实行数传入 `primary_rows / secondary_rows`，不得硬编码删失图例高度。涉及 `cowplot/grid` 组合测量时先做设备安全映射，再按文本内容选择拉丁/CJK 字体；单个文本 grob 若混排且无法拆分，应优先落到统一 CJK 覆盖字体 |
 | 轴线、辅助线与标签格式          | `graphics_common.R` | `graphics_apply_axis_style()`、`graphics_collect_reference_line_spec()`、`graphics_add_reference_lines()`、`graphics_format_percent_labels()`、`graphics_format_number_labels()`                                                                                                                  | 经典 XY 轴样式、用户可配置辅助线、百分比显示、是否带 `%`、保留小数位数统一走 common；模块内不得各写一套刻度/辅助线拼装逻辑                                                                                                                                                                                             |
-| 通用 UI 控件             | `common_ui_shell.R` | `graphics_reference_line_ui()`、`graphics_primary_action_button_ui()`、`graphics_font_family_ui()`、`graphics_font_family_pair_ui()`、`graphics_export_size_controls_ui()`、`graphics_centered_output_container()`、`graphics_axis_range_controls_ui()`、`graphics_axis_tick_format_controls_ui()`、`graphics_time_axis_settings_ui()` | 高度重复的 UI 块（如参考线配置、主按钮、字体族选择、尺寸/导出表单、输出区居中容器、坐标范围、刻度格式、时间轴单位换算）必须复用 common 控件，统一参数收集逻辑；复杂图形模块优先改用 `graphics_font_family_pair_ui()` 暴露“西文字体 + 中文字体”双配置，`graphics_font_family_ui()` 保留向后兼容与轻量场景                                                                                                                                                                             |
+| 通用 UI 控件             | `common_ui_shell.R` | `graphics_reference_line_ui()`、`graphics_primary_action_button_ui()`、`graphics_output_action_bar_ui()`、`graphics_font_family_ui()`、`graphics_font_family_pair_ui()`、`graphics_export_size_controls_ui()`、`graphics_centered_output_container()`、`graphics_axis_range_controls_ui()`、`graphics_axis_tick_format_controls_ui()`、`graphics_time_axis_settings_ui()` | 高度重复的 UI 块（如参考线配置、主按钮、结果区动作条、字体族选择、尺寸/导出表单、输出区居中容器、坐标范围、刻度格式、时间轴单位换算）必须复用 common 控件，统一参数收集逻辑；复杂图形模块优先改用 `graphics_font_family_pair_ui()` 暴露“西文字体 + 中文字体”双配置，`graphics_font_family_ui()` 保留向后兼容与轻量场景                                                                                                                                                                             |
 | 通用 UI 状态收集           | `common_ui_shell.R` | `graphics_collect_axis_range_config()`、`graphics_collect_axis_tick_config()`、`graphics_collect_time_axis_config()`                                                                                                                                                                            | server 端若需收集上述 common UI 的值，应优先复用配套收集函数，避免模块内重复拼装输入解析                                                                                                                                                                                                             |
 | 图形尺寸解析               | `graphics_common.R` | `graphics_px_to_in()`、`graphics_in_to_px()`、`graphics_scale_export_height()`、`resolve_plot_size_config()`、`graphics_collect_size_config()`、`graphics_apply_canvas_frame()`                                                                                                                    | 静态图、交互图、导出尺寸与画布边框/页面距统一从 common 解析；默认保持前端像素尺寸与导出英寸尺寸同步，模块内不得各自硬编码三套尺寸或手写导出高度换算                                                                                                                                                                                    |
 | 经典坐标轴线段              | `graphics_common.R` | `graphics_add_classic_axis_segments()`、`graphics_apply_axis_style()`                                                                                                                                                                                                                          | 需要自绘经典轴线或箭头轴线时，优先复用 common 线段拼装函数，避免模块继续复制 `annotate("segment") + lineend = "square"` 逻辑                                                                                                                                                                          |
@@ -460,6 +470,15 @@ AutoTFL/
 - 新增或改动 common 函数时，至少同步更新本指南中的“可复用函数清单”和相关测试，确保后续开发按同一契约收紧。
 - 任务历史当前采用“共享模块先内嵌、一级导航后置”的演进策略：在统计图形/统计分析形成统一 `state/apply_state` 契约前，不直接迁移为左侧一级菜单。
 - 任务历史载入的本质是“状态快照恢复”：当前由 `task_history.R` 解析 `state_payload`，再调用各业务模块的 `apply_state()` 回填控件；图形模块需尽量覆盖当前子模块全部参数的保存/回填，但是否自动重新生成结果，仍取决于业务模块自身的交互设计。
+- 统一参数面板布局规范已按前端真实形态重置为“3 个顶层功能卡片 + 卡片内部子页签 + 独立结果区”，不允许再把 `数据与变量 / 图形与样式 / 输出与导出` 这 3 个顶层功能卡本身做成并列页签。
+- 顶层功能卡固定为：
+  - `数据与变量`：内部使用子页签承载 `核心映射` 与 `分组/分面/轨道/附加变量`。
+  - `图形与样式`：内部使用子页签承载 `标题与说明 / 显示与坐标 / 图层样式 / 参考线与阈值`。
+  - `输出与导出`：内部使用子页签承载 `尺寸与画布 / 导出参数`。
+- 结果区固定为：
+  - 动作条：`生成图形 / 下载图形`，统一放在结果区顶部，不放在参数区。
+  - 结果页签：`静态图 / 交互图 / 数据`。
+- “同层级功能卡片优先合并为页签组”这条规则，只适用于每个顶层功能卡片的**内部**，不适用于把顶层功能卡本身折叠成页签导航；只有高动态映射区、强业务算法区或 common 尚无等价抽象时，才允许临时保留卡片内部的非页签结构。
 
 ### 7.6 图形参数抽象类
 
@@ -467,7 +486,8 @@ AutoTFL/
 - 第一批抽象类命名与职责如下：
   - `graphics_column_mapping_panel_ui()`：承载单列、多列、可选分组列、可选分面列等“数据列映射”控件；适用于生存图、蜘蛛图、泳道图、瀑布图、森林图、热图、相关图。
   - `graphics_time_axis_panel_ui()`：承载时间单位换算、时间范围、刻度步长等“时间轴”控件；适用于生存图、蜘蛛图、泳道图以及后续所有时间序列图。
-  - `graphics_export_panel_ui()`：承载生成按钮、导出尺寸、DPI、格式、下载按钮等“输出与导出”控件；适用于所有统计图形模块。
+  - `graphics_export_panel_ui()`：承载导出尺寸、DPI、格式等“输出设置”控件；旧模块可兼容保留生成按钮，但迁移到新规范时应关闭内置生成按钮，由结果区动作条承载执行动作。
+  - `graphics_output_action_bar_ui()`：承载结果区顶部的 `生成图形 / 下载图形` 动作条；适用于所有迁移到新规范的统计图形模块。
 - 抽象类的接入顺序要求：
   - 先抽共享 UI 组件，再选择 2 到 4 个代表性模块接入验证。
   - 同一抽象类在至少两个模块中稳定复用后，才允许继续向更多模块推广。
@@ -519,17 +539,41 @@ AutoTFL/
   - `暂保留面板`：依赖即时 levels 推断的动态控制块、与绘图算法强耦合的业务配置。
   - `下一轮优先级`：从“继续清 raw panel”转为“清理模块内仍可下沉的 spec/helper 与动态控制桥接层”，优先检查泳道图与瀑布图中的动态控制 helper 是否还能继续压薄。
 - 子模块逐个排查优化当前进度：
+  - `spider_plot.R` 第一轮：新增 committed 参数快照，将时间单位换算、Y 轴刻度/百分比标签、线条样式、点层、末次标签、RECIST 参考线、分面、标题图例以及静态图/交互图/导出尺寸统一改为只读取点击“生成图形”时捕获的参数；避免生成后继续修改时间单位、图例位置、点层、尺寸模式或导出尺寸导致已生成结果与当前面板值漂移。
+  - `spider_plot.R` 第二轮：继续做 UI 语义收口，将“Y轴显示百分比”明确为“Y轴标签按百分比格式显示”，并补充说明其只影响标签/tooltip 格式；将“补充基线点(time=0, chg=0)”明确为“为每条轨迹补充基线原点(time=0, value=0)”；将“显示末次标签”明确为“显示每条轨迹末次受试者标签”，避免用户把末次标签误解成末次数值或时间标签。
+  - `spider_plot.R` 第三轮：继续做 UI 归类收紧，将 `图形与样式` 顶层功能卡片内部整理为 `标题与说明 / 显示与坐标 / 图层样式 / 参考线与阈值` 子页签；其中“显示与坐标”统一承载图例、坐标轴样式、时间轴、Y轴格式与字号，“图层样式”承载点层开关、末次标签、补基线原点以及线型、调色板、线宽透明度和点大小，避免文本、坐标、图层样式继续混放。
+  - `spider_plot.R` 第四轮：按统一布局规范拆分参数区与结果区职责，保留 `输出与导出` 顶层功能卡片，并在其内部拆成 `尺寸与画布 / 导出参数` 子页签；结果区顶部统一使用 `graphics_output_action_bar_ui()` 承载 `生成图形 / 下载图形`，避免参数区继续承载执行动作。
+  - `spider_plot.R` 第五轮：按前端真实结构回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片，其中 `数据与变量` 内部收敛为 `核心映射 / 分组/分面/附加变量` 子页签；结果区固定为动作条 + `静态图 / 交互图 / 数据` 结果页签，作为当前首个正确遵守“顶层卡片 + 卡片内页签 + 独立结果区”规则的样板模块。
+  - `spider_plot.R` 当前剩余未知优先限定在统计/业务概念边界：日期型时间轴当前按每位受试者最早日期换算为相对天数，再按 `time_unit` 转成周/月/年；同一受试者在同一时间点若有多条记录，当前取 `value_var` 的均值；`add_baseline_zero` 当前为展示完整轨迹可选补原点，不代表原始观测存在基线记录；`show_recist` 当前只负责视觉参考线，不直接输出 RECIST 分层结论；`show_end_labels` 当前固定显示受试者ID，不显示末次数值或时间。若这些口径与业务预期不同，应视为概念决策而不是实现缺陷。
   - `swimmer_plot.R` 第一轮：补齐动态样式任务历史重现，将泳道分别指定颜色、轨道展示方式、轨道颜色映射、事件组颜色/符号模式及其分别指定值纳入 `extra_state`，并在动态 UI 刷新后分阶段回填。
   - `swimmer_plot.R` 第二轮：收紧 UI 分类与文案边界，明确“轨道默认展示方式”仅作用于新选轨道默认值，“事件总图例标题”作用于事件整体图例层，“轨道总图例标题”只作用于下方分组轨道区；同时补充缺失值/版式影响范围说明。
   - `swimmer_plot.R` 第三轮：将主图、事件层、下方轨道区、自绘事件图例、底部脚注与静态图高度统一改为只读取点击“生成图形”时捕获的 committed 参数快照；生成后修改线宽、标题、图例位置、轨道占比、缺失值文本或事件样式，不再让已生成结果与当前面板值发生实现漂移。当前剩余未知优先限定为统计/业务概念边界，而不是 UI/状态链路问题。
   - `swimmer_plot.R` 第四轮：继续收紧已确定的语义文案，将排序中的 `end_desc/end_asc` 明确为“泳道终点”而非原始结束日期，并将 `track_rel_height` 的 UI 文案改为“下方轨道区占比”，明确其影响的是主图与下方轨道区的相对高度，不是数据表页签高度。
+  - `swimmer_plot.R` 第五轮：修复事件映射控件恢复时序，在任务历史/动态 UI 回填期间临时优先读取 `event_ui_state`，等回填完成后再切回当前 `input`；避免事件时间、事件类型、事件标签和事件组样式面板因为残留输入抢占而出现“选择未正确载入”。
+  - `swimmer_plot.R` 第六轮：继续做 UI 归类收紧与恢复补强，将“轨道与排序”改成“轨道变量与排序”，把样式页签细化为“标题与说明 / 显示与坐标 / 事件图例与样式 / 泳道颜色 / 轨道区与版式”；同时取消 `tracks` 的默认推荐变量，避免未确认业务字段自动进入下方轨道区，并对关键动态 `uiOutput` 显式关闭 hidden suspend，修复“需手动展开配置后再次生成才生效”的恢复时序问题。
+  - `swimmer_plot.R` 第七轮：按前端真实结构回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；其中 `数据与变量` 内部整理为 `核心映射 / 分组/分面/轨道/附加变量`，`图形与样式` 内部对齐为 `标题与说明 / 显示与坐标 / 图层样式 / 参考线与阈值`，结果区固定为动作条 + `静态图 / 交互图 / 数据`，其中“数据”页签内再分 `泳道数据 / 事件数据 / 分组轨道数据`，只调整 UI 编排与职责边界，不改任务历史恢复和绘图算法。
+  - `waterfall_plot.R` 第一轮：对折叠配置盒中的高动态控件补 hidden suspend 保护，将柱颜色映射、符号分组映射、轨道展示方式和轨道颜色映射统一设为隐藏时继续恢复；同时取消 `tracks` 默认自动推荐变量，并把“排序和显示”收紧为“排序与轨道”，将 `track_rel_height` 文案改为“下方轨道区占比”，明确其影响的是主图与下方轨道区的相对高度，不是表格页签高度。
+  - `waterfall_plot.R` 第二轮：新增 committed 参数快照，将主图柱宽/边框/图例、符号文本映射、RECIST 线与标签、轨道区布局、缺失值文本和底部脚注统一改为只读取点击“生成图形”时捕获的参数；静态图高度也改为优先跟随 committed 轨道区设置，避免生成后继续修改相关控件导致前端静态图或导出高度与已生成结果漂移。
+  - `waterfall_plot.R` 第三轮：继续做 UI 语义收口，将“柱符号分组”明确为“柱顶符号文本分组”，将“Y轴默认显示百分比”明确为“Y轴标签按百分比格式显示”，并补充说明其只影响标签格式；同时把 `legend_title` 收紧为主图柱分组图例标题，把 `track_legend_title` 收紧为下方轨道区总图例标题，避免主图与轨道区图例语义混淆。
+  - `waterfall_plot.R` 第四轮：将左侧 `数据映射` 区内部原本并列的 `核心变量映射 / 排序与轨道 / 阈值与临床线` 三块同层功能卡改为并列子页签，继续落实“同层功能卡片优先合并为页签组”规则；本轮只调整页签容器与布局编排，不改变排序方向、轨道展示方式、RECIST 阈值或绘图算法。
+  - `waterfall_plot.R` 第五轮：按前端真实结构回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；其中 `数据与变量` 内部整理为 `核心映射 / 分组/分面/轨道/附加变量`，`图形与样式` 内部对齐为 `标题与说明 / 显示与坐标 / 图层样式 / 参考线与阈值`，结果区固定为动作条 + `静态图 / 交互图 / 数据`，其中“数据”页签内再分 `瀑布数据 / 分组轨道数据`，只调整 UI 编排与职责边界，不改 committed 参数、任务历史恢复和绘图算法。
+  - `waterfall_plot.R` 当前概念口径已确认：重复 `subject_id` 时保留第一条记录，并通过告警明确后续排序、轨道区和导出结果都基于保留后的记录；排序继续仅按最终保留的 `value_var` 从低到高/从高到低排列；`show_recist` 与阈值标签继续只负责视觉参考线，不直接输出 RECIST 分层结论；`missing_display_mode` 继续只影响轨道区与数据表展示，不改主图柱值；`use_percent_label` 继续只影响 Y 轴标签格式，不重新换算原始变化值。
   - `survival_analysis.R` 第一轮：任务历史显式纳入 `strata_labels` 重现；`数据映射` 与 `标题/坐标轴` 先切换到 common 卡片；UI 文案中将“删失值定义”收紧为“状态变量编码含义”，明确其影响的是生存对象构造而非原始数据。
   - `survival_analysis.R` 第二轮：将 `km_show_censor`、`plot_title`、`plot_caption`、`plot_xlab`、`plot_ylab` 纳入 `committed_params()`，消除“点击生成后又改控件但图局部漂移”的提交态不一致；同时把“曲线/删失点/风险表”和“统计标注与位置”重排为更清晰的参数分组。
   - `survival_analysis.R` 第三轮：将 `survival_report` 从 `graphics_state` 语义切回 `committed_params()`，并让 `show_median`、`show_stats` 同时约束主图与报告摘要，消除“主图关闭但报告仍显示”的实现不一致。
   - `survival_analysis.R` 第四轮：将“图例与文字”拆分为“图形与图例文字”和“风险表文字”，避免主图图例、统计标注、风险表字号混放；此轮属于 UI 分类收紧，不改变统计或绘图算法。
   - `survival_analysis.R` 第五轮：收紧统计语义文案，明确 `surv_median_line` 控制的是中位生存辅助线、`show_median` 控制的是中位生存文本标注、`show_stats` 控制的是 Log-rank 摘要且分层时附加 HR，`overall_group_label` 仅在未分层时生效。
   - `survival_analysis.R` 第六轮：移除 `base_surv_plot()` 中对 `input$time_range` 的提交态回退；在统计报告的方法解释中明确 HR 参考组；交互图默认标题改为中文，保持主图、交互图与报告的实现说明一致。
+  - `survival_analysis.R` 第七轮：将 `数据映射 / 分析参数 / 样式主题` 三个主页签内部的同层普通功能卡进一步改为并列子页签，包括 `数据映射 / 处理与筛选`、`曲线、删失点与风险表 / 统计标注与位置`、`标题与坐标轴 / 图形与图例文字 / 风险表文字`；本轮只调整页签容器与参数编排，不改变生存对象构造、风险表算法、HR 计算或 committed 输出链路。
+- `survival_analysis.R` 第八轮：按前端真实结构回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；`数据与变量` 内部整理为 `核心映射 / 分组/分面/轨道/附加变量`，`图形与样式` 内部统一为 `标题与说明 / 显示与坐标 / 图层样式 / 参考线与阈值`，结果区固定为动作条 + `静态图 / 交互图 / 数据`，其中“数据”页签内再分 `数据表 / 统计报告`。后续已补一处导航容器修正：顶层 `图形与样式` 卡片不再直接把 helper 返回的 `tagList/list` 作为 `tabsetPanel()` 子项，而改为展开后的 `tabPanel` 集合，避免运行时出现 “Navigation containers expect ... tabPanel()” 报错；该修正只影响 UI 组合方式，不改 committed 输出链路与统计算法。
   - `survival_analysis.R` 暂不下沉内容：KM/COX 模型切换、HR 参考组逻辑、风险表算法、参考线绘制语义、分层标签的计算来源。
+- `boxplot.R` 第一轮：将 `样式主题` 页签中的标题标签、线条点样式与配色设置改为并列子页签 `标题与标签 / 线条与点 / 配色`，作为轻量模块的页签化样板；本轮只调整参数编排，不改变箱线图映射、绘图逻辑、导出链路或任务历史契约。
+- `boxplot.R` 第二轮：按统一模板回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；结果区固定为动作条 + `静态图 / 交互图 / 数据`，对暂无实际控件的子页签保留空壳说明，只调整 UI 编排，不改箱线图绘制与导出逻辑。
+- `heatmap.R` 第一轮：将 `样式主题` 页签中的标题标签、色板和格子文本显示设置改为并列子页签 `标题与标签 / 色板 / 格子与文本`，作为轻量模块页签模板的第二个样板；本轮只调整参数编排，不改变热图计算、聚类开关、导出链路或任务历史契约。
+- `heatmap.R` 第二轮：按统一模板回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；结果区固定为动作条 + `静态图 / 交互图 / 数据`，并把原 `标题与标签 / 色板 / 格子与文本` 归并到 `标题与说明 / 图层样式` 等统一子页签，不改热图计算、聚类与导出逻辑。
+- `correlation_matrix.R` 第一轮：将 `样式主题` 页签中的标题标签、色板和格子文本显示设置改为并列子页签 `标题与标签 / 色板 / 格子与文本`，与 `heatmap.R` 对齐为同一轻量模块页签模板；本轮只调整参数编排，不改变相关系数计算方法、导出链路或任务历史契约。
+- `correlation_matrix.R` 第二轮：按统一模板回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；结果区固定为动作条 + `静态图 / 交互图 / 数据`，并把原 `标题与标签 / 色板 / 格子与文本` 归并到 `标题与说明 / 图层样式` 等统一子页签，不改相关矩阵计算与导出逻辑。
+- `forest_plot.R` 当前结构盘点：暂不直接进入页签化代码改造。该模块仍同时存在 `panel panel-default/panel-primary` 旧式容器、`precalculated/raw_data` 双模式混排、右侧表格配置嵌套折叠面板，以及结果区旧版 `生成图形/下载图形` 动作入口；因此后续需先拆清“可直接页签化的普通参数块”和“应先迁到 common 或先做职责拆分的旧结构债务”，再进入正式重构。
 - 任务历史保存/恢复要区分“业务输入”与“派生交互输入”：DT 行选择、列过滤、Plotly relayout/hover，以及 `config_tabs` 这类配置页签导航态都不得写入快照；恢复旧任务时若 payload 中仍含这些字段，common 层也必须跳过，避免回填时把表格/交互组件带入异常状态。
 
 ## 10. 数据、存储与规范

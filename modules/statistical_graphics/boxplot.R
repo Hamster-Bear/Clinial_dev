@@ -11,44 +11,129 @@ boxplot_ui <- function(id) {
   
   tagList(
     fluidRow(
-      graphics_config_tabs_box(
-        id = id,
+      box(
+        width = 12,
         title = "箱线图参数配置",
+        status = "primary",
+        solidHeader = TRUE,
+        collapsible = TRUE,
         collapsed = TRUE,
-        tabs = list(
-          tabPanel(
-            "数据映射",
-            br(),
-            fluidRow(
-              column(6, selectizeInput(ns("boxplot_x"), "X轴变量 (分组)", choices = NULL)),
-              column(6, selectizeInput(ns("boxplot_y"), "Y轴变量 (数值)", choices = NULL))
+        fluidRow(
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("数据与变量", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "核心映射",
+                  br(),
+                  fluidRow(
+                    column(6, selectizeInput(ns("boxplot_x"), "X轴变量 (分组)", choices = NULL, width = "100%")),
+                    column(6, selectizeInput(ns("boxplot_y"), "Y轴变量 (数值)", choices = NULL, width = "100%"))
+                  )
+                ),
+                tabPanel(
+                  "分组/分面/轨道/附加变量",
+                  br(),
+                  graphics_card_panel_ui(
+                    "分组/分面/轨道/附加变量",
+                    tagList(
+                      helpText("当前箱线图模块仅使用 X/Y 核心映射，不包含额外分面、轨道或附加变量控件。")
+                    )
+                  )
+                )
+              )
             )
           ),
-          tabPanel(
-            "样式主题",
-            br(),
-            fluidRow(
-              column(6, textInput(ns("plot_title"), "主标题", value = "", width = "100%")),
-              column(6, selectInput(ns("plot_palette"), "颜色主题",
-                                    choices = c("Lancet"="lancet", "JAMA"="jama", "NEJM"="nejm", "Viridis"="viridis")))
-            ),
-            fluidRow(
-              column(6, textInput(ns("plot_xlab"), "X轴标签", value = "", width = "100%")),
-              column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%"))
-            ),
-            fluidRow(
-              column(4, numericInput(ns("line_size"), "线条大小", value = 0.6, min = 0.1, max = 5, step = 0.1)),
-              column(4, selectInput(ns("line_type"), "线条类型",
-                                    choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted",
-                                                "点虚线" = "dotdash", "长虚线" = "longdash"))),
-              column(4, numericInput(ns("point_size"), "点大小", value = 1, min = 0.5, max = 5, step = 0.1))
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("图形与样式", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "标题与说明",
+                  br(),
+                  fluidRow(
+                    column(6, textInput(ns("plot_title"), "主标题", value = "", width = "100%")),
+                    column(6, textInput(ns("plot_xlab"), "X轴标签", value = "", width = "100%"))
+                  ),
+                  fluidRow(
+                    column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%"))
+                  )
+                ),
+                tabPanel(
+                  "显示与坐标",
+                  br(),
+                  graphics_card_panel_ui(
+                    "显示与坐标",
+                    tagList(
+                      helpText("当前箱线图模块没有额外的显示开关或坐标轴高级设置。")
+                    )
+                  )
+                ),
+                tabPanel(
+                  "图层样式",
+                  br(),
+                  fluidRow(
+                    column(4, numericInput(ns("line_size"), "线条大小", value = 0.6, min = 0.1, max = 5, step = 0.1, width = "100%")),
+                    column(4, selectInput(ns("line_type"), "线条类型",
+                      choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted",
+                        "点虚线" = "dotdash", "长虚线" = "longdash"),
+                      width = "100%"
+                    )),
+                    column(4, numericInput(ns("point_size"), "点大小", value = 1, min = 0.5, max = 5, step = 0.1, width = "100%"))
+                  ),
+                  fluidRow(
+                    column(6, selectInput(ns("plot_palette"), "颜色主题",
+                      choices = c("Lancet" = "lancet", "JAMA" = "jama", "NEJM" = "nejm", "Viridis" = "viridis"),
+                      width = "100%"
+                    ))
+                  )
+                ),
+                tabPanel(
+                  "参考线与阈值",
+                  br(),
+                  graphics_card_panel_ui(
+                    "参考线与阈值",
+                    tagList(
+                      helpText("当前箱线图模块没有独立的参考线或阈值控件。")
+                    )
+                  )
+                )
+              )
             )
           ),
-          tabPanel(
-            "输出与导出",
-            br(),
-            graphics_primary_action_button_ui(ns, "render_plot", "生成图形", "chart-line"),
-            graphics_export_size_controls_ui(ns, download_id = "dl_plot", include_size_mode = FALSE)
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("输出与导出", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "尺寸与画布",
+                  br(),
+                  graphics_card_panel_ui(
+                    "尺寸与画布",
+                    tagList(
+                      helpText("当前箱线图导出默认使用固定画布 10 x 8 英寸。")
+                    )
+                  )
+                ),
+                tabPanel(
+                  "导出参数",
+                  br(),
+                  graphics_export_panel_ui(
+                    ns,
+                    download_id = "dl_plot",
+                    include_render_button = FALSE,
+                    include_download_button = FALSE,
+                    include_size_mode = FALSE
+                  )
+                )
+              )
+            )
           )
         )
       )
@@ -56,14 +141,15 @@ boxplot_ui <- function(id) {
     fluidRow(
       box(
         width = 12,
-        title = "箱线图输出",
-        status = "info",
+        title = "结果区",
+        status = "success",
         solidHeader = TRUE,
+        graphics_output_action_bar_ui(ns, render_button_id = "render_plot", download_id = "dl_plot"),
         tabsetPanel(
           id = ns("output_tabs"),
           tabPanel("静态图", plotOutput(ns("static_plot"), height = "600px")),
-          tabPanel("交互式图", plotly::plotlyOutput(ns("interactive_plot"), height = "600px")),
-          tabPanel("数据表", DTOutput(ns("data_table")))
+          tabPanel("交互图", plotly::plotlyOutput(ns("interactive_plot"), height = "600px")),
+          tabPanel("数据", DTOutput(ns("data_table")))
         )
       )
     )

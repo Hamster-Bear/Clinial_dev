@@ -105,6 +105,43 @@ graphics_primary_action_button_ui <- function(ns, input_id, label = "生成图�
   )
 }
 
+graphics_output_action_bar_ui <- function(
+  ns,
+  render_button_id = "render_plot",
+  render_button_label = "生成图形",
+  render_button_icon = "chart-line",
+  download_id = "dl_plot",
+  download_label = "下载图形",
+  include_render_button = TRUE,
+  include_download_button = TRUE
+) {
+  fluidRow(
+    if (isTRUE(include_render_button)) {
+      column(
+        if (isTRUE(include_download_button)) 6 else 12,
+        div(
+          style = "text-align:left; margin-bottom:10px;",
+          actionButton(
+            ns(render_button_id),
+            render_button_label,
+            icon = icon(render_button_icon),
+            class = "btn-primary"
+          )
+        )
+      )
+    },
+    if (isTRUE(include_download_button)) {
+      column(
+        if (isTRUE(include_render_button)) 6 else 12,
+        div(
+          style = if (isTRUE(include_render_button)) "text-align:right; margin-bottom:10px;" else "text-align:left; margin-bottom:10px;",
+          downloadButton(ns(download_id), download_label, class = "btn-primary")
+        )
+      )
+    }
+  )
+}
+
 #' 通用参考线配置 UI
 #' @param ns Shiny 命名空间函数
 #' @param id_prefix 控件 ID 前缀 (如 "ref", "recist_lower")

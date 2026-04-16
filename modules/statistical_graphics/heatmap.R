@@ -11,49 +11,132 @@ heatmap_ui <- function(id) {
   
   tagList(
     fluidRow(
-      graphics_config_tabs_box(
-        id = id,
+      box(
+        width = 12,
         title = "热图参数配置",
+        status = "primary",
+        solidHeader = TRUE,
+        collapsible = TRUE,
         collapsed = TRUE,
-        tabs = list(
-          tabPanel(
-            "数据映射",
-            br(),
-            graphics_column_mapping_panel_ui(
-              ns,
-              title = "数据映射",
-              fields = list(
-                list(
-                  list(id = "heatmap_vars", label = "选择数值变量", type = "selectize", multiple = TRUE, column = 8),
-                  list(id = "heatmap_cluster", label = "显示聚类", type = "checkbox", value = TRUE, column = 4)
+        fluidRow(
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("数据与变量", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "核心映射",
+                  br(),
+                  graphics_column_mapping_panel_ui(
+                    ns,
+                    title = "核心映射",
+                    fields = list(
+                      list(
+                        list(id = "heatmap_vars", label = "选择数值变量", type = "selectize", multiple = TRUE, column = 8),
+                        list(id = "heatmap_cluster", label = "显示聚类", type = "checkbox", value = TRUE, column = 4)
+                      )
+                    ),
+                    help_text = "热图显示变量间的相关性或数值分布"
+                  )
+                ),
+                tabPanel(
+                  "分组/分面/轨道/附加变量",
+                  br(),
+                  graphics_card_panel_ui(
+                    "分组/分面/轨道/附加变量",
+                    tagList(
+                      helpText("当前热图模块没有独立的分组、分面或轨道变量控件。")
+                    )
+                  )
                 )
-              ),
-              help_text = "热图显示变量间的相关性或数值分布"
+              )
             )
           ),
-          tabPanel(
-            "样式主题",
-            br(),
-            fluidRow(
-              column(6, textInput(ns("plot_title"), "主标题", value = "", width = "100%")),
-              column(6, selectInput(ns("color_palette"), "颜色方案",
-                                    choices = c("蓝白红" = "blue_white_red", "彩虹" = "rainbow",
-                                                "热力图" = "heat", "冷色调" = "cool")))
-            ),
-            fluidRow(
-              column(6, textInput(ns("plot_xlab"), "X轴标签", value = "", width = "100%")),
-              column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%"))
-            ),
-            fluidRow(
-              column(4, numericInput(ns("text_size"), "文本大小", value = 10, min = 6, max = 20, step = 1)),
-              column(4, numericInput(ns("tile_size"), "格子大小", value = 1, min = 0.5, max = 3, step = 0.1)),
-              column(4, checkboxInput(ns("show_values"), "显示数值", value = TRUE))
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("图形与样式", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "标题与说明",
+                  br(),
+                  fluidRow(
+                    column(6, textInput(ns("plot_title"), "主标题", value = "", width = "100%")),
+                    column(6, textInput(ns("plot_xlab"), "X轴标签", value = "", width = "100%"))
+                  ),
+                  fluidRow(
+                    column(6, textInput(ns("plot_ylab"), "Y轴标签", value = "", width = "100%"))
+                  )
+                ),
+                tabPanel(
+                  "显示与坐标",
+                  br(),
+                  graphics_card_panel_ui(
+                    "显示与坐标",
+                    tagList(
+                      helpText("当前热图模块没有额外的显示开关或坐标轴高级设置。")
+                    )
+                  )
+                ),
+                tabPanel(
+                  "图层样式",
+                  br(),
+                  fluidRow(
+                    column(6, selectInput(ns("color_palette"), "颜色方案",
+                      choices = c("蓝白红" = "blue_white_red", "彩虹" = "rainbow", "热力图" = "heat", "冷色调" = "cool"),
+                      width = "100%"
+                    ))
+                  ),
+                  fluidRow(
+                    column(4, numericInput(ns("text_size"), "文本大小", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+                    column(4, numericInput(ns("tile_size"), "格子大小", value = 1, min = 0.5, max = 3, step = 0.1, width = "100%")),
+                    column(4, checkboxInput(ns("show_values"), "显示数值", value = TRUE, width = "100%"))
+                  )
+                ),
+                tabPanel(
+                  "参考线与阈值",
+                  br(),
+                  graphics_card_panel_ui(
+                    "参考线与阈值",
+                    tagList(
+                      helpText("当前热图模块没有独立的参考线或阈值控件。")
+                    )
+                  )
+                )
+              )
             )
           ),
-          tabPanel(
-            "输出与导出",
-            br(),
-            graphics_export_panel_ui(ns, download_id = "dl_plot", include_size_mode = FALSE)
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("输出与导出", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "尺寸与画布",
+                  br(),
+                  graphics_card_panel_ui(
+                    "尺寸与画布",
+                    tagList(
+                      helpText("当前热图导出默认使用固定画布 10 x 8 英寸。")
+                    )
+                  )
+                ),
+                tabPanel(
+                  "导出参数",
+                  br(),
+                  graphics_export_panel_ui(
+                    ns,
+                    download_id = "dl_plot",
+                    include_render_button = FALSE,
+                    include_download_button = FALSE,
+                    include_size_mode = FALSE
+                  )
+                )
+              )
+            )
           )
         )
       )
@@ -61,14 +144,15 @@ heatmap_ui <- function(id) {
     fluidRow(
       box(
         width = 12,
-        title = "热图输出",
+        title = "结果区",
         status = "success",
         solidHeader = TRUE,
+        graphics_output_action_bar_ui(ns, render_button_id = "render_plot", download_id = "dl_plot"),
         tabsetPanel(
           id = ns("output_tabs"),
           tabPanel("静态图", plotOutput(ns("static_plot"), height = "600px")),
-          tabPanel("交互式图", plotly::plotlyOutput(ns("interactive_plot"), height = "600px")),
-          tabPanel("数据表", DTOutput(ns("data_table")))
+          tabPanel("交互图", plotly::plotlyOutput(ns("interactive_plot"), height = "600px")),
+          tabPanel("数据", DTOutput(ns("data_table")))
         )
       )
     )

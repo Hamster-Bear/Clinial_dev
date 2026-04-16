@@ -170,6 +170,35 @@ test_that("graphics_export_panel_ui 组合统一导出卡片", {
   expect_match(html_str, 'id="test_module-export_width_in"')
 })
 
+test_that("graphics_export_panel_ui 支持关闭内置生成按钮", {
+  ns <- NS("test_module")
+  ui_output <- graphics_export_panel_ui(
+    ns = ns,
+    download_id = "dl_plot",
+    include_render_button = FALSE,
+    include_size_mode = TRUE,
+    include_download_button = FALSE
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, "输出与导出")
+  expect_no_match(html_str, 'id="test_module-render_plot"')
+  expect_match(html_str, 'id="test_module-export_width_in"')
+})
+
+test_that("graphics_output_action_bar_ui 生成统一结果动作条", {
+  ns <- NS("test_module")
+  ui_output <- graphics_output_action_bar_ui(
+    ns = ns,
+    render_button_id = "render_plot",
+    download_id = "dl_plot"
+  )
+  html_str <- as.character(ui_output)
+  expect_match(html_str, 'id="test_module-render_plot"')
+  expect_match(html_str, 'id="test_module-dl_plot"')
+  expect_match(html_str, "生成图形")
+  expect_match(html_str, "下载图形")
+})
+
 test_that("graphics_dynamic_mapping_rows_panel_ui 生成统一动态映射容器", {
   ns <- NS("test_module")
   ui_output <- graphics_dynamic_mapping_rows_panel_ui(

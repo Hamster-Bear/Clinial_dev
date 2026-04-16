@@ -254,6 +254,7 @@ forest_plot_ui <- function(id) {
 
 forest_plot_server <- function(input, output, session, data) {
   ns <- session$ns
+  `%||%` <- function(x, y) if (is.null(x)) y else x
   
   # 存储用户选择和变量历史
   user_selections <- reactiveValues(
@@ -1536,15 +1537,68 @@ forest_plot_server <- function(input, output, session, data) {
       )
     }
   )
-  
-  # 返回模块状态（可选）
-  return(reactive({
-    list(
-      subgroup_col = input$subgroup_col,
-      study_col = input$study_col,
-      estimate_col = input$estimate_col,
-      lower_col = input$lower_col,
-      upper_col = input$upper_col
+
+  apply_state <- function(state) {
+    if (!is.list(state)) return(invisible(FALSE))
+    graphics_restore_task_input_state(
+      session,
+      state,
+      exclude_ids = c("generate", "run_analysis")
     )
-  }))
+    extra_state <- graphics_task_payload_extra_state(state)
+    if (is.list(extra_state$display_names)) user_selections$display_names <- extra_state$display_names
+    if (is.list(extra_state$alignments)) user_selections$alignments <- extra_state$alignments
+    if (!is.null(extra_state$selected_table_cols)) user_selections$selected_cols <- extra_state$selected_table_cols
+
+    df_current <- data()
+    if (!is.null(df_current)) {
+      cols <- names(df_current)
+      time_candidates <- cols[grep("time|dur|os|pfs|rfs", tolower(cols))]
+      status_candidates <- cols[grep("status|event|dead|death|censor", tolower(cols))]
+      outcome_candidates <- cols[grep("response|outcome|recurrence|disease|event|status", tolower(cols))]
+
+      updateSelectInput(session, "subgroup_col", choices = cols, selected = extra_state$subgroup_col %||% input$subgroup_col)
+      updateSelectInput(session, "study_col", choices = cols, selected = extra_state$study_col %||% input$study_col)
+      updateSelectInput(session, "estimate_col", choices = cols, selected = extra_state$estimate_col %||% input$estimate_col)
+      updateSelectInput(session, "lower_col", choices = cols, selected = extra_state$lower_col %||% input$lower_col)
+      updateSelectInput(session, "upper_col", choices = cols, selected = extra_state$upper_col %||% input$upper_col)
+      updateSelectInput(session, "time_col", choices = cols, selected = extra_state$time_col %||% input$time_col %||% time_candidates[1] %||% cols[1])
+      updateSelectInput(session, "status_col", choices = cols, selected = extra_state$status_col %||% input$status_col %||% status_candidates[1] %||% cols[min(2, length(cols))])
+      updateSelectInput(session, "outcome_col", choices = cols, selected = extra_state$outcome_col %||% input$outcome_col %||% outcome_candidates[1] %||% cols[1])
+      updateSelectizeInput(session, "covariates", choices = cols, selected = extra_state$covariates %||% input$covariates, server = TRUE)
+      updateSelectizeInput(
+        session,
+        "selected_table_cols",
+        choices = unique(c(cols, extra_state$selected_table_cols %||% character(0))),
+        selected = extra_state$selected_table_cols %||% input$selected_table_cols,
+        server = TRUE
+      )
+    }
+
+    invisible(TRUE)
+  }
+
+  list(
+    state = reactive({
+      graphics_build_task_state(
+        input,
+        extra_state = list(
+          subgroup_col = input$subgroup_col,
+          study_col = input$study_col,
+          estimate_col = input$estimate_col,
+          lower_col = input$lower_col,
+          upper_col = input$upper_col,
+          time_col = input$time_col,
+          status_col = input$status_col,
+          outcome_col = input$outcome_col,
+          covariates = input$covariates,
+          selected_table_cols = get_table_cols(),
+          display_names = user_selections$display_names,
+          alignments = user_selections$alignments
+        ),
+        exclude_ids = c("generate", "run_analysis")
+      )
+    }),
+    apply_state = apply_state
+  )
 }

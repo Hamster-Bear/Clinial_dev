@@ -408,49 +408,53 @@ library(cowplot)
 }
 
 .build_survival_mapping_tab <- function(ns) {
-  tabPanel(
-    "数据映射",
-    br(),
-    fluidRow(
-      column(
-        6,
-        graphics_column_mapping_panel_ui(
-          ns,
-          title = "数据映射",
-          fields = list(
-            list(list(id = "km_time", label = tags$span("生存时间变量 [数值]", title = "用于构建 Surv(time, status) 的时间变量"), type = "selectize")),
-            list(list(id = "km_status", label = tags$span("事件状态变量 [数值编码]", title = "二值状态变量，具体 0/1 含义由“状态变量编码含义”指定"), type = "selectize")),
-            list(
-              list(id = "strata_var", label = tags$span("分层变量 [分组，可选]", title = "用于分组绘制 KM 曲线与 HR"), type = "selectize", choices = c("无" = "None"), column = 6),
-              list(id = "facet_var", label = tags$span("分面变量 [分组，可选]", title = "用于拆分多个子图，仅显示一个分面值"), type = "selectize", choices = c("无" = "None"), column = 6)
-            )
+  tabsetPanel(
+    tabPanel(
+      "核心映射",
+      br(),
+      graphics_column_mapping_panel_ui(
+        ns,
+        title = "核心映射",
+        fields = list(
+          list(list(id = "km_time", label = tags$span("生存时间变量 [数值]", title = "用于构建 Surv(time, status) 的时间变量"), type = "selectize")),
+          list(list(id = "km_status", label = tags$span("事件状态变量 [数值编码]", title = "二值状态变量，具体 0/1 含义由“状态变量编码含义”指定"), type = "selectize"))
+        )
+      )
+    ),
+    tabPanel(
+      "分组/分面/轨道/附加变量",
+      br(),
+      graphics_column_mapping_panel_ui(
+        ns,
+        title = "分组/分面/附加变量",
+        fields = list(
+          list(
+            list(id = "strata_var", label = tags$span("分层变量 [分组，可选]", title = "用于分组绘制 KM 曲线与 HR"), type = "selectize", choices = c("无" = "None"), column = 6),
+            list(id = "facet_var", label = tags$span("分面变量 [分组，可选]", title = "用于拆分多个子图，仅显示一个分面值"), type = "selectize", choices = c("无" = "None"), column = 6)
+          )
+        ),
+        extra_ui = tagList(
+          conditionalPanel(
+            condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
+            uiOutput(ns("hr_reference_ui"))
           ),
-          extra_ui = tagList(
-            conditionalPanel(
-              condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
-              uiOutput(ns("hr_reference_ui"))
-            ),
-            conditionalPanel(
-              condition = paste0("input['", ns("facet_var"), "'] != 'None'"),
-              uiOutput(ns("facet_value_ui"))
-            )
+          conditionalPanel(
+            condition = paste0("input['", ns("facet_var"), "'] != 'None'"),
+            uiOutput(ns("facet_value_ui"))
           )
         )
       ),
-      column(
-        6,
-        graphics_card_panel_ui(
-          "处理与筛选",
-          tagList(
-            radioButtons(
-              ns("km_censor_value"), "状态变量编码含义",
-              choices = c("0 = 删失, 1 = 事件" = "0", "1 = 删失, 0 = 事件" = "1"),
-              selected = "0", inline = TRUE
-            ),
-            helpText("这里定义状态变量中 0/1 的业务含义，不改变原始数据，只影响生存对象构造。"),
-            hr(),
-            graphics_time_axis_controls_ui(ns)
-          )
+      graphics_card_panel_ui(
+        "处理与筛选",
+        tagList(
+          radioButtons(
+            ns("km_censor_value"), "状态变量编码含义",
+            choices = c("0 = 删失, 1 = 事件" = "0", "1 = 删失, 0 = 事件" = "1"),
+            selected = "0", inline = TRUE
+          ),
+          helpText("这里定义状态变量中 0/1 的业务含义，不改变原始数据，只影响生存对象构造。"),
+          hr(),
+          graphics_time_axis_controls_ui(ns)
         )
       )
     )
@@ -458,101 +462,114 @@ library(cowplot)
 }
 
 .build_survival_analysis_tab <- function(ns) {
-  tabPanel(
-    "分析参数",
-    br(),
-    fluidRow(
-      column(
-        6,
-        graphics_card_panel_ui(
-          "曲线、删失点与风险表",
-          tagList(
+  list(
+    tabPanel(
+      "显示与坐标",
+      br(),
+      graphics_card_panel_ui(
+        "曲线、删失点与风险表",
+        tagList(
+          fluidRow(
+            column(6, numericInput(ns("line_size"), "线条粗细", value = 0.6, min = 0.1, max = 5, step = 0.1, width = "100%")),
+            column(
+              6,
+              selectInput(
+                ns("line_type"), "线条类型",
+                choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted", "点虚线" = "dotdash", "长虚线" = "longdash"),
+                width = "100%"
+              )
+            )
+          ),
+          checkboxInput(ns("km_show_censor"), "显示删失点", value = TRUE),
+          conditionalPanel(
+            condition = paste0("input['", ns("km_show_censor"), "'] == true"),
             fluidRow(
-              column(6, numericInput(ns("line_size"), "线条粗细", value = 0.6, min = 0.1, max = 5, step = 0.1, width = "100%")),
+              column(6, numericInput(ns("km_censor_size"), "删失点大小", value = 2, min = 1, max = 10, step = 0.5, width = "100%")),
               column(
                 6,
                 selectInput(
-                  ns("line_type"), "线条类型",
-                  choices = c("实线" = "solid", "虚线" = "dashed", "点线" = "dotted", "点虚线" = "dotdash", "长虚线" = "longdash"),
-                  width = "100%"
+                  ns("km_censor_shape"), "删失点形状",
+                  choices = graphics_point_shape_choices(),
+                  selected = 3, width = "100%"
                 )
               )
-            ),
-            checkboxInput(ns("km_show_censor"), "显示删失点", value = TRUE),
-            conditionalPanel(
-              condition = paste0("input['", ns("km_show_censor"), "'] == true"),
+            )
+          ),
+          checkboxInput(ns("km_show_risktable"), "显示风险表", value = TRUE),
+          conditionalPanel(
+            condition = paste0("input['", ns("km_show_risktable"), "'] == true"),
+            tagList(
+              helpText("这些设置只影响下方风险表的高度、间距与分组排布。"),
               fluidRow(
-                column(6, numericInput(ns("km_censor_size"), "删失点大小", value = 2, min = 1, max = 10, step = 0.5, width = "100%")),
-                column(
-                  6,
-                  selectInput(
-                    ns("km_censor_shape"), "删失点形状",
-                    choices = graphics_point_shape_choices(),
-                    selected = 3, width = "100%"
-                  )
-                )
-              )
-            ),
-            checkboxInput(ns("km_show_risktable"), "显示风险表", value = TRUE),
-            conditionalPanel(
-              condition = paste0("input['", ns("km_show_risktable"), "'] == true"),
-              tagList(
-                helpText("这些设置只影响下方风险表的高度、间距与分组排布。"),
-                fluidRow(
-                  column(6, numericInput(ns("risk_table_height_ratio"), "风险表高度比例", value = 0.15, min = 0.1, max = 0.8, step = 0.05, width = "100%")),
-                  column(6, numericInput(ns("risk_table_plot_gap"), "主图与表间距(pt)", value = 0, min = 0, max = 100, step = 5, width = "100%"))
-                ),
-                numericInput(ns("risk_table_group_gap"), "风险表组别间隙", value = 1.2, min = 0, max = 2.0, step = 0.1, width = "100%")
-              )
-            ),
-            checkboxInput(ns("show_grid"), "显示网格线", value = FALSE),
-            selectInput(ns("surv_median_line"), "中位生存辅助线", choices = c("无" = "none", "水平和垂直" = "hv", "仅水平" = "h", "仅垂直" = "v"), selected = "none", width = "100%"),
-            helpText("该设置控制主图中的中位生存辅助线；与“显示中位生存时间标注”相互独立。")
-          )
+                column(6, numericInput(ns("risk_table_height_ratio"), "风险表高度比例", value = 0.15, min = 0.1, max = 0.8, step = 0.05, width = "100%")),
+                column(6, numericInput(ns("risk_table_plot_gap"), "主图与表间距(pt)", value = 0, min = 0, max = 100, step = 5, width = "100%"))
+              ),
+              numericInput(ns("risk_table_group_gap"), "风险表组别间隙", value = 1.2, min = 0, max = 2.0, step = 0.1, width = "100%")
+            )
+          ),
+          checkboxInput(ns("show_grid"), "显示网格线", value = FALSE),
+          selectInput(ns("surv_median_line"), "中位生存辅助线", choices = c("无" = "none", "水平和垂直" = "hv", "仅水平" = "h", "仅垂直" = "v"), selected = "none", width = "100%"),
+          helpText("该设置控制主图中的中位生存辅助线；与“显示中位生存时间标注”相互独立。")
         )
       ),
-      column(
-        6,
-        graphics_card_panel_ui(
-          "统计标注与位置",
-          tagList(
-            checkboxInput(ns("show_median"), "显示中位生存时间文本标注", value = TRUE),
-            conditionalPanel(
-              condition = paste0("input['", ns("show_median"), "'] == true"),
-              textInput(ns("median_label_text"), "中位生存标签前缀", value = "mPFS", placeholder = "例如 mPFS / mOS", width = "100%"),
-              helpText("用于主图和统计报告中的中位生存时间文本前缀，不控制辅助线显示。")
-            ),
-            checkboxInput(ns("show_stats"), "显示统计摘要（Log-rank P；分层时附加 HR）", value = TRUE),
-            selectInput(
-              ns("text_position_preset"), "统计/中位标注位置预设",
-              choices = c("自动（默认）" = "auto", "左上" = "top-left", "右上" = "top-right", "左下" = "bottom-left", "右下" = "bottom-right", "自定义" = "custom"),
-              selected = "bottom-left", width = "100%"
-            ),
-            helpText("该位置预设同时作用于中位生存文本标注和统计摘要文本。"),
-            graphics_aux_legend_anchor_controls_ui(
-              ns,
-              position_id = "text_position_preset",
-              x_ratio_id = "median_x",
-              y_ratio_id = "median_y",
-              default_anchor = c(0.98, 0.95, 0.13, 0.14),
-              condition_positions = "custom",
-              x_label = "中位生存X",
-              y_label = "中位生存Y",
-              include_size = FALSE,
-              header = "自定义坐标 (0-1相对位置)"
-            ),
-            graphics_aux_legend_anchor_controls_ui(
-              ns,
-              position_id = "text_position_preset",
-              x_ratio_id = "stats_x",
-              y_ratio_id = "stats_y",
-              default_anchor = c(0.02, 0.95, 0.13, 0.14),
-              condition_positions = "custom",
-              x_label = "统计量X",
-              y_label = "统计量Y",
-              include_size = FALSE,
-              header = ""
-            )
+      graphics_card_panel_ui(
+        "坐标与标签格式",
+        tagList(
+          fluidRow(
+            column(4, numericInput(ns("y_break_step"), "Y轴步长", value = 0.25, min = 0.05, max = 1, step = 0.05, width = "100%")),
+            column(4, checkboxInput(ns("y_as_percent"), "Y轴显示百分比", value = FALSE, width = "100%")),
+            column(4, numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 2, min = 0, max = 5, step = 1, width = "100%"))
+          ),
+          selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
+          conditionalPanel(
+            condition = paste0("input['", ns("y_as_percent"), "'] == true"),
+            checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
+          )
+        )
+      )
+    ),
+    tabPanel(
+      "参考线与阈值",
+      br(),
+      graphics_card_panel_ui(
+        "统计标注与位置",
+        tagList(
+          checkboxInput(ns("show_median"), "显示中位生存时间文本标注", value = TRUE),
+          conditionalPanel(
+            condition = paste0("input['", ns("show_median"), "'] == true"),
+            textInput(ns("median_label_text"), "中位生存标签前缀", value = "mPFS", placeholder = "例如 mPFS / mOS", width = "100%"),
+            helpText("用于主图和统计报告中的中位生存时间文本前缀，不控制辅助线显示。")
+          ),
+          checkboxInput(ns("show_stats"), "显示统计摘要（Log-rank P；分层时附加 HR）", value = TRUE),
+          selectInput(
+            ns("text_position_preset"), "统计/中位标注位置预设",
+            choices = c("自动（默认）" = "auto", "左上" = "top-left", "右上" = "top-right", "左下" = "bottom-left", "右下" = "bottom-right", "自定义" = "custom"),
+            selected = "bottom-left", width = "100%"
+          ),
+          helpText("该位置预设同时作用于中位生存文本标注和统计摘要文本。"),
+          graphics_aux_legend_anchor_controls_ui(
+            ns,
+            position_id = "text_position_preset",
+            x_ratio_id = "median_x",
+            y_ratio_id = "median_y",
+            default_anchor = c(0.98, 0.95, 0.13, 0.14),
+            condition_positions = "custom",
+            x_label = "中位生存X",
+            y_label = "中位生存Y",
+            include_size = FALSE,
+            header = "自定义坐标 (0-1相对位置)"
+          ),
+          graphics_aux_legend_anchor_controls_ui(
+            ns,
+            position_id = "text_position_preset",
+            x_ratio_id = "stats_x",
+            y_ratio_id = "stats_y",
+            default_anchor = c(0.02, 0.95, 0.13, 0.14),
+            condition_positions = "custom",
+            x_label = "统计量X",
+            y_label = "统计量Y",
+            include_size = FALSE,
+            header = ""
           )
         )
       )
@@ -561,86 +578,72 @@ library(cowplot)
 }
 
 .build_survival_theme_tab <- function(ns) {
-  tabPanel(
-    "样式主题",
-    br(),
-    fluidRow(
-      column(
-        6,
-        graphics_text_label_panel_ui(
-          ns,
-          title = "标题与坐标轴",
-          fields = list(
-            list(list(id = "plot_title", label = "主标题", type = "text", selected = "", placeholder = "输入标题")),
-            list(
-              list(id = "title_size", label = "标题大小", type = "numeric", value = 14, min = 8, max = 24, step = 1, column = 6),
-              list(id = "caption_size", label = "脚注大小", type = "numeric", value = 10, min = 8, max = 20, step = 1, column = 6)
-            ),
-            list(list(id = "plot_caption", label = "脚注", type = "textarea", selected = "", rows = 2)),
-            list(
-              list(id = "plot_xlab", label = "X轴标签", type = "text", selected = "Duration", column = 6),
-              list(id = "xlab_size", label = "X轴字号", type = "numeric", value = 12, min = 8, max = 20, step = 1, column = 6)
-            ),
-            list(
-              list(id = "plot_ylab", label = "Y轴标签", type = "text", selected = "", column = 6),
-              list(id = "ylab_size", label = "Y轴字号", type = "numeric", value = 12, min = 8, max = 20, step = 1, column = 6)
-            ),
-            list(
-              list(id = "y_break_step", label = "Y轴步长", type = "numeric", value = 0.25, min = 0.05, max = 1, step = 0.05, column = 4),
-              list(id = "y_as_percent", label = "Y轴显示百分比", type = "checkbox", value = FALSE, column = 4)
-            ),
-            list(list(id = "y_decimals", label = "Y轴保留小数位数", type = "numeric", value = 2, min = 0, max = 5, step = 1)),
-            list(list(id = "axis_style", label = "坐标轴样式", type = "select", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default"))
+  list(
+    tabPanel(
+      "标题与说明",
+      br(),
+      graphics_text_label_panel_ui(
+        ns,
+        title = "标题与说明",
+        fields = list(
+          list(list(id = "plot_title", label = "主标题", type = "text", selected = "", placeholder = "输入标题")),
+          list(
+            list(id = "title_size", label = "标题大小", type = "numeric", value = 14, min = 8, max = 24, step = 1, column = 6),
+            list(id = "caption_size", label = "脚注大小", type = "numeric", value = 10, min = 8, max = 20, step = 1, column = 6)
           ),
-          extra_ui = conditionalPanel(
-            condition = paste0("input['", ns("y_as_percent"), "'] == true"),
-            checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
+          list(list(id = "plot_caption", label = "脚注", type = "textarea", selected = "", rows = 2)),
+          list(
+            list(id = "plot_xlab", label = "X轴标签", type = "text", selected = "Duration", column = 6),
+            list(id = "xlab_size", label = "X轴字号", type = "numeric", value = 12, min = 8, max = 20, step = 1, column = 6)
+          ),
+          list(
+            list(id = "plot_ylab", label = "Y轴标签", type = "text", selected = "", column = 6),
+            list(id = "ylab_size", label = "Y轴字号", type = "numeric", value = 12, min = 8, max = 20, step = 1, column = 6)
+          )
+        )
+      )
+    ),
+    tabPanel(
+      "图层样式",
+      br(),
+      graphics_card_panel_ui(
+        "图形与图例文字",
+        tagList(
+          fluidRow(
+            column(4, numericInput(ns("axis_text_size"), "坐标刻度字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+            column(4, numericInput(ns("legend_text_size"), "图例文本字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+            column(4, numericInput(ns("stats_text_size"), "统计标注字号", value = 10, min = 6, max = 20, step = 1, width = "100%"))
+          ),
+          numericInput(ns("legend_row_gap"), "图例行间距(row_gap)", value = 1.0, min = 0.1, max = 3.0, step = 0.1, width = "100%"),
+          graphics_font_family_pair_ui(ns, latin_id = "base_family", cjk_id = "cjk_family"),
+          graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "corners_aux_none", default_position = "top-right"),
+          graphics_aux_legend_anchor_controls_ui(
+            ns,
+            position_id = "legend_position",
+            x_ratio_id = "legend_x_ratio",
+            y_ratio_id = "legend_y_ratio",
+            width_ratio_id = "legend_width_ratio",
+            height_ratio_id = "legend_height_ratio",
+            default_anchor = .survival_aux_legend_compact_spec$default_inside_anchor,
+            condition_positions = "inside_custom"
+          ),
+          conditionalPanel(
+            condition = paste0("input['", ns("strata_var"), "'] == 'None'"),
+            textInput(ns("overall_group_label"), "总体组显示名称", value = "all", width = "100%"),
+            helpText("仅在未分层时生效；统一用于主图图例、风险表、数据表与统计报告。分层后的组名请在“输出与导出”页签中逐项设置。")
           )
         )
       ),
-      column(
-        6,
+      graphics_card_panel_ui(
+        "风险表文字",
         tagList(
-          graphics_card_panel_ui(
-            "图形与图例文字",
-            tagList(
-              fluidRow(
-                column(4, numericInput(ns("axis_text_size"), "坐标刻度字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
-                column(4, numericInput(ns("legend_text_size"), "图例文本字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
-                column(4, numericInput(ns("stats_text_size"), "统计标注字号", value = 10, min = 6, max = 20, step = 1, width = "100%"))
-              ),
-              numericInput(ns("legend_row_gap"), "图例行间距(row_gap)", value = 1.0, min = 0.1, max = 3.0, step = 0.1, width = "100%"),
-              graphics_font_family_pair_ui(ns, latin_id = "base_family", cjk_id = "cjk_family"),
-              graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "corners_aux_none", default_position = "top-right"),
-              graphics_aux_legend_anchor_controls_ui(
-                ns,
-                position_id = "legend_position",
-                x_ratio_id = "legend_x_ratio",
-                y_ratio_id = "legend_y_ratio",
-                width_ratio_id = "legend_width_ratio",
-                height_ratio_id = "legend_height_ratio",
-                default_anchor = .survival_aux_legend_compact_spec$default_inside_anchor,
-                condition_positions = "inside_custom"
-              ),
-              conditionalPanel(
-                condition = paste0("input['", ns("strata_var"), "'] == 'None'"),
-                textInput(ns("overall_group_label"), "总体组显示名称", value = "all", width = "100%"),
-                helpText("仅在未分层时生效；统一用于主图图例、风险表、数据表与统计报告。分层后的组名请在“输出与导出”页签中逐项设置。")
-              )
-            )
-          ),
-          graphics_card_panel_ui(
-            "风险表文字",
-            tagList(
-              helpText("这些设置只影响风险表与其分组标签，不影响主图图例与统计标注。"),
-              conditionalPanel(
-                condition = paste0("input['", ns("km_show_risktable"), "'] == true"),
-                fluidRow(
-                  column(4, numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1, width = "100%")),
-                  column(4, numericInput(ns("risk_table_fontsize"), "风险表数字字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
-                  column(4, tags$div(style = "margin-top: 25px;", checkboxInput(ns("risk_table_fontbold"), "风险表数字加粗", value = FALSE)))
-                )
-              )
+          helpText("这些设置只影响风险表与其分组标签，不影响主图图例与统计标注。"),
+          conditionalPanel(
+            condition = paste0("input['", ns("km_show_risktable"), "'] == true"),
+            fluidRow(
+              column(4, numericInput(ns("y_text_size"), "风险表Y轴标签大小", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+              column(4, numericInput(ns("risk_table_fontsize"), "风险表数字字号", value = 10, min = 6, max = 20, step = 1, width = "100%")),
+              column(4, tags$div(style = "margin-top: 25px;", checkboxInput(ns("risk_table_fontbold"), "风险表数字加粗", value = FALSE)))
             )
           )
         )
@@ -650,14 +653,67 @@ library(cowplot)
 }
 
 .build_survival_export_tab <- function(ns) {
-  tabPanel(
-    "输出与导出",
-    br(),
-    graphics_export_size_controls_ui(ns, download_id = "download_plot", include_size_mode = TRUE, include_download_button = FALSE),
-    hr(),
-    conditionalPanel(
-      condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
-      uiOutput(ns("strata_labels_ui"))
+  tabsetPanel(
+    tabPanel(
+      "尺寸与画布",
+      br(),
+      graphics_card_panel_ui(
+        "尺寸与画布",
+        tagList(
+          selectInput(ns("size_mode"), "尺寸模式", choices = c("宽图标准" = "wide_standard", "自定义尺寸" = "custom"), selected = "wide_standard", width = "100%"),
+          conditionalPanel(
+            condition = sprintf("input['%s'] === 'custom'", ns("size_mode")),
+            tagList(
+              fluidRow(
+                column(6, numericInput(ns("static_width_px"), "静态图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
+                column(6, numericInput(ns("static_height_px"), "静态图基础高度(px)", value = 760, min = 400, max = 1800, step = 20, width = "100%"))
+              ),
+              fluidRow(
+                column(6, numericInput(ns("interactive_width_px"), "交互图宽度(px)", value = 1200, min = 600, max = 2400, step = 20, width = "100%")),
+                column(6, numericInput(ns("interactive_height_px"), "交互图高度(px)", value = 620, min = 350, max = 1600, step = 20, width = "100%"))
+              ),
+              fluidRow(
+                column(4, checkboxInput(ns("sync_export_size"), "导出尺寸跟随前端画布", value = TRUE, width = "100%")),
+                column(4, numericInput(ns("size_sync_ppi"), "PX/英寸换算", value = 96, min = 72, max = 300, step = 1, width = "100%")),
+                column(4, checkboxInput(ns("canvas_border"), "显示画布边框", value = TRUE, width = "100%"))
+              ),
+              fluidRow(
+                column(3, numericInput(ns("page_margin_top_px"), "上边距(px)", value = 24, min = 0, max = 240, step = 2, width = "100%")),
+                column(3, numericInput(ns("page_margin_right_px"), "右边距(px)", value = 24, min = 0, max = 240, step = 2, width = "100%")),
+                column(3, numericInput(ns("page_margin_bottom_px"), "下边距(px)", value = 24, min = 0, max = 240, step = 2, width = "100%")),
+                column(3, numericInput(ns("page_margin_left_px"), "左边距(px)", value = 24, min = 0, max = 240, step = 2, width = "100%"))
+              )
+            )
+          )
+        )
+      )
+    ),
+    tabPanel(
+      "导出参数",
+      br(),
+      graphics_card_panel_ui(
+        "导出参数",
+        tagList(
+          fluidRow(
+            column(6, selectInput(ns("export_format"), "导出格式", choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "pdf", width = "100%")),
+            column(6, numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%"))
+          ),
+          conditionalPanel(
+            condition = sprintf("input['%s'] === false", ns("sync_export_size")),
+            fluidRow(
+              column(6, numericInput(ns("export_width_in"), "导出宽度(英寸)", value = 12.5, min = 6, max = 30, step = 0.5, width = "100%")),
+              column(6, numericInput(ns("export_height_in"), "导出高度(英寸)", value = 7.9, min = 4, max = 24, step = 0.5, width = "100%"))
+            )
+          ),
+          conditionalPanel(
+            condition = paste0("input['", ns("strata_var"), "'] != 'None'"),
+            tagList(
+              hr(),
+              uiOutput(ns("strata_labels_ui"))
+            )
+          )
+        )
+      )
     )
   )
 }
@@ -666,19 +722,22 @@ library(cowplot)
   fluidRow(
     box(
       width = 12,
-      title = "生存曲线输出",
+      title = "结果区",
       status = "success",
       solidHeader = TRUE,
-      fluidRow(
-        column(6, div(style = "text-align: left; margin-bottom: 10px;", actionButton(ns("render_km_plot"), "生成图形", class = "btn-primary"))),
-        column(6, div(style = "text-align: right; margin-bottom: 10px;", downloadButton(ns("download_plot"), "下载图形", class = "btn-primary")))
-      ),
+      graphics_output_action_bar_ui(ns, render_button_id = "render_km_plot", download_id = "download_plot"),
       tabsetPanel(
         id = ns("km_output_tabs"),
         tabPanel("静态图", div(style = "height: 10px;"), uiOutput(ns("survPlotUI"))),
-        tabPanel("交互式图", div(style = "height: 10px;"), uiOutput(ns("interactiveSurvPlotUI"))),
-        tabPanel("数据表", div(style = "height: 10px;"), DTOutput(ns("km_data_table"))),
-        tabPanel("统计报告", div(style = "height: 10px;"), uiOutput(ns("survival_report")))
+        tabPanel("交互图", div(style = "height: 10px;"), uiOutput(ns("interactiveSurvPlotUI"))),
+        tabPanel(
+          "数据",
+          div(style = "height: 10px;"),
+          tabsetPanel(
+            tabPanel("数据表", DTOutput(ns("km_data_table"))),
+            tabPanel("统计报告", uiOutput(ns("survival_report")))
+          )
+        )
       )
     )
   )
@@ -711,15 +770,44 @@ survival_analysis_ui <- function(id) {
 
   tagList(
     fluidRow(
-      graphics_config_tabs_box(
-        id = id,
+      box(
+        width = 12,
         title = "生存分析参数配置",
+        status = "primary",
+        solidHeader = TRUE,
+        collapsible = TRUE,
         collapsed = FALSE,
-        tabs = list(
-          .build_survival_mapping_tab(ns),
-          .build_survival_analysis_tab(ns),
-          .build_survival_theme_tab(ns),
-          .build_survival_export_tab(ns)
+        fluidRow(
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("数据与变量", style = "color: #007bff; margin-top: 0;"),
+              .build_survival_mapping_tab(ns)
+            )
+          ),
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("图形与样式", style = "color: #007bff; margin-top: 0;"),
+              do.call(
+                tabsetPanel,
+                c(
+                  .build_survival_theme_tab(ns),
+                  .build_survival_analysis_tab(ns)
+                )
+              )
+            )
+          ),
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("输出与导出", style = "color: #007bff; margin-top: 0;"),
+              .build_survival_export_tab(ns)
+            )
+          )
         )
       )
     ),
