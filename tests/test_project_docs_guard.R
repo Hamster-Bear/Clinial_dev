@@ -43,3 +43,21 @@ test_that("PROJECT_SPEC.md 必须包含架构声明", {
   expect_match(content_str, "PostgreSQL", info = "PROJECT_SPEC.md 必须声明数据库依赖")
   expect_match(content_str, "Shiny", info = "PROJECT_SPEC.md 必须声明前端框架")
 })
+
+test_that("analysis_states 迁移脚本与部署文档必须存在关键约束", {
+  migration_path <- file.path("..", "postgres", "migrations", "001_analysis_states_schema.sql")
+  deployment_path <- file.path("..", "DEPLOYMENT_GUIDE.md")
+
+  expect_true(file.exists(migration_path), info = "analysis_states 迁移脚本缺失")
+  expect_true(file.exists(deployment_path), info = "DEPLOYMENT_GUIDE.md 缺失")
+
+  migration_content <- paste(readLines(migration_path, encoding = "UTF-8"), collapse = "\n")
+  deployment_content <- paste(readLines(deployment_path, encoding = "UTF-8"), collapse = "\n")
+
+  expect_match(migration_content, "uq_analysis_states_user_workspace_scope_module_name")
+  expect_match(migration_content, "uq_analysis_states_user_scope_module_name_personal")
+  expect_match(migration_content, "DROP CONSTRAINT")
+  expect_match(migration_content, "ROW_NUMBER\\(\\) OVER")
+  expect_match(deployment_content, "analysis_states")
+  expect_match(deployment_content, "001_analysis_states_schema.sql")
+})

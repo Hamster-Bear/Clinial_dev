@@ -3,14 +3,8 @@ library(testthat)
 args <- commandArgs(trailingOnly = FALSE)
 file_arg <- "--file="
 script_path <- sub(file_arg, "", args[grep(file_arg, args)])
-script_path <- if (length(script_path) > 0) script_path[[1]] else ""
 script_dir <- dirname(normalizePath(script_path, winslash = "/", mustWork = FALSE))
-project_root <- if (length(script_path) > 0 && nzchar(script_path)) {
-  normalizePath(file.path(script_dir, ".."), winslash = "/", mustWork = TRUE)
-} else {
-  wd <- normalizePath(getwd(), winslash = "/", mustWork = TRUE)
-  if (basename(wd) == "tests") normalizePath(file.path(wd, ".."), winslash = "/", mustWork = TRUE) else wd
-}
+project_root <- normalizePath(file.path(script_dir, ".."), winslash = "/", mustWork = TRUE)
 
 account_service_path <- file.path(project_root, "modules", "common", "account_service.R")
 if (length(account_service_path) > 0 && file.exists(account_service_path)) {
@@ -62,71 +56,4 @@ test_that("预览表格字段使用面向界面的中文名称", {
   expect_equal(names(invite_preview), c("受邀邮箱", "待授权限", "邀请状态", "领取账号", "发起时间", "领取时间"))
   expect_equal(membership_preview$协作权限[[1]], "可编辑成员")
   expect_equal(invite_preview$邀请状态[[1]], "待领取")
-})
-
-test_that("分析状态辅助函数规范化 scope 与 payload", {
-  expect_equal(service_normalize_analysis_state_scope("graphics"), "graphics")
-  expect_error(service_normalize_analysis_state_scope("tables"), "不支持的分析状态范围")
-  expect_equal(service_normalize_analysis_state_name("  km-default  "), "km-default")
-  expect_error(service_normalize_analysis_state_name("   "), "请输入任务名称")
-  expect_null(service_normalize_analysis_state_note(NULL))
-  expect_null(service_normalize_analysis_state_note("   "))
-  expect_equal(service_normalize_analysis_state_note("  need review  "), "need review")
-  expect_equal(service_analysis_state_db_scalar(NULL), NA_character_)
-  expect_equal(service_analysis_state_db_scalar(character(0)), NA_character_)
-  expect_equal(service_analysis_state_db_scalar("note"), "note")
-  expect_null(service_normalize_analysis_state_workspace_id(NULL))
-  expect_null(service_normalize_analysis_state_workspace_id(character(0)))
-  expect_null(service_normalize_analysis_state_workspace_id(""))
-  expect_equal(service_normalize_analysis_state_workspace_id(c("ws_1", "ws_2")), "ws_1")
-
-  payload_json <- service_normalize_analysis_state_payload(list(time_var = "AVAL", x_break_step = 4))
-  payload <- service_parse_analysis_state_payload(payload_json)
-  expect_equal(payload$time_var, "AVAL")
-  expect_equal(payload$x_break_step, 4)
-})
-
-test_that("分析状态插入规格在个人任务场景下不绑定 workspace 参数", {
-  personal_spec <- service_build_analysis_state_insert_spec(
-    state_id = "ast_1",
-    user_id = "usr_1",
-    workspace_id = NULL,
-    scope = "graphics",
-    module_type = "km",
-    state_name = "demo-task",
-    state_note = "note-a",
-    state_payload = "{\"a\":1}"
-  )
-  expect_match(personal_spec$sql, "VALUES \\(\\$1, \\$2, NULL, \\$3, \\$4, \\$5, \\$6, \\$7, NOW\\(\\), NOW\\(\\)\\)")
-  expect_length(personal_spec$params, 7)
-  expect_false(any(vapply(personal_spec$params, is.null, logical(1))))
-  expect_equal(personal_spec$params[[6]], "note-a")
-
-  personal_spec_empty_note <- service_build_analysis_state_insert_spec(
-    state_id = "ast_3",
-    user_id = "usr_1",
-    workspace_id = NULL,
-    scope = "graphics",
-    module_type = "km",
-    state_name = "demo-task",
-    state_note = NULL,
-    state_payload = "{\"a\":1}"
-  )
-  expect_length(personal_spec_empty_note$params, 7)
-  expect_true(is.na(personal_spec_empty_note$params[[6]]))
-
-  workspace_spec <- service_build_analysis_state_insert_spec(
-    state_id = "ast_2",
-    user_id = "usr_1",
-    workspace_id = c("ws_1", "ws_2"),
-    scope = "graphics",
-    module_type = "km",
-    state_name = "demo-task",
-    state_note = "note-b",
-    state_payload = "{\"a\":1}"
-  )
-  expect_match(workspace_spec$sql, "VALUES \\(\\$1, \\$2, \\$3, \\$4, \\$5, \\$6, \\$7, \\$8, NOW\\(\\), NOW\\(\\)\\)")
-  expect_length(workspace_spec$params, 8)
-  expect_equal(workspace_spec$params[[3]], "ws_1")
-  expect_equal(workspace_spec$params[[7]], "note-b")
 })

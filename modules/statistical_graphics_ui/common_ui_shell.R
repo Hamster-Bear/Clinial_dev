@@ -297,6 +297,45 @@ graphics_column_mapping_panel_ui <- function(ns, title = "数据映射", fields,
   graphics_card_panel_ui(title, body, status_class = status_class)
 }
 
+graphics_table_panel_ui <- function(
+  ns,
+  title = "表格显示设置",
+  selection_id = "selected_table_cols",
+  selection_label = "表格列选择",
+  choices = NULL,
+  selected = NULL,
+  placeholder = "点击选择表格列...",
+  config_title = "列显示配置",
+  config_ui = NULL,
+  help_text = NULL,
+  extra_ui = NULL,
+  status_class = "default"
+) {
+  body <- tagList(
+    if (!is.null(help_text)) helpText(help_text),
+    selectizeInput(
+      ns(selection_id),
+      selection_label,
+      choices = choices,
+      selected = selected,
+      multiple = TRUE,
+      options = list(
+        placeholder = placeholder,
+        onInitialize = I("function() { this.setValue(''); }")
+      ),
+      width = "100%"
+    ),
+    if (!is.null(config_ui)) {
+      tagList(
+        hr(),
+        graphics_card_panel_ui(config_title, config_ui)
+      )
+    },
+    extra_ui
+  )
+  graphics_card_panel_ui(title, body, status_class = status_class)
+}
+
 graphics_display_legend_panel_ui <- function(
   ns,
   title = "显示与图例",

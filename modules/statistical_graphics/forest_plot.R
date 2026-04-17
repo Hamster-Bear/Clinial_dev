@@ -19,232 +19,305 @@ library(survival)
 
 forest_plot_ui <- function(id) {
   ns <- NS(id)
-  
+
   tagList(
     fluidRow(
-      graphics_config_tabs_box(
-        id = id,
+      box(
+        width = 12,
         title = "森林图参数配置",
+        status = "primary",
+        solidHeader = TRUE,
+        collapsible = TRUE,
         collapsed = FALSE,
-        tabs = list(
-          tabPanel(
-            "数据映射",
-            br(),
-            radioButtons(ns("data_mode"), "数据模式",
-                         choices = c("预处理数据 (Pre-calculated)" = "precalculated",
-                                     "原始数据分析 (Raw Data Analysis)" = "raw_data"),
-                         selected = "precalculated", inline = TRUE),
-            hr(),
-            fluidRow(
-              column(
-                8,
-                conditionalPanel(
-                  condition = paste0("input['", ns("data_mode"), "'] == 'precalculated'"),
-                  tags$div(class = "panel panel-default",
-                           tags$div(class = "panel-heading", "数据列映射"),
-                           tags$div(class = "panel-body",
-                                    fluidRow(
-                                      column(4, selectInput(ns("subgroup_col"), "变量名称列 (如: 性别)", choices = NULL, width = "100%")),
-                                      column(4, selectInput(ns("study_col"), "分组值列 (如: 男/女)", choices = NULL, width = "100%")),
-                                      column(4, selectInput(ns("estimate_col"), "估计值列 (HR/OR)", choices = NULL, width = "100%"))
-                                    ),
-                                    fluidRow(
-                                      column(4, selectInput(ns("lower_col"), "下限列", choices = NULL, width = "100%")),
-                                      column(4, selectInput(ns("upper_col"), "上限列", choices = NULL, width = "100%")),
-                                      column(4, br(), helpText("总计5个必需列"))
-                                    )))
+        fluidRow(
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("数据与变量", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "核心映射",
+                  br(),
+                  graphics_card_panel_ui(
+                    "数据模式与核心映射",
+                    tagList(
+                      radioButtons(
+                        ns("data_mode"), "数据模式",
+                        choices = c("预处理数据 (Pre-calculated)" = "precalculated",
+                                    "原始数据分析 (Raw Data Analysis)" = "raw_data"),
+                        selected = "precalculated", inline = TRUE
+                      ),
+                      hr(),
+                      conditionalPanel(
+                        condition = paste0("input['", ns("data_mode"), "'] == 'precalculated'"),
+                        graphics_column_mapping_panel_ui(
+                          ns,
+                          title = "预处理数据列映射",
+                          fields = list(
+                            list(
+                              list(id = "subgroup_col", label = "变量名称列 (如: 性别)", type = "select", column = 4),
+                              list(id = "study_col", label = "分组值列 (如: 男/女)", type = "select", column = 4),
+                              list(id = "estimate_col", label = "估计值列 (HR/OR)", type = "select", column = 4)
+                            ),
+                            list(
+                              list(id = "lower_col", label = "下限列", type = "select", column = 4),
+                              list(id = "upper_col", label = "上限列", type = "select", column = 4)
+                            )
+                          ),
+                          help_text = "当前预处理模式总计需要 5 个必需列。"
+                        )
+                      ),
+                      conditionalPanel(
+                        condition = paste0("input['", ns("data_mode"), "'] == 'raw_data'"),
+                        graphics_card_panel_ui(
+                          "回归分析配置 (Cox / Logistic)",
+                          tagList(
+                            radioButtons(
+                              ns("regression_type"), "回归模型类型",
+                              choices = c("Cox 比例风险回归 (生存数据)" = "cox",
+                                          "Logistic 回归 (二分类结局)" = "logistic"),
+                              selected = "cox", inline = TRUE
+                            ),
+                            hr(),
+                            fluidRow(
+                              conditionalPanel(
+                                condition = paste0("input['", ns("regression_type"), "'] == 'cox'"),
+                                column(6, selectInput(ns("time_col"), "生存时间 (Time)", choices = NULL, width = "100%")),
+                                column(6, selectInput(ns("status_col"), "生存状态 (Status)", choices = NULL, width = "100%"))
+                              ),
+                              conditionalPanel(
+                                condition = paste0("input['", ns("regression_type"), "'] == 'logistic'"),
+                                column(12, selectInput(ns("outcome_col"), "结局变量 (Outcome, 0/1)", choices = NULL, width = "100%"))
+                              )
+                            ),
+                            selectizeInput(ns("covariates"), "分析变量 (Covariates)", choices = NULL, multiple = TRUE, width = "100%"),
+                            radioButtons(
+                              ns("analysis_method"), "分析方法",
+                              choices = c("单因素分析 (Univariable)" = "univariate",
+                                          "多因素分析 (Multivariable)" = "multivariate"),
+                              selected = "univariate", inline = TRUE
+                            ),
+                            actionButton(ns("run_analysis"), "运行分析", class = "btn-info btn-block", icon = icon("calculator"))
+                          ),
+                          status_class = "primary"
+                        )
+                      )
+                    )
+                  )
                 ),
-                conditionalPanel(
-                  condition = paste0("input['", ns("data_mode"), "'] == 'raw_data'"),
-                  tags$div(class = "panel panel-primary",
-                           tags$div(class = "panel-heading", "回归分析配置 (Cox / Logistic)"),
-                           tags$div(class = "panel-body",
-                                    radioButtons(ns("regression_type"), "回归模型类型",
-                                                 choices = c("Cox 比例风险回归 (生存数据)" = "cox",
-                                                             "Logistic 回归 (二分类结局)" = "logistic"),
-                                                 selected = "cox", inline = TRUE),
-                                    hr(),
-                                    fluidRow(
-                                      conditionalPanel(
-                                        condition = paste0("input['", ns("regression_type"), "'] == 'cox'"),
-                                        column(6, selectInput(ns("time_col"), "生存时间 (Time)", choices = NULL, width = "100%")),
-                                        column(6, selectInput(ns("status_col"), "生存状态 (Status)", choices = NULL, width = "100%"))
-                                      ),
-                                      conditionalPanel(
-                                        condition = paste0("input['", ns("regression_type"), "'] == 'logistic'"),
-                                        column(12, selectInput(ns("outcome_col"), "结局变量 (Outcome, 0/1)", choices = NULL, width = "100%"))
-                                      )
-                                    ),
-                                    selectizeInput(ns("covariates"), "分析变量 (Covariates)", choices = NULL, multiple = TRUE, width = "100%"),
-                                    radioButtons(ns("analysis_method"), "分析方法",
-                                                 choices = c("单因素分析 (Univariable)" = "univariate",
-                                                             "多因素分析 (Multivariable)" = "multivariate"),
-                                                 selected = "univariate", inline = TRUE),
-                                    actionButton(ns("run_analysis"), "运行分析", class = "btn-info btn-block", icon = icon("calculator"))))
-                )
-              ),
-              column(
-                4,
-                tags$div(class = "panel panel-default",
-                         tags$div(class = "panel-heading", "表格显示设置"),
-                         tags$div(class = "panel-body",
-                                  helpText("选择要在表格中显示的列（第一列将作为固定列）"),
-                                  selectizeInput(
-                                    ns("selected_table_cols"),
-                                    label = NULL,
-                                    choices = NULL,
-                                    multiple = TRUE,
-                                    options = list(
-                                      placeholder = "点击选择表格列...",
-                                      onInitialize = I("function() { this.setValue(''); }")
-                                    )
-                                  ),
-                                  hr(),
-                                  tags$div(class = "panel panel-default",
-                                           tags$div(class = "panel-heading", style = "cursor: pointer;", "列显示配置（点击展开）"),
-                                           tags$div(class = "panel-body", style = "padding: 10px;",
-                                                    uiOutput(ns("column_config_ui"))))))
-              )
-            )
-          ),
-          tabPanel(
-            "样式主题",
-            br(),
-            fluidRow(
-              column(
-                3,
-                tags$div(
-                  class = "panel panel-default",
-                  tags$div(class = "panel-heading", "尺寸与显示"),
-                  tags$div(
-                    class = "panel-body",
-                    fluidRow(
-                      column(6, numericInput(ns("plot_width"), "宽度(英寸)", value = 14, min = 8, max = 20, step = 1, width = "100%")),
-                      column(6, numericInput(ns("plot_height"), "高度(英寸)", value = 10, min = 6, max = 16, step = 1, width = "100%"))
-                    ),
-                    sliderInput(ns("plot_ratio"), "表格/图形宽度比", min = 0.3, max = 0.7, value = 0.55, step = 0.05, width = "100%"),
-                    sliderInput(ns("display_height"), "显示高度(像素)", min = 400, max = 1200, value = 800, step = 50, width = "100%")
-                  )
-                )
-              ),
-              column(
-                3,
-                tags$div(
-                  class = "panel panel-default",
-                  tags$div(class = "panel-heading", "坐标与线条"),
-                  tags$div(
-                    class = "panel-body",
-                    fluidRow(
-                      column(6, numericInput(ns("x_min"), "X轴下限", value = 0, min = 0, step = 1, width = "100%")),
-                      column(6, numericInput(ns("x_max"), "X轴上限", value = 100, min = 0, step = 1, width = "100%"))
-                    ),
-                    numericInput(ns("ref_line"), "参考线位置", value = 1.0, step = 1, width = "100%"),
-                    sliderInput(ns("line_width"), "线条粗细", min = 0.5, max = 3, value = 1.2, step = 0.1, width = "100%"),
-                    sliderInput(ns("line_height"), "短线长度", min = 0.05, max = 0.3, value = 0.15, step = 0.01, width = "100%"),
-                    fluidRow(
-                      column(6, numericInput(ns("x_axis_decimals"), "X轴小数位数", value = 1, min = 0, max = 5, step = 1, width = "100%")),
-                      column(6, checkboxInput(ns("percentage_format"), "显示百分号(%)", value = FALSE))
-                    )
-                  )
-                )
-              )
-              ,
-              column(
-                3,
-                tags$div(
-                  class = "panel panel-default",
-                  tags$div(class = "panel-heading", "表格与配色"),
-                  tags$div(
-                    class = "panel-body",
-                    sliderInput(ns("table_font_size"), "表格字体大小", min = 2, max = 5, value = 3.0, step = 0.1, width = "100%"),
-                    sliderInput(ns("header_font_size"), "表头字体大小", min = 2.5, max = 6, value = 3.5, step = 0.1, width = "100%"),
-                    numericInput(ns("first_col_width"), "第一列宽度比例", min = 0.1, max = 0.5, value = 0.45, step = 0.05, width = "100%"),
-                    numericInput(ns("max_chars_per_line"), "第一列每行最大字符数", min = 5, max = 30, value = 45, step = 1, width = "100%"),
-                    hr(),
-                    radioButtons(ns("color_mode"), "颜色模式", choices = c("交替颜色" = "alternating", "随机亚组颜色" = "random_subgroup"), selected = "alternating", inline = TRUE),
-                    conditionalPanel(
-                      condition = paste0("input['", ns("color_mode"), "'] == 'alternating'"),
-                      colourInput(ns("color_picker"), "选择交替颜色", value = "#E6F3FF", width = "100%"),
-                      sliderInput(ns("alpha"), "颜色透明度", min = 0.1, max = 1, value = 0.4, step = 0.1, width = "100%")
-                    ),
-                    conditionalPanel(
-                      condition = paste0("input['", ns("color_mode"), "'] == 'random_subgroup'"),
-                      selectInput(ns("color_palette"), "颜色调色板", choices = c("Set1", "Set2", "Set3", "Pastel1", "Pastel2", "Dark2", "Accent", "Paired", "Spectral"), selected = "Set1", width = "100%"),
-                      sliderInput(ns("subgroup_alpha"), "颜色透明度", min = 0.1, max = 1, value = 0.7, step = 0.1, width = "100%")
-                    ),
-                    helpText("交替颜色模式：奇数亚组使用选择的颜色，偶数亚组使用白色"),
-                    helpText("随机亚组颜色模式：每个亚组使用不同的随机颜色")
-                  )
-                )
-              ),
-              column(
-                3,
-                tags$div(
-                  class = "panel panel-default",
-                  tags$div(class = "panel-heading", "文本与脚注"),
-                  tags$div(
-                    class = "panel-body",
-                    fluidRow(
-                      column(6, textInput(ns("plot_title"), "图形标题", value = "交互式森林图", placeholder = "输入图形标题", width = "100%")),
-                      column(6, textInput(ns("x_axis_label"), "X轴标签", value = "风险比", placeholder = "输入X轴标签", width = "100%"))
-                    ),
-                    tags$div(class = "info-text", "提示：使用\"|\"符号表示换行，例如：\"主标题|副标题\""),
-                    fluidRow(
-                      column(6, numericInput(ns("title_size"), "标题字体大小", min = 10, max = 24, value = 16, step = 1, width = "100%")),
-                      column(6, numericInput(ns("axis_label_size"), "轴标签字体大小", min = 8, max = 16, value = 12, step = 1, width = "100%"))
-                    ),
-                    hr(),
-                    textAreaInput(ns("plot_footer"), "图形脚注", value = "注: 点大小反映研究权重, 区间线表示95%置信区间. | 参考线位于HR=1.0处.", placeholder = "输入图形脚注", rows = 3, width = "100%"),
-                    fluidRow(
-                      column(6, numericInput(ns("footer_size"), "脚注字体大小", min = 6, max = 14, value = 10, step = 1, width = "100%")),
-                      column(6, colourInput(ns("footer_color"), "脚注颜色", value = "gray40", width = "100%"))
-                    ),
-                    fluidRow(
-                      column(6, checkboxInput(ns("show_footer"), "显示脚注", value = TRUE)),
-                      column(6, graphics_font_family_pair_ui(ns, latin_id = "base_family", cjk_id = "cjk_family"))
-                    )
+                tabPanel(
+                  "分组/分面/轨道/附加变量",
+                  br(),
+                  graphics_table_panel_ui(
+                    ns,
+                    title = "表格显示设置",
+                    selection_id = "selected_table_cols",
+                    selection_label = "表格列选择",
+                    config_title = "列显示配置（点击展开后编辑）",
+                    config_ui = uiOutput(ns("column_config_ui")),
+                    help_text = "森林图当前不单独提供分面或轨道变量；表格列选择与列显示配置统一收纳在此页签。"
                   )
                 )
               )
             )
           ),
-          tabPanel(
-            "输出与导出",
-            br(),
-            fluidRow(
-              column(6, selectInput(ns("export_format"), "导出格式", choices = c("导出PDF" = "pdf", "导出PNG" = "png", "导出SVG" = "svg"), selected = "png", width = "100%")),
-              column(6, numericInput(ns("export_dpi"), "导出DPI", value = 600, min = 72, max = 1200, step = 10, width = "100%"))
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("图形与样式", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "标题与说明",
+                  br(),
+                  graphics_text_label_panel_ui(
+                    ns,
+                    title = "标题与说明",
+                    fields = list(
+                      list(
+                        list(id = "plot_title", label = "图形标题", type = "text", selected = "交互式森林图", placeholder = "输入图形标题", column = 6),
+                        list(id = "x_axis_label", label = "X轴标签", type = "text", selected = "风险比", placeholder = "输入X轴标签", column = 6)
+                      ),
+                      list(
+                        list(id = "title_size", label = "标题字体大小", type = "numeric", value = 16, min = 10, max = 24, step = 1, column = 6),
+                        list(id = "axis_label_size", label = "轴标签字体大小", type = "numeric", value = 12, min = 8, max = 16, step = 1, column = 6)
+                      ),
+                      list(list(id = "plot_footer", label = "图形脚注", type = "textarea", selected = "注: 点大小反映研究权重, 区间线表示95%置信区间. | 参考线位于HR=1.0处.", rows = 3)),
+                      list(
+                        list(id = "footer_size", label = "脚注字体大小", type = "numeric", value = 10, min = 6, max = 14, step = 1, column = 4),
+                        list(id = "footer_color", label = "脚注颜色", type = "color", value = "gray40", column = 4),
+                        list(id = "show_footer", label = "显示脚注", type = "checkbox", value = TRUE, column = 4)
+                      )
+                    ),
+                    extra_ui = graphics_font_family_pair_ui(ns, latin_id = "base_family", cjk_id = "cjk_family"),
+                    help_text = "提示：使用\"|\"符号表示换行，例如：\"主标题|副标题\"。"
+                  )
+                ),
+                tabPanel(
+                  "显示与坐标",
+                  br(),
+                  graphics_axis_proportion_panel_ui(
+                    ns,
+                    title = "显示与坐标",
+                    prepend_ui = tagList(
+                      graphics_axis_range_controls_ui(
+                        ns,
+                        min_id = "x_min",
+                        max_id = "x_max",
+                        axis_label = "X轴",
+                        min_value = 0,
+                        max_value = 100,
+                        min_step = 1,
+                        max_step = 1
+                      ),
+                      graphics_axis_tick_format_controls_ui(
+                        ns,
+                        decimals_id = "x_axis_decimals",
+                        decimals_label = "X轴小数位数",
+                        decimals_value = 1,
+                        percent_id = "percentage_format",
+                        percent_label = "显示百分号(%)",
+                        percent_value = FALSE
+                      )
+                    ),
+                    fields = list(
+                      list(
+                        list(id = "display_height", label = "显示高度(像素)", type = "slider", value = 800, min = 400, max = 1200, step = 50, column = 12)
+                      )
+                    ),
+                    help_text = "这里主要控制前端显示高度与 X 轴显示格式，不改变统计结果。"
+                  )
+                ),
+                tabPanel(
+                  "图层样式",
+                  br(),
+                  graphics_palette_layout_panel_ui(
+                    ns,
+                    title = "表格与配色",
+                    fields = list(
+                      list(
+                        list(id = "table_font_size", label = "表格字体大小", type = "slider", value = 3.0, min = 2, max = 5, step = 0.1, column = 6),
+                        list(id = "header_font_size", label = "表头字体大小", type = "slider", value = 3.5, min = 2.5, max = 6, step = 0.1, column = 6)
+                      ),
+                      list(
+                        list(id = "first_col_width", label = "第一列宽度比例", type = "numeric", value = 0.45, min = 0.1, max = 0.5, step = 0.05, column = 6),
+                        list(id = "max_chars_per_line", label = "第一列每行最大字符数", type = "numeric", value = 45, min = 5, max = 30, step = 1, column = 6)
+                      ),
+                      list(
+                        list(id = "color_mode", label = "颜色模式", type = "radio", choices = c("交替颜色" = "alternating", "随机亚组颜色" = "random_subgroup"), selected = "alternating", inline = TRUE)
+                      )
+                    ),
+                    extra_ui = tagList(
+                      fluidRow(
+                        column(6, sliderInput(ns("line_width"), "置信区间线宽", min = 0.5, max = 3, value = 1.2, step = 0.1, width = "100%")),
+                        column(6, sliderInput(ns("line_height"), "端帽长度", min = 0.05, max = 0.3, value = 0.15, step = 0.01, width = "100%"))
+                      ),
+                      conditionalPanel(
+                        condition = paste0("input['", ns("color_mode"), "'] == 'alternating'"),
+                        colourInput(ns("color_picker"), "选择交替颜色", value = "#E6F3FF", width = "100%"),
+                        sliderInput(ns("alpha"), "颜色透明度", min = 0.1, max = 1, value = 0.4, step = 0.1, width = "100%")
+                      ),
+                      conditionalPanel(
+                        condition = paste0("input['", ns("color_mode"), "'] == 'random_subgroup'"),
+                        selectInput(ns("color_palette"), "颜色调色板", choices = c("Set1", "Set2", "Set3", "Pastel1", "Pastel2", "Dark2", "Accent", "Paired", "Spectral"), selected = "Set1", width = "100%"),
+                        sliderInput(ns("subgroup_alpha"), "颜色透明度", min = 0.1, max = 1, value = 0.7, step = 0.1, width = "100%")
+                      )
+                    ),
+                    help_text = "交替颜色模式：奇数亚组使用选择的颜色，偶数亚组使用白色；随机亚组颜色模式：每个亚组使用不同的随机颜色。"
+                  )
+                ),
+                tabPanel(
+                  "参考线",
+                  br(),
+                  graphics_reference_threshold_panel_ui(
+                    ns,
+                    title = "参考线",
+                    toggle_id = "show_ref_line",
+                    toggle_label = "显示参考线",
+                    toggle_value = TRUE,
+                    conditional_ui = tagList(
+                      graphics_reference_line_ui(
+                        ns,
+                        "ref_line",
+                        label = "参考线",
+                        default_value = 1.0,
+                        default_color = "#1A1A1A",
+                        default_linetype = "solid",
+                        default_linewidth = 0.8
+                      )
+                    ),
+                    help_text = "森林图当前仅提供 X 轴参考线；位置、颜色、线型和线宽由公共参考线控件统一管理。"
+                  )
+                )
+              )
+            )
+          ),
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("输出与导出", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "尺寸与画布",
+                  br(),
+                  graphics_card_panel_ui(
+                    "尺寸与画布",
+                    tagList(
+                      fluidRow(
+                        column(6, numericInput(ns("plot_width"), "宽度(英寸)", value = 14, min = 8, max = 20, step = 1, width = "100%")),
+                        column(6, numericInput(ns("plot_height"), "高度(英寸)", value = 10, min = 6, max = 16, step = 1, width = "100%"))
+                      ),
+                      sliderInput(ns("plot_ratio"), "表格/图形宽度比", min = 0.3, max = 0.7, value = 0.55, step = 0.05, width = "100%"),
+                      helpText("森林图当前仍使用模块内尺寸语义：宽高控制导出尺寸，表格/图形宽度比控制左右布局。")
+                    )
+                  )
+                ),
+                tabPanel(
+                  "导出参数",
+                  br(),
+                  graphics_export_panel_ui(
+                    ns,
+                    title = "导出参数",
+                    include_render_button = FALSE,
+                    include_size_mode = FALSE,
+                    include_download_button = FALSE
+                  )
+                )
+              )
             )
           )
         )
       )
     ),
-    
-    # 图形显示区域 - 底部
     fluidRow(
       box(
         width = 12,
-        title = "森林图输出",
+        title = "结果区",
         status = "success",
         solidHeader = TRUE,
-        fluidRow(
-          column(6, div(style = "text-align: left; margin-bottom: 10px;", actionButton(ns("generate"), "生成图形", class = "btn-primary"))),
-          column(6, div(style = "text-align: right; margin-bottom: 10px;", downloadButton(ns("download_plot"), "下载图形", class = "btn-primary")))
-        ),
+        graphics_output_action_bar_ui(ns, render_button_id = "generate", download_id = "download_plot"),
         tabsetPanel(
           id = ns("output_tabs"),
-          tabPanel("森林图",
+          tabPanel("静态图",
                    div(style = "height: 10px;"),
                    uiOutput(ns("plot_ui")),
                    div(style = "height: 10px;")
           ),
-          tabPanel("数据预览",
+          tabPanel("交互图",
                    div(style = "height: 10px;"),
-                   DTOutput(ns("data_preview"))
+                   graphics_card_panel_ui(
+                     "交互图",
+                     helpText("当前森林图模块尚未提供独立交互图结果；本轮仅统一结果区结构，不改绘图实现。")
+                   )
           ),
-          tabPanel("统计报告",
+          tabPanel("数据",
                    div(style = "height: 10px;"),
-                   uiOutput(ns("analysis_report_ui"))
+                   tabsetPanel(
+                     tabPanel("数据预览", DTOutput(ns("data_preview"))),
+                     tabPanel("统计报告", uiOutput(ns("analysis_report_ui")))
+                   )
           )
         )
       )
@@ -267,6 +340,7 @@ forest_plot_server <- function(input, output, session, data) {
     display_names = list(),
     alignments = list()
   )
+  pending_mapping_restore <- reactiveVal(NULL)
   
   # 智能数值格式化函数
   smart_format_number <- function(x, max_digits = 4) {
@@ -298,55 +372,71 @@ forest_plot_server <- function(input, output, session, data) {
     })
   }
 
+  forest_task_state_exclude_patterns <- c(
+    graphics_task_input_exclude_patterns(),
+    "^name_",
+    "^align_"
+  )
+
+  apply_forest_mapping_inputs <- function(cols, restore_state = NULL) {
+    cols <- forest_normalize_selected_columns(cols)
+    if (length(cols) == 0) {
+      return(invisible(NULL))
+    }
+
+    restore_mode <- if (is.list(restore_state) && !is.null(restore_state$mode)) {
+      restore_state$mode
+    } else {
+      isolate(input$data_mode) %||% "precalculated"
+    }
+    restore_extra_state <- if (is.list(restore_state) && is.list(restore_state$extra_state)) {
+      restore_state$extra_state
+    } else {
+      list()
+    }
+
+    mapping_plan <- forest_build_mapping_restore_plan(
+      available_cols = cols,
+      current_state = list(
+        subgroup_col = isolate(input$subgroup_col),
+        study_col = isolate(input$study_col),
+        estimate_col = isolate(input$estimate_col),
+        lower_col = isolate(input$lower_col),
+        upper_col = isolate(input$upper_col),
+        time_col = isolate(input$time_col),
+        status_col = isolate(input$status_col),
+        outcome_col = isolate(input$outcome_col),
+        covariates = isolate(input$covariates)
+      ),
+      extra_state = restore_extra_state,
+      mode = restore_mode
+    )
+
+    updateSelectInput(session, "subgroup_col", choices = cols, selected = mapping_plan$subgroup_col)
+    updateSelectInput(session, "study_col", choices = cols, selected = mapping_plan$study_col)
+    updateSelectInput(session, "estimate_col", choices = cols, selected = mapping_plan$estimate_col)
+    updateSelectInput(session, "lower_col", choices = cols, selected = mapping_plan$lower_col)
+    updateSelectInput(session, "upper_col", choices = cols, selected = mapping_plan$upper_col)
+    updateSelectInput(session, "time_col", choices = cols, selected = mapping_plan$time_col)
+    updateSelectInput(session, "status_col", choices = cols, selected = mapping_plan$status_col)
+    updateSelectInput(session, "outcome_col", choices = cols, selected = mapping_plan$outcome_col)
+    updateSelectizeInput(session, "covariates", choices = cols, selected = mapping_plan$covariates, server = TRUE)
+
+    if (is.list(restore_state) && isTRUE(mapping_plan$ready)) {
+      pending_mapping_restore(NULL)
+    }
+
+    invisible(mapping_plan)
+  }
+
   # 观察数据变化，更新列选择
   observe({
     req(data())
     
     cols <- names(data())
     if (length(cols) == 0) return()
-    
-    # 获取当前选择的值，如果有效则保留
-    cur_subgroup <- isolate(input$subgroup_col)
-    sel_subgroup <- if (!is.null(cur_subgroup) && cur_subgroup %in% cols) cur_subgroup else ifelse("subgroup" %in% cols, "subgroup", cols[1])
-    
-    cur_study <- isolate(input$study_col)
-    sel_study <- if (!is.null(cur_study) && cur_study %in% cols) cur_study else ifelse("study" %in% cols, "study", ifelse(length(cols) > 1, cols[2], cols[1]))
-    
-    cur_est <- isolate(input$estimate_col)
-    sel_est <- if (!is.null(cur_est) && cur_est %in% cols) cur_est else ifelse("estimate" %in% cols, "estimate", ifelse(length(cols) > 2, cols[3], cols[1]))
-    
-    cur_lower <- isolate(input$lower_col)
-    sel_lower <- if (!is.null(cur_lower) && cur_lower %in% cols) cur_lower else ifelse("lower" %in% cols, "lower", ifelse(length(cols) > 3, cols[4], cols[1]))
-    
-    cur_upper <- isolate(input$upper_col)
-    sel_upper <- if (!is.null(cur_upper) && cur_upper %in% cols) cur_upper else ifelse("upper" %in% cols, "upper", ifelse(length(cols) > 4, cols[5], cols[1]))
-    
-    # 更新列映射选择框 (预处理模式)
-    updateSelectInput(session, "subgroup_col", choices = cols, selected = sel_subgroup)
-    updateSelectInput(session, "study_col", choices = cols, selected = sel_study)
-    updateSelectInput(session, "estimate_col", choices = cols, selected = sel_est)
-    updateSelectInput(session, "lower_col", choices = cols, selected = sel_lower)
-    updateSelectInput(session, "upper_col", choices = cols, selected = sel_upper)
-    
-    # 更新分析配置选项 (原始数据模式)
-    # 尝试智能识别 Time 和 Status
-    time_candidates <- cols[grep("time|dur|os|pfs|rfs", tolower(cols))]
-    status_candidates <- cols[grep("status|event|dead|death|censor", tolower(cols))]
-    outcome_candidates <- cols[grep("response|outcome|recurrence|disease|event|status", tolower(cols))]
-    
-    cur_time <- isolate(input$time_col)
-    sel_time <- if (!is.null(cur_time) && cur_time %in% cols) cur_time else if(length(time_candidates)>0) time_candidates[1] else cols[1]
-    
-    cur_status <- isolate(input$status_col)
-    sel_status <- if (!is.null(cur_status) && cur_status %in% cols) cur_status else if(length(status_candidates)>0) status_candidates[1] else cols[2]
-    
-    cur_outcome <- isolate(input$outcome_col)
-    sel_outcome <- if (!is.null(cur_outcome) && cur_outcome %in% cols) cur_outcome else if(length(outcome_candidates)>0) outcome_candidates[1] else cols[1]
-    
-    updateSelectInput(session, "time_col", choices = cols, selected = sel_time)
-    updateSelectInput(session, "status_col", choices = cols, selected = sel_status)
-    updateSelectInput(session, "outcome_col", choices = cols, selected = sel_outcome)
-    updateSelectizeInput(session, "covariates", choices = cols, server = TRUE)
+
+    apply_forest_mapping_inputs(cols, pending_mapping_restore())
 
     # 不预设任何列，用户需手动选择
     if (length(user_selections$selected_cols) == 0) {
@@ -359,13 +449,7 @@ forest_plot_server <- function(input, output, session, data) {
         user_selections$display_names[[col]] <- col
       }
       if (is.null(user_selections$alignments[[col]])) {
-        if (col %in% c("subgroup", "study")) {
-          user_selections$alignments[[col]] <- "left"
-        } else if (col %in% c("estimate", "lower", "upper", "n", "events")) {
-          user_selections$alignments[[col]] <- "right"
-        } else {
-          user_selections$alignments[[col]] <- "center"
-        }
+        user_selections$alignments[[col]] <- forest_default_column_alignment(col)
       }
     }
   })
@@ -377,7 +461,7 @@ forest_plot_server <- function(input, output, session, data) {
     if (length(cols) == 0) return()
     
     # 获取当前选择
-    current_selected <- isolate(user_selections$selected_cols)
+    current_selected <- forest_normalize_selected_columns(isolate(user_selections$selected_cols))
     # 过滤掉不存在于新数据中的已选列
     valid_selected <- intersect(current_selected, cols)
     
@@ -397,26 +481,19 @@ forest_plot_server <- function(input, output, session, data) {
   
   # 观察用户从selectizeInput中选择的变化，并在更新前保存当前配置
   observe({
-    selected_cols <- input$selected_table_cols
-    if (is.null(selected_cols)) selected_cols <- character(0)
+    selected_cols <- forest_normalize_selected_columns(input$selected_table_cols)
     
     # 防止循环：只有当选择实际发生变化时才更新reactiveValues
-    current <- isolate(user_selections$selected_cols)
+    current <- forest_normalize_selected_columns(isolate(user_selections$selected_cols))
     if (!identical(sort(selected_cols), sort(current))) {
-      # 在更新selected_cols之前，保存当前所有列的配置
-      for (col in current) {
-        name_input <- paste0("name_", col)
-        align_input <- paste0("align_", col)
-        
-        # 如果输入存在，保存其值
-        if (!is.null(input[[name_input]]) && input[[name_input]] != "") {
-          user_selections$display_names[[col]] <- input[[name_input]]
-        }
-        if (!is.null(input[[align_input]])) {
-          user_selections$alignments[[col]] <- input[[align_input]]
-        }
-      }
-      
+      persisted <- forest_persist_selected_column_inputs(
+        input = input,
+        selected_cols = current,
+        display_names = isolate(user_selections$display_names),
+        alignments = isolate(user_selections$alignments)
+      )
+      user_selections$display_names <- persisted$display_names
+      user_selections$alignments <- persisted$alignments
       # 更新选中的列
       user_selections$selected_cols <- selected_cols
     }
@@ -465,7 +542,7 @@ forest_plot_server <- function(input, output, session, data) {
                        choices = c("左对齐" = "left", "居中" = "center", "右对齐" = "right"),
                        selected = ifelse(!is.null(alignments[[col]]), 
                                          alignments[[col]], 
-                                         ifelse(is_first_col, "left", "center"))
+                                        forest_default_column_alignment(col))
                      )
                    )
                  )
@@ -478,54 +555,14 @@ forest_plot_server <- function(input, output, session, data) {
   observe({
     selected_cols <- user_selections$selected_cols
     if (length(selected_cols) == 0) return()
-    
-    for (col in selected_cols) {
-      name_input <- paste0("name_", col)
-      align_input <- paste0("align_", col)
-      
-      if (!is.null(input[[name_input]]) && input[[name_input]] != "") {
-        user_selections$display_names[[col]] <- input[[name_input]]
-      }
-      
-      if (!is.null(input[[align_input]])) {
-        user_selections$alignments[[col]] <- input[[align_input]]
-      }
-    }
-  })
-  
-  # 获取表格列对齐方式
-  get_column_alignments <- reactive({
-    alignments <- list()
-    selected_cols <- user_selections$selected_cols
-    
-    for (col in selected_cols) {
-      if (!is.null(user_selections$alignments[[col]])) {
-        alignments[[col]] <- user_selections$alignments[[col]]
-      } else {
-        alignments[[col]] <- "center"
-      }
-    }
-    return(alignments)
-  })
-  
-  # 获取自定义列名
-  get_custom_column_names <- reactive({
-    names <- list()
-    selected_cols <- user_selections$selected_cols
-    
-    for (col in selected_cols) {
-      if (!is.null(user_selections$display_names[[col]])) {
-        names[[col]] <- user_selections$display_names[[col]]
-      } else {
-        names[[col]] <- col
-      }
-    }
-    return(names)
-  })
-  
-  # 获取选中的表格列
-  get_table_cols <- reactive({
-    user_selections$selected_cols
+    persisted <- forest_persist_selected_column_inputs(
+      input = input,
+      selected_cols = selected_cols,
+      display_names = isolate(user_selections$display_names),
+      alignments = isolate(user_selections$alignments)
+    )
+    user_selections$display_names <- persisted$display_names
+    user_selections$alignments <- persisted$alignments
   })
   
   # 智能文本换行函数
@@ -599,22 +636,56 @@ forest_plot_server <- function(input, output, session, data) {
     # 将 "|" 替换为换行符
     gsub("\\|", "\n", text)
   }
+
+  forest_result_data <- reactive({
+    if (input$data_mode == "precalculated") {
+      req(data(), input$subgroup_col, input$study_col, input$estimate_col, input$lower_col, input$upper_col)
+      forest_normalize_result_schema(
+        df = data(),
+        mode = "precalculated",
+        cols_map = list(
+          subgroup = input$subgroup_col,
+          study = input$study_col,
+          estimate = input$estimate_col,
+          lower = input$lower_col,
+          upper = input$upper_col
+        ),
+        on_missing = function(missing_cols) {
+          showNotification(paste("缺少必要列:", paste(missing_cols, collapse = ", ")), type = "error")
+        }
+      )
+    } else {
+      req(analysis_results())
+      forest_normalize_result_schema(
+        df = analysis_results(),
+        mode = "raw_data",
+        cols_map = list(
+          subgroup = "Variable",
+          study = "Level",
+          estimate = "Estimate",
+          lower = "Lower",
+          upper = "Upper"
+        )
+      )
+    }
+  })
   
   # 数据预览
   output$data_preview <- renderDT({
-    # 根据模式显示不同的数据
-    if (input$data_mode == "raw_data") {
-      # 如果有分析结果，优先显示分析结果
-      if (input$run_analysis > 0) {
-         res <- analysis_results()
-         if (!is.null(res)) return(datatable(res, options = list(pageLength = 10, scrollX = TRUE)))
-      }
-      # 否则显示原始数据
+    if (input$data_mode == "raw_data" && input$run_analysis == 0) {
       req(data())
-      datatable(data(), options = list(pageLength = 10, scrollX = TRUE))
-    } else {
-      req(data())
-      datatable(data(), 
+      return(datatable(data(), options = list(pageLength = 10, scrollX = TRUE)))
+    }
+
+    preview_df <- forest_result_data()
+    req(preview_df)
+    preview_df <- preview_df[, setdiff(names(preview_df), c(
+      "forest_subgroup", "forest_label", "forest_estimate", "forest_lower",
+      "forest_upper", "forest_source_mode"
+    )), drop = FALSE]
+
+    if (input$data_mode == "precalculated") {
+      datatable(preview_df,
                 extensions = c('FixedColumns', 'FixedHeader'),
                 options = list(
                   pageLength = 10,
@@ -628,6 +699,8 @@ forest_plot_server <- function(input, output, session, data) {
                 rownames = FALSE) %>%
         formatStyle(1, className = 'fixed-first-col') %>%
         formatStyle(0, target = 'row', fontSize = '12px')
+    } else {
+      datatable(preview_df, options = list(pageLength = 10, scrollX = TRUE), rownames = FALSE)
     }
   })
   
@@ -779,204 +852,22 @@ forest_plot_server <- function(input, output, session, data) {
       req(input$time_col, input$status_col)
       time_var <- input$time_col
       status_var <- input$status_col
-      
-      # 确保时间数值化
-      df[[time_var]] <- as.numeric(df[[time_var]])
-      # 确保状态数值化 (0/1)
-      if (is.character(df[[status_var]]) || is.factor(df[[status_var]])) {
-        lvls <- levels(as.factor(df[[status_var]]))
-        if (length(lvls) == 2) {
-          df[[status_var]] <- as.numeric(as.factor(df[[status_var]])) - 1
-        }
-      }
-      df[[status_var]] <- as.numeric(df[[status_var]])
-      
     } else {
-      # Logistic Regression
       req(input$outcome_col)
       outcome_var <- input$outcome_col
-      
-      # 确保结局变量数值化 (0/1)
-      if (is.character(df[[outcome_var]]) || is.factor(df[[outcome_var]])) {
-        lvls <- levels(as.factor(df[[outcome_var]]))
-        if (length(lvls) == 2) {
-          df[[outcome_var]] <- as.numeric(as.factor(df[[outcome_var]])) - 1
-        }
-      }
-      df[[outcome_var]] <- as.numeric(df[[outcome_var]])
     }
+    
+    out <- forest_run_analysis_pipeline(
+      df = df,
+      reg_type = reg_type,
+      method = method,
+      covariates = covariates,
+      time_var = time_var %||% NULL,
+      status_var = status_var %||% NULL,
+      outcome_var = outcome_var %||% NULL
+    )
 
-    # 定义通用的提取函数
-    extract_model_res <- function(model, var, data, type = "cox") {
-      if (inherits(model, "try-error")) return(NULL)
-      
-      summ <- summary(model)
-      coefs <- summ$coefficients
-      
-      if (type == "cox") {
-        conf <- summ$conf.int
-        p_idx <- "Pr(>|z|)"
-        est_col <- "exp(coef)"
-        low_col <- "lower .95"
-        upp_col <- "upper .95"
-      } else {
-        # Logistic (glm)
-        # summary(glm) does not have conf.int directly
-        # Need to calculate
-        est <- coef(model)
-        se <- coefs[, "Std. Error"]
-        z_val <- coefs[, "z value"]
-        p_val <- coefs[, "Pr(>|z|)"]
-        
-        # Calculate OR and CI
-        or <- exp(est)
-        ci_low <- exp(est - 1.96 * se)
-        ci_high <- exp(est + 1.96 * se)
-        
-        # Construct a conf matrix like structure for easier indexing
-        conf <- cbind(or, ci_low, ci_high)
-        colnames(conf) <- c("OR", "2.5 %", "97.5 %")
-        
-        p_idx <- "Pr(>|z|)"
-      }
-      
-      is_cat <- is.factor(data[[var]]) || is.character(data[[var]])
-      
-      if (is_cat) {
-        lvls <- levels(as.factor(data[[var]]))
-        n_lvls <- length(lvls)
-        
-        res <- data.frame(
-          Variable = rep(var, n_lvls),
-          Level = lvls,
-          Estimate = NA,
-          Lower = NA,
-          Upper = NA,
-          P_Value = NA,
-          N = NA,
-          Events = NA,
-          stringsAsFactors = FALSE
-        )
-        
-        # Reference level
-        res$Estimate[1] <- 1.0
-        
-        # Other levels
-        for (i in 2:n_lvls) {
-          lvl <- lvls[i]
-          term_pattern <- paste0(var, lvl) 
-          
-          if (type == "cox") {
-             idx <- which(rownames(coefs) == term_pattern)
-             if (length(idx) == 0) idx <- grep(paste0(var, ".*", lvl), rownames(coefs))
-             
-             if (length(idx) > 0) {
-               idx <- idx[1]
-               res$Estimate[i] <- conf[idx, est_col]
-               res$Lower[i] <- conf[idx, low_col]
-               res$Upper[i] <- conf[idx, upp_col]
-               res$P_Value[i] <- coefs[idx, p_idx]
-             }
-          } else {
-             # Logistic
-             idx <- which(names(est) == term_pattern)
-             if (length(idx) == 0) idx <- grep(paste0(var, ".*", lvl), names(est))
-             
-             if (length(idx) > 0) {
-               idx <- idx[1]
-               res$Estimate[i] <- or[idx]
-               res$Lower[i] <- ci_low[idx]
-               res$Upper[i] <- ci_high[idx]
-               res$P_Value[i] <- p_val[idx]
-             }
-          }
-        }
-        
-        # N & Events
-        for (i in 1:n_lvls) {
-          sub <- data[data[[var]] == lvls[i], ]
-          res$N[i] <- nrow(sub)
-          if (type == "cox") {
-            res$Events[i] <- sum(sub[[status_var]] == 1, na.rm = TRUE)
-          } else {
-            res$Events[i] <- sum(sub[[outcome_var]] == 1, na.rm = TRUE)
-          }
-        }
-        
-      } else {
-        # Continuous
-        res <- data.frame(
-          Variable = var,
-          Level = "Continuous",
-          Estimate = NA, Lower = NA, Upper = NA, P_Value = NA, N = NA, Events = NA,
-          stringsAsFactors = FALSE
-        )
-        
-        if (type == "cox") {
-          idx <- which(rownames(coefs) == var)
-          if (length(idx) > 0) {
-            res$Estimate <- conf[idx, est_col]
-            res$Lower <- conf[idx, low_col]
-            res$Upper <- conf[idx, upp_col]
-            res$P_Value <- coefs[idx, p_idx]
-          }
-          res$N <- nrow(data[!is.na(data[[var]]), ])
-          res$Events <- sum(data[!is.na(data[[var]]), ][[status_var]] == 1, na.rm = TRUE)
-        } else {
-          idx <- which(names(est) == var)
-          if (length(idx) > 0) {
-            res$Estimate <- or[idx]
-            res$Lower <- ci_low[idx]
-            res$Upper <- ci_high[idx]
-            res$P_Value <- p_val[idx]
-          }
-          res$N <- nrow(data[!is.na(data[[var]]), ])
-          res$Events <- sum(data[!is.na(data[[var]]), ][[outcome_var]] == 1, na.rm = TRUE)
-        }
-      }
-      return(res)
-    }
-    
-    final_list <- list()
-    
-    if (method == "univariate") {
-      for (cov in covariates) {
-        if (reg_type == "cox") {
-          f <- as.formula(paste("Surv(", time_var, ",", status_var, ") ~", cov))
-          fit <- try(coxph(f, data = df), silent = TRUE)
-          res <- extract_model_res(fit, cov, df, type = "cox")
-        } else {
-          f <- as.formula(paste(outcome_var, "~", cov))
-          fit <- try(glm(f, data = df, family = binomial), silent = TRUE)
-          res <- extract_model_res(fit, cov, df, type = "logistic")
-        }
-        if (!is.null(res)) final_list[[cov]] <- res
-      }
-    } else {
-      # Multivariate
-      if (reg_type == "cox") {
-        f <- as.formula(paste("Surv(", time_var, ",", status_var, ") ~", paste(covariates, collapse = "+")))
-        fit <- try(coxph(f, data = df), silent = TRUE)
-        for (cov in covariates) {
-          res <- extract_model_res(fit, cov, df, type = "cox")
-          if (!is.null(res)) final_list[[cov]] <- res
-        }
-      } else {
-        f <- as.formula(paste(outcome_var, "~", paste(covariates, collapse = "+")))
-        fit <- try(glm(f, data = df, family = binomial), silent = TRUE)
-        for (cov in covariates) {
-          res <- extract_model_res(fit, cov, df, type = "logistic")
-          if (!is.null(res)) final_list[[cov]] <- res
-        }
-      }
-    }
-    
-    if (length(final_list) > 0) {
-      out <- do.call(rbind, final_list)
-      # 格式化 P 值 (保留用于显示，但保留原始值用于排序/逻辑)
-      out$P_Value_Raw <- out$P_Value
-      out$P_Value_Str <- ifelse(is.na(out$P_Value), "", 
-                                ifelse(out$P_Value < 0.001, "<0.001", sprintf("%.3f", out$P_Value)))
+    if (!is.null(out)) {
       return(out)
     } else {
       showNotification("分析未产生有效结果，请检查数据", type = "warning")
@@ -1017,74 +908,26 @@ forest_plot_server <- function(input, output, session, data) {
 
   # 处理数据，准备森林图
   processed_data <- reactive({
-    
-    if (input$data_mode == "precalculated") {
-      # 原有逻辑：预处理数据
-      req(data(), input$subgroup_col, input$study_col, 
-          input$estimate_col, input$lower_col, input$upper_col)
-      
-      df <- data()
-      
-      # 映射列名
-      cols_map <- list(
-        subgroup = input$subgroup_col,
-        study = input$study_col,
-        estimate = input$estimate_col,
-        lower = input$lower_col,
-        upper = input$upper_col
-      )
-      
-    } else {
-      # 新逻辑：原始数据分析
-      req(analysis_results())
-      df <- analysis_results()
-      
-      # 硬编码映射列名 (分析结果的固定列名)
-      cols_map <- list(
-        subgroup = "Variable",
-        study = "Level",
-        estimate = "Estimate",
-        lower = "Lower",
-        upper = "Upper"
-      )
-    }
-    
-    # 检查必要列是否存在
-    required_cols <- unlist(cols_map)
-    missing_cols <- required_cols[!required_cols %in% names(df)]
-    if (length(missing_cols) > 0) {
-      # 仅在预处理模式下报错，因为分析模式下如果列不对是代码逻辑问题
-      if (input$data_mode == "precalculated") {
-         showNotification(paste("缺少必要列:", paste(missing_cols, collapse = ", ")), type = "error")
-      }
-      return(NULL)
-    }
-    
-    # 转换数值列
-    num_cols <- c(cols_map$estimate, cols_map$lower, cols_map$upper)
-    for (col in num_cols) {
-      if (col %in% names(df)) {
-        df[[col]] <- suppressWarnings(as.numeric(df[[col]]))
-      }
-    }
+    df <- forest_result_data()
+    req(df)
     
     # 添加原始行ID以保持顺序
-    df$original_row_id <- 1:nrow(df)
+    df$original_row_id <- seq_len(nrow(df))
     
     # 计算y位置（从顶部到底部）
     df <- df %>% arrange(desc(original_row_id))
     df$y_pos <- 1:nrow(df)
     
     # 处理亚组
-    df$subgroup_mapped <- as.character(df[[cols_map$subgroup]])
+    df$subgroup_mapped <- df$forest_subgroup
     
     # 处理超出范围的值
     x_min_val <- ifelse(is.numeric(input$x_min), input$x_min, 0)
     x_max_val <- ifelse(is.numeric(input$x_max), input$x_max, 100)
     
-    df$estimate_adj <- df[[cols_map$estimate]]
-    df$lower_adj <- df[[cols_map$lower]]
-    df$upper_adj <- df[[cols_map$upper]]
+    df$estimate_adj <- df$forest_estimate
+    df$lower_adj <- df$forest_lower
+    df$upper_adj <- df$forest_upper
     
     df$out_of_range_low <- df$lower_adj < x_min_val & !is.na(df$lower_adj)
     df$out_of_range_high <- df$upper_adj > x_max_val & !is.na(df$upper_adj)
@@ -1126,7 +969,6 @@ forest_plot_server <- function(input, output, session, data) {
     data <- processed_data()
     x_min <- input$x_min
     x_max <- input$x_max
-    ref_line <- input$ref_line
     line_width <- input$line_width
     line_height <- input$line_height
     table_font_size <- input$table_font_size
@@ -1152,9 +994,14 @@ forest_plot_server <- function(input, output, session, data) {
     plot_family <- font_spec$unified
     layout_family <- font_spec$layout
     
-    column_alignments <- get_column_alignments()
-    custom_column_names <- get_custom_column_names()
-    table_cols <- get_table_cols()
+    column_state <- forest_collect_selected_column_state(
+      selected_cols = user_selections$selected_cols,
+      display_names = isolate(user_selections$display_names),
+      alignments = isolate(user_selections$alignments)
+    )
+    column_alignments <- column_state$alignments
+    custom_column_names <- column_state$display_names
+    table_cols <- column_state$selected_cols
     
     # 确保数据按照原始顺序排列
     data <- data %>% arrange(original_row_id)
@@ -1179,13 +1026,26 @@ forest_plot_server <- function(input, output, session, data) {
       fmt <- paste0("%.", decimals, "f")
       x_labels <- sprintf(fmt, x_breaks)
     }
+
+    ref_line_spec <- if (isTRUE(input$show_ref_line %||% TRUE)) {
+      graphics_collect_reference_line_spec(
+        input = input,
+        id_prefix = "ref_line",
+        orientation = "v",
+        fallback_value = 1.0,
+        fallback_color = "#1A1A1A",
+        fallback_linetype = "solid",
+        fallback_linewidth = 0.8
+      )
+    } else {
+      NULL
+    }
     
     # 1. 创建森林图形部分
     forest_plot <- ggplot(data, aes(x = estimate_adj, y = y_pos)) +
       geom_rect(aes(xmin = x_min, xmax = x_max, 
                     ymin = y_pos - 0.45, ymax = y_pos + 0.45,
                     fill = bg_color), alpha = alpha) +
-      geom_vline(xintercept = ref_line, linetype = "solid", color = "black", linewidth = 0.8) +
       geom_vline(xintercept = seq(x_min, x_max, length.out = 8), linetype = "dotted", 
                  color = "gray70", alpha = 0.6, linewidth = 0.3) +
       geom_errorbar(data = filter(data, !is.na(estimate_adj)),
@@ -1251,12 +1111,24 @@ forest_plot_server <- function(input, output, session, data) {
         axis.text.x = element_text(color = "black", size = 10),
         plot.margin = margin(10, 15, 10, 5)
       )
+
+    forest_plot <- graphics_add_reference_lines(forest_plot, list(ref_line_spec))
     
     # 2. 创建表格部分
     create_table_plot <- function(data, table_cols, table_font_size, header_font_size,
                                   alpha, header_offset, line_offset, y_upper_limit,
                                   alignments, custom_names, first_col_width, max_chars_per_line,
                                   font_family) {
+      subgroup_col_name <- if ("forest_source_mode" %in% names(data) && identical(data$forest_source_mode[[1]], "raw_data")) {
+        "Variable"
+      } else {
+        input$subgroup_col
+      }
+      estimate_col_names <- if ("forest_source_mode" %in% names(data) && identical(data$forest_source_mode[[1]], "raw_data")) {
+        c("Estimate", "Lower", "Upper")
+      } else {
+        c(input$estimate_col, input$lower_col, input$upper_col)
+      }
       
       n_cols <- length(table_cols)
       
@@ -1306,7 +1178,7 @@ forest_plot_server <- function(input, output, session, data) {
           col_values[is.na(col_values)] <- "NA"
           
           # 如果是亚组列，只显示每个亚组的第一个
-          if (col_name == input$subgroup_col) {
+          if (!is.null(subgroup_col_name) && identical(col_name, subgroup_col_name)) {
             # 标记每个亚组的第一行
             subgroup_first <- !duplicated(table_data$subgroup_mapped)
             # 只保留亚组第一行的值，其他行设为空字符串
@@ -1318,12 +1190,7 @@ forest_plot_server <- function(input, output, session, data) {
           # 注意：在 raw_data 模式下，P_Value_Str 已经是格式化好的字符串，不需要再次格式化
           # 这里主要针对 Estimate, Lower, Upper 或者用户传入的原始数值
           
-          is_numeric_col <- FALSE
-          if (input$data_mode == "raw_data") {
-             if (col_name %in% c("Estimate", "Lower", "Upper", "HR", "OR")) is_numeric_col <- TRUE
-          } else {
-             if (col_name %in% c(input$estimate_col, input$lower_col, input$upper_col)) is_numeric_col <- TRUE
-          }
+          is_numeric_col <- col_name %in% estimate_col_names
           
           if (is_numeric_col) {
              # 尝试转换为数值并格式化
@@ -1540,39 +1407,51 @@ forest_plot_server <- function(input, output, session, data) {
 
   apply_state <- function(state) {
     if (!is.list(state)) return(invisible(FALSE))
+    input_state <- graphics_task_payload_input_state(state)
+    extra_state <- graphics_task_payload_extra_state(state)
+    pending_mapping_restore(list(
+      mode = input_state$data_mode %||% input$data_mode %||% "precalculated",
+      extra_state = extra_state
+    ))
+
     graphics_restore_task_input_state(
       session,
-      state,
-      exclude_ids = c("generate", "run_analysis")
+      list(input_state = input_state, extra_state = list()),
+      exclude_ids = c(
+        "generate", "run_analysis", "selected_table_cols",
+        "subgroup_col", "study_col", "estimate_col", "lower_col", "upper_col",
+        "time_col", "status_col", "outcome_col", "covariates"
+      ),
+      exclude_patterns = forest_task_state_exclude_patterns,
+      defer = FALSE
     )
-    extra_state <- graphics_task_payload_extra_state(state)
-    if (is.list(extra_state$display_names)) user_selections$display_names <- extra_state$display_names
-    if (is.list(extra_state$alignments)) user_selections$alignments <- extra_state$alignments
-    if (!is.null(extra_state$selected_table_cols)) user_selections$selected_cols <- extra_state$selected_table_cols
 
     df_current <- data()
     if (!is.null(df_current)) {
       cols <- names(df_current)
-      time_candidates <- cols[grep("time|dur|os|pfs|rfs", tolower(cols))]
-      status_candidates <- cols[grep("status|event|dead|death|censor", tolower(cols))]
-      outcome_candidates <- cols[grep("response|outcome|recurrence|disease|event|status", tolower(cols))]
-
-      updateSelectInput(session, "subgroup_col", choices = cols, selected = extra_state$subgroup_col %||% input$subgroup_col)
-      updateSelectInput(session, "study_col", choices = cols, selected = extra_state$study_col %||% input$study_col)
-      updateSelectInput(session, "estimate_col", choices = cols, selected = extra_state$estimate_col %||% input$estimate_col)
-      updateSelectInput(session, "lower_col", choices = cols, selected = extra_state$lower_col %||% input$lower_col)
-      updateSelectInput(session, "upper_col", choices = cols, selected = extra_state$upper_col %||% input$upper_col)
-      updateSelectInput(session, "time_col", choices = cols, selected = extra_state$time_col %||% input$time_col %||% time_candidates[1] %||% cols[1])
-      updateSelectInput(session, "status_col", choices = cols, selected = extra_state$status_col %||% input$status_col %||% status_candidates[1] %||% cols[min(2, length(cols))])
-      updateSelectInput(session, "outcome_col", choices = cols, selected = extra_state$outcome_col %||% input$outcome_col %||% outcome_candidates[1] %||% cols[1])
-      updateSelectizeInput(session, "covariates", choices = cols, selected = extra_state$covariates %||% input$covariates, server = TRUE)
-      updateSelectizeInput(
-        session,
-        "selected_table_cols",
-        choices = unique(c(cols, extra_state$selected_table_cols %||% character(0))),
-        selected = extra_state$selected_table_cols %||% input$selected_table_cols,
-        server = TRUE
+      apply_forest_mapping_inputs(cols, pending_mapping_restore())
+      restored <- forest_restore_selected_column_state(
+        session = session,
+        extra_state = extra_state,
+        selection_input_id = "selected_table_cols",
+        current_display_names = isolate(user_selections$display_names),
+        current_alignments = isolate(user_selections$alignments),
+        available_cols = cols
       )
+      user_selections$display_names <- restored$display_names
+      user_selections$alignments <- restored$alignments
+      user_selections$selected_cols <- restored$selected_cols
+    } else {
+      restored <- forest_restore_selected_column_state(
+        session = session,
+        extra_state = extra_state,
+        selection_input_id = "selected_table_cols",
+        current_display_names = isolate(user_selections$display_names),
+        current_alignments = isolate(user_selections$alignments)
+      )
+      user_selections$display_names <- restored$display_names
+      user_selections$alignments <- restored$alignments
+      user_selections$selected_cols <- restored$selected_cols
     }
 
     invisible(TRUE)
@@ -1580,6 +1459,11 @@ forest_plot_server <- function(input, output, session, data) {
 
   list(
     state = reactive({
+      column_state <- forest_collect_selected_column_state(
+        selected_cols = user_selections$selected_cols,
+        display_names = isolate(user_selections$display_names),
+        alignments = isolate(user_selections$alignments)
+      )
       graphics_build_task_state(
         input,
         extra_state = list(
@@ -1592,11 +1476,12 @@ forest_plot_server <- function(input, output, session, data) {
           status_col = input$status_col,
           outcome_col = input$outcome_col,
           covariates = input$covariates,
-          selected_table_cols = get_table_cols(),
-          display_names = user_selections$display_names,
-          alignments = user_selections$alignments
+          selected_table_cols = column_state$selected_cols,
+          display_names = column_state$display_names,
+          alignments = column_state$alignments
         ),
-        exclude_ids = c("generate", "run_analysis")
+        exclude_ids = c("generate", "run_analysis", "selected_table_cols"),
+        exclude_patterns = forest_task_state_exclude_patterns
       )
     }),
     apply_state = apply_state

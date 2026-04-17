@@ -17,9 +17,8 @@ library(scales)
 
 combo_plot_ui <- function(id) {
   ns <- NS(id)
-  
+
   tagList(
-    # 顶部配置区域 - 左右分栏
     fluidRow(
       box(
         width = 12,
@@ -29,102 +28,171 @@ combo_plot_ui <- function(id) {
         collapsible = TRUE,
         collapsed = TRUE,
         fluidRow(
-          # 左侧：核心变量与类型选择
-          column(4,
+          column(
+            4,
             wellPanel(
-              style = "height: 600px; overflow-y: auto;",
-              h4("核心设置", style = "color: #007bff; margin-top: 0;"),
-              
-              # 1. 变量选择
-              tags$div(class = "panel panel-default",
-                tags$div(class = "panel-heading", "数据映射"),
-                tags$div(class = "panel-body",
-                  fluidRow(
-                    column(6, selectizeInput(ns("main_x_var"), "主X轴变量:", choices = NULL, width = "100%")),
-                    column(6, selectizeInput(ns("main_y_var"), "主Y轴变量:", choices = NULL, width = "100%"))
-                  ),
-                  fluidRow(
-                    column(6, selectizeInput(ns("group_var"), "分组变量:", choices = c("无分组" = "none"), width = "100%")),
-                    column(6, selectizeInput(ns("facet_var"), "分面变量:", choices = c("无分面" = "none"), width = "100%"))
+              style = "height: 680px; overflow-y: auto;",
+              h4("数据与变量", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "核心映射",
+                  br(),
+                  graphics_column_mapping_panel_ui(
+                    ns,
+                    title = "核心映射",
+                    fields = list(
+                      list(
+                        list(id = "main_x_var", label = "主X轴变量", type = "selectize"),
+                        list(id = "main_y_var", label = "主Y轴变量", type = "selectize")
+                      )
+                    ),
+                    help_text = "当前组合图统一从主 X / Y 映射出发，按已选图层类型叠加或拆分。"
                   )
-                )
-              ),
-              
-              # 2. 图形类型选择
-              tags$div(class = "panel panel-default",
-                tags$div(class = "panel-heading", "图形与样式"),
-                tags$div(class = "panel-body",
-                  checkboxGroupInput(ns("plot_types"), "选择图形类型 (多选):",
-                                   choices = c(
-                                     "散点图" = "scatter",
-                                     "折线图" = "line",
-                                     "柱状图" = "bar",
-                                     "箱线图" = "boxplot",
-                                     "密度图" = "density",
-                                     "直方图" = "histogram",
-                                     "面积图" = "area",
-                                     "小提琴图" = "violin"
-                                   ),
-                                   selected = c("scatter", "line"),
-                                   inline = TRUE)
-                )
-              ),
-              
-              # 3. 组合方式
-              tags$div(class = "panel panel-default",
-                tags$div(class = "panel-heading", "布局与比例"),
-                tags$div(class = "panel-body",
-                  radioButtons(ns("combo_method"), NULL,
-                             choices = c(
-                               "叠加显示 (共享坐标轴)" = "overlay",
-                               "并排显示 (独立子图)" = "side_by_side",
-                               "上下显示 (独立子图)" = "top_bottom"
-                             ),
-                             selected = "overlay")
-                )
-              ),
-              tags$div(class = "panel panel-default",
-                tags$div(class = "panel-heading", "输出与导出参数"),
-                tags$div(class = "panel-body",
-                  fluidRow(
-                    column(6, selectInput(ns("export_format"), "导出格式", choices = c("导出PNG" = "png", "导出PDF" = "pdf", "导出SVG" = "svg"), selected = "png", width = "100%")),
-                    column(6, numericInput(ns("export_dpi"), "导出DPI", value = 300, min = 72, max = 1200, step = 10, width = "100%"))
+                ),
+                tabPanel(
+                  "分组/分面/轨道/附加变量",
+                  br(),
+                  graphics_column_mapping_panel_ui(
+                    ns,
+                    title = "分组/分面/附加变量",
+                    fields = list(
+                      list(
+                        list(id = "group_var", label = "分组变量", type = "selectize", choices = c("无分组" = "none"), column = 6),
+                        list(id = "facet_var", label = "分面变量", type = "selectize", choices = c("无分面" = "none"), column = 6)
+                      )
+                    ),
+                    extra_ui = graphics_card_panel_ui(
+                      "组合方式与图层选择",
+                      tagList(
+                        radioButtons(
+                          ns("combo_method"),
+                          "组合方式",
+                          choices = c(
+                            "叠加显示 (共享坐标轴)" = "overlay",
+                            "并排显示 (独立子图)" = "side_by_side",
+                            "上下显示 (独立子图)" = "top_bottom"
+                          ),
+                          selected = "overlay"
+                        ),
+                        checkboxGroupInput(
+                          ns("plot_types"),
+                          "选择图形类型 (多选)",
+                          choices = c(
+                            "散点图" = "scatter",
+                            "折线图" = "line",
+                            "柱状图" = "bar",
+                            "箱线图" = "boxplot",
+                            "密度图" = "density",
+                            "直方图" = "histogram",
+                            "面积图" = "area",
+                            "小提琴图" = "violin"
+                          ),
+                          selected = c("scatter", "line"),
+                          inline = TRUE
+                        ),
+                        helpText("当前组合图暂无轨道变量；高动态图层参数继续在“图层样式”页签中维护。")
+                      )
+                    )
                   )
                 )
               )
             )
           ),
-          
-          # 右侧：详细参数设置 (动态 Tab)
-          column(8,
+          column(
+            4,
             wellPanel(
-              style = "height: 600px; overflow-y: auto;",
-              h4("详细参数设置", style = "color: #007bff; margin-top: 0;"),
-              
-              # 使用 uiOutput 动态生成 Tabs，仅显示选中的图形类型
-              uiOutput(ns("dynamic_plot_settings"))
+              style = "height: 680px; overflow-y: auto;",
+              h4("图形与样式", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "标题与说明",
+                  br(),
+                  graphics_card_panel_ui(
+                    "标题与说明",
+                    tagList(
+                      helpText("当前组合图标题仍按图层组合自动生成，本轮优先收口 UI 格局与任务历史恢复，不改绘图语义。")
+                    )
+                  )
+                ),
+                tabPanel(
+                  "显示与坐标",
+                  br(),
+                  graphics_card_panel_ui(
+                    "显示与坐标",
+                    tagList(
+                      helpText("组合方式、分组与分面已统一收纳到“数据与变量”页签；当前模块暂不额外暴露统一坐标格式控件。")
+                    )
+                  )
+                ),
+                tabPanel(
+                  "图层样式",
+                  br(),
+                  graphics_card_panel_ui(
+                    "图层样式",
+                    uiOutput(ns("dynamic_plot_settings"))
+                  )
+                ),
+                tabPanel(
+                  "参考线与阈值",
+                  br(),
+                  graphics_card_panel_ui(
+                    "参考线与阈值",
+                    tagList(
+                      helpText("当前组合图模块尚未提供统一的参考线或阈值控件。")
+                    )
+                  )
+                )
+              )
+            )
+          ),
+          column(
+            4,
+            wellPanel(
+              style = "height: 680px; overflow-y: auto;",
+              h4("输出与导出", style = "color: #007bff; margin-top: 0;"),
+              tabsetPanel(
+                tabPanel(
+                  "尺寸与画布",
+                  br(),
+                  graphics_card_panel_ui(
+                    "尺寸与画布",
+                    tagList(
+                      helpText("当前组合图导出仍使用固定画布 12 x 8 英寸；本轮不改绘图与导出算法。")
+                    )
+                  )
+                ),
+                tabPanel(
+                  "导出参数",
+                  br(),
+                  graphics_card_panel_ui(
+                    "导出参数",
+                    tagList(
+                      fluidRow(
+                        column(6, selectInput(ns("export_format"), "导出格式", choices = c("导出PNG" = "png", "导出PDF" = "pdf", "导出SVG" = "svg"), selected = "png", width = "100%")),
+                        column(6, numericInput(ns("export_dpi"), "导出DPI", value = 300, min = 72, max = 1200, step = 10, width = "100%"))
+                      )
+                    )
+                  )
+                )
+              )
             )
           )
         )
       )
     ),
-    
-    # 底部展示区域 - 全宽
     fluidRow(
       box(
         width = 12,
-        title = "组合图形输出",
+        title = "结果区",
         status = "success",
         solidHeader = TRUE,
-        
-        # 顶部工具栏
-        fluidRow(
-          column(6, div(style = "text-align: left; margin-bottom: 10px;", actionButton(ns("generate_plot"), "生成图形", class = "btn-primary"))),
-          column(6, div(style = "text-align: right; margin-bottom: 10px;", downloadButton(ns("download_plot"), "下载图形", class = "btn-primary")))
-        ),
-        
-        # 图形显示区域
-        uiOutput(ns("plot_output_area"))
+        graphics_output_action_bar_ui(ns, render_button_id = "generate_plot", download_id = "download_plot"),
+        tabsetPanel(
+          id = ns("output_tabs"),
+          tabPanel("静态图", plotOutput(ns("static_plot"), height = "700px")),
+          tabPanel("交互图", uiOutput(ns("interactive_plot_ui"))),
+          tabPanel("数据", DTOutput(ns("combo_data_table")))
+        )
       )
     )
   )
@@ -396,60 +464,54 @@ combo_plot_server <- function(input, output, session, data) {
     })
   })
   
-  # 图形输出区域 UI
-  output$plot_output_area <- renderUI({
+  output$interactive_plot_ui <- renderUI({
+    req(generated_plot_obj())
+    plotlyOutput(
+      ns("interactive_plot"),
+      height = if (generated_plot_obj()$method == "overlay") "620px" else "800px"
+    )
+  })
+
+  final_static_plot <- reactive({
+    req(generated_plot_obj())
+    obj <- generated_plot_obj()$obj
+    if (inherits(obj, "ggplot")) {
+      return(obj)
+    }
+    nrows <- if (generated_plot_obj()$method == "side_by_side") 1 else length(obj)
+    plot_grid(plotlist = obj, nrow = nrows)
+  })
+
+  output$static_plot <- renderPlot({
+    req(final_static_plot())
+    print(final_static_plot())
+  })
+
+  output$interactive_plot <- renderPlotly({
     req(generated_plot_obj())
     if (generated_plot_obj()$method == "overlay") {
-      plotlyOutput(ns("overlay_plot"), height = "600px")
-    } else {
-      # 对于多个子图，使用 plotOutput (静态) 或 plotlyOutput (动态)
-      # 为了布局控制，这里使用 plotly 的 subplot
-      plotlyOutput(ns("grid_plot"), height = "800px")
+      return(ggplotly(generated_plot_obj()$obj))
     }
-  })
-  
-  # 叠加图形渲染
-  output$overlay_plot <- renderPlotly({
-    req(generated_plot_obj())
-    req(generated_plot_obj()$method == "overlay")
-    p <- generated_plot_obj()$obj
-    ggplotly(p)
-  })
-  
-  # 网格图形渲染 (并排/上下)
-  output$grid_plot <- renderPlotly({
-    req(generated_plot_obj())
-    req(generated_plot_obj()$method != "overlay")
-    plot_list <- generated_plot_obj()$obj
-    
-    # 转换为 plotly 对象
-    plotly_list <- lapply(plot_list, ggplotly)
-    
-    # 确定行数
-    nrows <- if(generated_plot_obj()$method == "side_by_side") 1 else length(plotly_list)
-    
+    plotly_list <- lapply(generated_plot_obj()$obj, ggplotly)
+    nrows <- if (generated_plot_obj()$method == "side_by_side") 1 else length(plotly_list)
     subplot(plotly_list, nrows = nrows, shareX = FALSE, shareY = FALSE, titleX = TRUE, titleY = TRUE)
   })
-  
+
+  output$combo_data_table <- renderDT({
+    req(data())
+    datatable(data(), options = list(pageLength = 10, scrollX = TRUE), rownames = FALSE)
+  })
+
   # 下载处理
   output$download_plot <- downloadHandler(
     filename = function() {
       build_plot_export_filename("combo_plot", input$export_format)
     },
     content = function(file) {
-      req(generated_plot_obj())
-      obj <- generated_plot_obj()$obj
-      
-      if (inherits(obj, "ggplot")) {
-        final_plot <- obj
-      } else if (is.list(obj)) {
-        nrows <- if(generated_plot_obj()$method == "side_by_side") 1 else length(obj)
-        final_plot <- plot_grid(plotlist = obj, nrow = nrows)
-      }
-      
+      req(final_static_plot())
       save_plot_export(
         file = file,
-        plot_obj = final_plot,
+        plot_obj = final_static_plot(),
         format = input$export_format,
         width = 12,
         height = 8,
@@ -457,9 +519,41 @@ combo_plot_server <- function(input, output, session, data) {
       )
     }
   )
-  
+
   apply_state <- function(state) {
-    graphics_restore_task_input_state(session, state)
+    if (!is.list(state)) return(invisible(FALSE))
+    input_state <- graphics_task_payload_input_state(state)
+    extra_state <- graphics_task_payload_extra_state(state)
+
+    base_ids <- c(
+      "main_x_var", "main_y_var", "group_var", "facet_var",
+      "plot_types", "combo_method", "export_format", "export_dpi"
+    )
+    base_state <- input_state[names(input_state) %in% base_ids]
+    dynamic_state <- input_state[!(names(input_state) %in% base_ids)]
+
+    if (length(base_state) > 0) {
+      graphics_restore_task_input_state(
+        session,
+        list(input_state = base_state, extra_state = list()),
+        defer = FALSE
+      )
+    }
+    if (length(base_state) == 0 && length(extra_state$plot_types %||% character(0)) > 0) {
+      updateCheckboxGroupInput(session, "plot_types", selected = extra_state$plot_types)
+    }
+    if (length(base_state) == 0 && !is.null(extra_state$method)) {
+      updateRadioButtons(session, "combo_method", selected = extra_state$method)
+    }
+    session$onFlushed(function() {
+      if (length(dynamic_state) > 0) {
+        graphics_restore_task_input_state(
+          session,
+          list(input_state = dynamic_state, extra_state = list()),
+          defer = FALSE
+        )
+      }
+    }, once = TRUE)
     invisible(TRUE)
   }
 

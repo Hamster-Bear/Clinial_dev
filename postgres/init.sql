@@ -62,15 +62,14 @@ CREATE TABLE IF NOT EXISTS workspace_invites (
 CREATE TABLE IF NOT EXISTS analysis_states (
     id VARCHAR(50) PRIMARY KEY,
     user_id VARCHAR(50) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    workspace_id VARCHAR(50) REFERENCES workspaces(id) ON DELETE SET NULL,
-    scope VARCHAR(20) NOT NULL DEFAULT 'graphics',
-    module_type VARCHAR(50) NOT NULL,
+    workspace_id VARCHAR(50) REFERENCES workspaces(id) ON DELETE CASCADE,
+    scope VARCHAR(50) NOT NULL,
+    module_type VARCHAR(100) NOT NULL,
     state_name VARCHAR(255) NOT NULL,
-    state_note TEXT,
     state_payload TEXT NOT NULL,
+    state_note TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, workspace_id, scope, module_type, state_name)
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_workspaces_owner_user ON workspaces(owner_user_id);
@@ -83,5 +82,10 @@ CREATE INDEX IF NOT EXISTS idx_workspace_memberships_user ON workspace_membershi
 CREATE INDEX IF NOT EXISTS idx_workspace_invites_workspace ON workspace_invites(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_invites_email ON workspace_invites(invited_email);
 CREATE INDEX IF NOT EXISTS idx_analysis_states_user_scope ON analysis_states(user_id, scope);
-CREATE INDEX IF NOT EXISTS idx_analysis_states_workspace ON analysis_states(workspace_id);
-CREATE INDEX IF NOT EXISTS idx_analysis_states_module ON analysis_states(module_type);
+CREATE INDEX IF NOT EXISTS idx_analysis_states_workspace_module ON analysis_states(workspace_id, module_type);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_analysis_states_user_workspace_scope_module_name
+    ON analysis_states(user_id, workspace_id, scope, module_type, state_name)
+    WHERE workspace_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_analysis_states_user_scope_module_name_personal
+    ON analysis_states(user_id, scope, module_type, state_name)
+    WHERE workspace_id IS NULL;

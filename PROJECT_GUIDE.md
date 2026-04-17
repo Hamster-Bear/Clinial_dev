@@ -241,6 +241,9 @@ AutoTFL/
 ### 4.1 目录使用约定
 
 - `modules/common/` 只放跨模块共享逻辑，不放单一图形或单一统计方法的专属实现。
+- 为保持 `modules/statistical_graphics/` 目录干净，图形子模块主文件之外的辅助类、结果整形器、状态桥接器和分析流水线 helper，后续不得继续堆回 `modules/statistical_graphics/`；应优先下沉到 `modules/common/graphics/` 这类按图形域归类的共享目录中。
+- `modules/common/` 允许按领域继续分组；目标上统一收敛为 `modules/common/auth/`、`modules/common/data/`、`modules/common/analysis/`、`modules/common/graphics/`、`modules/common/export/` 五类，以保证语义清爽、后续迁移稳定。
+- 这里所说的“后端服务层/服务域”优先指账号认证、权限、会话、workspace 与持久化服务，不指图形模块内部的 `server` 函数拆分；图形模块当前仍优先按 common helper 下沉，不单独引入新的图形 server 目录。
 - `modules/statistical_graphics_ui/` 用于图形 UI 壳层与公共控件，和 `modules/statistical_graphics/` 的 server/分析逻辑分离。
 - `tests/` 为统一测试目录，新增测试文件必须放在这里。
 - `nginx/landing/index.html` 作为平台主 Landing，保持精简，只负责入口说明与跳转。
@@ -394,7 +397,7 @@ AutoTFL/
 - 涉及 `cowplot` / `grid` 组合测量的文本（如 Survival 静态图、辅助图例、风险表、森林图表头、泳道图事件图例、底部 caption）必须先走 common 的三层字体策略：`graphics_resolve_device_safe_family()` 只负责设备安全映射（如 `Arial -> sans`），`graphics_resolve_font_spec()` / `graphics_resolve_text_family()` 负责拉丁与 CJK 文本分流，`graphics_resolve_layout_family()` 专门处理布局测量链路。`draw_label()`、辅助图例和 common caption 不得再直接吃 `Noto Sans SC` 等自定义字体名。仅依赖 `showtext::font_add_google()` 不能保证离线容器内的中文字体可用。
 - 同类规则也适用于非统计图形主入口中的文本层：`exploratory_analysis.R` 的错误占位/标题文本，以及 `tables/ae_sidebyside.R` 的汇总标注，不得再硬编码 `sans` 或依赖设备默认字体。
 - 森林图、蜘蛛图、泳道图当前已开始复用 common UI 高阶组件收口坐标范围、刻度格式与时间轴单位换算；经典轴线手动画段也已抽到 `graphics_add_classic_axis_segments()`，减少模块内重复 `annotate("segment")` 逻辑。泳道图在 `classic` 无箭头模式下，X 轴线段终点需保持在面板裁剪边界内侧，避免最右端方头线帽被裁掉后出现“断裂”视觉。
-- 森林图当前已补齐任务历史最小契约：统一通过 `graphics_build_task_state()` 保存 `data_mode`、列映射、原始数据分析字段、表格列选择、列显示名/对齐方式及导出参数，并通过 `apply_state()` + `graphics_restore_task_input_state()` 回填；本轮只收口状态快照，不等同于森林图 UI 已完成与蜘蛛图相同级别的页签化重构。
+- 森林图当前已补齐任务历史最小契约：统一通过 `graphics_build_task_state()` 保存 `data_mode`、列映射、原始数据分析字段、表格列选择、列显示名/对齐方式及导出参数，并通过 `apply_state()` + `graphics_restore_task_input_state()` 回填；当前进一步补齐首轮 UI 格局收口，外层已回正为 `数据与变量 / 图形与样式 / 输出与导出` + 结果区动作条。第二轮已开始把预处理列映射、标题文本、坐标显示、配色样式和导出参数切到 common helper，但 `precalculated/raw_data` 双模式与表格配置仍保留模块内业务结构，尚未达到蜘蛛图那种更深层 common 化程度。
 
 ## 8. 预设图表实现
 
@@ -468,6 +471,7 @@ AutoTFL/
 - 若现有 common 抽象只差少量参数或枚举，应优先扩展 common 函数签名，不得在子模块包一层同义变体长期并存。
 - 子模块允许存在的特例，只限表现层细节且必须在指南中明确说明边界；一旦第二个模块需要同类能力，必须上提到 common。
 - 新增或改动 common 函数时，至少同步更新本指南中的“可复用函数清单”和相关测试，确保后续开发按同一契约收紧。
+- 若守卫测试或模块联调输出过长，优先采用“静态定位 + 最小验证”策略：先用 `Grep/Read` 锁定失败断言或可疑代码，再用 `testthat::test_file(..., reporter = "summary")` 跑目标测试文件，避免直接执行整份长输出脚本导致终端/沙盒卡住。
 - 任务历史当前采用“共享模块先内嵌、一级导航后置”的演进策略：在统计图形/统计分析形成统一 `state/apply_state` 契约前，不直接迁移为左侧一级菜单。
 - 任务历史载入的本质是“状态快照恢复”：当前由 `task_history.R` 解析 `state_payload`，再调用各业务模块的 `apply_state()` 回填控件；图形模块需尽量覆盖当前子模块全部参数的保存/回填，但是否自动重新生成结果，仍取决于业务模块自身的交互设计。
 - 统一参数面板布局规范已按前端真实形态重置为“3 个顶层功能卡片 + 卡片内部子页签 + 独立结果区”，不允许再把 `数据与变量 / 图形与样式 / 输出与导出` 这 3 个顶层功能卡本身做成并列页签。
@@ -573,8 +577,24 @@ AutoTFL/
 - `heatmap.R` 第二轮：按统一模板回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；结果区固定为动作条 + `静态图 / 交互图 / 数据`，并把原 `标题与标签 / 色板 / 格子与文本` 归并到 `标题与说明 / 图层样式` 等统一子页签，不改热图计算、聚类与导出逻辑。
 - `correlation_matrix.R` 第一轮：将 `样式主题` 页签中的标题标签、色板和格子文本显示设置改为并列子页签 `标题与标签 / 色板 / 格子与文本`，与 `heatmap.R` 对齐为同一轻量模块页签模板；本轮只调整参数编排，不改变相关系数计算方法、导出链路或任务历史契约。
 - `correlation_matrix.R` 第二轮：按统一模板回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；结果区固定为动作条 + `静态图 / 交互图 / 数据`，并把原 `标题与标签 / 色板 / 格子与文本` 归并到 `标题与说明 / 图层样式` 等统一子页签，不改相关矩阵计算与导出逻辑。
-- `forest_plot.R` 当前结构盘点：暂不直接进入页签化代码改造。该模块仍同时存在 `panel panel-default/panel-primary` 旧式容器、`precalculated/raw_data` 双模式混排、右侧表格配置嵌套折叠面板，以及结果区旧版 `生成图形/下载图形` 动作入口；因此后续需先拆清“可直接页签化的普通参数块”和“应先迁到 common 或先做职责拆分的旧结构债务”，再进入正式重构。
+- `combo_plot.R` 第一轮：按统一模板回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片，结果区统一改为 `graphics_output_action_bar_ui()` + `静态图 / 交互图 / 数据` 页签；其中高动态图层参数仍暂保留为模块内动态页签 UI，任务历史恢复改为“基础输入先回填、动态图层参数后回填”的两阶段策略，避免先恢复动态控件值时对应输入尚未创建。本轮只收口 UI 编排与状态恢复，不改组合图绘图算法、自动标题生成与固定 `12 x 8` 英寸导出逻辑。
+- `forest_plot.R` 第一轮：外层已按统一模板回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个顶层功能卡片，结果区统一切到 `graphics_output_action_bar_ui()` + `静态图 / 交互图 / 数据`；其中“数据”页签内继续保留 `数据预览 / 统计报告` 子页签。当前 `precalculated/raw_data` 双模式、表格列配置与森林图绘图算法仍保留模块内实现，本轮仅收口 UI 编排和结果区入口，不等同于已完成深层 common 化或模型服务拆分。
+- `forest_plot.R` 第二轮：在不改双模式分析语义和绘图算法的前提下，继续把稳定普通参数块下沉到 common helper：预处理列映射切到 `graphics_column_mapping_panel_ui()`，标题脚注切到 `graphics_text_label_panel_ui()`，坐标显示与参考线线条切到 `graphics_axis_proportion_panel_ui()` + `graphics_axis_range_controls_ui()` / `graphics_axis_tick_format_controls_ui()`，表格与配色切到 `graphics_palette_layout_panel_ui()`，导出参数切到 `graphics_export_panel_ui()`。当前仍暂保留 raw-data 分析配置、表格列配置与结果 schema 相关逻辑在模块内。
+- `forest_plot.R` 第三轮：继续压薄本地 helper 与任务历史桥接层。列显示名称/对齐方式的动态输入不再直接依赖任务快照中的 `name_*` / `align_*` 输入项恢复，而是统一排除出 `input_state`，改由 `selected_table_cols + display_names + alignments` 这组 `extra_state` 桥接恢复；列配置的“保存当前输入值”和“收集当前列状态”也统一收口到单一 helper，减少重复循环与恢复顺序分叉。
+- `forest_plot.R` 第四轮：开始进入更核心的结果解耦。新增 `normalize_forest_result_schema()` 与 `forest_result_data()`，把 `precalculated` 原始输入和 `raw_data` 回归结果统一归一到同一 forest result schema（如 `forest_subgroup / forest_label / forest_estimate / forest_lower / forest_upper / forest_source_mode`），供数据预览、绘图准备和后续 service/schema 拆分复用；同时把“表格列选择 + 列配置壳层”抽成 common 的 `graphics_table_panel_ui()`，森林图不再维护专属表格面板容器。
+- `forest_plot.R` 第五至第八轮的 helper 下沉现已完成真实文件迁移：原过渡文件 `forest_plot_helpers.R` 已退场，按职责正式拆到 `modules/common/graphics/forest_table_state_helpers.R`、`forest_result_schema_helpers.R`、`forest_model_helpers.R`、`forest_analysis_pipeline.R`，并由 `statistical_graphics.R` 显式 `source()`；当前 `forest_plot.R` 只保留模块编排、通知与结果消费。
+- `forest_plot.R` 第八轮：将 `analysis_results()` 的循环调度与结果汇总触发进一步收口到 `forest_run_analysis_pipeline()`。当前主模块仅负责收集输入、调用单一 pipeline helper、处理空结果通知；而 helper 层统一负责“预处理 -> 公式构造 -> 模型拟合 -> 结果提取 -> 汇总格式化”的完整分析流水线。后续若继续 service 化，优先以该 pipeline 为边界继续拆分。
+- `forest_plot.R` 第九轮已落地：为保持 `modules/statistical_graphics/` 目录干净，森林图已按“1 个模块主文件 + 4 个 common helper 文件”收口，不再在 `modules/statistical_graphics/` 下继续新增辅助文件。当前结构为：
+  - `modules/statistical_graphics/forest_plot.R`：仅保留 UI、模块编排、通知与结果消费。
+  - `modules/common/graphics/forest_table_state_helpers.R`：列选择、显示名、对齐方式及任务历史桥接。
+  - `modules/common/graphics/forest_result_schema_helpers.R`：结果 schema 标准化、结果格式化与预览/绘图消费口径。
+  - `modules/common/graphics/forest_model_helpers.R`：输入预处理、公式构造、模型拟合与结果提取。
+  - `modules/common/graphics/forest_analysis_pipeline.R`：单变量/多变量分析流水线调度与最终汇总入口。
+  - 当前不直接改动图形模块内部 `server` 实现；若后续需要独立后端服务域，应优先进入 `modules/common/auth/` 等服务域目录，而不是新增图形 server 子目录。
 - 任务历史保存/恢复要区分“业务输入”与“派生交互输入”：DT 行选择、列过滤、Plotly relayout/hover，以及 `config_tabs` 这类配置页签导航态都不得写入快照；恢复旧任务时若 payload 中仍含这些字段，common 层也必须跳过，避免回填时把表格/交互组件带入异常状态。
+- 森林图表格列选择当前新增一条稳定性约束：`selected_table_cols` 在进入 `sort()`、`intersect()` 或 observer 比较前，必须先通过 `forest_normalize_selected_columns()` 归一化为原子字符向量；任务历史恢复、`selectizeInput` 回填或复杂 list 形态都不得直接参与排序比较，否则会触发 `sort.int: 'x' 必需为基元`。
+- 森林图任务历史恢复当前再补一条约束：列映射类选择器（如 `subgroup_col / study_col / estimate_col / lower_col / upper_col / time_col / status_col / outcome_col / covariates`）不得在 choices 尚未就绪时跟随第一阶段 `input_state` 直接回填，而应在数据列 choices 更新后再统一恢复，避免预处理数据模式下出现列映射错位。当前实现采用 pending restore：先缓存历史映射快照，待当前数据列可解析保存列名后再消费恢复。
+- 森林图参考线当前再补一条语义约束：`参考线` 页签必须使用公共参考线控件承载参考线位置、颜色、线型和线宽；误差线宽与端帽长度属于图层样式，不得继续混用为“参考线线条”参数。绘图层必须真实读取参考线 spec，而不能再硬编码黑色实线。
 
 ## 10. 数据、存储与规范
 
@@ -687,7 +707,7 @@ AutoTFL/
 6. **UI 状态隔离与响应式重构**：优化图形模块（如森林图）动态渲染配置项时的循环依赖问题，大规模采用 `isolate()` 技巧防止输入过程中的焦点丢失和异常跳出。
 7. **通用 UI 组件 (Common UI Components) \[已落地]**：已继续以 `common_ui_shell.R` 作为真实承载文件，新增 `graphics_axis_range_controls_ui()`、`graphics_axis_tick_format_controls_ui()`、`graphics_time_axis_settings_ui()` 及配套收集函数；森林图、蜘蛛图、泳道图已开始接入这套高阶组件，持续减少模块私有 UI 冗余。
 8. **测试工具链引入 \[已落地]**：已引入 `.pre-commit-config.yaml`、`.lintr`、`styler`、`lintr`、`shinytest2` 依赖入口，并通过 pre-commit 串联格式化、静态检查与 `tests/` 守卫；复杂浏览器级交互测试仍保留给后续 `shinytest2` 场景补齐。
-9. **分析参数与UI状态持久化 \[已落地增强中]**：已新增 PostgreSQL `analysis_states` 表，并在 `auth_ensure_schema()` 与 `postgres/init.sql` 双处同步建表；任务历史 UI 现抽离为共享 `task_history` 模块，并先嵌入统计图形页，支持按用户保存/加载图形子模块完整参数、UI 状态、模块类型与用户 note，底层将状态序列化为 JSON 存储，并展示最近任务列表与删除操作。当前保存的是状态快照而非结果对象；载入时由各图形模块按 `state/apply_state` 契约恢复字段。当前 workspace 为空时保存为个人任务；在统计图形与统计分析形成统一契约前，暂不升为左侧一级菜单，统计分析模块接入留待下一轮扩展。
+9. **分析参数与UI状态持久化 \[已落地增强中]**：已新增 PostgreSQL `analysis_states` 表，并在 `auth_ensure_schema()` 与 `postgres/init.sql` 双处同步建表；任务历史 UI 现抽离为共享 `task_history` 模块，并先嵌入统计图形页，支持按用户保存/加载图形子模块完整参数、UI 状态、模块类型与用户 note，底层将状态序列化为 JSON 存储，并展示最近任务列表与删除操作。当前保存的是状态快照而非结果对象；载入时由各图形模块按 `state/apply_state` 契约恢复字段。当前 workspace 为空时保存为个人任务；service 层需通过 `service_normalize_analysis_state_workspace_id()` 将空 workspace 以及带 `id` 字段的 list/data.frame 输入统一归一为数据库 `NULL` 或单一 workspace id，避免任务历史在“个人任务/工作空间任务”边界上出现运行时缺函数或 SQL 过滤漂移。`analysis_states` 当前约束为“同一用户 + 同一 scope + 同一 module_type + 同一 state_name”在个人任务内唯一、在同一 workspace 内唯一；但 `service_save_analysis_state()` 的覆盖保存实现不能把数据库唯一索引当作前置条件，而应先显式查询同名任务，再执行 update 或 insert，从而兼容旧库尚未迁移完成时的保存链路，并继续保证用户侧“同名任务即覆盖”。对既有部署实例，需通过 `postgres/migrations/001_analysis_states_schema.sql` 与运行时迁移函数同步收敛旧表约束、重复数据和索引。在统计图形与统计分析形成统一契约前，暂不升为左侧一级菜单，统计分析模块接入留待下一轮扩展。
 10. **精细化图形样式控制 \[已落地首期]**：已将经典坐标轴线段抽到 `graphics_add_classic_axis_segments()`，并把时间轴单位换算/步长配置继续收敛到 common UI；泳道图与蜘蛛图已开始复用统一时间轴控件，森林图也已收敛坐标范围与刻度格式。其余时间序列图形继续按同一公共契约扩展。
 
 ## 13. 研发治理约束

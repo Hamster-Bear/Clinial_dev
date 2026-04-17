@@ -107,6 +107,126 @@ auth_create_pool <- function() {
   )
 }
 
+auth_migrate_analysis_states_schema <- function(pool) {
+  DBI::dbExecute(pool, "ALTER TABLE analysis_states ADD COLUMN IF NOT EXISTS workspace_id VARCHAR(50)")
+  DBI::dbExecute(pool, "ALTER TABLE analysis_states ADD COLUMN IF NOT EXISTS scope VARCHAR(50)")
+  DBI::dbExecute(pool, "ALTER TABLE analysis_states ADD COLUMN IF NOT EXISTS module_type VARCHAR(100)")
+  DBI::dbExecute(pool, "ALTER TABLE analysis_states ADD COLUMN IF NOT EXISTS state_name VARCHAR(255)")
+  DBI::dbExecute(pool, "ALTER TABLE analysis_states ADD COLUMN IF NOT EXISTS state_payload TEXT")
+  DBI::dbExecute(pool, "ALTER TABLE analysis_states ADD COLUMN IF NOT EXISTS state_note TEXT")
+  DBI::dbExecute(pool, "ALTER TABLE analysis_states ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP")
+  DBI::dbExecute(pool, "ALTER TABLE analysis_states ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP")
+  DBI::dbExecute(pool, "ALTER TABLE analysis_states ALTER COLUMN state_payload TYPE TEXT USING state_payload::text")
+  DBI::dbExecute(pool, "ALTER TABLE analysis_states ALTER COLUMN state_note TYPE TEXT USING state_note::text")
+  DBI::dbExecute(pool, "ALTER TABLE analysis_states ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP")
+  DBI::dbExecute(pool, "ALTER TABLE analysis_states ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP")
+  DBI::dbExecute(
+    pool,
+    paste(
+      "UPDATE analysis_states",
+      "SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP),",
+      "created_at = COALESCE(created_at, updated_at, CURRENT_TIMESTAMP)"
+    )
+  )
+  DBI::dbExecute(
+    pool,
+    paste(
+      "DO $$",
+      "BEGIN",
+      "  IF NOT EXISTS (",
+      "    SELECT 1",
+      "    FROM pg_constraint",
+      "    WHERE conrelid = 'analysis_states'::regclass",
+      "      AND conname = 'analysis_states_workspace_fk'",
+      "  ) THEN",
+      "    ALTER TABLE analysis_states",
+      "    ADD CONSTRAINT analysis_states_workspace_fk",
+      "    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;",
+      "  END IF;",
+      "END $$;"
+    )
+  )
+  DBI::dbExecute(
+    pool,
+    paste(
+      "DO $$",
+      "DECLARE rec RECORD;",
+      "BEGIN",
+      "  FOR rec IN",
+      "    SELECT conname",
+      "    FROM pg_constraint",
+      "    WHERE conrelid = 'analysis_states'::regclass",
+      "      AND contype = 'u'",
+      "  LOOP",
+      "    EXECUTE format('ALTER TABLE analysis_states DROP CONSTRAINT IF EXISTS %I', rec.conname);",
+      "  END LOOP;",
+      "END $$;"
+    )
+  )
+  DBI::dbExecute(
+    pool,
+    paste(
+      "WITH ranked AS (",
+      "  SELECT ctid,",
+      "         ROW_NUMBER() OVER (",
+      "           PARTITION BY user_id, workspace_id, scope, module_type, state_name",
+      "           ORDER BY COALESCE(updated_at, created_at, CURRENT_TIMESTAMP) DESC, created_at DESC, id DESC",
+      "         ) AS rn",
+      "  FROM analysis_states",
+      "  WHERE workspace_id IS NOT NULL",
+      "    AND COALESCE(BTRIM(scope), '') <> ''",
+      "    AND COALESCE(BTRIM(module_type), '') <> ''",
+      "    AND COALESCE(BTRIM(state_name), '') <> ''",
+      ")",
+      "DELETE FROM analysis_states target",
+      "USING ranked",
+      "WHERE target.ctid = ranked.ctid AND ranked.rn > 1"
+    )
+  )
+  DBI::dbExecute(
+    pool,
+    paste(
+      "WITH ranked AS (",
+      "  SELECT ctid,",
+      "         ROW_NUMBER() OVER (",
+      "           PARTITION BY user_id, scope, module_type, state_name",
+      "           ORDER BY COALESCE(updated_at, created_at, CURRENT_TIMESTAMP) DESC, created_at DESC, id DESC",
+      "         ) AS rn",
+      "  FROM analysis_states",
+      "  WHERE workspace_id IS NULL",
+      "    AND COALESCE(BTRIM(scope), '') <> ''",
+      "    AND COALESCE(BTRIM(module_type), '') <> ''",
+      "    AND COALESCE(BTRIM(state_name), '') <> ''",
+      ")",
+      "DELETE FROM analysis_states target",
+      "USING ranked",
+      "WHERE target.ctid = ranked.ctid AND ranked.rn > 1"
+    )
+  )
+  DBI::dbExecute(
+    pool,
+    paste(
+      "CREATE UNIQUE INDEX IF NOT EXISTS uq_analysis_states_user_workspace_scope_module_name",
+      "ON analysis_states(user_id, workspace_id, scope, module_type, state_name)",
+      "WHERE workspace_id IS NOT NULL",
+      "  AND COALESCE(BTRIM(scope), '') <> ''",
+      "  AND COALESCE(BTRIM(module_type), '') <> ''",
+      "  AND COALESCE(BTRIM(state_name), '') <> ''"
+    )
+  )
+  DBI::dbExecute(
+    pool,
+    paste(
+      "CREATE UNIQUE INDEX IF NOT EXISTS uq_analysis_states_user_scope_module_name_personal",
+      "ON analysis_states(user_id, scope, module_type, state_name)",
+      "WHERE workspace_id IS NULL",
+      "  AND COALESCE(BTRIM(scope), '') <> ''",
+      "  AND COALESCE(BTRIM(module_type), '') <> ''",
+      "  AND COALESCE(BTRIM(state_name), '') <> ''"
+    )
+  )
+}
+
 auth_ensure_schema <- function(pool) {
   DBI::dbExecute(
     pool,
@@ -207,19 +327,18 @@ auth_ensure_schema <- function(pool) {
       "CREATE TABLE IF NOT EXISTS analysis_states (",
       "id VARCHAR(50) PRIMARY KEY,",
       "user_id VARCHAR(50) NOT NULL REFERENCES users(id) ON DELETE CASCADE,",
-      "workspace_id VARCHAR(50) REFERENCES workspaces(id) ON DELETE SET NULL,",
-      "scope VARCHAR(20) NOT NULL DEFAULT 'graphics',",
-      "module_type VARCHAR(50) NOT NULL,",
+      "workspace_id VARCHAR(50) REFERENCES workspaces(id) ON DELETE CASCADE,",
+      "scope VARCHAR(50) NOT NULL,",
+      "module_type VARCHAR(100) NOT NULL,",
       "state_name VARCHAR(255) NOT NULL,",
-      "state_note TEXT,",
       "state_payload TEXT NOT NULL,",
+      "state_note TEXT,",
       "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,",
-      "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,",
-      "UNIQUE(user_id, workspace_id, scope, module_type, state_name)",
+      "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP",
       ")"
     )
   )
-  DBI::dbExecute(pool, "ALTER TABLE analysis_states ADD COLUMN IF NOT EXISTS state_note TEXT")
+  auth_migrate_analysis_states_schema(pool)
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_workspaces_owner_user ON workspaces(owner_user_id)")
   DBI::dbExecute(pool, "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email)")
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_folders_workspace ON folders(workspace_id)")
@@ -230,8 +349,7 @@ auth_ensure_schema <- function(pool) {
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_workspace_invites_workspace ON workspace_invites(workspace_id)")
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_workspace_invites_email ON workspace_invites(invited_email)")
   DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_analysis_states_user_scope ON analysis_states(user_id, scope)")
-  DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_analysis_states_workspace ON analysis_states(workspace_id)")
-  DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_analysis_states_module ON analysis_states(module_type)")
+  DBI::dbExecute(pool, "CREATE INDEX IF NOT EXISTS idx_analysis_states_workspace_module ON analysis_states(workspace_id, module_type)")
 }
 
 auth_get_user_by_username <- function(pool, username) {

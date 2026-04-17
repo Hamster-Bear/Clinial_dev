@@ -84,6 +84,7 @@
 | 文件                                               | 作用                   |
 | ------------------------------------------------ | -------------------- |
 | `postgres/init.sql`                              | 初始化 PostgreSQL 表结构   |
+| `postgres/migrations/001_analysis_states_schema.sql` | 已部署实例的 `analysis_states` schema 迁移 |
 | `postgres/postgresql.conf`                       | PostgreSQL 配置文件      |
 | `deploy/alicloud/env/.env.example`               | 生产环境变量模板             |
 | `deploy/alicloud/scripts/init_env.sh`            | 生成 `.env` 并填充随机数据库密码 |
@@ -105,6 +106,8 @@ AutoTFL/
 ├── run_app.R
 ├── postgres/
 │   ├── init.sql
+│   ├── migrations/
+│   │   └── 001_analysis_states_schema.sql
 │   └── postgresql.conf
 ├── nginx/
 │   ├── default.conf
@@ -717,19 +720,31 @@ deploy/alicloud/
 | `folders`    | 文件夹元数据 |
 | `datasets`   | 数据集元数据 |
 
-### 10.2 应用内部数据库连接
+### 10.2 analysis_states 迁移
+
+- `postgres/init.sql` 只适用于首次初始化数据目录；如果部署复用了旧 PostgreSQL 数据卷，它不会自动修复历史 `analysis_states` schema。
+- 当前仓库已新增 `postgres/migrations/001_analysis_states_schema.sql`，用于将旧 `analysis_states` 表迁移到当前契约。
+- 该迁移会补齐缺失字段、统一 `state_payload/state_note` 为 `TEXT`、回填时间戳默认值、删除自然键重复的旧记录，并重建唯一索引。
+- 当前唯一性口径为：
+  - workspace 任务：`user_id + workspace_id + scope + module_type + state_name`
+  - 个人任务：`user_id + scope + module_type + state_name` 且 `workspace_id IS NULL`
+- 应用层同名保存语义仍按“覆盖”处理；当前 service 会先查询同名任务再显式 update/insert，因此即使旧库尚未完成唯一索引迁移，用户侧保存链路也不应因为 `ON CONFLICT` 推断失败而中断。
+- 删除重复记录时保留最近更新的一条，因此生产库执行前必须先备份。
+- 应用启动时 `auth_ensure_schema()` 也会执行对应运行时迁移，但生产发布仍建议在维护窗口手工执行该 SQL 文件，避免应用首启承担历史数据清理压力。
+
+### 10.3 应用内部数据库连接
 
 - 应用通过 `POSTGRES_DB`、`POSTGRES_HOST`、`POSTGRES_PORT`、`POSTGRES_USER`、`POSTGRES_PASSWORD` 建立连接。
 - 当前数据库模块与数据准备模块都依赖 PostgreSQL 连接池。
 - 如果数据库不可用，数据集登记、加载和基于数据库的选择器都会失败。
 
-### 10.3 数据体存储
+### 10.4 数据体存储
 
 - 当前默认后端是 `local`。
 - 本地模式下，数据会被序列化为 `RDS` 文件，保存到 `STORAGE_ROOT` 下。
 - 生产编排通过 `${DATA_ROOT}/storage:${APP_STORAGE_ROOT}` 挂载，把容器内存储目录映射到宿主机。
 
-### 10.4 S3 模式说明
+### 10.5 S3 模式说明
 
 - 当前代码支持 `STORAGE_BACKEND=s3`。
 - 启用 S3 时还需要：
