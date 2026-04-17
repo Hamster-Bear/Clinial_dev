@@ -101,8 +101,12 @@ Write-Host "APP_ADMIN_EMAIL=$env:APP_ADMIN_EMAIL"
 Write-Host "SHINY_PORT=$shinyPort"
 Write-Host "Rscript=$RScriptPath"
 
-if ($env:POSTGRES_HOST -eq "localhost" -and $env:POSTGRES_PORT -eq "5432" -and (Test-Path "docker-compose1.yml")) {
-  Write-Host "警告: 若数据库由 docker-compose1.yml 拉起，请将 POSTGRES_PORT 改为 55432" -ForegroundColor Yellow
+if (
+  $env:POSTGRES_HOST -eq "localhost" -and
+  $env:POSTGRES_PORT -ne "5432" -and
+  ((Test-Path "docker-compose.local.yml") -or (Test-Path "docker-compose1.yml"))
+) {
+  Write-Host "警告: 若数据库由 docker-compose.local.yml 或 docker-compose1.yml 拉起，请确认 POSTGRES_PORT 使用 5432" -ForegroundColor Yellow
 }
 
 Stop-ProcessesByPort -Port $shinyPort

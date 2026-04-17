@@ -138,7 +138,7 @@ service_get_user_by_email <- function(pool, email) {
   DBI::dbGetQuery(
     pool,
     paste(
-      "SELECT id, username, email, is_admin, status, created_at",
+      "SELECT id, username, email, is_admin, db_access_enabled, status, created_at",
       "FROM users WHERE email = $1 LIMIT 1"
     ),
     params = list(normalized_email)
@@ -152,7 +152,7 @@ service_get_user_by_id <- function(pool, user_id) {
   DBI::dbGetQuery(
     pool,
     paste(
-      "SELECT id, username, email, is_admin, status, created_at",
+      "SELECT id, username, email, is_admin, db_access_enabled, status, created_at",
       "FROM users WHERE id = $1 LIMIT 1"
     ),
     params = list(user_id)
@@ -163,7 +163,7 @@ service_list_users <- function(pool) {
   DBI::dbGetQuery(
     pool,
     paste(
-      "SELECT id, username, email, is_admin, status, created_at",
+      "SELECT id, username, email, is_admin, db_access_enabled, status, created_at",
       "FROM users",
       "ORDER BY created_at ASC"
     )
@@ -185,9 +185,6 @@ service_list_manageable_workspaces <- function(pool, user) {
   if (is.null(user)) {
     return(data.frame())
   }
-  if (isTRUE(user$is_admin)) {
-    return(service_list_workspaces(pool))
-  }
   DBI::dbGetQuery(
     pool,
     paste(
@@ -208,7 +205,7 @@ service_can_manage_workspace <- function(pool, workspace_id, user) {
   if (nrow(workspace_row) == 0) {
     return(FALSE)
   }
-  isTRUE(user$is_admin) || identical(workspace_row$owner_user_id[[1]] %||% "", user$id %||% "")
+  identical(workspace_row$owner_user_id[[1]] %||% "", user$id %||% "")
 }
 
 service_assert_workspace_manager <- function(pool, workspace_id, user) {

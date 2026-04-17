@@ -438,8 +438,6 @@ auth_register_user <- function(pool, username, email, password) {
   if (nrow(email_existing) > 0) {
     return(list(success = FALSE, message = "邮箱已被使用", user = NULL))
   }
-  all_users <- auth_list_users(pool)
-  should_grant_admin <- nrow(all_users) == 0 || !any(all_users$is_admin %in% TRUE)
   user_id <- auth_generate_id("usr")
   salt <- auth_generate_salt()
   password_hash <- auth_hash_password(password, salt)
@@ -449,12 +447,12 @@ auth_register_user <- function(pool, username, email, password) {
       "INSERT INTO users (id, username, email, password_salt, password_hash, is_admin, db_access_enabled, status, created_at)",
       "VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', NOW())"
     ),
-    params = list(user_id, normalized, normalized_email, salt, password_hash, should_grant_admin, FALSE)
+    params = list(user_id, normalized, normalized_email, salt, password_hash, FALSE, FALSE)
   )
   created <- auth_get_user_by_id(pool, user_id)
   list(
     success = TRUE,
-    message = if (should_grant_admin) "注册成功，当前账号已成为系统管理员" else "注册成功，请登录",
+    message = "注册成功，请登录",
     user = auth_build_user_payload(created)
   )
 }
@@ -477,24 +475,20 @@ auth_ensure_bootstrap_admin <- function(pool) {
   username <- auth_normalize_username(Sys.getenv("APP_ADMIN_USERNAME", ""))
   email <- auth_normalize_email(Sys.getenv("APP_ADMIN_EMAIL", ""))
   password <- Sys.getenv("APP_ADMIN_PASSWORD", "")
-  if (!nzchar(username) || !nzchar(password)) {
+  if (!nzchar(username) || !nzchar(email) || !nzchar(password)) {
     return(invisible(NULL))
   }
   existing <- auth_get_user_by_username(pool, username)
   if (nrow(existing) > 0) {
     return(invisible(NULL))
   }
-  if (nzchar(email)) {
-    email_error <- auth_validate_email(email)
-    if (!is.null(email_error)) {
-      return(invisible(NULL))
-    }
-    existing_email <- auth_get_user_by_email(pool, email)
-    if (nrow(existing_email) > 0) {
-      return(invisible(NULL))
-    }
-  } else {
-    email <- NULL
+  email_error <- auth_validate_email(email)
+  if (!is.null(email_error)) {
+    return(invisible(NULL))
+  }
+  existing_email <- auth_get_user_by_email(pool, email)
+  if (nrow(existing_email) > 0) {
+    return(invisible(NULL))
   }
   password_error <- auth_validate_password(password)
   if (!is.null(password_error)) {
@@ -529,9 +523,6 @@ auth_ensure_workspace_membership <- function(pool, workspace_id, user_id, role =
 }
 
 auth_filter_registry <- function(reg, workspace_ids, is_admin = FALSE) {
-  if (isTRUE(is_admin)) {
-    return(reg)
-  }
   workspace_ids <- unique(workspace_ids %||% character(0))
   if (length(workspace_ids) == 0) {
     return(auth_empty_registry())
@@ -543,10 +534,6 @@ auth_filter_registry <- function(reg, workspace_ids, is_admin = FALSE) {
 }
 
 auth_accessible_workspace_ids <- function(pool, user_id, is_admin = FALSE) {
-  if (isTRUE(is_admin)) {
-    rows <- DBI::dbGetQuery(pool, "SELECT id FROM workspaces")
-    return(unique(rows$id %||% character(0)))
-  }
   if (is.null(user_id) || !nzchar(user_id)) {
     return(character(0))
   }
@@ -579,8 +566,5 @@ auth_load_registry <- function(pool, user_id = NULL, is_admin = FALSE) {
     ),
     error = function(e) auth_empty_registry()
   )
-  if (isTRUE(is_admin)) {
-    return(reg)
-  }
   auth_filter_registry(reg, auth_accessible_workspace_ids(pool, user_id, is_admin = FALSE), is_admin = FALSE)
 }

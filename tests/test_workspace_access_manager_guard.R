@@ -13,6 +13,7 @@ access_manager_text <- read_utf8("modules", "workspace_access_manager.R")
 if (!nzchar(access_manager_text)) return(invisible(NULL))
 admin_manager_text <- read_utf8("modules", "admin_manager.R")
 if (!nzchar(admin_manager_text)) return(invisible(NULL))
+data_prep_text <- read_utf8("modules", "data_preparation.R")
 
 expect_contains <- function(text, pattern, label) {
   if (!grepl(pattern, text, perl = TRUE)) {
@@ -46,10 +47,14 @@ expect_contains(admin_manager_text, "service_invite_preview_df\\(", "管理员�
 expect_contains(admin_manager_text, "grant_db_access", "管理员页开放数据库管理按钮")
 expect_contains(admin_manager_text, "revoke_db_access", "管理员页锁定数据库管理按钮")
 expect_contains(admin_manager_text, "service_set_user_db_access_by_email\\(", "管理员页通过 service 调整数据库管理权限")
+expect_contains(admin_manager_text, "service_list_manageable_workspaces\\(", "管理员页仅加载自己可管理的数据空间")
 expect_contains(admin_manager_text, "service_transfer_workspace_owner_by_email\\(", "管理员通过 service 迁移 owner")
 expect_contains(admin_manager_text, "service_grant_workspace_access_by_email\\(", "管理员通过 service 授权")
 expect_contains(admin_manager_text, "service_revoke_workspace_access_by_email\\(", "管理员通过 service 撤销")
 expect_not_contains(admin_manager_text, "selectInput\\(session\\$ns\\(\"membership_user", "管理员页不允许下拉选择目标用户")
 expect_not_contains(admin_manager_text, "selectInput\\(session\\$ns\\(\"owner_user", "管理员页不允许下拉选择 owner 用户")
+if (nzchar(data_prep_text)) {
+  expect_contains(data_prep_text, "不会写入持久化数据空间", "数据准备页临时上传声明")
+}
 
 cat("Workspace access manager guard passed.\n")

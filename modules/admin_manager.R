@@ -51,16 +51,16 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       service_list_users(pg_pool)
     })
 
-    list_workspaces <- reactive({
+    list_manageable_workspaces <- reactive({
       req(is_admin())
-      service_list_workspaces(pg_pool)
+      service_list_manageable_workspaces(pg_pool, get_current_user())
     })
 
     output$admin_access_notice <- renderUI({
       if (isTRUE(is_admin())) {
         tags$div(
           class = "admin-note",
-          "当前页面仅面向系统管理员，用于执行账号状态调整、数据库管理权限开关、数据空间负责人绑定和系统级协作授权。管理员入口保持独立，不并入普通用户侧边栏卡片。"
+          "当前页面仅面向系统管理员，用于执行账号状态调整、数据库管理权限开关和查看数据库信息。若需要处理数据空间负责人或协作授权，仅限当前管理员自己名下可管理的数据空间。管理员入口保持独立，不并入普通用户侧边栏卡片。"
         )
       } else {
         tags$div("当前页面仅系统管理员可用。")
@@ -72,7 +72,7 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
         return(NULL)
       }
       users_df <- list_users()
-      workspaces_df <- list_workspaces()
+      workspaces_df <- list_manageable_workspaces()
       workspace_choices <- if (nrow(workspaces_df) == 0) character(0) else setNames(workspaces_df$id, workspaces_df$name)
       tagList(
         fluidRow(
@@ -95,17 +95,17 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
           ),
           box(
             width = 4,
-            title = "负责人绑定",
+            title = "我名下空间负责人调整",
             status = "primary",
             solidHeader = TRUE,
             selectInput(session$ns("owner_workspace_select"), "选择目标数据空间", choices = workspace_choices),
             textInput(session$ns("owner_email"), "新负责人邮箱", placeholder = "请输入负责人邮箱"),
-            div(class = "admin-form-note", "用于系统级纠偏或初始化负责人。若邮箱尚未注册，会生成待领取的负责人迁移记录。"),
+            div(class = "admin-form-note", "仅处理当前管理员自己名下可管理的数据空间。若邮箱尚未注册，会生成待领取的负责人迁移记录。"),
             actionButton(session$ns("assign_owner"), "绑定负责人", class = "btn-primary", width = "100%")
           ),
           box(
             width = 4,
-            title = "协作权限调整",
+            title = "我名下空间协作授权",
             status = "info",
             solidHeader = TRUE,
             selectInput(session$ns("membership_workspace_select"), "选择目标数据空间", choices = workspace_choices),
@@ -116,7 +116,7 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
               choices = c("只读成员" = "viewer", "可编辑成员" = "editor"),
               selected = "viewer"
             ),
-            div(class = "admin-form-note", "管理员不展示库内用户选择器，系统级授权、撤销与负责人迁移统一通过邮箱完成。"),
+            div(class = "admin-form-note", "管理员不展示库内用户选择器；当前协作授权、撤销与负责人迁移统一通过邮箱完成，且仅限自己名下数据空间。"),
             fluidRow(
               column(6, actionButton(session$ns("assign_membership"), "发送授权", class = "btn-info", width = "100%")),
               column(6, actionButton(session$ns("revoke_membership"), "撤销协作", class = "btn-danger", width = "100%"))

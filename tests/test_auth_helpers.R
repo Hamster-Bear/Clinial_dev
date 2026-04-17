@@ -12,6 +12,7 @@ if (length(auth_path) > 0 && file.exists(auth_path)) {
 } else {
   return(invisible(NULL))
 }
+auth_source_text <- paste(readLines(auth_path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
 
 `%||%` <- function(x, y) if (is.null(x)) y else x
 
@@ -88,4 +89,14 @@ test_that("用户载荷包含数据库管理开关", {
     stringsAsFactors = FALSE
   ))
   expect_true(isTRUE(admin_payload$db_access_enabled))
+})
+
+test_that("认证策略守卫收紧管理员初始化与workspace访问", {
+  expect_match(auth_source_text, 'message = "注册成功，请登录"', fixed = TRUE)
+  expect_false(grepl("当前账号已成为系统管理员", auth_source_text, fixed = TRUE))
+  expect_match(
+    auth_source_text,
+    "if \\(!nzchar\\(username\\) \\|\\| !nzchar\\(email\\) \\|\\| !nzchar\\(password\\)\\)"
+  )
+  expect_false(grepl("if \\(isTRUE\\(is_admin\\)\\)", auth_source_text))
 })

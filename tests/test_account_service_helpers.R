@@ -12,6 +12,7 @@ if (length(account_service_path) > 0 && file.exists(account_service_path)) {
 } else {
   return(invisible(NULL))
 }
+account_service_text <- paste(readLines(account_service_path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
 
 test_that("管理员服务层对非法输入有防御", {
   expect_equal(service_normalize_workspace_name("  demo  "), "demo")
@@ -56,4 +57,12 @@ test_that("预览表格字段使用面向界面的中文名称", {
   expect_equal(names(invite_preview), c("受邀邮箱", "待授权限", "邀请状态", "领取账号", "发起时间", "领取时间"))
   expect_equal(membership_preview$协作权限[[1]], "可编辑成员")
   expect_equal(invite_preview$邀请状态[[1]], "待领取")
+})
+
+test_that("服务层守卫不再给管理员自动放开全部数据空间", {
+  expect_match(account_service_text, "service_list_manageable_workspaces <- function")
+  expect_match(account_service_text, "WHERE owner_user_id = \\$1")
+  expect_false(grepl("return\\(service_list_workspaces\\(pool\\)\\)", account_service_text))
+  expect_false(grepl("isTRUE\\(user\\$is_admin\\) \\|\\|", account_service_text))
+  expect_match(account_service_text, "db_access_enabled")
 })

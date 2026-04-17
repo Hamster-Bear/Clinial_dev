@@ -309,6 +309,13 @@ server <- function(input, output, session) {
   current_user <- reactiveVal(NULL)
   filtered_data <- reactiveVal(NULL)
 
+  user_has_database_access <- function(user) {
+    if (is.null(user)) {
+      return(FALSE)
+    }
+    isTRUE(user$is_admin) || isTRUE(user$db_access_enabled)
+  }
+
   update_step_status <- function(step, status) {
     selector <- paste0('[data-value="', step, '"]')
     if (status == "accessible") {
@@ -347,24 +354,29 @@ server <- function(input, output, session) {
     if (isTRUE(user$is_admin)) {
       allowed_tabs <- c(allowed_tabs, "admin")
     }
-    selected_tab <- input$tabs %||% "db_manage"
+    default_tab <- if (user_has_database_access(user)) "db_manage" else "data_prep"
+    selected_tab <- input$tabs %||% default_tab
     if (!(selected_tab %in% allowed_tabs)) {
-      selected_tab <- "db_manage"
+      selected_tab <- default_tab
     }
+    db_manage_badge_label <- if (user_has_database_access(user)) "管理" else "需授权"
+    db_manage_badge_color <- if (user_has_database_access(user)) "blue" else "yellow"
+    data_prep_badge_label <- if (user_has_database_access(user)) "处理" else "临时上传"
+    data_prep_badge_color <- if (user_has_database_access(user)) "blue" else "yellow"
     sidebarMenu(
       id = "tabs",
       selected = selected_tab,
       menuItem("数据空间",
                tabName = "db_manage",
                icon = icon("database"),
-               badgeLabel = "管理",
-               badgeColor = "blue"),
+               badgeLabel = db_manage_badge_label,
+               badgeColor = db_manage_badge_color),
       if (!isTRUE(user$is_admin)) menuItem("我的权限管理", tabName = "access_manage", icon = icon("key")),
       menuItem("数据准备",
                tabName = "data_prep",
                icon = icon("upload"),
-               badgeLabel = "处理",
-               badgeColor = "blue"),
+               badgeLabel = data_prep_badge_label,
+               badgeColor = data_prep_badge_color),
       menuItem("探索与可视化",
                tabName = "explore",
                icon = icon("bar-chart"),
@@ -397,6 +409,7 @@ server <- function(input, output, session) {
     manageable_df <- service_list_manageable_workspaces(pg_pool, user)
     manageable_count <- nrow(manageable_df)
     accessible_count <- length(auth_accessible_workspace_ids(pg_pool, user$id, isTRUE(user$is_admin)))
+    database_access_label <- if (user_has_database_access(user)) "已开通" else "未开通（可临时上传）"
     div(
       class = "sidebar-user-card",
       div(
@@ -405,13 +418,19 @@ server <- function(input, output, session) {
           div(class = "sidebar-user-name", user$username),
           if (isTRUE(user$is_admin)) div(class = "sidebar-user-role", "系统管理员")
         ),
-        if (!isTRUE(user$is_admin) && manageable_count > 0) {
-          actionButton("open_access_manage", "权限管理", icon = icon("key"), class = "sidebar-user-quick-entry")
+        if (!isTRUE(user$is_admin)) {
+          if (user_has_database_access(user) && manageable_count > 0) {
+            actionButton("open_access_manage", "权限管理", icon = icon("key"), class = "sidebar-user-quick-entry")
+          } else if (!user_has_database_access(user)) {
+            actionButton("open_data_prep", "临时上传", icon = icon("upload"), class = "sidebar-user-quick-entry")
+          }
         }
       ),
       div(class = "sidebar-user-meta", if (nzchar(user$email %||% "")) user$email else "未设置邮箱"),
       div(
         class = "sidebar-user-summary",
+        paste0("数据空间功能: ", database_access_label),
+        br(),
         paste0("我创建并可管理的数据空间: ", manageable_count),
         br(),
         paste0("当前可访问的数据空间: ", accessible_count)
@@ -470,6 +489,10 @@ server <- function(input, output, session) {
 
   observeEvent(input$open_access_manage, {
     updateTabItems(session, "tabs", "access_manage")
+  })
+
+  observeEvent(input$open_data_prep, {
+    updateTabItems(session, "tabs", "data_prep")
   })
 
   database_manager_server("db_manage", pg_pool = pg_pool, current_user = current_user)

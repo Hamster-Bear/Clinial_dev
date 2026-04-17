@@ -87,6 +87,9 @@ database_manager_ui <- function(id) {
           color: #7d5a16;
           line-height: 1.7;
         }
+        .db-lock-actions {
+          margin-top: 14px;
+        }
       "))
     ),
     fluidRow(
@@ -395,7 +398,17 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
             solidHeader = TRUE,
             div(
               class = "db-lock-card",
-              "当前账号尚未开放数据库管理功能。请由系统管理员在“系统管理 > 账号状态管理”中为该账号开放数据库管理权限，开放后即可创建、整理和导入数据空间。"
+              div("当前账号尚未开放数据库管理功能。请由系统管理员在“系统管理 > 账号状态管理”中为该账号开放数据库管理权限，开放后即可创建、整理和导入数据空间。"),
+              div("在权限开放前，你仍可前往“数据准备”页临时上传单个文件用于当前会话分析；该数据不会写入持久化数据空间。"),
+              div(
+                class = "db-lock-actions",
+                tags$button(
+                  type = "button",
+                  class = "btn btn-default",
+                  onclick = "$(\"li[data-value='data_prep'] a\").trigger('click');",
+                  "前往数据准备页"
+                )
+              )
             )
           )
         )

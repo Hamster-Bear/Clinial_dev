@@ -5,6 +5,18 @@ library(testthat)
 
 context("Project Documentation Integrity Guard")
 
+args <- commandArgs(trailingOnly = FALSE)
+file_arg <- "--file="
+script_path <- sub(file_arg, "", args[grep(file_arg, args)])
+script_path <- if (length(script_path) > 0) script_path[[1]] else ""
+script_dir <- dirname(normalizePath(script_path, winslash = "/", mustWork = FALSE))
+project_root <- if (length(script_path) > 0 && nzchar(script_path)) {
+  normalizePath(file.path(script_dir, ".."), winslash = "/", mustWork = TRUE)
+} else {
+  wd <- normalizePath(getwd(), winslash = "/", mustWork = TRUE)
+  if (basename(wd) == "tests") normalizePath(file.path(wd, ".."), winslash = "/", mustWork = TRUE) else wd
+}
+
 test_that("核心规范文档必须存在于项目根目录", {
   required_docs <- c(
     "PROJECT_GUIDE.md",
@@ -16,14 +28,14 @@ test_that("核心规范文档必须存在于项目根目录", {
   
   for (doc in required_docs) {
     expect_true(
-      file.exists(file.path("..", doc)),
+      file.exists(file.path(project_root, doc)),
       info = sprintf("关键规范文档 %s 缺失！请根据【文档驱动】铁律补齐。", doc)
     )
   }
 })
 
 test_that("CODE_STYLE.md 必须包含关键约定要求", {
-  code_style_path <- file.path("..", "CODE_STYLE.md")
+  code_style_path <- file.path(project_root, "CODE_STYLE.md")
   if (file.exists(code_style_path)) {
     code_style_content <- paste(readLines(code_style_path, encoding = "UTF-8"), collapse = "\n")
     expect_match(code_style_content, "tests/")
@@ -34,7 +46,7 @@ test_that("CODE_STYLE.md 必须包含关键约定要求", {
 })
 
 test_that("PROJECT_SPEC.md 必须包含架构声明", {
-  spec_path <- file.path("..", "PROJECT_SPEC.md")
+  spec_path <- file.path(project_root, "PROJECT_SPEC.md")
   skip_if_not(file.exists(spec_path))
   
   content <- readLines(spec_path, encoding = "UTF-8")
@@ -45,8 +57,8 @@ test_that("PROJECT_SPEC.md 必须包含架构声明", {
 })
 
 test_that("analysis_states 迁移脚本与部署文档必须存在关键约束", {
-  migration_path <- file.path("..", "postgres", "migrations", "001_analysis_states_schema.sql")
-  deployment_path <- file.path("..", "DEPLOYMENT_GUIDE.md")
+  migration_path <- file.path(project_root, "postgres", "migrations", "001_analysis_states_schema.sql")
+  deployment_path <- file.path(project_root, "DEPLOYMENT_GUIDE.md")
 
   expect_true(file.exists(migration_path), info = "analysis_states 迁移脚本缺失")
   expect_true(file.exists(deployment_path), info = "DEPLOYMENT_GUIDE.md 缺失")

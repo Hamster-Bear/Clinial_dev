@@ -66,6 +66,10 @@ data_preparation_ui <- function(id) {
           buttonLabel = "浏览文件",
           placeholder = "请选择一个文件进行上传",
           multiple = FALSE
+        ),
+        div(
+          style = "margin-top: 8px; color: #6b7785; line-height: 1.6;",
+          "未开通数据空间功能时，可在此临时上传单个文件用于当前会话分析；该数据不会写入持久化数据空间。"
         )
       )
     ),
