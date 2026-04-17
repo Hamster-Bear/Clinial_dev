@@ -46,8 +46,8 @@
 
 ### 2.2 当前不纳入正式主流程的编排
 
-| 文件                    | 当前定位                            | 是否作为正式部署入口 |
-| --------------------- | ------------------------------- | ---------- |
+| 文件                    | 当前定位                                                   | 是否作为正式部署入口 |
+| --------------------- | ------------------------------------------------------ | ---------- |
 | `docker-compose1.yml` | 轻量测试基础设施栈，仅包含 PostgreSQL 和 Redis，并复用 `5432/6379` 供本机直连 | 否          |
 
 ## 3. 部署相关文件总览
@@ -81,15 +81,15 @@
 
 ### 3.3 数据与部署辅助文件
 
-| 文件                                               | 作用                   |
-| ------------------------------------------------ | -------------------- |
-| `postgres/init.sql`                              | 初始化 PostgreSQL 表结构   |
+| 文件                                                   | 作用                                 |
+| ---------------------------------------------------- | ---------------------------------- |
+| `postgres/init.sql`                                  | 初始化 PostgreSQL 表结构                 |
 | `postgres/migrations/001_analysis_states_schema.sql` | 已部署实例的 `analysis_states` schema 迁移 |
-| `postgres/postgresql.conf`                       | PostgreSQL 配置文件      |
-| `deploy/alicloud/env/.env.example`               | 生产环境变量模板             |
-| `deploy/alicloud/scripts/init_env.sh`            | 生成 `.env` 并填充随机数据库密码 |
-| `deploy/alicloud/scripts/deploy_from_tar.sh`     | 离线导入镜像并启动生产编排        |
-| `deploy/alicloud/scripts/setup_docker_mirror.sh` | 配置 Docker 镜像加速源      |
+| `postgres/postgresql.conf`                           | PostgreSQL 配置文件                    |
+| `deploy/alicloud/env/.env.example`                   | 生产环境变量模板                           |
+| `deploy/alicloud/scripts/init_env.sh`                | 生成 `.env` 并填充随机数据库密码               |
+| `deploy/alicloud/scripts/deploy_from_tar.sh`         | 离线导入镜像并启动生产编排                      |
+| `deploy/alicloud/scripts/setup_docker_mirror.sh`     | 配置 Docker 镜像加速源                    |
 
 ### 3.4 仓库内与部署直接相关的目录结构
 
@@ -174,9 +174,9 @@ AutoTFL/
 | `STORAGE_ROOT`                                                                            | 本地数据体存储目录           |
 | `STORAGE_BACKEND`                                                                         | 存储后端，`local` 或 `s3` |
 | `STORAGE_S3_BUCKET`                                                                       | S3 模式下的桶名           |
-| `APP_ADMIN_USERNAME`                                                                      | 可选的预置管理员用户名        |
-| `APP_ADMIN_EMAIL`                                                                         | 可选的预置管理员邮箱         |
-| `APP_ADMIN_PASSWORD`                                                                      | 可选的预置管理员密码         |
+| `APP_ADMIN_USERNAME`                                                                      | 可选的预置管理员用户名         |
+| `APP_ADMIN_EMAIL`                                                                         | 可选的预置管理员邮箱          |
+| `APP_ADMIN_PASSWORD`                                                                      | 可选的预置管理员密码          |
 
 ### 4.6 当前访问控制与导入边界
 
@@ -446,8 +446,8 @@ docker save -o apps/autotfl-shiny-app_latest.tar autotfl-shiny-app:latest
 
 常见做法包括：
 
-- 使用 `scp apps/autotfl-offline-bundle.tar user@server:/opt/hamster-analysis/current/apps/`
-- 使用 `rsync -avP apps/autotfl-offline-bundle.tar user@server:/opt/hamster-analysis/current/apps/`
+- 使用 `scp apps/autotfl-offline-bundle.tar root@223.4.178.138:/opt/hamster-analysis/current/apps/`
+- 使用 `rsync -avP apps/autotfl-offline-bundle.tar root@223.4.178.138:/opt/hamster-analysis/current/apps/`
 - 通过制品仓库、中转盘或堡垒机传输后再落到目标目录
 
 如果离线包较大，建议在传输后先校验文件大小或摘要，再执行导入。
@@ -598,13 +598,14 @@ bash deploy/alicloud/scripts/publish_release.sh --server user@your-server
 
 | 参数                         | 作用                                         | <br /> |
 | -------------------------- | ------------------------------------------ | :----- |
-| `--server <user@host>`     | 远端服务器 SSH 目标                               | <br /> |
+| `--server <user@host>`     | 远端服务器 SSH 目标（例如 `root@223.4.178.138`） | <br /> |
 | `--remote-root <path>`     | 远端项目根目录，默认 `/opt/hamster-analysis/current` | <br /> |
 | `--remote-apps-dir <path>` | 远端离线包目录，默认 `<remote-root>/apps`            | <br /> |
-| \`--upload-method \<scp    | rsync>\`                                   | 上传方式   |
+| `--upload-method <scp\|rsync>` | 上传方式，默认 `scp`。推荐网络不稳定时使用 `rsync` 断点续传 | <br /> |
 | `--skip-upload`            | 只在本地构建和导出，不上传                              | <br /> |
 | `--skip-remote-deploy`     | 上传但不远端启动                                   | <br /> |
 | `--skip-base-pull`         | 缺失基础镜像时不自动 `docker pull`                   | <br /> |
+| `--use-latest-tar`         | 跳过本地镜像构建与打包，直接上传本地 `apps/` 下最新生成的 `tar` 包 | <br /> |
 
 #### 8.10.3 本地产物
 
@@ -727,7 +728,7 @@ deploy/alicloud/
 | `folders`    | 文件夹元数据 |
 | `datasets`   | 数据集元数据 |
 
-### 10.2 analysis_states 迁移
+### 10.2 analysis\_states 迁移
 
 - `postgres/init.sql` 只适用于首次初始化数据目录；如果部署复用了旧 PostgreSQL 数据卷，它不会自动修复历史 `analysis_states` schema。
 - 当前仓库已新增 `postgres/migrations/001_analysis_states_schema.sql`，用于将旧 `analysis_states` 表迁移到当前契约。

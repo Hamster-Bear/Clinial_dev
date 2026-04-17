@@ -12,6 +12,7 @@ UPLOAD_METHOD="${UPLOAD_METHOD:-scp}"
 SKIP_UPLOAD=0
 SKIP_REMOTE_DEPLOY=0
 SKIP_BASE_PULL=0
+USE_LATEST_TAR=0
 
 usage() {
   cat <<'EOF'
@@ -27,6 +28,7 @@ Options:
   --skip-upload                 Build/save locally only
   --skip-remote-deploy          Upload but do not run remote deploy
   --skip-base-pull              Do not auto-pull missing base images
+  --use-latest-tar              Skip build/save and use the latest tar file in local apps dir
   --help                        Show this help
 EOF
 }
@@ -109,6 +111,10 @@ while [[ $# -gt 0 ]]; do
       SKIP_BASE_PULL=1
       shift
       ;;
+    --use-latest-tar)
+      USE_LATEST_TAR=1
+      shift
+      ;;
     --help)
       usage
       exit 0
@@ -144,42 +150,93 @@ fi
 
 mkdir -p "$LOCAL_APPS_DIR"
 
-STAMP="$(date +%Y%m%d_%H%M%S)"
-BUNDLE_FILE="${BUNDLE_PREFIX}_${STAMP}.tar"
-BUNDLE_PATH="$LOCAL_APPS_DIR/$BUNDLE_FILE"
-SHA_PATH="${BUNDLE_PATH}.sha256"
-SUMMARY_PATH="${BUNDLE_PATH}.summary.txt"
-BASE_IMAGES=("postgres:14-alpine" "redis:7-alpine" "nginx:1.27-alpine")
+if [[ "$USE_LATEST_TAR" -eq 1 ]]; then
+  # 查找本地 apps 目录下最新的 tar 包
+  LATEST_TAR="$(find "$LOCAL_APPS_DIR" -maxdepth 1 -type f -name "${BUNDLE_PREFIX}*.tar" | sort | tail -n 1 || true)"
+  if [[ -z "$LATEST_TAR" ]]; then
+    log "错误: 启用 --use-latest-tar 但在 $LOCAL_APPS_DIR 找不到匹配的包。"
+    exit 1
+  fi
+  BUNDLE_PATH="$LATEST_TAR"
+  SHA_PATH="${BUNDLE_PATH}.sha256"
+  SUMMARY_PATH="${BUNDLE_PATH}.summary.txt"
+  
+  log "复用本地最新离线镜像包: $BUNDLE_PATH"
+  
+  # 如果连 sha 或 summary 也没有，顺手补一个（一般打包时会生成）
+  if [[ ! -f "$SHA_PATH" ]]; then
+    SHA256_VALUE="$(hash_file "$BUNDLE_PATH")"
+    printf '%s  %s\n' "$SHA256_VALUE" "$(basename "$BUNDLE_PATH")" > "$SHA_PATH"
+  fi
+  if [[ ! -f "$SUMMARY_PATH" ]]; then
+    SIZE_BYTES="$(wc -c < "$BUNDLE_PATH" | tr -d ' ')"
+    {
+      printf 'bundle=%s\n' "$(basename "$BUNDLE_PATH")"
+      printf 'note=generated_from_use_latest_tar\n'
+      printf 'size_bytes=%s\n' "$SIZE_BYTES"
+    } > "$SUMMARY_PATH"
+  fi
+else
+  STAMP="$(date +%Y%m%d_%H%M%S)"
+  BUNDLE_FILE="${BUNDLE_PREFIX}_${STAMP}.tar"
+  BUNDLE_PATH="$LOCAL_APPS_DIR/$BUNDLE_FILE"
+  SHA_PATH="${BUNDLE_PATH}.sha256"
+  SUMMARY_PATH="${BUNDLE_PATH}.summary.txt"
+  BASE_IMAGES=("postgres:14-alpine" "redis:7-alpine" "nginx:1.27-alpine")
 
-for image in "${BASE_IMAGES[@]}"; do
-  ensure_image "$image"
-done
+  for image in "${BASE_IMAGES[@]}"; do
+    ensure_image "$image"
+  done
 
-log "构建应用镜像 $IMAGE_NAME"
-docker build -t "$IMAGE_NAME" "$ROOT_DIR"
+  log "构建应用镜像 $IMAGE_NAME"
+  docker build -t "$IMAGE_NAME" "$ROOT_DIR"
 
-log "导出离线镜像包到 $BUNDLE_PATH"
-docker save -o "$BUNDLE_PATH" "$IMAGE_NAME" "${BASE_IMAGES[@]}"
+  log "导出离线镜像包到 $BUNDLE_PATH (该过程可能需要几分钟，请耐心等待...)"
 
-SHA256_VALUE="$(hash_file "$BUNDLE_PATH")"
-SIZE_BYTES="$(wc -c < "$BUNDLE_PATH" | tr -d ' ')"
+  # 启动一个后台监控循环，每 3 秒刷新一次文件大小
+  (
+    while true; do
+      if [[ -f "$BUNDLE_PATH" ]]; then
+        # 获取文件大小 (MB)
+        size_mb=$(du -m "$BUNDLE_PATH" 2>/dev/null | awk '{print $1}')
+        if [[ -n "$size_mb" ]]; then
+          printf "\r\033[K[进度] 已导出: %s MB" "$size_mb"
+        fi
+      fi
+      sleep 3
+    done
+  ) &
+  MONITOR_PID=$!
 
-printf '%s  %s\n' "$SHA256_VALUE" "$(basename "$BUNDLE_PATH")" > "$SHA_PATH"
+  # 执行真正的打包命令
+  docker save -o "$BUNDLE_PATH" "$IMAGE_NAME" "${BASE_IMAGES[@]}"
 
-{
-  printf 'bundle=%s\n' "$(basename "$BUNDLE_PATH")"
-  printf 'image=%s\n' "$IMAGE_NAME"
-  printf 'created_at=%s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-  printf 'sha256=%s\n' "$SHA256_VALUE"
-  printf 'size_bytes=%s\n' "$SIZE_BYTES"
-  printf 'local_apps_dir=%s\n' "$LOCAL_APPS_DIR"
-  printf 'remote_root=%s\n' "$REMOTE_ROOT"
-  printf 'remote_apps_dir=%s\n' "$REMOTE_APPS_DIR"
-  printf 'base_images=%s\n' "${BASE_IMAGES[*]}"
-} > "$SUMMARY_PATH"
+  # 打包完成后，杀掉监控进程并换行
+  kill $MONITOR_PID 2>/dev/null || true
+  wait $MONITOR_PID 2>/dev/null || true
+  printf "\n"
+  log "导出完成！"
 
-log "摘要文件已生成: $SHA_PATH"
-log "说明文件已生成: $SUMMARY_PATH"
+  SHA256_VALUE="$(hash_file "$BUNDLE_PATH")"
+  SIZE_BYTES="$(wc -c < "$BUNDLE_PATH" | tr -d ' ')"
+
+  printf '%s  %s\n' "$SHA256_VALUE" "$(basename "$BUNDLE_PATH")" > "$SHA_PATH"
+
+  {
+    printf 'bundle=%s\n' "$(basename "$BUNDLE_PATH")"
+    printf 'image=%s\n' "$IMAGE_NAME"
+    printf 'created_at=%s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    printf 'sha256=%s\n' "$SHA256_VALUE"
+    printf 'size_bytes=%s\n' "$SIZE_BYTES"
+    printf 'local_apps_dir=%s\n' "$LOCAL_APPS_DIR"
+    printf 'remote_root=%s\n' "$REMOTE_ROOT"
+    printf 'remote_apps_dir=%s\n' "$REMOTE_APPS_DIR"
+    printf 'base_images=%s\n' "${BASE_IMAGES[*]}"
+  } > "$SUMMARY_PATH"
+
+  log "摘要文件已生成: $SHA_PATH"
+  log "说明文件已生成: $SUMMARY_PATH"
+fi
 
 if [[ "$SKIP_UPLOAD" -eq 1 ]]; then
   log "已跳过上传与远端部署"
