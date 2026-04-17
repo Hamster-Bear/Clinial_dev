@@ -48,7 +48,7 @@
 
 | 文件                    | 当前定位                            | 是否作为正式部署入口 |
 | --------------------- | ------------------------------- | ---------- |
-| `docker-compose1.yml` | 临时基础设施编排，仅包含 PostgreSQL 和 Redis | 否          |
+| `docker-compose1.yml` | 轻量测试基础设施栈，仅包含 PostgreSQL 和 Redis，并复用 `5432/6379` 供本机直连 | 否          |
 
 ## 3. 部署相关文件总览
 
@@ -64,7 +64,7 @@
 | `docker-compose.yml`          | 基础开发编排                              |
 | `docker-compose.local.yml`    | 带 Landing 页的本地联调编排                  |
 | `docker-compose.server.yml`   | 生产服务器编排                             |
-| `docker-compose1.yml`         | 临时基础设施编排                            |
+| `docker-compose1.yml`         | 轻量测试基础设施栈                           |
 
 ### 3.2 Nginx 相关文件
 
@@ -227,6 +227,8 @@ AutoTFL/
 - `run_app_test.ps1` 会读取 `.env.test`；可先从 `.env.test.example` 复制。
 - `run_app_test.ps1` 会读取 `SHINY_PORT`；若未设置则默认占用检查与启动 `8109`。
 - 本地若数据库由 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起，应用应连接 `localhost:5432`。
+- `docker-compose.local.yml` 现直接读取 `.env.test`，以统一本地联调与 `run_app_test.ps1` 使用的 PostgreSQL 与管理员参数；其中 app 容器仍会在内部网络中覆盖 `POSTGRES_HOST=postgres`。
+- `docker-compose1.yml` 只提供 PostgreSQL 与 Redis 基础设施，适用于项目更新期间避免重建整套应用镜像时，继续让本机 `run_app.R` / `run_app_test.ps1` 复用同一组 `5432/6379` 端口做业务测试。
 - 当前测试环境管理员示例为 `APP_ADMIN_USERNAME=admin`、`APP_ADMIN_EMAIL=admin@example.com`、`APP_ADMIN_PASSWORD=admin123`。
 - 账号/权限 PostgreSQL 集成测试会直接复用 `.env.test` 中的数据库连接，并在隔离 schema 中执行建表、验证与清理；测试库应预留建 schema 权限。
 - 发布前可执行 `run_auth_regression.ps1` 作为账号模块统一回归入口；脚本会先校验 `.env.test`，再顺序执行账号 helper、边界守卫、文档守卫与 PostgreSQL 集成测试。

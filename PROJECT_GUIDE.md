@@ -680,7 +680,8 @@ AutoTFL/
 - 新增功能或修改现有逻辑时，测试文件统一放在 `tests/`。
 - 共享层改动至少要补一条可回归的最小测试。
 - 图形或统计口径改动优先补“同口径断言”，避免只测 UI 是否渲染成功。
-- `run_app_test.ps1` 依赖 `.env.test`；仓库当前提供 `.env.test.example` 作为测试环境变量模板。本地若使用 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起 PostgreSQL，测试端口统一使用 `5432`。
+- `run_app_test.ps1` 依赖 `.env.test`；仓库当前提供 `.env.test.example` 作为测试环境变量模板。`docker-compose.local.yml` 也直接读取 `.env.test` 作为 PostgreSQL 与管理员参数来源；本地若使用 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起 PostgreSQL，测试端口统一使用 `5432`。
+- `docker-compose1.yml` 当前定位为轻量测试基础设施栈：只启动 PostgreSQL 与 Redis，复用宿主机 `5432/6379`，供本机 `run_app.R` / `run_app_test.ps1` 直接连接，避免项目更新时因重建整套应用镜像影响业务测试节奏。
 - `run_app_test.ps1` 启动前会读取 `SHINY_PORT`（未设置时默认为 `8109`）；若该端口已被占用，脚本会强制关闭占用进程后再拉起应用（且会妥善处理进程在检测后已自行退出的并发情况）。
 - 账号/权限的 PostgreSQL 集成测试优先复用 `.env.test` 中的连接信息，并在隔离 schema 中建表、验证和清理，避免污染现有测试库数据。
 - `run_auth_regression.ps1` 是当前账号模块的统一回归入口；脚本会先校验 `.env.test` 中的 PostgreSQL 与管理员变量，再顺序执行账号 helper、文档守卫与 PostgreSQL 集成测试。

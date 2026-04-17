@@ -80,7 +80,8 @@ Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README
 - 数据库管理功能已增加账号级访问锁：普通账号默认锁定，需由管理员开放数据库管理权限后才可进入与操作。
 - 未开通数据空间功能的普通用户登录后默认落到“数据准备”页；侧边栏“数据空间”显示“需授权”，“数据准备”显示“临时上传”，数据库管理锁定卡片会提示改走临时上传链路。
 - 普通用户在未开通数据空间功能时，只允许单文件临时上传；该数据仅用于当前会话分析，不写入持久化数据空间，服务重启或会话结束后不保证保留。
-- `run_app_test.ps1` 对应的测试环境变量示例已写入 `.env.test.example`；本地若使用 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起 PostgreSQL，宿主机测试端口统一使用 `5432`，默认管理员示例为 `admin / admin@example.com / admin123`。
+- `run_app_test.ps1` 对应的测试环境变量示例已写入 `.env.test.example`；`docker-compose.local.yml` 现直接读取 `.env.test`，与本机测试脚本共用同一套 PostgreSQL 与管理员参数；本地若使用 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起 PostgreSQL，宿主机测试端口统一使用 `5432`，默认管理员示例为 `admin / admin@example.com / admin123`。
+- `docker-compose1.yml` 当前收口为轻量测试基础设施栈，只启动 PostgreSQL 与 Redis，并复用宿主机 `5432/6379`；用于项目更新期间避免反复重建整套应用镜像时，仍可让本机 `run_app.R` / `run_app_test.ps1` 直接连库跑业务测试。
 - 账号与权限模块已补充 PostgreSQL 集成测试 `tests/test_auth_access_postgres_integration.R`；测试会优先读取 `.env.test`，并在隔离 schema 中验证管理员初始化、workspace 访问边界与清理逻辑，避免污染现有数据。
 - 发布前可执行 `run_auth_regression.ps1` 作为账号模块统一回归入口；脚本会校验 `.env.test` 中的 PostgreSQL 与管理员变量，并顺序运行账号 helper、文档守卫和 PostgreSQL 集成测试。
 

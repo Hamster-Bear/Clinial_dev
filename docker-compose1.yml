@@ -1,17 +1,17 @@
-name: autotfl-temp
+name: autotfl-test-infra
 
 services:
-  # PostgreSQL database
+  # 轻量测试 PostgreSQL：仅提供数据库依赖，供本机 run_app.R / run_app_test.ps1 直连
   postgres:
     image: postgres:14-alpine
-    container_name: autotfl-temp-postgres
+    container_name: autotfl-test-infra-postgres
     environment:
       POSTGRES_DB: autotfl
       POSTGRES_USER: autotfl_user
       POSTGRES_PASSWORD: ${DB_PASSWORD:-ChangeMe123!}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     volumes:
-      - postgres_data_temp:/var/lib/postgresql/data
+      - postgres_data_test_infra:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
     ports:
@@ -23,27 +23,27 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - autotfl-network-temp
+      - autotfl-test-infra-network
 
-  # Redis cache (reserved for future use)
+  # 轻量测试 Redis：保持与主栈一致的缓存端口，避免业务测试切换额外配置
   redis:
     image: redis:7-alpine
-    container_name: autotfl-temp-redis
+    container_name: autotfl-test-infra-redis
     command: redis-server --appendonly yes
     volumes:
-      - redis_data_temp:/data
+      - redis_data_test_infra:/data
     ports:
-      - "56379:6379"
+      - "6379:6379"
     restart: unless-stopped
     networks:
-      - autotfl-network-temp
+      - autotfl-test-infra-network
 
 networks:
-  autotfl-network-temp:
+  autotfl-test-infra-network:
     driver: bridge
 
 volumes:
-  postgres_data_temp:
+  postgres_data_test_infra:
     driver: local
-  redis_data_temp:
+  redis_data_test_infra:
     driver: local
