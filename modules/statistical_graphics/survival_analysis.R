@@ -395,6 +395,30 @@ library(cowplot)
   paste0(prefix, operator, formatted)
 }
 
+.build_survival_hr_summary_line <- function(
+    contrast_label,
+    reference_label,
+    hr,
+    hr_low,
+    hr_up,
+    p_val = NULL,
+    show_cox_p = TRUE
+) {
+  hr_line <- paste0(
+    contrast_label, " vs ", reference_label,
+    ": HR = ", formatC(hr, format = "f", digits = 2),
+    " (95%CI: ", formatC(hr_low, format = "f", digits = 2), "-",
+    formatC(hr_up, format = "f", digits = 2), ")"
+  )
+  if (isTRUE(show_cox_p)) {
+    p_text <- .compose_survival_p_text("P", p_val)
+    if (!is.null(p_text)) {
+      hr_line <- paste0(hr_line, ", ", p_text)
+    }
+  }
+  hr_line
+}
+
 .apply_survival_line_style <- function(plot_obj, line_size, line_type) {
   plot_obj$layers <- lapply(plot_obj$layers, function(layer) {
     if (any(class(layer$geom) %in% c("GeomStep", "GeomLine"))) {
@@ -541,6 +565,10 @@ library(cowplot)
             helpText("用于主图和统计报告中的中位生存时间文本前缀，不控制辅助线显示。")
           ),
           checkboxInput(ns("show_stats"), "显示统计摘要（Log-rank P；分层时附加 HR）", value = TRUE),
+          conditionalPanel(
+            condition = paste0("input['", ns("show_stats"), "'] == true"),
+            checkboxInput(ns("show_cox_p"), "显示 Cox 回归 P值", value = TRUE)
+          ),
           selectInput(
             ns("text_position_preset"), "统计/中位标注位置预设",
             choices = c("自动（默认）" = "auto", "左上" = "top-left", "右上" = "top-right", "左下" = "bottom-left", "右下" = "bottom-right", "自定义" = "custom"),
@@ -857,6 +885,7 @@ survival_analysis_server <- function(input, output, session, data) {
     time_step = NULL,
     show_median = TRUE,
     show_stats = TRUE,
+    show_cox_p = TRUE,
     legend_position = "top-right",
     legend_title = "",
     legend_row_gap = 1.0,
@@ -1155,6 +1184,7 @@ survival_analysis_server <- function(input, output, session, data) {
           time_step = input$time_step,
           show_median = input$show_median,
           show_stats = input$show_stats,
+          show_cox_p = input$show_cox_p,
           legend_position = input$legend_position,
           legend_title = input$legend_title,
           legend_row_gap = input$legend_row_gap,
@@ -1216,6 +1246,7 @@ survival_analysis_server <- function(input, output, session, data) {
         graphics_state$time_step <- params$time_step
         graphics_state$show_median <- params$show_median
         graphics_state$show_stats <- params$show_stats
+        graphics_state$show_cox_p <- params$show_cox_p
         graphics_state$legend_position <- params$legend_position
         graphics_state$legend_title <- params$legend_title
         graphics_state$legend_row_gap <- params$legend_row_gap
@@ -1438,11 +1469,15 @@ survival_analysis_server <- function(input, output, session, data) {
             contrast_mapped <- map_label(contrast_clean)
             reference_mapped <- map_label(reference_level)
             
-            hr_line <- paste0(contrast_mapped, " vs ", reference_mapped,
-                              ": HR = ", formatC(hr, format = "f", digits = 2),
-                              " (95%CI: ", formatC(hr_low, format = "f", digits = 2), "-",
-                              formatC(hr_up, format = "f", digits = 2), ")",
-                              ", ", .compose_survival_p_text("P", p_val))
+            hr_line <- .build_survival_hr_summary_line(
+              contrast_label = contrast_mapped,
+              reference_label = reference_mapped,
+              hr = hr,
+              hr_low = hr_low,
+              hr_up = hr_up,
+              p_val = p_val,
+              show_cox_p = isTRUE(params$show_cox_p)
+            )
             res$hr_lines <- c(res$hr_lines, hr_line)
           }
         }

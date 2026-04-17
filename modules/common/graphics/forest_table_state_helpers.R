@@ -93,7 +93,7 @@ forest_restore_selected_column_state <- function(
   }
 
   if (!is.null(available_cols)) {
-    updateSelectizeInput(
+    shiny::updateSelectizeInput(
       session,
       selection_input_id,
       choices = unique(c(available_cols, saved_selected_cols)),

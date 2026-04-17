@@ -19,7 +19,7 @@ AutoTFL 旨在为医学和临床数据分析提供一套自动化、可复现的
 - **数据管理 (Database Manager)**: 支持单文件上传、批量上传及服务器目录导入。
 - **数据准备 (Data Prep)**: 负责数据筛选、列映射及变量元数据（Label/Type）推断。
 - **统计分析 (Statistical Analysis)**: 覆盖描述性统计、Cox/Logistic/线性回归、ANOVA 等。
-- **统计图形 (Statistical Graphics)**: 提供生存分析图、森林图、泳道图等医学常用图形。
+- **统计图形 (Statistical Graphics)**: 提供生存分析图、森林图、泳道图等医学常用图形；其中生存分析的统计摘要当前区分主开关 `show_stats` 与细粒度开关 `show_cox_p`，后者仅控制分层时 Cox 摘要行中的 P 值显示，不影响 HR 与 95%CI 计算。
 - **图形输出一致性**: 统计图形模块需保证前端静态图、交互图与导出尺寸模式一致；带轨道/风险表的组合图在导出时需按当前前端画布高度同步扩展导出高度。
 - **报表导出**: 支持 Word (RTF/DOCX), PDF, HTML 格式。
 - **分析状态管理 (Analysis State Manager)**: 当前已为统计图形模块落地 `analysis_states` 持久化底座，并抽离共享 `task_history` 模块承载任务历史 UI/加载逻辑；现阶段仍嵌入统计图形页内，不单列左侧一级菜单。当前支持按用户保存/加载图形子模块的完整参数、UI 状态、模块类型与用户自定义 note；不保存图对象、分析结果对象或原始数据副本，载入后由各模块按 `state/apply_state` 契约恢复控件状态。状态快照只应包含业务参数，不应持久化 DT/Plotly 等输出组件派生的临时交互输入，也不应保存配置页签等纯导航态；恢复旧快照时也需跳过这些字段。任务历史同时支持删除。workspace 为空时保存为个人任务；service 层需通过 `service_normalize_analysis_state_workspace_id()` 将空字符串/NULL 以及带 `id` 字段的 list/data.frame 统一归一为数据库中的 `NULL` 或单一 workspace id。`analysis_states` 的数据库约束需保证“同一用户 + 同一任务作用域 + 同一模块 + 同一任务名”在 workspace 内唯一，个人任务与 workspace 任务分别使用独立唯一索引；但运行时覆盖保存不能依赖 `ON CONFLICT` 成为前置条件，service 层必须先按自然键查找同名任务，命中时显式更新 `payload/note/updated_at`，未命中才插入新记录，从而兼容尚未完成迁移的旧库。对已部署旧库的 schema 变更必须提供显式迁移脚本与运行时迁移逻辑，避免旧 UNIQUE 约束、重复数据或字段漂移导致上线后失败。后续再继续扩展到统计分析模块与更完整的任务资产管理。

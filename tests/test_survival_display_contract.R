@@ -289,6 +289,33 @@ test_that("生存分析P值展示遵循AMA格式", {
   expect_equal(.compose_survival_p_text("Log-rank 检验 P值", 0.0004, with_spaces = FALSE), "Log-rank 检验 P值<0.001")
 })
 
+test_that("Cox 摘要行可按开关决定是否显示P值", {
+  expect_equal(
+    .build_survival_hr_summary_line(
+      contrast_label = "治疗组",
+      reference_label = "对照组",
+      hr = 1.23,
+      hr_low = 1.01,
+      hr_up = 1.50,
+      p_val = 0.034,
+      show_cox_p = TRUE
+    ),
+    "治疗组 vs 对照组: HR = 1.23 (95%CI: 1.01-1.50), P = 0.034"
+  )
+  expect_equal(
+    .build_survival_hr_summary_line(
+      contrast_label = "治疗组",
+      reference_label = "对照组",
+      hr = 1.23,
+      hr_low = 1.01,
+      hr_up = 1.50,
+      p_val = 0.034,
+      show_cox_p = FALSE
+    ),
+    "治疗组 vs 对照组: HR = 1.23 (95%CI: 1.01-1.50)"
+  )
+})
+
 test_that("risk表重构保留原始坐标轴标签映射", {
   library(survival)
   library(survminer)
