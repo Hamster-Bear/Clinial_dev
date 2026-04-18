@@ -21,8 +21,13 @@ compose_server_text <- read_utf8("docker-compose.server.yml")
 env_example_text <- read_utf8("deploy", "alicloud", "env", ".env.example")
 test_env_example_text <- read_utf8(".env.test.example")
 
-expect_contains <- function(text, pattern, label) {
-  if (!grepl(pattern, text, perl = TRUE)) {
+expect_contains <- function(text, pattern, label, fixed = FALSE) {
+  matched <- if (fixed) {
+    grepl(pattern, text, fixed = TRUE)
+  } else {
+    grepl(pattern, text, perl = TRUE)
+  }
+  if (!matched) {
     stop(sprintf("缺少预期内容: %s", label), call. = FALSE)
   }
 }

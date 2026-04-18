@@ -20,6 +20,7 @@ data_preparation_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
+    app_card_dependencies(),
     tags$head(
       tags$style(HTML("
         /* 只针对高级筛选中的分类变量选择框 */
@@ -50,52 +51,93 @@ data_preparation_ui <- function(id) {
         .filter-controls-container::-webkit-scrollbar-thumb:hover {
           background: #555;
         }
+        .data-prep-filter-shell {
+          min-height: 340px;
+          max-height: 340px;
+          overflow-x: auto;
+          overflow-y: auto;
+          white-space: nowrap;
+          padding: 8px 6px 2px;
+          border-radius: 12px;
+          background: #fbfdff;
+          border: 1px solid #e8eef5;
+        }
+        .data-prep-filter-group {
+          border: 1px solid #dde7f2;
+          padding: 10px 12px;
+          margin: 4px 8px 8px 0;
+          border-radius: 10px;
+          background-color: #ffffff;
+          display: inline-block;
+          vertical-align: top;
+          width: 300px;
+          word-wrap: break-word;
+          white-space: normal;
+          box-shadow: 0 4px 12px rgba(31, 45, 61, 0.04);
+        }
+        .data-prep-filter-group h5 {
+          margin-top: 0;
+          margin-bottom: 10px;
+          color: #243447;
+          font-size: 13px;
+          line-height: 1.5;
+          word-break: break-word;
+        }
+        .data-prep-filter-group h6 {
+          margin: 6px 0;
+          font-size: 11px;
+          color: #6b7785;
+          font-weight: 600;
+        }
       "))
     ),
     fluidRow(
-      # 数据上传区域
-      box(
+      app_card_box(
         width = 12,
-        title = "数据上传",
+        title = "数据加载",
+        subtitle = "统一承接本地上传与数据库数据集加载，不改变原有加载能力",
+        tone = "primary",
         status = "primary",
-        solidHeader = TRUE,
-        fileInput(
-          ns("file"),
-          "上传数据文件 (CSV/Excel/SAS/SPSS)",
-          accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
-          buttonLabel = "浏览文件",
-          placeholder = "请选择一个文件进行上传",
-          multiple = FALSE
-        ),
-        div(
-          style = "margin-top: 8px; color: #6b7785; line-height: 1.6;",
-          "未开通数据空间功能时，可在此临时上传单个文件用于当前会话分析；该数据不会写入持久化数据空间。"
-        )
-      )
-    ),
-    fluidRow(
-      box(
-        width = 12,
-        title = "数据库数据集加载",
-        status = "info",
-        solidHeader = TRUE,
-        fluidRow(
-          column(
-            width = 4,
-            selectInput(ns("db_workspace_select"), "选择数据空间", choices = character(0))
+        solidHeader = FALSE,
+        tabsetPanel(
+          id = ns("data_load_tabs"),
+          type = "tabs",
+          tabPanel(
+            "本地上传",
+            fileInput(
+              ns("file"),
+              "上传数据文件 (CSV/Excel/SAS/SPSS)",
+              accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
+              buttonLabel = "浏览文件",
+              placeholder = "请选择一个文件进行上传",
+              multiple = FALSE
+            ),
+            app_card_note(
+              "未开通数据空间功能时，可在此临时上传单个文件用于当前会话分析；该数据不会写入持久化数据空间。"
+            )
           ),
-          column(
-            width = 4,
-            selectInput(ns("db_folder_select"), "选择文件夹", choices = c("根目录" = "__ROOT__"))
-          ),
-          column(
-            width = 4,
-            selectInput(ns("db_dataset_select"), "选择数据集", choices = character(0))
+          tabPanel(
+            "数据库数据集加载",
+            fluidRow(
+              column(
+                width = 4,
+                selectInput(ns("db_workspace_select"), "选择数据空间", choices = character(0))
+              ),
+              column(
+                width = 4,
+                selectInput(ns("db_folder_select"), "选择文件夹", choices = c("根目录" = "__ROOT__"))
+              ),
+              column(
+                width = 4,
+                selectInput(ns("db_dataset_select"), "选择数据集", choices = character(0))
+              )
+            ),
+            fluidRow(
+              column(6, actionButton(ns("db_refresh"), "刷新数据库列表", class = "btn-default", width = "100%")),
+              column(6, actionButton(ns("db_load_dataset"), "加载所选数据集", class = "btn-primary", width = "100%"))
+            ),
+            app_card_note("从已授权的数据空间、文件夹和数据集中继续分析现有数据，不改动数据库侧原有结构。")
           )
-        ),
-        fluidRow(
-          column(6, actionButton(ns("db_refresh"), "刷新数据库列表", class = "btn-default", width = "100%")),
-          column(6, actionButton(ns("db_load_dataset"), "加载所选数据集", class = "btn-primary", width = "100%"))
         )
       )
     ),
@@ -106,73 +148,67 @@ data_preparation_ui <- function(id) {
       ns = ns,
       
       fluidRow(
-        # 左侧变量选择面板
         column(
-          width = 6,
-          box(
+          width = 12,
+          app_card_box(
             width = NULL,
-            title = "变量选择",
+            title = "变量与筛选控制",
+            subtitle = "在同一块中完成筛选变量选择、显示列控制和筛选结果应用",
+            tone = "info",
             status = "info",
-            solidHeader = TRUE,
-            selectizeInput(
-              ns("selected_var"),
-              "选择变量进行筛选:",
-              choices = NULL,
-              multiple = TRUE,
-              options = list(
-                placeholder = '选择要筛选的变量...',
-                onInitialize = I('function() { this.setValue(""); }')
-              )
-            ),
-            
-            # 列显示选择 - 使用selectizeInput代替checkboxGroupInput以节省空间
-            selectizeInput(
-              ns("selected_columns"),
-              "选择显示列:",
-              choices = NULL,
-              multiple = TRUE,
-              options = list(
-                placeholder = '搜索变量名或Label后选择显示列...',
-                plugins = list('remove_button')
-              )
-            )
-          )
-        ),
-        
-        # 右侧筛选控制面板
-        column(
-          width = 6,
-          box(
-            width = NULL,
-            title = "筛选控制",
-            status = "warning",
-            solidHeader = TRUE,
-            # 重置按钮
+            solidHeader = FALSE,
             fluidRow(
               column(
-                width = 6,
-                actionButton(
-                  ns("apply_filters"),
-                  "应用筛选",
-                  class = "btn-primary",
-                  width = "100%",
-                  icon = icon("play")
+                width = 7,
+                selectizeInput(
+                  ns("selected_var"),
+                  "选择变量进行筛选:",
+                  choices = NULL,
+                  multiple = TRUE,
+                  options = list(
+                    placeholder = '选择要筛选的变量...',
+                    onInitialize = I('function() { this.setValue(""); }')
+                  )
+                ),
+                selectizeInput(
+                  ns("selected_columns"),
+                  "选择显示列:",
+                  choices = NULL,
+                  multiple = TRUE,
+                  options = list(
+                    placeholder = '搜索变量名或Label后选择显示列...',
+                    plugins = list('remove_button')
+                  )
                 )
               ),
               column(
-                width = 6,
-                actionButton(
-                  ns("reset_filters"),
-                  "重置所有筛选",
-                  class = "btn-warning",
-                  width = "100%",
-                  icon = icon("refresh")
-                )
+                width = 5,
+                fluidRow(
+                  column(
+                    width = 6,
+                    actionButton(
+                      ns("apply_filters"),
+                      "应用筛选",
+                      class = "btn-primary",
+                      width = "100%",
+                      icon = icon("play")
+                    )
+                  ),
+                  column(
+                    width = 6,
+                    actionButton(
+                      ns("reset_filters"),
+                      "重置所有筛选",
+                      class = "btn-default",
+                      width = "100%",
+                      icon = icon("refresh")
+                    )
+                  )
+                ),
+                br(),
+                uiOutput(ns("filter_stats_panel"))
               )
-            ),
-            
-            # 筛选结果统计
-            verbatimTextOutput(ns("filter_stats"))
+            )
           )
         )
       ),
@@ -181,11 +217,13 @@ data_preparation_ui <- function(id) {
       fluidRow(
         column(
           width = 12,
-          box(
+          app_card_box(
             width = NULL,
             title = "高级筛选",
+            subtitle = "按变量类型动态生成筛选控件，并在增减筛选变量时尽量保留已选值",
+            tone = "primary",
             status = "primary",
-            solidHeader = TRUE,
+            solidHeader = FALSE,
             # 动态筛选控件容器
             uiOutput(ns("filter_controls"))
           )
@@ -202,11 +240,13 @@ data_preparation_ui <- function(id) {
       fluidRow(
         column(
           width = 12,
-          box(
+          app_card_box(
             width = NULL,
             title = "数据预览",
+            subtitle = "查看当前筛选结果与表格渲染状态",
+            tone = "success",
             status = "success",
-            solidHeader = TRUE,
+            solidHeader = FALSE,
             reactable::reactableOutput(ns("data_table")),
             # 添加渲染状态提示
             conditionalPanel(
@@ -221,11 +261,13 @@ data_preparation_ui <- function(id) {
       fluidRow(
         column(
           width = 12,
-          box(
+          app_card_box(
             width = NULL,
             title = "变量信息卡片",
+            subtitle = "集中查看变量类型、Label，并批量调整元数据",
+            tone = "primary",
             status = "primary",
-            solidHeader = TRUE,
+            solidHeader = FALSE,
             reactable::reactableOutput(ns("variable_info_table")),
             br(),
             selectizeInput(
@@ -336,6 +378,8 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
   
   # 渲染状态
   rendering_table <- reactiveVal(FALSE)
+  filter_input_cache <- reactiveVal(list())
+  previous_selected_vars <- reactiveVal(character(0))
   
   # 性能监控
   performance_metrics <- reactiveValues(
@@ -554,6 +598,103 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
   build_column_choices <- function(data) {
     metadata_build_column_choices(data, label_overrides = var_label_overrides())
   }
+
+  build_factor_filter_choices <- function(var_data, profile) {
+    unique_values <- if (!is.null(profile) && !is.null(profile$factor_values)) profile$factor_values else unique(var_data[!is.na(var_data)])
+    has_na_values <- if (!is.null(profile) && !is.null(profile$factor_has_na)) isTRUE(profile$factor_has_na) else any(is.na(var_data))
+    if (!is.null(profile) && !is.null(profile$factor_total_unique) && profile$factor_total_unique > 100) {
+      unique_non_na_values <- head(unique_values, 99)
+      if (has_na_values) {
+        c(unique_non_na_values, "NA")
+      } else {
+        head(unique_values, 100)
+      }
+    } else if (has_na_values) {
+      c(unique_values, "NA")
+    } else {
+      unique_values
+    }
+  }
+
+  build_filter_ui_state <- function(var_name, raw_var_data, var_type, profile) {
+    cached <- filter_input_cache()[[var_name]] %||% list()
+    state <- list(na_filter = cached$na_filter %||% "all")
+    if (var_type == "numeric") {
+      range_vals <- if (!is.null(profile) && !is.null(profile$numeric_range)) profile$numeric_range else safe_numeric_range(coerce_var_data(raw_var_data, "numeric"))
+      safe_min <- as.numeric(range_vals$min)[1]
+      safe_max <- as.numeric(range_vals$max)[1]
+      if (length(safe_min) == 0 || is.na(safe_min) || !is.finite(safe_min)) safe_min <- 0
+      if (length(safe_max) == 0 || is.na(safe_max) || !is.finite(safe_max)) safe_max <- 1
+      if (safe_min > safe_max) {
+        tmp <- safe_min
+        safe_min <- safe_max
+        safe_max <- tmp + 1
+      }
+      cached_min <- suppressWarnings(as.numeric(cached$num_min %||% safe_min))
+      cached_max <- suppressWarnings(as.numeric(cached$num_max %||% safe_max))
+      state$num_min <- max(safe_min, min(cached_min, safe_max))
+      state$num_max <- min(safe_max, max(cached_max, safe_min))
+      if (state$num_min > state$num_max) {
+        state$num_min <- safe_min
+        state$num_max <- safe_max
+      }
+      state$range_min <- safe_min - 1
+      state$range_max <- safe_max + 1
+      state$step <- 1
+    } else if (var_type == "factor") {
+      choices_with_na <- build_factor_filter_choices(raw_var_data, profile)
+      cached_values <- cached$cat_values %||% choices_with_na
+      selected_values <- intersect(cached_values, choices_with_na)
+      if (length(selected_values) == 0) {
+        selected_values <- choices_with_na
+      }
+      state$choices_with_na <- choices_with_na
+      state$selected_values <- selected_values
+    } else if (var_type == "date") {
+      final_start <- if (!is.null(profile) && !is.null(profile$date_start)) profile$date_start else Sys.Date()
+      final_end <- if (!is.null(profile) && !is.null(profile$date_end)) profile$date_end else Sys.Date()
+      cached_start <- suppressWarnings(as.Date(cached$date_start %||% final_start))
+      cached_end <- suppressWarnings(as.Date(cached$date_end %||% final_end))
+      if (is.na(cached_start)) cached_start <- final_start
+      if (is.na(cached_end)) cached_end <- final_end
+      state$date_start <- max(min(cached_start, final_end), final_start)
+      state$date_end <- min(max(cached_end, final_start), final_end)
+    } else {
+      state$text_search <- cached$text_search %||% ""
+    }
+    state
+  }
+
+  capture_filter_state <- function(var_names) {
+    if (is.null(data_store()) || length(var_names) == 0) {
+      return(invisible(NULL))
+    }
+    cache <- filter_input_cache()
+    data <- data_store()
+    profile_map <- filter_profile_cache()
+    for (var_name in var_names) {
+      if (!(var_name %in% names(data))) {
+        next
+      }
+      var_type <- get_effective_var_type(var_name, data[[var_name]])
+      state <- list(na_filter = input[[paste0("na_filter_", var_name)]] %||% "all")
+      if (var_type == "numeric") {
+        state$num_min <- input[[paste0("num_min_", var_name)]]
+        state$num_max <- input[[paste0("num_max_", var_name)]]
+      } else if (var_type == "factor") {
+        state$cat_values <- input[[paste0("cat_values_", var_name)]]
+        state$choices_with_na <- build_factor_filter_choices(data[[var_name]], profile_map[[var_name]])
+      } else if (var_type == "date") {
+        state$date_start <- input[[paste0("date_start_", var_name)]]
+        state$date_end <- input[[paste0("date_end_", var_name)]]
+      } else {
+        state$text_search <- input[[paste0("text_search_", var_name)]] %||% ""
+      }
+      cache[[var_name]] <- state
+    }
+    filter_input_cache(cache)
+    invisible(NULL)
+  }
   
   remove_named_value <- function(x, key) {
     if (length(x) == 0 || is.null(names(x))) {
@@ -618,6 +759,14 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
   }
   
   selected_var_debounced <- debounce(reactive(input$selected_var), 500)
+
+  observeEvent(input$selected_var, {
+    old_vars <- isolate(previous_selected_vars())
+    if (length(old_vars) > 0) {
+      capture_filter_state(old_vars)
+    }
+    previous_selected_vars(input$selected_var %||% character(0))
+  }, ignoreNULL = FALSE)
   
   format_filter_conditions <- function(data, selected_vars) {
     if (is.null(selected_vars) || length(selected_vars) == 0) {
@@ -824,11 +973,23 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
     factor_count <- sum(var_info$当前类型 == "factor")
     date_count <- sum(var_info$当前类型 == "date")
     text_count <- sum(var_info$当前类型 == "text")
-    fluidRow(
-      valueBox(width = 3, value = total_rows, subtitle = "总行数", icon = icon("list-ol"), color = "aqua"),
-      valueBox(width = 3, value = total_cols, subtitle = "总列数", icon = icon("columns"), color = "blue"),
-      valueBox(width = 3, value = paste0(na_ratio, "%"), subtitle = "整体缺失率", icon = icon("exclamation-circle"), color = if (na_ratio > 30) "red" else "green"),
-      valueBox(width = 3, value = paste0("数值:", numeric_count, " / 分类:", factor_count, " / 日期:", date_count, " / 文本:", text_count), subtitle = "字段类型分布", icon = icon("pie-chart"), color = "purple")
+    tags$div(
+      class = "app-stat-grid",
+      app_stat_card("总行数", format(total_rows, big.mark = ","), meta = "当前已载入的数据记录总数", tone = "primary"),
+      app_stat_card("总列数", total_cols, meta = "当前可分析的字段数量", tone = "info"),
+      app_stat_card("整体缺失率", paste0(na_ratio, "%"), meta = paste0("缺失值总数 ", format(total_na, big.mark = ",")), tone = if (na_ratio > 30) "danger" else "success"),
+      app_stat_card(
+        "字段类型分布",
+        paste0("共 ", total_cols, " 个字段"),
+        meta = "类型数量会随变量元数据调整实时刷新",
+        tone = "warning",
+        chips = c(
+          paste0("数值 <strong>", numeric_count, "</strong>"),
+          paste0("分类 <strong>", factor_count, "</strong>"),
+          paste0("日期 <strong>", date_count, "</strong>"),
+          paste0("文本 <strong>", text_count, "</strong>")
+        )
+      )
     )
   })
   
@@ -858,9 +1019,9 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
       profile <- profile_map[[var_name]]
       
       # 创建控件组
+      state <- build_filter_ui_state(var_name, raw_var_data, var_type, profile)
       div(
-        class = "filter-group",
-        style = "border: 1px solid #ddd; padding: 8px; margin: 3px; border-radius: 4px; background-color: #f8f9fa; display: inline-block; vertical-align: top; width: 280px; margin-right: 8px; word-wrap: break-word;",
+        class = "data-prep-filter-group",
         
         # 变量名和类型显示
         h5(
@@ -869,7 +1030,7 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
           } else {
             paste0(var_name, " (", var_type, ")")
           },
-          style = "margin-top: 0; color: #3; font-size: 13px; word-break: break-all;"
+          style = "word-break: break-word;"
         ),
         
         # 空值筛选选项 - 只对非分类变量显示
@@ -879,46 +1040,13 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
                       choices = c("全部" = "all",
                                  "排除空值" = "exclude",
                                  "仅显示空值" = "only"),
-                      selected = "all",
+                      selected = state$na_filter,
                       inline = TRUE,
                       width = "100%")
         },
         
         # 根据变量类型生成不同控件
         if (var_type == "numeric") {
-          range_vals <- if (!is.null(profile) && !is.null(profile$numeric_range)) profile$numeric_range else safe_numeric_range(var_data)
-          
-          # 强制转换为标量并确保有效性
-          safe_min <- as.numeric(range_vals$min)[1]
-          safe_max <- as.numeric(range_vals$max)[1]
-          
-          # 最终防护：确保所有值都是有效数值
-          if (length(safe_min) == 0 || is.na(safe_min) || !is.finite(safe_min)) safe_min <- 0.0
-          if (length(safe_max) == 0 || is.na(safe_max) || !is.finite(safe_max)) safe_max <- 1.0
-          
-          # 确保最小值不大于最大值
-          if (safe_min > safe_max) {
-            temp <- safe_min
-            safe_min <- safe_max
-            safe_max <- temp + 1
-          }
-          
-          # 使用固定的参数值，避免任何条件逻辑
-          final_min_val <- as.numeric(safe_min)
-          final_max_val <- as.numeric(safe_max)
-          final_min_range <- as.numeric(safe_min - 1)
-          final_max_range <- as.numeric(safe_max + 1)
-          final_step <- 1  # 固定步长，避免NULL
-          
-          # 最终验证：确保所有参数都是长度为1的数值向量
-          stopifnot(
-            length(final_min_val) == 1 && is.numeric(final_min_val),
-            length(final_max_val) == 1 && is.numeric(final_max_val),
-            length(final_min_range) == 1 && is.numeric(final_min_range),
-            length(final_max_range) == 1 && is.numeric(final_max_range),
-            length(final_step) == 1 && is.numeric(final_step)
-          )
-          
           tagList(
             h6("数值范围:", style = "margin: 5px 0; font-size: 11px; color: #666;"),
             fluidRow(
@@ -926,10 +1054,10 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
                 numericInput(
                   ns(paste0("num_min_", var_name)),
                   "最小值:",
-                  value = final_min_val,
-                  min = final_min_range,
-                  max = final_max_val,
-                  step = final_step,
+                  value = state$num_min,
+                  min = state$range_min,
+                  max = state$num_max,
+                  step = state$step,
                   width = "100%"
                 )
               ),
@@ -937,80 +1065,39 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
                 numericInput(
                   ns(paste0("num_max_", var_name)),
                   "最大值:",
-                  value = final_max_val,
-                  min = final_min_val,
-                  max = final_max_range,
-                  step = final_step,
+                  value = state$num_max,
+                  min = state$num_min,
+                  max = state$range_max,
+                  step = state$step,
                   width = "100%"
                 )
               )
             )
           )
         } else if (var_type == "factor") {
-          unique_values <- if (!is.null(profile) && !is.null(profile$factor_values)) profile$factor_values else unique(var_data[!is.na(var_data)])
-          has_na_values <- if (!is.null(profile) && !is.null(profile$factor_has_na)) isTRUE(profile$factor_has_na) else any(is.na(var_data))
-          
-          # 统一处理逻辑：当存在空值时，在选项列表中添加"NA"选项
-          if (!is.null(profile) && !is.null(profile$factor_total_unique) && profile$factor_total_unique > 100) {
-            # 如果唯一值超过100个，限制显示数量
-            # 显示前99个非空值 + "NA"选项 = 100个选项
-            unique_non_na_values <- head(unique_values, 99)
-            choices_with_na <- if (has_na_values) {
-              c(unique_non_na_values, "NA")
-            } else {
-              head(unique_values, 100)  # 如果没有空值，显示前100个非空值
-            }
-            selected_with_na <- choices_with_na  # 默认选择所有显示的值
-            
-            tagList(
-              h6("分类值 (前100):", style = "margin: 5px 0; font-size: 11px; color: #666;"),
-              selectizeInput(ns(paste0("cat_values_", var_name)),
-                             NULL,
-                             choices = choices_with_na,
-                             selected = selected_with_na,
-                             multiple = TRUE,
-                             options = list(
-                               placeholder = "选择值...",
-                               maxItems = 30,  # 限制选择项数
-                               plugins = list('remove_button'),
-                               dropdownParent = "body"
-                             ))
-            )
-          } else {
-            # 唯一值不超过100个，显示所有非空值
-            choices_with_na <- if (has_na_values) {
-              c(unique_values, "NA")
-            } else {
-              unique_values
-            }
-            selected_with_na <- choices_with_na  # 默认选择所有值
-            
-            tagList(
-              h6("分类值:", style = "margin: 5px 0; font-size: 11px; color: #666;"),
-              selectizeInput(ns(paste0("cat_values_", var_name)),
-                             NULL,
-                             choices = choices_with_na,
-                             selected = selected_with_na,
-                             multiple = TRUE,
-                             options = list(
-                               placeholder = "选择值...",
-                               maxItems = 30,
-                               plugins = list('remove_button'),
-                               dropdownParent = "body"
-                             ))
-            )
-          }
+          label_text <- if (!is.null(profile) && !is.null(profile$factor_total_unique) && profile$factor_total_unique > 100) "分类值 (前100):" else "分类值:"
+          tagList(
+            h6(label_text, style = "margin: 5px 0; font-size: 11px; color: #666;"),
+            selectizeInput(ns(paste0("cat_values_", var_name)),
+                           NULL,
+                           choices = state$choices_with_na,
+                           selected = state$selected_values,
+                           multiple = TRUE,
+                           options = list(
+                             placeholder = "选择值...",
+                             maxItems = 30,
+                             plugins = list('remove_button'),
+                             dropdownParent = "body"
+                           ))
+          )
         } else if (var_type == "date") {
-          final_start <- if (!is.null(profile) && !is.null(profile$date_start)) profile$date_start else Sys.Date()
-          final_end <- if (!is.null(profile) && !is.null(profile$date_end)) profile$date_end else Sys.Date()
-          
           tagList(
             h6("日期范围:", style = "margin: 5px 0; font-size: 11px; color: #666;"),
             dateInput(ns(paste0("date_start_", var_name)), "开始:",
-                      value = final_start,
+                      value = state$date_start,
                       width = "100%"),
             dateInput(ns(paste0("date_end_", var_name)), "结束:",
-                      value = final_end,
+                      value = state$date_end,
                       width = "100%")
           )
         } else {
@@ -1018,6 +1105,7 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
             h6("文本搜索:", style = "margin: 5px 0; font-size: 11px; color: #666;"),
             textInput(ns(paste0("text_search_", var_name)),
                      NULL,
+                     value = state$text_search,
                      placeholder = "关键词...",
                      width = "100%")
           )
@@ -1027,8 +1115,7 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
     
     # 将控件包装在div中以实现横向滚动布局
     div(
-      class = "filter-controls-container",
-      style = "overflow-x: auto; white-space: nowrap; padding: 5px; max-height: 200px;",
+      class = "filter-controls-container data-prep-filter-shell",
       controls
     )
   })
@@ -1430,12 +1517,26 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
       "当前筛选条件:", condition_text
     )
   })
+
+  output$filter_stats_panel <- renderUI({
+    req(data_store(), filtered_data())
+    original_rows <- nrow(data_store())
+    filtered_rows <- nrow(filtered_data())
+    ratio <- if (original_rows == 0) 0 else round(filtered_rows / original_rows * 100, 2)
+    condition_text <- format_filter_conditions(data_store(), input$selected_var)
+    app_card_panel(
+      tags$div(tags$strong("筛选结果")),
+      tags$div(style = "margin-top: 6px;", paste0("当前保留 ", filtered_rows, " / ", original_rows, " 行，约 ", ratio, "%。")),
+      tags$div(style = "margin-top: 8px;", paste0("条件：", condition_text))
+    )
+  })
   
   # 重置筛选
   observeEvent(input$reset_filters, {
     # 重置所有输入控件
     selected_vars <- input$selected_var
     profile_map <- filter_profile_cache()
+    cache <- filter_input_cache()
     if (!is.null(selected_vars)) {
       for (var_name in selected_vars) {
         raw_var_data <- data_store()[[var_name]]
@@ -1518,13 +1619,17 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
         if (var_type != "factor") {
           updateRadioButtons(session, paste0("na_filter_", var_name), selected = "all")
         }
+        cache[[var_name]] <- NULL
       }
     }
+    filter_input_cache(cache)
     filter_apply_tick(filter_apply_tick() + 1)
   })
   
   # 监听数据变化，重置筛选变量选择和列选择
   observeEvent(data_store(), {
+    filter_input_cache(list())
+    previous_selected_vars(character(0))
     all_choices <- build_column_choices(data_store())
     updateSelectizeInput(session, "selected_var",
                          choices = all_choices,
