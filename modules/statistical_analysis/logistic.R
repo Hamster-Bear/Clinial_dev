@@ -6,6 +6,13 @@ if (file.exists("modules/common/analysis_shared.R")) {
 } else {
   source(file.path("..", "modules", "common", "analysis_shared.R"))
 }
+if (!exists("app_card_note", mode = "function") || !exists("app_card_panel", mode = "function")) {
+  if (file.exists("modules/common/ui_shell.R")) {
+    source("modules/common/ui_shell.R")
+  } else {
+    source(file.path("..", "modules", "common", "ui_shell.R"))
+  }
+}
 ensure_stat_analysis_dependencies()
 
 # 逻辑回归参数UI
@@ -14,35 +21,46 @@ logistic_params_ui <- function(ns, data) {
   factor_vars <- names(data)[sapply(data, function(x) is.factor(x) || is.character(x))]
   
   tagList(
-    fluidRow(
-      column(6,
-             selectInput(ns("logistic_response"), "响应变量 (Response)", choices = numeric_vars),
-             bsTooltip(ns("logistic_response"), "二分类因变量 (0/1 或 No/Yes)", placement = "top", trigger = "hover")
-      )
-    ),
-    fluidRow(
-      column(6,
-             selectInput(ns("logistic_strata"), "亚组变量 (Subgroup) - 可选", choices = c("None", factor_vars)),
-             bsTooltip(ns("logistic_strata"), "按该变量分组后，分别拟合并以堆叠方式展示结果", placement = "top", trigger = "hover")
+    app_card_note("Logistic 回归参数区已接入公共壳分组样式；本轮只统一参数分区与说明块，不改变事件映射、建模或结果展示逻辑。"),
+    app_card_panel(
+      tags$strong("响应与分层"),
+      app_card_note("先定义二分类响应变量，再按需设置亚组、分面与模型内分层因素。"),
+      fluidRow(
+        column(6,
+               selectInput(ns("logistic_response"), "响应变量 (Response)", choices = numeric_vars),
+               bsTooltip(ns("logistic_response"), "二分类因变量 (0/1 或 No/Yes)", placement = "top", trigger = "hover")
+        )
       ),
-      column(6,
-             selectInput(ns("logistic_facet"), "队列/分组变量 (Cohort/Arm) - 可选", choices = c("None", factor_vars)),
-             bsTooltip(ns("logistic_facet"), "按该变量分组后，以列分组方式并排展示回归结果", placement = "top", trigger = "hover")
+      fluidRow(
+        column(6,
+               selectInput(ns("logistic_strata"), "亚组变量 (Subgroup) - 可选", choices = c("None", factor_vars)),
+               bsTooltip(ns("logistic_strata"), "按该变量分组后，分别拟合并以堆叠方式展示结果", placement = "top", trigger = "hover")
+        ),
+        column(6,
+               selectInput(ns("logistic_facet"), "队列/分组变量 (Cohort/Arm) - 可选", choices = c("None", factor_vars)),
+               bsTooltip(ns("logistic_facet"), "按该变量分组后，以列分组方式并排展示回归结果", placement = "top", trigger = "hover")
+        )
+      ),
+      fluidRow(
+        column(12,
+               selectInput(ns("logistic_model_strata"), "模型分层因素 (Stratification Factor) - 可选", choices = c("None", factor_vars)),
+               bsTooltip(ns("logistic_model_strata"), "该变量作为模型控制项进入回归，用于控制基线混杂", placement = "top", trigger = "hover")
+        )
       )
     ),
-    fluidRow(
-      column(12,
-             selectInput(ns("logistic_model_strata"), "模型分层因素 (Stratification Factor) - 可选", choices = c("None", factor_vars)),
-             bsTooltip(ns("logistic_model_strata"), "该变量作为模型控制项进入回归，用于控制基线混杂", placement = "top", trigger = "hover")
-      )
+    app_card_panel(
+      tags$strong("总计列与事件映射"),
+      app_card_note("继续保留总计列设置与事件值映射，用于控制列展示与二分类事件判定。"),
+      uiOutput(ns("logistic_total_cols_ui")),
+      uiOutput(ns("logistic_event_mapping_ui"))
     ),
-    
-    uiOutput(ns("logistic_total_cols_ui")),
-    uiOutput(ns("logistic_event_mapping_ui")),
-    
-    selectizeInput(ns("logistic_predictors"), "预测变量 (Predictors)", choices = names(data), multiple = TRUE),
-    bsTooltip(ns("logistic_predictors"), "纳入模型的自变量 (解释变量)", placement = "top", trigger = "hover"),
-    uiOutput(ns("logistic_reference_ui"))
+    app_card_panel(
+      tags$strong("预测变量与参考组"),
+      app_card_note("预测变量选择、分类变量参考组与后续模型公式保持原有处理方式。"),
+      selectizeInput(ns("logistic_predictors"), "预测变量 (Predictors)", choices = names(data), multiple = TRUE),
+      bsTooltip(ns("logistic_predictors"), "纳入模型的自变量 (解释变量)", placement = "top", trigger = "hover"),
+      uiOutput(ns("logistic_reference_ui"))
+    )
   )
 }
 

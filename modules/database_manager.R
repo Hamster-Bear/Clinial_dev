@@ -12,6 +12,7 @@ library(pool)
 database_manager_ui <- function(id) {
   ns <- NS(id)
   tagList(
+    app_card_dependencies(),
     tags$head(
       tags$style(HTML("
         .db-tree {
@@ -37,17 +38,6 @@ database_manager_ui <- function(id) {
           cursor: pointer;
           outline: none;
         }
-        .db-page-note {
-          color: #5f6b7a;
-          line-height: 1.7;
-        }
-        .db-context-card {
-          margin-top: 12px;
-          padding: 14px 16px;
-          border-radius: 10px;
-          background: #f7fbff;
-          border: 1px solid #d9ecf7;
-        }
         .db-context-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -71,35 +61,20 @@ database_manager_ui <- function(id) {
           font-weight: 600;
           color: #1f2d3d;
         }
-        .db-form-note {
-          color: #6b7785;
-          font-size: 12px;
-          line-height: 1.6;
-          margin-top: 8px;
-          margin-bottom: 10px;
-        }
-        .db-lock-card {
-          margin-top: 12px;
-          padding: 16px 18px;
-          border-radius: 10px;
-          background: #fff7ec;
-          border: 1px solid #f6d7a7;
-          color: #7d5a16;
-          line-height: 1.7;
-        }
         .db-lock-actions {
           margin-top: 14px;
         }
       "))
     ),
     fluidRow(
-      box(
+      app_card_box(
         width = 12,
         title = "数据空间工作台",
+        subtitle = "围绕数据空间、目录、数据集和结构总览统一完成整理与导入",
+        tone = "primary",
         status = "primary",
-        solidHeader = TRUE,
-        div(
-          class = "db-page-note",
+        solidHeader = FALSE,
+        app_card_note(
           "在这里完成数据空间、目录与数据集的组织管理。阶段二将资源整理、上传导入与结构总览拆成不同区域，减少单屏操作拥挤。"
         ),
         uiOutput(ns("db_context_summary"))
@@ -391,13 +366,14 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     if (!has_database_access()) {
       return(
         fluidRow(
-          box(
+          app_card_box(
             width = 12,
             title = "数据库管理已锁定",
+            subtitle = "当前账号尚未开放数据空间管理能力",
+            tone = "warning",
             status = "warning",
-            solidHeader = TRUE,
-            div(
-              class = "db-lock-card",
+            solidHeader = FALSE,
+            app_card_panel(
               div("当前账号尚未开放数据库管理功能。请由系统管理员在“系统管理 > 账号状态管理”中为该账号开放数据库管理权限，开放后即可创建、整理和导入数据空间。"),
               div("在权限开放前，你仍可前往“数据准备”页临时上传单个文件用于当前会话分析；该数据不会写入持久化数据空间。"),
               div(
@@ -463,8 +439,10 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
               box(
                 width = 12,
                 title = "数据空间",
+                subtitle = "选择、创建或删除当前数据空间",
                 status = "primary",
-                solidHeader = TRUE,
+                solidHeader = FALSE,
+                class = "app-card app-card--primary",
                 selectInput(
                   session$ns("workspace_select"),
                   "当前数据空间",
@@ -472,7 +450,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
                   selected = selected_workspace
                 ),
                 textInput(session$ns("workspace_name"), "新建数据空间名称", placeholder = "请输入数据空间名称"),
-                div(class = "db-form-note", "创建后会自动把当前登录用户设为负责人；删除数据空间仅允许负责人或管理员执行。"),
+                app_card_note("创建后会自动把当前登录用户设为负责人；删除数据空间仅允许负责人或管理员执行。"),
                 fluidRow(
                   column(6, actionButton(session$ns("create_workspace"), "创建空间", class = "btn-primary", width = "100%")),
                   column(6, actionButton(session$ns("delete_workspace"), "删除空间", class = "btn-danger", width = "100%"))
@@ -484,8 +462,10 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
               box(
                 width = 12,
                 title = "目录管理",
+                subtitle = "围绕当前数据空间维护目录结构",
                 status = "info",
-                solidHeader = TRUE,
+                solidHeader = FALSE,
+                class = "app-card app-card--info",
                 selectInput(
                   session$ns("folder_select"),
                   "当前目录",
@@ -493,7 +473,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
                   selected = selected_folder
                 ),
                 textInput(session$ns("folder_name"), "新建目录名称", placeholder = "请输入目录名称"),
-                div(class = "db-form-note", "目录只在当前数据空间下生效；根目录下的数据集会直接展示在空间级结构中。"),
+                app_card_note("目录只在当前数据空间下生效；根目录下的数据集会直接展示在空间级结构中。"),
                 fluidRow(
                   column(6, actionButton(session$ns("create_folder"), "创建目录", class = "btn-info", width = "100%")),
                   column(6, actionButton(session$ns("delete_folder"), "删除目录", class = "btn-warning", width = "100%"))
@@ -505,8 +485,10 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
               box(
                 width = 12,
                 title = "数据集管理",
+                subtitle = "管理当前目录下的数据集选择与删除",
                 status = "warning",
-                solidHeader = TRUE,
+                solidHeader = FALSE,
+                class = "app-card app-card--warning",
                 selectInput(
                   session$ns("dataset_select"),
                   "当前数据集",
@@ -514,7 +496,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
                   selected = selected_dataset
                 ),
                 textInput(session$ns("dataset_name"), "保存时显示名称", placeholder = "为空则默认使用上传文件名"),
-                div(class = "db-form-note", "上传时可以覆盖显示名称；删除仅影响当前数据空间内选中的数据集。"),
+                app_card_note("上传时可以覆盖显示名称；删除仅影响当前数据空间内选中的数据集。"),
                 fluidRow(
                   column(12, actionButton(session$ns("delete_dataset"), "删除数据集", class = "btn-danger", width = "100%"))
                 )
@@ -530,8 +512,10 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
               box(
                 width = 12,
                 title = "单文件上传",
+                subtitle = "适合逐个整理数据集名称与目录归属",
                 status = "success",
-                solidHeader = TRUE,
+                solidHeader = FALSE,
+                class = "app-card app-card--success",
                 fileInput(
                   session$ns("file"),
                   "上传数据文件 (CSV/Excel/SAS/SPSS)",
@@ -540,7 +524,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
                   placeholder = "请选择一个文件进行上传",
                   multiple = FALSE
                 ),
-                div(class = "db-form-note", "适合逐个整理数据集名称与目录归属。"),
+                app_card_note("适合逐个整理数据集名称与目录归属。"),
                 actionButton(session$ns("save_dataset"), "上传并保存到当前目录", class = "btn-success", width = "100%")
               )
             ),
@@ -549,8 +533,10 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
               box(
                 width = 12,
                 title = "批量导入",
+                subtitle = "适合初始化当前目录下的一批数据集与服务器目录导入",
                 status = "primary",
-                solidHeader = TRUE,
+                solidHeader = FALSE,
+                class = "app-card app-card--primary",
                 fileInput(
                   session$ns("batch_files"),
                   "批量上传数据文件",
@@ -559,7 +545,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
                   placeholder = "请选择多个文件进行批量上传",
                   multiple = TRUE
                 ),
-                div(class = "db-form-note", "适合初始化当前目录下的一批数据集。服务器目录导入仅对系统管理员开放。"),
+                app_card_note("适合初始化当前目录下的一批数据集。服务器目录导入仅对系统管理员开放。"),
                 actionButton(session$ns("save_batch_datasets"), "批量保存到当前目录", class = "btn-primary", width = "100%"),
                 br(),
                 br(),
@@ -665,7 +651,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       manage_label <- if (service_can_manage_workspace(pool, selected_workspace, user)) "可管理当前数据空间" else "仅可访问当前数据空间"
     }
     div(
-      class = "db-context-card",
+      class = "app-card__panel",
       div(
         class = "db-context-grid",
         div(
@@ -700,11 +686,12 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     fd_count <- nrow(reg$folders)
     ds_count <- nrow(reg$datasets)
     total_rows <- if (ds_count == 0) 0 else sum(reg$datasets$nrow, na.rm = TRUE)
-    fluidRow(
-      valueBox(width = 3, value = ws_count, subtitle = "数据空间数", icon = icon("database"), color = "blue"),
-      valueBox(width = 3, value = fd_count, subtitle = "文件夹数", icon = icon("folder-open"), color = "aqua"),
-      valueBox(width = 3, value = ds_count, subtitle = "数据集数", icon = icon("table"), color = "green"),
-      valueBox(width = 3, value = total_rows, subtitle = "累计数据行数", icon = icon("list-ol"), color = "purple")
+    tags$div(
+      class = "app-stat-grid",
+      app_stat_card("数据空间数", ws_count, meta = "当前可见的数据空间总数", tone = "primary"),
+      app_stat_card("文件夹数", fd_count, meta = "当前已登记目录总数", tone = "info"),
+      app_stat_card("数据集数", ds_count, meta = "当前已登记数据集总数", tone = "success"),
+      app_stat_card("累计数据行数", format(total_rows, big.mark = ","), meta = "按数据集行数汇总", tone = "warning")
     )
   })
   

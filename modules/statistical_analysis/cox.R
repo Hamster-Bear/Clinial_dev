@@ -6,6 +6,13 @@ if (file.exists("modules/common/analysis_shared.R")) {
 } else {
   source(file.path("..", "modules", "common", "analysis_shared.R"))
 }
+if (!exists("app_card_note", mode = "function") || !exists("app_card_panel", mode = "function")) {
+  if (file.exists("modules/common/ui_shell.R")) {
+    source("modules/common/ui_shell.R")
+  } else {
+    source(file.path("..", "modules", "common", "ui_shell.R"))
+  }
+}
 ensure_stat_analysis_dependencies()
 
 # Cox回归参数UI
@@ -14,40 +21,50 @@ cox_params_ui <- function(ns, data) {
   factor_vars <- names(data)[sapply(data, function(x) is.factor(x) || is.character(x))]
   
   tagList(
-    fluidRow(
-      column(6,
-             selectInput(ns("cox_time"), "时间变量 (Time)", choices = numeric_vars),
-             bsTooltip(ns("cox_time"), "生存时间变量，通常为数值型 (如随访月数)", placement = "top", trigger = "hover")
+    app_card_note("Cox 回归参数区已接入公共壳分组样式；本轮只统一参数分区与说明块，不改变建模、交互检验或结果展示逻辑。"),
+    app_card_panel(
+      tags$strong("结局与分层"),
+      app_card_note("先定义生存时间、事件状态，再按需设置亚组、分面与模型内分层因素。"),
+      fluidRow(
+        column(6,
+               selectInput(ns("cox_time"), "时间变量 (Time)", choices = numeric_vars),
+               bsTooltip(ns("cox_time"), "生存时间变量，通常为数值型 (如随访月数)", placement = "top", trigger = "hover")
+        ),
+        column(6,
+               selectInput(ns("cox_status"), "删失变量 (Status)", choices = numeric_vars),
+               bsTooltip(ns("cox_status"), "事件状态变量 (0=删失, 1=发生事件)", placement = "top", trigger = "hover")
+        )
       ),
-      column(6,
-             selectInput(ns("cox_status"), "删失变量 (Status)", choices = numeric_vars),
-             bsTooltip(ns("cox_status"), "事件状态变量 (0=删失, 1=发生事件)", placement = "top", trigger = "hover")
-      )
-    ),
-    
-    fluidRow(
-      column(6,
-    selectInput(ns("cox_strata"), "亚组变量 (Subgroup) - 可选", choices = c("None", factor_vars)),
-            bsTooltip(ns("cox_strata"), "按该变量分组后，分别拟合并以堆叠方式展示结果", placement = "top", trigger = "hover")
+      fluidRow(
+        column(6,
+               selectInput(ns("cox_strata"), "亚组变量 (Subgroup) - 可选", choices = c("None", factor_vars)),
+               bsTooltip(ns("cox_strata"), "按该变量分组后，分别拟合并以堆叠方式展示结果", placement = "top", trigger = "hover")
+        ),
+        column(6,
+               selectInput(ns("cox_facet"), "队列/分组变量 (Cohort/Arm) - 可选", choices = c("None", factor_vars)),
+               bsTooltip(ns("cox_facet"), "按该变量分组后，以列分组方式并排展示Cox回归结果", placement = "top", trigger = "hover")
+        )
       ),
-      column(6,
-             selectInput(ns("cox_facet"), "队列/分组变量 (Cohort/Arm) - 可选", choices = c("None", factor_vars)),
-             bsTooltip(ns("cox_facet"), "按该变量分组后，以列分组方式并排展示Cox回归结果", placement = "top", trigger = "hover")
+      fluidRow(
+        column(12,
+               selectInput(ns("cox_model_strata"), "模型分层因素 (Stratification Factor) - 可选", choices = c("None", factor_vars)),
+               bsTooltip(ns("cox_model_strata"), "该变量将以strata()形式进入Cox模型进行基线风险分层控制", placement = "top", trigger = "hover")
+        )
       )
     ),
-    fluidRow(
-      column(12,
-             selectInput(ns("cox_model_strata"), "模型分层因素 (Stratification Factor) - 可选", choices = c("None", factor_vars)),
-             bsTooltip(ns("cox_model_strata"), "该变量将以strata()形式进入Cox模型进行基线风险分层控制", placement = "top", trigger = "hover")
-      )
+    app_card_panel(
+      tags$strong("总计列与状态映射"),
+      app_card_note("继续保留总计列设置与事件值映射，用于控制列展示与删失/事件判定。"),
+      uiOutput(ns("cox_total_cols_ui")),
+      uiOutput(ns("cox_status_mapping_ui"))
     ),
-    
-    uiOutput(ns("cox_total_cols_ui")),
-    uiOutput(ns("cox_status_mapping_ui")),
-    
-    selectizeInput(ns("cox_covariates"), "协变量 (Covariates)", choices = names(data), multiple = TRUE),
-    bsTooltip(ns("cox_covariates"), "纳入 Cox 模型的协变量", placement = "top", trigger = "hover"),
-    uiOutput(ns("cox_reference_ui"))
+    app_card_panel(
+      tags$strong("协变量与参考组"),
+      app_card_note("协变量选择、分类变量参考组与后续模型公式保持原有处理方式。"),
+      selectizeInput(ns("cox_covariates"), "协变量 (Covariates)", choices = names(data), multiple = TRUE),
+      bsTooltip(ns("cox_covariates"), "纳入 Cox 模型的协变量", placement = "top", trigger = "hover"),
+      uiOutput(ns("cox_reference_ui"))
+    )
   )
 }
 

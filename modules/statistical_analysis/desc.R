@@ -6,6 +6,14 @@ library(tidyr)
 library(gt)
 library(stringr)
 
+if (!exists("app_card_note", mode = "function") || !exists("app_card_panel", mode = "function")) {
+  if (file.exists("modules/common/ui_shell.R")) {
+    source("modules/common/ui_shell.R")
+  } else {
+    source(file.path("..", "modules", "common", "ui_shell.R"))
+  }
+}
+
 # 描述性统计参数UI
 
 # 描述性统计参数UI
@@ -14,16 +22,22 @@ desc_params_ui <- function(ns, data) {
   default_id_var <- if ("subject" %in% var_names) "subject" else if (length(var_names) > 0) var_names[1] else NULL
   
   tagList(
-    selectizeInput(ns("desc_variables"), "选择分析变量", choices = var_names, multiple = TRUE),
-    selectInput(ns("desc_col_group_var"), "列分组变量 (可选)", choices = c("无", var_names)),
-    selectInput(ns("desc_row_group_var"), "行分组变量 (可选)", choices = c("无", var_names)),
-    selectInput(ns("desc_id_var"), "唯一标识符变量", choices = var_names, selected = default_id_var),
-    
-    # 使用与回归一致的公共 UI 渲染函数
-    uiOutput(ns("desc_total_cols_ui")),
-    
-    numericInput(ns("desc_decimals"), "小数位数", value = 2, min = 0, max = 5),
-    checkboxInput(ns("desc_auto_decimals"), "使用自动小数位数", value = TRUE)
+    app_card_note("描述性统计参数区已接入公共壳分组样式；本轮只统一说明块与参数分区，不调整统计汇总逻辑。"),
+    app_card_panel(
+      tags$strong("变量与分组"),
+      app_card_note("先选择分析变量，再按需指定列分组、行分组和受试者唯一标识变量。"),
+      selectizeInput(ns("desc_variables"), "选择分析变量", choices = var_names, multiple = TRUE),
+      selectInput(ns("desc_col_group_var"), "列分组变量 (可选)", choices = c("无", var_names)),
+      selectInput(ns("desc_row_group_var"), "行分组变量 (可选)", choices = c("无", var_names)),
+      selectInput(ns("desc_id_var"), "唯一标识符变量", choices = var_names, selected = default_id_var)
+    ),
+    app_card_panel(
+      tags$strong("展示与汇总"),
+      app_card_note("继续保留总计列配置、固定小数位数与自动小数位数策略。"),
+      uiOutput(ns("desc_total_cols_ui")),
+      numericInput(ns("desc_decimals"), "小数位数", value = 2, min = 0, max = 5),
+      checkboxInput(ns("desc_auto_decimals"), "使用自动小数位数", value = TRUE)
+    )
   )
 }
 

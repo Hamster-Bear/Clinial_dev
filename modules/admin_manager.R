@@ -1,12 +1,9 @@
 admin_manager_ui <- function(id) {
   ns <- NS(id)
   tagList(
+    app_card_dependencies(),
     tags$head(
       tags$style(HTML("
-        .admin-note {
-          color: #5f6b7a;
-          line-height: 1.7;
-        }
         .admin-shell {
           padding-bottom: 8px;
         }
@@ -20,49 +17,31 @@ admin_manager_ui <- function(id) {
           display: flex;
           margin-bottom: 16px;
         }
-        .admin-shell .box {
-          border-radius: 14px;
-          border: 1px solid #e6edf5;
-          box-shadow: 0 10px 24px rgba(31, 45, 61, 0.06);
-          overflow: hidden;
+        .admin-equal-row > [class*='col-'] > .app-card.box,
+        .admin-equal-row > [class*='col-'] > .nav-tabs-custom {
           width: 100%;
         }
-        .admin-shell .box-header {
-          border-bottom: 1px solid #edf2f7;
+        .admin-shell .app-card__note {
+          margin-top: 0;
+          margin-bottom: 12px;
         }
-        .admin-shell .box-title {
-          font-weight: 600;
-          color: #243447;
-        }
-        .admin-shell .box-body {
-          padding: 16px 18px 18px;
-        }
-        .admin-intro-box {
-          background: linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%);
-        }
-        .admin-intro-box .box-header,
-        .admin-hero-box .box-header,
-        .admin-table-box .box-header,
-        .admin-ops-box .box-header {
-          background: #ffffff !important;
-          color: #243447 !important;
-        }
-        .admin-intro-box .box-body {
-          padding-top: 14px;
-        }
-        .admin-table-box .box-body {
-          padding-top: 14px;
-        }
-        .admin-ops-box .box-body {
-          padding-top: 14px;
+        .admin-runtime-pre {
+          margin: 0;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          color: #4f5f73;
+          font-size: 13px;
+          line-height: 1.7;
+          white-space: pre-wrap;
+          word-break: break-word;
         }
         .admin-shell .nav-tabs-custom {
           border-radius: 14px;
-          border: 1px solid #e6edf5;
+          border: 1px solid #e7edf4;
           box-shadow: 0 10px 24px rgba(31, 45, 61, 0.06);
           overflow: hidden;
           background: #fff;
-          width: 100%;
         }
         .admin-shell .nav-tabs-custom > .nav-tabs {
           background: #ffffff;
@@ -79,50 +58,15 @@ admin_manager_ui <- function(id) {
         .admin-shell .nav-tabs-custom > .tab-content {
           padding: 14px 16px 16px;
         }
-        .admin-section-note {
-          color: #7b8794;
-          font-size: 12px;
-          line-height: 1.6;
-          margin-bottom: 12px;
-        }
-        .admin-form-note {
-          color: #6b7785;
-          font-size: 12px;
-          line-height: 1.6;
-          margin-top: 8px;
-          margin-bottom: 10px;
-        }
-        .admin-summary-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-          gap: 10px;
-        }
-        .admin-summary-card {
-          padding: 12px 14px;
-          border-radius: 10px;
-          background: #f8fbff;
-          border: 1px solid #dbe8f4;
-        }
-        .admin-summary-label {
-          display: block;
-          color: #758395;
-          font-size: 12px;
-          margin-bottom: 4px;
-        }
-        .admin-summary-value {
-          display: block;
-          color: #243447;
-          font-size: 16px;
-          font-weight: 600;
-        }
         .admin-impact-card {
           margin-top: 10px;
-          padding: 12px 14px;
-          border-radius: 10px;
           background: #fff9ef;
           border: 1px solid #f4d7aa;
           color: #7a5a18;
           line-height: 1.7;
+        }
+        .admin-impact-card strong {
+          color: #7a5a18;
         }
         .admin-risk-list {
           margin: 0;
@@ -171,10 +115,11 @@ admin_manager_ui <- function(id) {
       "))
     ),
     fluidRow(
-      box(
+      app_card_box(
         width = 12,
         title = "系统管理入口",
-        class = "admin-intro-box",
+        subtitle = "集中处理系统级账号状态、数据空间权限与协作排障入口",
+        tone = "info",
         status = "info",
         solidHeader = FALSE,
         uiOutput(ns("admin_access_notice"))
@@ -187,6 +132,19 @@ admin_manager_ui <- function(id) {
 admin_manager_server <- function(id, pg_pool, current_user = NULL) {
   moduleServer(id, function(input, output, session) {
     `%||%` <- function(x, y) if (is.null(x)) y else x
+    admin_stat_grid <- function(...) tags$div(class = "app-stat-grid", ...)
+    admin_stat_item <- function(label, value, tone = "primary", meta = NULL, chips = NULL) {
+      app_stat_card(
+        label = label,
+        value = as.character(value %||% ""),
+        meta = meta,
+        tone = tone,
+        chips = chips
+      )
+    }
+    admin_panel <- function(..., class = NULL) {
+      tags$div(class = trimws(paste("app-card__panel", class)), ...)
+    }
     refresh_tick <- reactiveVal(0)
     registry_filter_mode <- reactiveVal("all")
     registry_filter_labels <- c(
@@ -388,12 +346,11 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
 
     output$admin_access_notice <- renderUI({
       if (isTRUE(is_admin())) {
-        tags$div(
-          class = "admin-note",
+        app_card_note(
           "当前页面仅面向系统管理员，用于执行账号状态调整、数据库管理权限开关和查看数据库信息。若需要处理数据空间负责人或协作授权，仅限当前管理员自己名下可管理的数据空间。管理员入口保持独立，不并入普通用户侧边栏卡片。"
         )
       } else {
-        tags$div("当前页面仅系统管理员可用。")
+        app_card_note("当前页面仅系统管理员可用。")
       }
     })
 
@@ -407,40 +364,49 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       tagList(
         div(
           class = "row admin-equal-row",
-          box(
+          app_card_box(
             width = 4,
             title = "系统概览",
-            class = "admin-hero-box admin-overview-box",
+            subtitle = "摘要优先查看当前管理员与账号总体态势",
+            tone = "primary",
             status = "primary",
             solidHeader = FALSE,
             uiOutput(session$ns("admin_system_overview"))
           ),
-          box(
+          app_card_box(
             width = 4,
             title = "异常态势摘要",
-            class = "admin-hero-box admin-risk-box",
+            subtitle = "聚焦停用账号、未设置邮箱与待领取邀请等风险",
+            tone = "warning",
             status = "warning",
             solidHeader = FALSE,
             uiOutput(session$ns("admin_risk_overview"))
           ),
-          box(
+          app_card_box(
             width = 4,
             title = "运行环境",
-            class = "admin-hero-box admin-runtime-box",
+            subtitle = "快速核对数据库与管理员预置环境变量",
+            tone = "info",
             status = "info",
             solidHeader = FALSE,
-            verbatimTextOutput(session$ns("admin_runtime_meta"))
+            app_card_panel(
+              tags$pre(
+                class = "admin-runtime-pre",
+                textOutput(session$ns("admin_runtime_meta"))
+              )
+            )
           )
         ),
         div(
           class = "row admin-equal-row",
-          box(
+          app_card_box(
             width = 12,
             title = "所有注册账号总览",
-            class = "admin-table-box admin-registry-box",
+            subtitle = "按元信息统一筛查账号状态、数据空间功能与协作概况",
+            tone = "primary",
             status = "primary",
             solidHeader = FALSE,
-            div(class = "admin-form-note", "仅展示所有已注册账号的元信息、数据空间功能状态和协作摘要，便于系统管理员统一排查与筛查；不展示其他用户数据空间中的实际数据内容。"),
+            app_card_note("仅展示所有已注册账号的元信息、数据空间功能状态和协作摘要，便于系统管理员统一排查与筛查；不展示其他用户数据空间中的实际数据内容。"),
             uiOutput(session$ns("admin_user_registry_summary")),
             uiOutput(session$ns("admin_user_registry_filters")),
             uiOutput(session$ns("admin_user_registry_filter_note")),
@@ -449,14 +415,15 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
         ),
         div(
           class = "row admin-equal-row",
-          box(
+          app_card_box(
             width = 4,
             title = "账号状态管理",
-            class = "admin-ops-box admin-account-box",
+            subtitle = "从上方账号总览联动目标账号后执行启停与开关",
+            tone = "warning",
             status = "warning",
             solidHeader = FALSE,
             div(id = session$ns("admin_account_section"), class = "admin-risk-anchor"),
-            div(class = "admin-section-note", "先在上方“所有注册账号总览”中选中目标账号，再根据状态卡片与操作影响预览决定启用、停用或开关数据空间功能。"),
+            app_card_note("先在上方“所有注册账号总览”中选中目标账号，再根据状态卡片与操作影响预览决定启用、停用或开关数据空间功能。"),
             uiOutput(session$ns("admin_user_meta_card")),
             uiOutput(session$ns("admin_action_hint")),
             fluidRow(
@@ -469,27 +436,29 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
               column(6, actionButton(session$ns("revoke_db_access"), "锁定数据库", class = "btn-default", width = "100%"))
             )
           ),
-          box(
+          app_card_box(
             width = 4,
             title = "我名下空间负责人调整",
-            class = "admin-ops-box admin-owner-box",
+            subtitle = "处理负责人迁移与待领取 owner 记录",
+            tone = "primary",
             status = "primary",
             solidHeader = FALSE,
             div(id = session$ns("admin_owner_section"), class = "admin-risk-anchor"),
-            div(class = "admin-section-note", "适合处理负责人迁移或注册前先发送待领取 owner 迁移记录。"),
+            app_card_note("适合处理负责人迁移或注册前先发送待领取 owner 迁移记录。"),
             selectInput(session$ns("owner_workspace_select"), "选择目标数据空间", choices = workspace_choices),
             textInput(session$ns("owner_email"), "新负责人邮箱", placeholder = "请输入负责人邮箱"),
-            div(class = "admin-form-note", "仅处理当前管理员自己名下可管理的数据空间。若邮箱尚未注册，会生成待领取的负责人迁移记录。"),
+            app_card_note("仅处理当前管理员自己名下可管理的数据空间。若邮箱尚未注册，会生成待领取的负责人迁移记录。"),
             actionButton(session$ns("assign_owner"), "绑定负责人", class = "btn-primary", width = "100%")
           ),
-          box(
+          app_card_box(
             width = 4,
             title = "我名下空间协作授权",
-            class = "admin-ops-box admin-membership-box",
+            subtitle = "处理协作者授权、撤销与待领取邀请跟进",
+            tone = "info",
             status = "info",
             solidHeader = FALSE,
             div(id = session$ns("admin_membership_section"), class = "admin-risk-anchor"),
-            div(class = "admin-section-note", "适合处理协作者授权、撤销以及待领取邀请的后续跟进。"),
+            app_card_note("适合处理协作者授权、撤销以及待领取邀请的后续跟进。"),
             selectInput(session$ns("membership_workspace_select"), "选择目标数据空间", choices = workspace_choices),
             textInput(session$ns("membership_email"), "协作者邮箱", placeholder = "请输入协作者邮箱"),
             selectInput(
@@ -498,7 +467,7 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
               choices = c("只读成员" = "viewer", "可编辑成员" = "editor"),
               selected = "viewer"
             ),
-            div(class = "admin-form-note", "管理员不展示库内用户选择器；当前协作授权、撤销与负责人迁移统一通过邮箱完成，且仅限自己名下数据空间。"),
+            app_card_note("管理员不展示库内用户选择器；当前协作授权、撤销与负责人迁移统一通过邮箱完成，且仅限自己名下数据空间。"),
             fluidRow(
               column(6, actionButton(session$ns("assign_membership"), "发送授权", class = "btn-info", width = "100%")),
               column(6, actionButton(session$ns("revoke_membership"), "撤销协作", class = "btn-danger", width = "100%"))
@@ -507,14 +476,15 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
         ),
         div(
           class = "row admin-equal-row",
-          box(
+          app_card_box(
             width = 6,
             title = "我名下数据空间概览",
-            class = "admin-table-box admin-workspace-box",
+            subtitle = "仅展示当前管理员可管理的数据空间元信息",
+            tone = "primary",
             status = "primary",
             solidHeader = FALSE,
             div(id = session$ns("admin_workspace_summary_section"), class = "admin-risk-anchor"),
-            div(class = "admin-form-note", "仅展示当前管理员自己名下可管理的数据空间元信息，用于快速判断共享状态、待领取邀请和负责人迁移风险。"),
+            app_card_note("仅展示当前管理员自己名下可管理的数据空间元信息，用于快速判断共享状态、待领取邀请和负责人迁移风险。"),
             DTOutput(session$ns("admin_workspace_summary_table"))
           ),
           tabBox(
@@ -534,21 +504,13 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       workspaces_df <- list_manageable_workspaces()
       invites_df <- list_manageable_invites()
       current <- get_current_user()
-      summary_item <- function(label, value) {
-        tags$div(
-          class = "admin-summary-card",
-          tags$span(class = "admin-summary-label", label),
-          tags$span(class = "admin-summary-value", value)
-        )
-      }
-      tags$div(
-        class = "admin-summary-grid",
-        summary_item("当前管理员", current$username %||% "未识别"),
-        summary_item("当前库用户数", nrow(users_df)),
-        summary_item("正常账号数", sum((users_df$status %||% character(0)) == "active")),
-        summary_item("已开通数据空间功能", sum((users_df$is_admin %||% logical(0)) | (users_df$db_access_enabled %||% logical(0)), na.rm = TRUE)),
-        summary_item("我名下数据空间", nrow(workspaces_df)),
-        summary_item("我名下待领取邀请", sum((invites_df$status %||% character(0)) == "pending"))
+      admin_stat_grid(
+        admin_stat_item("当前管理员", current$username %||% "未识别", tone = "primary"),
+        admin_stat_item("当前库用户数", nrow(users_df), tone = "info"),
+        admin_stat_item("正常账号数", sum((users_df$status %||% character(0)) == "active"), tone = "success"),
+        admin_stat_item("已开通数据空间功能", sum((users_df$is_admin %||% logical(0)) | (users_df$db_access_enabled %||% logical(0)), na.rm = TRUE), tone = "warning"),
+        admin_stat_item("我名下数据空间", nrow(workspaces_df), tone = "primary"),
+        admin_stat_item("我名下待领取邀请", sum((invites_df$status %||% character(0)) == "pending"), tone = "danger")
       )
     })
 
@@ -587,21 +549,13 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       req(is_admin())
       refresh_tick()
       registry_df <- build_user_registry_overview_df(list_users())
-      summary_item <- function(label, value) {
-        tags$div(
-          class = "admin-summary-card",
-          tags$span(class = "admin-summary-label", label),
-          tags$span(class = "admin-summary-value", value)
-        )
-      }
-      tags$div(
-        class = "admin-summary-grid",
-        summary_item("注册账号总数", nrow(registry_df)),
-        summary_item("系统管理员", sum(registry_df$管理员身份 %in% "是")),
-        summary_item("停用账号", sum(registry_df$账号状态 %in% "已停用")),
-        summary_item("未设置邮箱", sum(registry_df$联系邮箱 %in% "未设置")),
-        summary_item("未开通数据空间功能", sum(registry_df$数据空间功能 %in% "未开通")),
-        summary_item("待领取邀请账号", sum(registry_df$待领取邀请 > 0))
+      admin_stat_grid(
+        admin_stat_item("注册账号总数", nrow(registry_df), tone = "primary"),
+        admin_stat_item("系统管理员", sum(registry_df$管理员身份 %in% "是"), tone = "info"),
+        admin_stat_item("停用账号", sum(registry_df$账号状态 %in% "已停用"), tone = "warning"),
+        admin_stat_item("未设置邮箱", sum(registry_df$联系邮箱 %in% "未设置"), tone = "danger"),
+        admin_stat_item("未开通数据空间功能", sum(registry_df$数据空间功能 %in% "未开通"), tone = "warning"),
+        admin_stat_item("待领取邀请账号", sum(registry_df$待领取邀请 > 0), tone = "success")
       )
     })
 
@@ -696,14 +650,6 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
         }, logical(1)))
       }
 
-      summary_item <- function(label, value) {
-        tags$div(
-          class = "admin-summary-card",
-          tags$span(class = "admin-summary-label", label),
-          tags$span(class = "admin-summary-value", value)
-        )
-      }
-
       risk_messages <- c(
         if (inactive_count > 0) paste0("当前有 ", inactive_count, " 个停用账号，必要时需核对是否仍为有效业务用户。"),
         if (no_email_count > 0) paste0("当前有 ", no_email_count, " 个账号未设置邮箱，这会影响邀请领取、负责人迁移与账号找回。"),
@@ -726,19 +672,20 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       )
 
       tagList(
-        div(
-          class = "admin-summary-grid",
-          summary_item("停用账号", inactive_count),
-          summary_item("未设置邮箱账号", no_email_count),
-          summary_item("未开通数据空间功能", db_locked_count),
-          summary_item("我名下待领取邀请", pending_invite_count),
-          summary_item("未注册邀请邮箱", unclaimed_email_count),
-          summary_item("仅负责人可见空间", owner_only_count)
+        admin_stat_grid(
+          admin_stat_item("停用账号", inactive_count, tone = "warning"),
+          admin_stat_item("未设置邮箱账号", no_email_count, tone = "danger"),
+          admin_stat_item("未开通数据空间功能", db_locked_count, tone = "warning"),
+          admin_stat_item("我名下待领取邀请", pending_invite_count, tone = "info"),
+          admin_stat_item("未注册邀请邮箱", unclaimed_email_count, tone = "danger"),
+          admin_stat_item("仅负责人可见空间", owner_only_count, tone = "primary")
         ),
-        div(class = "admin-impact-card",
-            tags$strong("优先关注"),
-            tags$ul(class = "admin-risk-list", lapply(risk_messages, tags$li)),
-            div(class = "admin-risk-actions", quick_actions))
+        admin_panel(
+          tags$strong("优先关注"),
+          tags$ul(class = "admin-risk-list", lapply(risk_messages, tags$li)),
+          div(class = "admin-risk-actions", quick_actions),
+          class = "admin-impact-card"
+        )
       )
     })
 
@@ -779,7 +726,7 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       req(is_admin())
       row <- get_target_user_row()
       if (nrow(row) == 0) {
-        return(tags$div(class = "admin-form-note", "请先在“所有注册账号总览”中选中一个账号。"))
+        return(app_card_note("请先在“所有注册账号总览”中选中一个账号。"))
       }
       all_workspaces <- service_list_workspaces(pg_pool)
       target_user_id <- row$id[[1]] %||% ""
@@ -792,24 +739,16 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       } else {
         sum((all_invites$invited_email %||% character(0)) == target_email & (all_invites$status %||% character(0)) == "pending")
       }
-      summary_item <- function(label, value) {
-        tags$div(
-          class = "admin-summary-card",
-          tags$span(class = "admin-summary-label", label),
-          tags$span(class = "admin-summary-value", value)
-        )
-      }
-      tags$div(
-        class = "admin-summary-grid",
-        summary_item("账号名", row$username[[1]] %||% ""),
-        summary_item("联系邮箱", ifelse(is.na(row$email[[1]]) || !nzchar(row$email[[1]]), "未设置", row$email[[1]])),
-        summary_item("管理员身份", ifelse(isTRUE(row$is_admin[[1]]), "是", "否")),
-        summary_item("账号状态", service_label_user_status(row$status[[1]])),
-        summary_item("数据空间功能", service_label_db_access_status(isTRUE(row$db_access_enabled[[1]]) || isTRUE(row$is_admin[[1]]))),
-        summary_item("创建时间", service_format_datetime(row$created_at[[1]])),
-        summary_item("名下数据空间", target_owned_count),
-        summary_item("当前可访问空间", target_accessible_count),
-        summary_item("待领取邀请", target_pending_invites)
+      admin_stat_grid(
+        admin_stat_item("账号名", row$username[[1]] %||% "", tone = "primary"),
+        admin_stat_item("联系邮箱", ifelse(is.na(row$email[[1]]) || !nzchar(row$email[[1]]), "未设置", row$email[[1]]), tone = "info"),
+        admin_stat_item("管理员身份", ifelse(isTRUE(row$is_admin[[1]]), "是", "否"), tone = "primary"),
+        admin_stat_item("账号状态", service_label_user_status(row$status[[1]]), tone = "warning"),
+        admin_stat_item("数据空间功能", service_label_db_access_status(isTRUE(row$db_access_enabled[[1]]) || isTRUE(row$is_admin[[1]])), tone = "warning"),
+        admin_stat_item("创建时间", service_format_datetime(row$created_at[[1]]), tone = "info"),
+        admin_stat_item("名下数据空间", target_owned_count, tone = "success"),
+        admin_stat_item("当前可访问空间", target_accessible_count, tone = "primary"),
+        admin_stat_item("待领取邀请", target_pending_invites, tone = "danger")
       )
     })
 
@@ -831,12 +770,12 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       if (length(hints) == 0) {
         return(NULL)
       }
-      tags$div(
-        class = "admin-impact-card",
+      admin_panel(
         tags$strong("操作影响预览"),
         tags$ul(
           lapply(hints, tags$li)
-        )
+        ),
+        class = "admin-impact-card"
       )
     })
 

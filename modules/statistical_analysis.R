@@ -32,31 +32,58 @@ statistical_analysis_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
+    app_card_dependencies(),
+    tags$head(
+      tags$style(HTML("
+        .stat-analysis-shell .app-card .tab-content {
+          padding-top: 14px;
+        }
+        .stat-analysis-result-wrap {
+          width: 90%;
+          margin: 18px auto 24px auto;
+          padding: 8px 0 12px 0;
+          overflow-x: auto;
+        }
+        .stat-analysis-result-panel {
+          margin-top: 6px;
+        }
+        .stat-analysis-export-row {
+          margin-top: 8px;
+        }
+      "))
+    ),
     fluidRow(
       # 顶部：数据筛选（新增）
       column(
         width = 12,
-        box(
+        app_card_box(
           width = NULL,
           title = "全局数据筛选",
+          subtitle = "先统一设置当前统计分析总入口使用的数据过滤条件",
+          tone = "info",
           status = "info",
-          solidHeader = TRUE,
+          solidHeader = FALSE,
           collapsible = TRUE,
           collapsed = TRUE, # 默认折叠
+          app_card_note("该筛选作用于当前统计分析总入口下的所有方法；本轮只统一入口卡片视觉，不改筛选逻辑。"),
           # 调用筛选模块 UI
           data_filter_ui(ns("global_filter"))
         )
       )
     ),
     fluidRow(
+      class = "stat-analysis-shell",
       # 左侧：方法选择和变量选择
       column(
         width = 4,
-        box(
+        app_card_box(
           width = 12,
           title = "统计方法选择",
+          subtitle = "在总入口内切换描述性统计、回归模型与组间比较方法",
+          tone = "primary",
           status = "primary",
-          solidHeader = TRUE,
+          solidHeader = FALSE,
+          app_card_note("当前总入口已接入公共卡片壳，但各统计子模块内部参数 UI 与分析逻辑保持原样。"),
           selectInput(
             ns("stat_method"),
             "选择统计方法",
@@ -81,11 +108,14 @@ statistical_analysis_ui <- function(id) {
         ),
         
         # 变量选择和参数设置面板
-        box(
+        app_card_box(
           width = 12,
           title = "变量选择和参数设置",
+          subtitle = "按当前方法动态加载变量映射、模型参数与执行入口",
+          tone = "info",
           status = "info",
-          solidHeader = TRUE,
+          solidHeader = FALSE,
+          app_card_note("这里只统一卡片标题、说明块与边框留白，不调整各方法参数项的业务语义。"),
           # 动态参数UI
           uiOutput(ns("stat_params_ui")),
           
@@ -103,54 +133,82 @@ statistical_analysis_ui <- function(id) {
       # 右侧：结果展示
       column(
         width = 8,
-        box(
+        app_card_box(
           width = 12,
           title = "分析结果",
+          subtitle = "统一结果容器、空状态与导出说明，但保留原有结果结构与业务链路",
+          tone = "success",
           status = "success",
-          solidHeader = TRUE,
+          solidHeader = FALSE,
+          app_card_note("结果区继续保留统计表格、统计报告与可复现代码三段结构；本轮进一步统一 tab 内结果容器、空状态与导出说明块。"),
           tabsetPanel(
-            tabPanel("统计表格", div(style = "width: 90%; margin: 18px auto 24px auto; padding: 8px 0 12px 0; overflow-x: auto;", gt::gt_output(ns("result_table")))),
-            tabPanel("统计报告",
-                     br(),
-                     uiOutput(ns("analysis_interpretation"))
-            ),
-            tabPanel("可复现代码",
-                     br(),
-                     verbatimTextOutput(ns("repro_code_out"))
-            )
-          ),
-          br(),
-          fluidRow(
-            column(
-              width = 3,
-              selectInput(
-                ns("dl_format"),
-                "导出格式",
-                choices = c("Word" = "word", "HTML" = "html", "RTF" = "rtf", "PDF" = "pdf"),
-                selected = "word"
+            tabPanel(
+              "统计表格",
+              app_result_panel(
+                title = "统计表格结果",
+                note = "展示当前分析方法生成的主结果表；未运行分析时显示统一空状态提示。",
+                tone = "success",
+                class = "stat-analysis-result-panel",
+                div(class = "stat-analysis-result-wrap", gt::gt_output(ns("result_table")))
               )
             ),
-            column(
-              width = 3,
-              div(style = "padding-top: 25px;", checkboxInput(ns("dl_include_report"), "导出包含报告", value = FALSE))
+            tabPanel("统计报告",
+                     app_result_panel(
+                       title = "统计报告说明",
+                       note = "汇总当前分析方法的关键解释、结果阅读提示与上下文说明。",
+                       tone = "info",
+                       class = "stat-analysis-result-panel",
+                       uiOutput(ns("analysis_interpretation"))
+                     )
             ),
-            column(
-              width = 3,
-              textInput(ns("export_title"), "导出标题", value = "Table 1. Statistical Analysis Results")
-            ),
-            column(
-              width = 3,
-              div(style = "padding-top: 25px;", downloadButton(ns("dl_table"), "导出报告", class = "btn-primary"))
+            tabPanel("可复现代码",
+                     app_result_panel(
+                       title = "可复现代码",
+                       note = "提供当前分析参数对应的 R 代码草稿，便于在本地或报告流程中复现。",
+                       tone = "primary",
+                       class = "stat-analysis-result-panel",
+                       verbatimTextOutput(ns("repro_code_out"))
+                     )
             )
           ),
-          fluidRow(
-            column(
-              width = 12,
-              textAreaInput(
-                ns("export_footnotes"),
-                "导出脚注（每行一条）",
-                value = "Data are presented as n (%) for categorical variables and summary statistics for continuous variables.\nP values were calculated using method-specific tests.\nMissing values were retained and reported as available in source data.",
-                rows = 4
+          app_result_panel(
+            title = "导出配置",
+            note = "继续沿用当前格式、报告开关、标题与脚注配置，不调整导出文件生成逻辑。",
+            tone = "warning",
+            class = "stat-analysis-result-panel",
+            fluidRow(
+              class = "stat-analysis-export-row",
+              column(
+                width = 3,
+                selectInput(
+                  ns("dl_format"),
+                  "导出格式",
+                  choices = c("Word" = "word", "HTML" = "html", "RTF" = "rtf", "PDF" = "pdf"),
+                  selected = "word"
+                )
+              ),
+              column(
+                width = 3,
+                div(style = "padding-top: 25px;", checkboxInput(ns("dl_include_report"), "导出包含报告", value = FALSE))
+              ),
+              column(
+                width = 3,
+                textInput(ns("export_title"), "导出标题", value = "Table 1. Statistical Analysis Results")
+              ),
+              column(
+                width = 3,
+                div(style = "padding-top: 25px;", downloadButton(ns("dl_table"), "导出报告", class = "btn-primary"))
+              )
+            ),
+            fluidRow(
+              column(
+                width = 12,
+                textAreaInput(
+                  ns("export_footnotes"),
+                  "导出脚注（每行一条）",
+                  value = "Data are presented as n (%) for categorical variables and summary statistics for continuous variables.\nP values were calculated using method-specific tests.\nMissing values were retained and reported as available in source data.",
+                  rows = 4
+                )
               )
             )
           )
@@ -924,11 +982,17 @@ statistical_analysis_server <- function(id, data) {
   
   # 显示结果表格
   output$result_table <- render_gt({
-    req(analysis_results())
-    
     result <- analysis_results()
     export_title <- if (!is.null(input$export_title) && nzchar(trimws(input$export_title))) trimws(input$export_title) else "Statistical Analysis Results"
-    footnotes <- build_export_footnotes(input$stat_method, input$export_footnotes)
+    footnotes <- if (is.null(result)) NULL else build_export_footnotes(input$stat_method, input$export_footnotes)
+    
+    if (is.null(result)) {
+      return(apply_sci_gt_style(
+        gt::gt(data.frame(Result = "运行分析后将在此显示统计表格结果。")),
+        title = export_title,
+        footnotes = footnotes
+      ))
+    }
     
     if (inherits(result, "gt_tbl")) {
       return(apply_sci_gt_style(result, title = export_title, footnotes = footnotes))
@@ -946,15 +1010,19 @@ statistical_analysis_server <- function(id, data) {
   })
   
   output$analysis_interpretation <- renderUI({
-    req(analysis_results())
     result <- analysis_results()
+    if (is.null(result)) {
+      return(app_result_empty("运行分析后将在此显示统计报告和关键解释。"))
+    }
     report <- build_stat_report(result, input$stat_method, get_analysis_context())
     report$ui
   })
 
   output$repro_code_out <- renderText({
-    req(analysis_results())
     result <- analysis_results()
+    if (is.null(result)) {
+      return("运行分析后将在此显示可复现代码。")
+    }
     if (is.list(result) && !is.null(result$code)) {
       result$code
     } else {

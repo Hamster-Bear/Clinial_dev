@@ -6,6 +6,13 @@ if (file.exists("modules/common/analysis_shared.R")) {
 } else {
   source(file.path("..", "modules", "common", "analysis_shared.R"))
 }
+if (!exists("app_card_note", mode = "function") || !exists("app_card_panel", mode = "function")) {
+  if (file.exists("modules/common/ui_shell.R")) {
+    source("modules/common/ui_shell.R")
+  } else {
+    source(file.path("..", "modules", "common", "ui_shell.R"))
+  }
+}
 ensure_stat_analysis_dependencies()
 
 # 线性回归参数UI
@@ -14,35 +21,45 @@ linear_params_ui <- function(ns, data) {
   factor_vars <- names(data)[sapply(data, function(x) is.factor(x) || is.character(x))]
   
   tagList(
-    fluidRow(
-      column(6, 
-             selectInput(ns("linear_response"), "响应变量 (Response)", choices = numeric_vars),
-             bsTooltip(ns("linear_response"), "连续型因变量 (数值型)", placement = "top", trigger = "hover")
-      )
-    ),
-    fluidRow(
-      column(6,
-             selectInput(ns("linear_strata"), "亚组变量 (Subgroup) - 可选", choices = c("None", factor_vars)),
-             bsTooltip(ns("linear_strata"), "按该变量分组后，分别拟合并以堆叠方式展示结果", placement = "top", trigger = "hover")
+    app_card_note("Linear 回归参数区已接入公共壳分组样式；本轮只统一参数分区与说明块，不改变建模、总计列或结果展示逻辑。"),
+    app_card_panel(
+      tags$strong("响应与分层"),
+      app_card_note("先定义连续型响应变量，再按需设置亚组、分面与模型内分层因素。"),
+      fluidRow(
+        column(6,
+               selectInput(ns("linear_response"), "响应变量 (Response)", choices = numeric_vars),
+               bsTooltip(ns("linear_response"), "连续型因变量 (数值型)", placement = "top", trigger = "hover")
+        )
       ),
-      column(6,
-             selectInput(ns("linear_facet"), "队列/分组变量 (Cohort/Arm) - 可选", choices = c("None", factor_vars)),
-             bsTooltip(ns("linear_facet"), "按该变量分组后，以列分组方式并排展示回归结果", placement = "top", trigger = "hover")
+      fluidRow(
+        column(6,
+               selectInput(ns("linear_strata"), "亚组变量 (Subgroup) - 可选", choices = c("None", factor_vars)),
+               bsTooltip(ns("linear_strata"), "按该变量分组后，分别拟合并以堆叠方式展示结果", placement = "top", trigger = "hover")
+        ),
+        column(6,
+               selectInput(ns("linear_facet"), "队列/分组变量 (Cohort/Arm) - 可选", choices = c("None", factor_vars)),
+               bsTooltip(ns("linear_facet"), "按该变量分组后，以列分组方式并排展示回归结果", placement = "top", trigger = "hover")
+        )
+      ),
+      fluidRow(
+        column(12,
+               selectInput(ns("linear_model_strata"), "模型分层因素 (Stratification Factor) - 可选", choices = c("None", factor_vars)),
+               bsTooltip(ns("linear_model_strata"), "该变量作为模型控制项进入回归，用于控制基线混杂", placement = "top", trigger = "hover")
+        )
       )
     ),
-    fluidRow(
-      column(12,
-             selectInput(ns("linear_model_strata"), "模型分层因素 (Stratification Factor) - 可选", choices = c("None", factor_vars)),
-             bsTooltip(ns("linear_model_strata"), "该变量作为模型控制项进入回归，用于控制基线混杂", placement = "top", trigger = "hover")
-      )
+    app_card_panel(
+      tags$strong("总计列配置"),
+      app_card_note("继续保留自定义总计列配置，用于控制线性回归结果中的列展示。"),
+      uiOutput(ns("linear_total_cols_ui"))
     ),
-    
-    # 动态渲染自定义总计列的UI (与 desc.R 类似)
-    uiOutput(ns("linear_total_cols_ui")),
-    
-    selectizeInput(ns("linear_predictors"), "预测变量 (Predictors)", choices = names(data), multiple = TRUE),
-    bsTooltip(ns("linear_predictors"), "纳入模型的自变量 (解释变量)", placement = "top", trigger = "hover"),
-    uiOutput(ns("linear_reference_ui"))
+    app_card_panel(
+      tags$strong("预测变量与参考组"),
+      app_card_note("预测变量选择、分类变量参考组与后续模型公式保持原有处理方式。"),
+      selectizeInput(ns("linear_predictors"), "预测变量 (Predictors)", choices = names(data), multiple = TRUE),
+      bsTooltip(ns("linear_predictors"), "纳入模型的自变量 (解释变量)", placement = "top", trigger = "hover"),
+      uiOutput(ns("linear_reference_ui"))
+    )
   )
 }
 

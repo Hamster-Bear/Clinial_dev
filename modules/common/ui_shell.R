@@ -87,6 +87,58 @@ app_card_dependencies <- function() {
         .app-card__panel strong {
           color: #243447;
         }
+        .app-result-panel {
+          padding: 14px 16px;
+          border-radius: 12px;
+          border: 1px solid #e8eef5;
+          background: #fbfdff;
+          color: #4f5f73;
+        }
+        .app-result-panel--primary {
+          background: #f7faff;
+        }
+        .app-result-panel--info {
+          background: #f8fbff;
+        }
+        .app-result-panel--success {
+          background: #f7fcf9;
+        }
+        .app-result-panel--warning {
+          background: #fffaf2;
+        }
+        .app-result-panel__title {
+          color: #243447;
+          font-weight: 600;
+          line-height: 1.5;
+        }
+        .app-result-panel__note {
+          margin-top: 6px;
+          margin-bottom: 10px;
+          color: #6b7785;
+          font-size: 12px;
+          line-height: 1.6;
+        }
+        .app-result-panel__body {
+          min-height: 0;
+        }
+        .app-result-panel__empty {
+          padding: 10px 12px;
+          border: 1px dashed #d6e1ec;
+          border-radius: 10px;
+          background: #ffffff;
+          color: #7b8794;
+          line-height: 1.6;
+        }
+        .app-result-panel pre {
+          margin: 0;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          color: #4f5f73;
+          line-height: 1.7;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
         .app-card .nav-tabs {
           border-bottom: 1px solid #e9eef5;
           margin-bottom: 14px;
@@ -249,6 +301,19 @@ app_card_note <- function(...) {
 
 app_card_panel <- function(...) {
   tags$div(class = "app-card__panel", ...)
+}
+
+app_result_panel <- function(..., title = NULL, note = NULL, tone = "info", class = NULL) {
+  tags$div(
+    class = trimws(paste("app-result-panel", paste0("app-result-panel--", tone), class)),
+    if (!is.null(title) && nzchar(title)) tags$div(class = "app-result-panel__title", title),
+    if (!is.null(note) && nzchar(note)) tags$div(class = "app-result-panel__note", note),
+    tags$div(class = "app-result-panel__body", ...)
+  )
+}
+
+app_result_empty <- function(text = "当前尚无结果。") {
+  tags$div(class = "app-result-panel__empty", text)
 }
 
 app_stat_card <- function(label, value, meta = NULL, tone = "primary", chips = NULL) {
