@@ -7,6 +7,84 @@ admin_manager_ui <- function(id) {
           color: #5f6b7a;
           line-height: 1.7;
         }
+        .admin-shell {
+          padding-bottom: 8px;
+        }
+        .admin-equal-row {
+          display: flex;
+          flex-wrap: wrap;
+          margin-left: -15px;
+          margin-right: -15px;
+        }
+        .admin-equal-row > [class*='col-'] {
+          display: flex;
+          margin-bottom: 16px;
+        }
+        .admin-shell .box {
+          border-radius: 14px;
+          border: 1px solid #e6edf5;
+          box-shadow: 0 10px 24px rgba(31, 45, 61, 0.06);
+          overflow: hidden;
+          width: 100%;
+        }
+        .admin-shell .box-header {
+          border-bottom: 1px solid #edf2f7;
+        }
+        .admin-shell .box-title {
+          font-weight: 600;
+          color: #243447;
+        }
+        .admin-shell .box-body {
+          padding: 16px 18px 18px;
+        }
+        .admin-intro-box {
+          background: linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%);
+        }
+        .admin-intro-box .box-header,
+        .admin-hero-box .box-header,
+        .admin-table-box .box-header,
+        .admin-ops-box .box-header {
+          background: #ffffff !important;
+          color: #243447 !important;
+        }
+        .admin-intro-box .box-body {
+          padding-top: 14px;
+        }
+        .admin-table-box .box-body {
+          padding-top: 14px;
+        }
+        .admin-ops-box .box-body {
+          padding-top: 14px;
+        }
+        .admin-shell .nav-tabs-custom {
+          border-radius: 14px;
+          border: 1px solid #e6edf5;
+          box-shadow: 0 10px 24px rgba(31, 45, 61, 0.06);
+          overflow: hidden;
+          background: #fff;
+          width: 100%;
+        }
+        .admin-shell .nav-tabs-custom > .nav-tabs {
+          background: #ffffff;
+          border-bottom: 1px solid #edf2f7;
+          padding: 0 10px;
+        }
+        .admin-shell .nav-tabs-custom > .nav-tabs > li > a {
+          color: #4f5f73;
+          font-weight: 500;
+        }
+        .admin-shell .nav-tabs-custom > .nav-tabs > li.active > a {
+          color: #243447;
+        }
+        .admin-shell .nav-tabs-custom > .tab-content {
+          padding: 14px 16px 16px;
+        }
+        .admin-section-note {
+          color: #7b8794;
+          font-size: 12px;
+          line-height: 1.6;
+          margin-bottom: 12px;
+        }
         .admin-form-note {
           color: #6b7785;
           font-size: 12px;
@@ -14,18 +92,95 @@ admin_manager_ui <- function(id) {
           margin-top: 8px;
           margin-bottom: 10px;
         }
+        .admin-summary-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 10px;
+        }
+        .admin-summary-card {
+          padding: 12px 14px;
+          border-radius: 10px;
+          background: #f8fbff;
+          border: 1px solid #dbe8f4;
+        }
+        .admin-summary-label {
+          display: block;
+          color: #758395;
+          font-size: 12px;
+          margin-bottom: 4px;
+        }
+        .admin-summary-value {
+          display: block;
+          color: #243447;
+          font-size: 16px;
+          font-weight: 600;
+        }
+        .admin-impact-card {
+          margin-top: 10px;
+          padding: 12px 14px;
+          border-radius: 10px;
+          background: #fff9ef;
+          border: 1px solid #f4d7aa;
+          color: #7a5a18;
+          line-height: 1.7;
+        }
+        .admin-risk-list {
+          margin: 0;
+          padding-left: 18px;
+          color: #4f5f73;
+          line-height: 1.8;
+        }
+        .admin-risk-actions {
+          margin-top: 12px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .admin-risk-anchor {
+          scroll-margin-top: 80px;
+        }
+        .admin-toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin: 10px 0 14px;
+        }
+        .admin-toolbar .btn {
+          border-radius: 999px;
+          padding: 6px 14px;
+        }
+        .admin-toolbar .btn.active {
+          box-shadow: none;
+          border-width: 1px;
+        }
+        .admin-filter-note {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 12px;
+          padding: 10px 12px;
+          border-radius: 10px;
+          background: #f7fafc;
+          color: #5f6b7a;
+        }
+        .admin-filter-note strong {
+          color: #243447;
+        }
       "))
     ),
     fluidRow(
       box(
         width = 12,
         title = "系统管理入口",
-        status = "danger",
-        solidHeader = TRUE,
+        class = "admin-intro-box",
+        status = "info",
+        solidHeader = FALSE,
         uiOutput(ns("admin_access_notice"))
       )
     ),
-    uiOutput(ns("admin_content"))
+    div(class = "admin-shell", uiOutput(ns("admin_content")))
   )
 }
 
@@ -33,6 +188,15 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
   moduleServer(id, function(input, output, session) {
     `%||%` <- function(x, y) if (is.null(x)) y else x
     refresh_tick <- reactiveVal(0)
+    registry_filter_mode <- reactiveVal("all")
+    registry_filter_labels <- c(
+      all = "全部账号",
+      admin = "只看管理员",
+      inactive = "只看停用账号",
+      no_email = "只看未设置邮箱",
+      db_locked = "只看未开通数据空间功能",
+      pending = "只看待领取邀请"
+    )
 
     get_current_user <- function() {
       if (is.null(current_user)) {
@@ -56,6 +220,172 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       service_list_manageable_workspaces(pg_pool, get_current_user())
     })
 
+    list_manageable_memberships <- reactive({
+      req(is_admin())
+      workspaces_df <- list_manageable_workspaces()
+      if (nrow(workspaces_df) == 0) {
+        return(data.frame())
+      }
+      do.call(
+        rbind,
+        lapply(workspaces_df$id, function(workspace_id) {
+          service_list_workspace_memberships(pg_pool, workspace_id = workspace_id)
+        })
+      )
+    })
+
+    list_manageable_invites <- reactive({
+      req(is_admin())
+      workspaces_df <- list_manageable_workspaces()
+      if (nrow(workspaces_df) == 0) {
+        return(data.frame())
+      }
+      do.call(
+        rbind,
+        lapply(workspaces_df$id, function(workspace_id) {
+          service_list_workspace_invites(pg_pool, workspace_id = workspace_id)
+        })
+      )
+    })
+
+    filtered_registry_users <- reactive({
+      req(is_admin())
+      users_df <- list_users()
+      registry_df <- build_user_registry_overview_df(users_df)
+      if (nrow(registry_df) == 0) {
+        return(users_df[0, , drop = FALSE])
+      }
+      keep_idx <- switch(
+        registry_filter_mode(),
+        inactive = which(registry_df$账号状态 %in% "已停用"),
+        no_email = which(registry_df$联系邮箱 %in% "未设置"),
+        db_locked = which(registry_df$数据空间功能 %in% "未开通"),
+        pending = which(registry_df$待领取邀请 > 0),
+        admin = which(registry_df$管理员身份 %in% "是"),
+        seq_len(nrow(registry_df))
+      )
+      users_df[keep_idx, , drop = FALSE]
+    })
+
+    get_target_user_row <- reactive({
+      req(is_admin())
+      selected_idx <- input$admin_user_registry_table_rows_selected %||% integer(0)
+      users_df <- filtered_registry_users()
+      if (length(selected_idx) == 0 || nrow(users_df) == 0) {
+        return(data.frame())
+      }
+      row_idx <- selected_idx[[1]]
+      if (is.na(row_idx) || row_idx < 1 || row_idx > nrow(users_df)) {
+        return(data.frame())
+      }
+      users_df[row_idx, , drop = FALSE]
+    })
+
+    build_workspace_overview_df <- function(workspaces_df) {
+      if (is.null(workspaces_df) || !is.data.frame(workspaces_df) || nrow(workspaces_df) == 0) {
+        return(data.frame(
+          数据空间 = character(0),
+          当前成员数 = integer(0),
+          待领取邀请 = integer(0),
+          协作状态 = character(0),
+          创建时间 = character(0),
+          check.names = FALSE,
+          stringsAsFactors = FALSE
+        ))
+      }
+      memberships_df <- list_manageable_memberships()
+      invites_df <- list_manageable_invites()
+      data.frame(
+        数据空间 = workspaces_df$name %||% "",
+        当前成员数 = vapply(workspaces_df$id, function(workspace_id) {
+          if (nrow(memberships_df) == 0) return(0L)
+          sum((memberships_df$workspace_id %||% character(0)) == workspace_id)
+        }, integer(1)),
+        待领取邀请 = vapply(workspaces_df$id, function(workspace_id) {
+          if (nrow(invites_df) == 0) return(0L)
+          sum((invites_df$workspace_id %||% character(0)) == workspace_id & (invites_df$status %||% character(0)) == "pending")
+        }, integer(1)),
+        协作状态 = vapply(workspaces_df$id, function(workspace_id) {
+          member_count <- if (nrow(memberships_df) == 0) 0L else sum((memberships_df$workspace_id %||% character(0)) == workspace_id)
+          pending_count <- if (nrow(invites_df) == 0) 0L else sum((invites_df$workspace_id %||% character(0)) == workspace_id & (invites_df$status %||% character(0)) == "pending")
+          if (pending_count > 0) {
+            "有待领取邀请"
+          } else if (member_count > 1) {
+            "已共享"
+          } else {
+            "仅负责人可见"
+          }
+        }, character(1)),
+        创建时间 = service_format_datetime(workspaces_df$created_at),
+        check.names = FALSE,
+        stringsAsFactors = FALSE
+      )
+    }
+
+    build_user_registry_overview_df <- function(users_df) {
+      if (is.null(users_df) || !is.data.frame(users_df) || nrow(users_df) == 0) {
+        return(data.frame(
+          账号名 = character(0),
+          联系邮箱 = character(0),
+          管理员身份 = character(0),
+          账号状态 = character(0),
+          数据空间功能 = character(0),
+          名下数据空间 = integer(0),
+          当前可访问空间 = integer(0),
+          待领取邀请 = integer(0),
+          创建时间 = character(0),
+          check.names = FALSE,
+          stringsAsFactors = FALSE
+        ))
+      }
+      all_workspaces <- service_list_workspaces(pg_pool)
+      all_invites <- service_list_workspace_invites(pg_pool)
+      user_emails <- users_df$email %||% character(0)
+      user_admin_flags <- users_df$is_admin %||% logical(0)
+      user_db_access_flags <- users_df$db_access_enabled %||% logical(0)
+      data.frame(
+        账号名 = users_df$username %||% "",
+        联系邮箱 = ifelse(is.na(user_emails) | !nzchar(user_emails), "未设置", user_emails),
+        管理员身份 = ifelse(user_admin_flags, "是", "否"),
+        账号状态 = vapply(users_df$status %||% character(0), service_label_user_status, character(1)),
+        数据空间功能 = vapply(user_admin_flags | user_db_access_flags, service_label_db_access_status, character(1)),
+        名下数据空间 = vapply(users_df$id %||% character(0), function(user_id) {
+          if (nrow(all_workspaces) == 0) return(0L)
+          sum((all_workspaces$owner_user_id %||% character(0)) == user_id)
+        }, integer(1)),
+        当前可访问空间 = vapply(seq_len(nrow(users_df)), function(i) {
+          length(auth_accessible_workspace_ids(
+            pg_pool,
+            users_df$id[[i]] %||% "",
+            isTRUE(user_admin_flags[[i]])
+          ))
+        }, integer(1)),
+        待领取邀请 = vapply(seq_len(nrow(users_df)), function(i) {
+          user_email <- user_emails[[i]] %||% ""
+          if (!nzchar(user_email) || nrow(all_invites) == 0) return(0L)
+          sum((all_invites$invited_email %||% character(0)) == user_email & (all_invites$status %||% character(0)) == "pending")
+        }, integer(1)),
+        创建时间 = service_format_datetime(users_df$created_at),
+        check.names = FALSE,
+        stringsAsFactors = FALSE
+      )
+    }
+
+    filter_user_registry_df <- function(registry_df, mode) {
+      if (is.null(registry_df) || !is.data.frame(registry_df) || nrow(registry_df) == 0) {
+        return(registry_df)
+      }
+      switch(
+        mode,
+        inactive = registry_df[registry_df$账号状态 %in% "已停用", , drop = FALSE],
+        no_email = registry_df[registry_df$联系邮箱 %in% "未设置", , drop = FALSE],
+        db_locked = registry_df[registry_df$数据空间功能 %in% "未开通", , drop = FALSE],
+        pending = registry_df[registry_df$待领取邀请 > 0, , drop = FALSE],
+        admin = registry_df[registry_df$管理员身份 %in% "是", , drop = FALSE],
+        registry_df
+      )
+    }
+
     output$admin_access_notice <- renderUI({
       if (isTRUE(is_admin())) {
         tags$div(
@@ -75,14 +405,60 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       workspaces_df <- list_manageable_workspaces()
       workspace_choices <- if (nrow(workspaces_df) == 0) character(0) else setNames(workspaces_df$id, workspaces_df$name)
       tagList(
-        fluidRow(
+        div(
+          class = "row admin-equal-row",
+          box(
+            width = 4,
+            title = "系统概览",
+            class = "admin-hero-box admin-overview-box",
+            status = "primary",
+            solidHeader = FALSE,
+            uiOutput(session$ns("admin_system_overview"))
+          ),
+          box(
+            width = 4,
+            title = "异常态势摘要",
+            class = "admin-hero-box admin-risk-box",
+            status = "warning",
+            solidHeader = FALSE,
+            uiOutput(session$ns("admin_risk_overview"))
+          ),
+          box(
+            width = 4,
+            title = "运行环境",
+            class = "admin-hero-box admin-runtime-box",
+            status = "info",
+            solidHeader = FALSE,
+            verbatimTextOutput(session$ns("admin_runtime_meta"))
+          )
+        ),
+        div(
+          class = "row admin-equal-row",
+          box(
+            width = 12,
+            title = "所有注册账号总览",
+            class = "admin-table-box admin-registry-box",
+            status = "primary",
+            solidHeader = FALSE,
+            div(class = "admin-form-note", "仅展示所有已注册账号的元信息、数据空间功能状态和协作摘要，便于系统管理员统一排查与筛查；不展示其他用户数据空间中的实际数据内容。"),
+            uiOutput(session$ns("admin_user_registry_summary")),
+            uiOutput(session$ns("admin_user_registry_filters")),
+            uiOutput(session$ns("admin_user_registry_filter_note")),
+            DTOutput(session$ns("admin_user_registry_table"))
+          )
+        ),
+        div(
+          class = "row admin-equal-row",
           box(
             width = 4,
             title = "账号状态管理",
+            class = "admin-ops-box admin-account-box",
             status = "warning",
-            solidHeader = TRUE,
-            textInput(session$ns("admin_user_email"), "待处理账号邮箱", placeholder = "请输入账号邮箱"),
-            verbatimTextOutput(session$ns("admin_user_meta")),
+            solidHeader = FALSE,
+            div(id = session$ns("admin_account_section"), class = "admin-risk-anchor"),
+            div(class = "admin-section-note", "先在上方“所有注册账号总览”中选中目标账号，再根据状态卡片与操作影响预览决定启用、停用或开关数据空间功能。"),
+            uiOutput(session$ns("admin_user_meta_card")),
+            uiOutput(session$ns("admin_action_hint")),
             fluidRow(
               column(6, actionButton(session$ns("activate_user"), "启用账号", class = "btn-success", width = "100%")),
               column(6, actionButton(session$ns("deactivate_user"), "停用账号", class = "btn-danger", width = "100%"))
@@ -96,8 +472,11 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
           box(
             width = 4,
             title = "我名下空间负责人调整",
+            class = "admin-ops-box admin-owner-box",
             status = "primary",
-            solidHeader = TRUE,
+            solidHeader = FALSE,
+            div(id = session$ns("admin_owner_section"), class = "admin-risk-anchor"),
+            div(class = "admin-section-note", "适合处理负责人迁移或注册前先发送待领取 owner 迁移记录。"),
             selectInput(session$ns("owner_workspace_select"), "选择目标数据空间", choices = workspace_choices),
             textInput(session$ns("owner_email"), "新负责人邮箱", placeholder = "请输入负责人邮箱"),
             div(class = "admin-form-note", "仅处理当前管理员自己名下可管理的数据空间。若邮箱尚未注册，会生成待领取的负责人迁移记录。"),
@@ -106,8 +485,11 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
           box(
             width = 4,
             title = "我名下空间协作授权",
+            class = "admin-ops-box admin-membership-box",
             status = "info",
-            solidHeader = TRUE,
+            solidHeader = FALSE,
+            div(id = session$ns("admin_membership_section"), class = "admin-risk-anchor"),
+            div(class = "admin-section-note", "适合处理协作者授权、撤销以及待领取邀请的后续跟进。"),
             selectInput(session$ns("membership_workspace_select"), "选择目标数据空间", choices = workspace_choices),
             textInput(session$ns("membership_email"), "协作者邮箱", placeholder = "请输入协作者邮箱"),
             selectInput(
@@ -123,10 +505,21 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
             )
           )
         ),
-        fluidRow(
+        div(
+          class = "row admin-equal-row",
+          box(
+            width = 6,
+            title = "我名下数据空间概览",
+            class = "admin-table-box admin-workspace-box",
+            status = "primary",
+            solidHeader = FALSE,
+            div(id = session$ns("admin_workspace_summary_section"), class = "admin-risk-anchor"),
+            div(class = "admin-form-note", "仅展示当前管理员自己名下可管理的数据空间元信息，用于快速判断共享状态、待领取邀请和负责人迁移风险。"),
+            DTOutput(session$ns("admin_workspace_summary_table"))
+          ),
           tabBox(
-            width = 12,
-            title = "协作权限预览",
+            width = 6,
+            title = "我名下空间协作预览",
             id = session$ns("admin_preview_tabs"),
             tabPanel("当前成员", DTOutput(session$ns("membership_table"))),
             tabPanel("待领取邀请", DTOutput(session$ns("invite_table")))
@@ -135,20 +528,323 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       )
     })
 
-    output$admin_user_meta <- renderText({
+    output$admin_system_overview <- renderUI({
       req(is_admin())
-      req(nzchar(input$admin_user_email %||% ""))
-      row <- service_get_user_by_email(pg_pool, input$admin_user_email %||% "")
-      if (nrow(row) == 0) {
-        return("未找到用户信息")
+      users_df <- list_users()
+      workspaces_df <- list_manageable_workspaces()
+      invites_df <- list_manageable_invites()
+      current <- get_current_user()
+      summary_item <- function(label, value) {
+        tags$div(
+          class = "admin-summary-card",
+          tags$span(class = "admin-summary-label", label),
+          tags$span(class = "admin-summary-value", value)
+        )
       }
-      paste0(
-        "账号名: ", row$username[[1]], "\n",
-        "联系邮箱: ", ifelse(is.na(row$email[[1]]) || !nzchar(row$email[[1]]), "未设置", row$email[[1]]), "\n",
-        "管理员身份: ", ifelse(isTRUE(row$is_admin[[1]]), "是", "否"), "\n",
-        "账号状态: ", service_label_user_status(row$status[[1]]), "\n",
-        "数据库管理: ", service_label_db_access_status(isTRUE(row$db_access_enabled[[1]]) || isTRUE(row$is_admin[[1]]))
+      tags$div(
+        class = "admin-summary-grid",
+        summary_item("当前管理员", current$username %||% "未识别"),
+        summary_item("当前库用户数", nrow(users_df)),
+        summary_item("正常账号数", sum((users_df$status %||% character(0)) == "active")),
+        summary_item("已开通数据空间功能", sum((users_df$is_admin %||% logical(0)) | (users_df$db_access_enabled %||% logical(0)), na.rm = TRUE)),
+        summary_item("我名下数据空间", nrow(workspaces_df)),
+        summary_item("我名下待领取邀请", sum((invites_df$status %||% character(0)) == "pending"))
       )
+    })
+
+    output$admin_runtime_meta <- renderText({
+      req(is_admin())
+      paste0(
+        "数据库主机: ", Sys.getenv("POSTGRES_HOST", "未设置"), "\n",
+        "数据库名称: ", Sys.getenv("POSTGRES_DB", "未设置"), "\n",
+        "数据库端口: ", Sys.getenv("POSTGRES_PORT", "未设置"), "\n",
+        "管理员环境变量用户名: ", ifelse(nzchar(Sys.getenv("APP_ADMIN_USERNAME", "")), Sys.getenv("APP_ADMIN_USERNAME", ""), "未设置"), "\n",
+        "管理员环境变量邮箱: ", ifelse(nzchar(Sys.getenv("APP_ADMIN_EMAIL", "")), Sys.getenv("APP_ADMIN_EMAIL", ""), "未设置"), "\n",
+        "管理员引导配置: ", ifelse(
+          nzchar(Sys.getenv("APP_ADMIN_USERNAME", "")) && nzchar(Sys.getenv("APP_ADMIN_EMAIL", "")) && nzchar(Sys.getenv("APP_ADMIN_PASSWORD", "")),
+          "已提供",
+          "未提供"
+        )
+      )
+    })
+
+    output$admin_user_registry_table <- renderDT({
+      req(is_admin())
+      refresh_tick()
+      users_df <- list_users()
+      registry_df <- build_user_registry_overview_df(users_df)
+      registry_df <- filter_user_registry_df(registry_df, registry_filter_mode())
+      datatable(
+        registry_df,
+        rownames = FALSE,
+        filter = "top",
+        selection = "single",
+        options = list(pageLength = 10, scrollX = TRUE, dom = "ftip")
+      )
+    })
+
+    output$admin_user_registry_summary <- renderUI({
+      req(is_admin())
+      refresh_tick()
+      registry_df <- build_user_registry_overview_df(list_users())
+      summary_item <- function(label, value) {
+        tags$div(
+          class = "admin-summary-card",
+          tags$span(class = "admin-summary-label", label),
+          tags$span(class = "admin-summary-value", value)
+        )
+      }
+      tags$div(
+        class = "admin-summary-grid",
+        summary_item("注册账号总数", nrow(registry_df)),
+        summary_item("系统管理员", sum(registry_df$管理员身份 %in% "是")),
+        summary_item("停用账号", sum(registry_df$账号状态 %in% "已停用")),
+        summary_item("未设置邮箱", sum(registry_df$联系邮箱 %in% "未设置")),
+        summary_item("未开通数据空间功能", sum(registry_df$数据空间功能 %in% "未开通")),
+        summary_item("待领取邀请账号", sum(registry_df$待领取邀请 > 0))
+      )
+    })
+
+    output$admin_user_registry_filters <- renderUI({
+      req(is_admin())
+      current_mode <- registry_filter_mode()
+      filter_button <- function(id, label, mode, class_name = "btn-default") {
+        extra_class <- if (identical(current_mode, mode)) "active" else ""
+        actionButton(
+          session$ns(id),
+          label,
+          class = paste("btn btn-sm", class_name, extra_class)
+        )
+      }
+      tags$div(
+        class = "admin-toolbar",
+        filter_button("registry_filter_all", "全部账号", "all", "btn-default"),
+        filter_button("registry_filter_admin", "只看管理员", "admin", "btn-danger"),
+        filter_button("registry_filter_inactive", "只看停用账号", "inactive", "btn-warning"),
+        filter_button("registry_filter_no_email", "只看未设置邮箱", "no_email", "btn-info"),
+        filter_button("registry_filter_db_locked", "只看未开通数据空间功能", "db_locked", "btn-primary"),
+        filter_button("registry_filter_pending", "只看待领取邀请", "pending", "btn-success")
+      )
+    })
+
+    output$admin_user_registry_filter_note <- renderUI({
+      req(is_admin())
+      current_mode <- registry_filter_mode()
+      label <- registry_filter_labels[[current_mode]] %||% registry_filter_labels[["all"]]
+      tags$div(
+        class = "admin-filter-note",
+        tags$span(HTML(paste0("当前视图: <strong>", label, "</strong>"))),
+        tags$span("点击表格行即可把该账号直接带入下方状态管理。")
+      )
+    })
+
+    observeEvent(input$registry_filter_all, {
+      registry_filter_mode("all")
+    })
+
+    observeEvent(input$registry_filter_admin, {
+      registry_filter_mode("admin")
+    })
+
+    observeEvent(input$registry_filter_inactive, {
+      registry_filter_mode("inactive")
+    })
+
+    observeEvent(input$registry_filter_no_email, {
+      registry_filter_mode("no_email")
+    })
+
+    observeEvent(input$registry_filter_db_locked, {
+      registry_filter_mode("db_locked")
+    })
+
+    observeEvent(input$registry_filter_pending, {
+      registry_filter_mode("pending")
+    })
+
+    output$admin_risk_overview <- renderUI({
+      req(is_admin())
+      users_df <- list_users()
+      workspaces_df <- list_manageable_workspaces()
+      invites_df <- list_manageable_invites()
+      memberships_df <- list_manageable_memberships()
+
+      safe_email <- users_df$email %||% character(0)
+      inactive_count <- sum((users_df$status %||% character(0)) == "inactive")
+      no_email_count <- sum(!nzchar(safe_email))
+      db_locked_count <- sum(!((users_df$is_admin %||% logical(0)) | (users_df$db_access_enabled %||% logical(0))), na.rm = TRUE)
+      pending_invite_count <- sum((invites_df$status %||% character(0)) == "pending")
+      unclaimed_email_count <- if (nrow(invites_df) == 0) {
+        0L
+      } else {
+        registered_emails <- unique(safe_email[nzchar(safe_email)])
+        sum((invites_df$status %||% character(0)) == "pending" & !((invites_df$invited_email %||% character(0)) %in% registered_emails))
+      }
+      workspace_pending_count <- if (nrow(workspaces_df) == 0 || nrow(invites_df) == 0) {
+        0L
+      } else {
+        sum(vapply(workspaces_df$id, function(workspace_id) {
+          any((invites_df$workspace_id %||% character(0)) == workspace_id & (invites_df$status %||% character(0)) == "pending")
+        }, logical(1)))
+      }
+      owner_only_count <- if (nrow(workspaces_df) == 0) {
+        0L
+      } else {
+        sum(vapply(workspaces_df$id, function(workspace_id) {
+          member_count <- if (nrow(memberships_df) == 0) 0L else sum((memberships_df$workspace_id %||% character(0)) == workspace_id)
+          member_count <= 1L
+        }, logical(1)))
+      }
+
+      summary_item <- function(label, value) {
+        tags$div(
+          class = "admin-summary-card",
+          tags$span(class = "admin-summary-label", label),
+          tags$span(class = "admin-summary-value", value)
+        )
+      }
+
+      risk_messages <- c(
+        if (inactive_count > 0) paste0("当前有 ", inactive_count, " 个停用账号，必要时需核对是否仍为有效业务用户。"),
+        if (no_email_count > 0) paste0("当前有 ", no_email_count, " 个账号未设置邮箱，这会影响邀请领取、负责人迁移与账号找回。"),
+        if (db_locked_count > 0) paste0("当前有 ", db_locked_count, " 个账号未开通数据空间功能，这些用户只能走数据准备页的临时上传链路。"),
+        if (pending_invite_count > 0) paste0("当前管理员自己名下共有 ", pending_invite_count, " 条待领取邀请，建议定期清理长期未领取记录。"),
+        if (unclaimed_email_count > 0) paste0("其中有 ", unclaimed_email_count, " 条待领取邀请邮箱尚未注册，需要注意业务协作是否已经实际触达。"),
+        if (workspace_pending_count > 0) paste0("当前有 ", workspace_pending_count, " 个我名下数据空间仍存在待领取邀请。"),
+        if (owner_only_count > 0) paste0("当前有 ", owner_only_count, " 个我名下数据空间仍仅负责人可见，可按需再评估是否需要共享。")
+      )
+      risk_messages <- risk_messages[nzchar(risk_messages)]
+      if (length(risk_messages) == 0) {
+        risk_messages <- "当前未发现需要优先处理的账号或协作异常态势。"
+      }
+
+      quick_actions <- tagList(
+        actionButton(session$ns("jump_account_admin"), "去账号状态管理", class = "btn-warning btn-sm"),
+        actionButton(session$ns("jump_owner_admin"), "去负责人调整", class = "btn-primary btn-sm"),
+        actionButton(session$ns("jump_membership_admin"), "去协作授权", class = "btn-info btn-sm"),
+        actionButton(session$ns("jump_workspace_summary"), "去空间概览", class = "btn-default btn-sm")
+      )
+
+      tagList(
+        div(
+          class = "admin-summary-grid",
+          summary_item("停用账号", inactive_count),
+          summary_item("未设置邮箱账号", no_email_count),
+          summary_item("未开通数据空间功能", db_locked_count),
+          summary_item("我名下待领取邀请", pending_invite_count),
+          summary_item("未注册邀请邮箱", unclaimed_email_count),
+          summary_item("仅负责人可见空间", owner_only_count)
+        ),
+        div(class = "admin-impact-card",
+            tags$strong("优先关注"),
+            tags$ul(class = "admin-risk-list", lapply(risk_messages, tags$li)),
+            div(class = "admin-risk-actions", quick_actions))
+      )
+    })
+
+    observeEvent(input$jump_account_admin, {
+      shinyjs::runjs(sprintf(
+        "var anchor=document.getElementById('%s'); if(anchor){anchor.scrollIntoView({behavior:'smooth', block:'start'});} setTimeout(function(){var table=document.getElementById('%s'); if(table){table.focus();}}, 250);",
+        session$ns("admin_account_section"),
+        session$ns("admin_user_registry_table")
+      ))
+    })
+
+    observeEvent(input$jump_owner_admin, {
+      shinyjs::runjs(sprintf(
+        "var anchor=document.getElementById('%s'); if(anchor){anchor.scrollIntoView({behavior:'smooth', block:'start'});} setTimeout(function(){var el=document.getElementById('%s'); if(el){el.focus();}}, 250);",
+        session$ns("admin_owner_section"),
+        session$ns("owner_email")
+      ))
+    })
+
+    observeEvent(input$jump_membership_admin, {
+      updateTabsetPanel(session, session$ns("admin_preview_tabs"), selected = "待领取邀请")
+      shinyjs::runjs(sprintf(
+        "var anchor=document.getElementById('%s'); if(anchor){anchor.scrollIntoView({behavior:'smooth', block:'start'});} setTimeout(function(){var el=document.getElementById('%s'); if(el){el.focus();}}, 250);",
+        session$ns("admin_membership_section"),
+        session$ns("membership_email")
+      ))
+    })
+
+    observeEvent(input$jump_workspace_summary, {
+      updateTabsetPanel(session, session$ns("admin_preview_tabs"), selected = "当前成员")
+      shinyjs::runjs(sprintf(
+        "var anchor=document.getElementById('%s'); if(anchor){anchor.scrollIntoView({behavior:'smooth', block:'start'});}",
+        session$ns("admin_workspace_summary_section")
+      ))
+    })
+
+    output$admin_user_meta_card <- renderUI({
+      req(is_admin())
+      row <- get_target_user_row()
+      if (nrow(row) == 0) {
+        return(tags$div(class = "admin-form-note", "请先在“所有注册账号总览”中选中一个账号。"))
+      }
+      all_workspaces <- service_list_workspaces(pg_pool)
+      target_user_id <- row$id[[1]] %||% ""
+      target_email <- row$email[[1]] %||% ""
+      target_owned_count <- if (nrow(all_workspaces) == 0) 0L else sum((all_workspaces$owner_user_id %||% character(0)) == target_user_id)
+      target_accessible_count <- length(auth_accessible_workspace_ids(pg_pool, target_user_id, isTRUE(row$is_admin[[1]])))
+      all_invites <- service_list_workspace_invites(pg_pool)
+      target_pending_invites <- if (!nzchar(target_email) || nrow(all_invites) == 0) {
+        0L
+      } else {
+        sum((all_invites$invited_email %||% character(0)) == target_email & (all_invites$status %||% character(0)) == "pending")
+      }
+      summary_item <- function(label, value) {
+        tags$div(
+          class = "admin-summary-card",
+          tags$span(class = "admin-summary-label", label),
+          tags$span(class = "admin-summary-value", value)
+        )
+      }
+      tags$div(
+        class = "admin-summary-grid",
+        summary_item("账号名", row$username[[1]] %||% ""),
+        summary_item("联系邮箱", ifelse(is.na(row$email[[1]]) || !nzchar(row$email[[1]]), "未设置", row$email[[1]])),
+        summary_item("管理员身份", ifelse(isTRUE(row$is_admin[[1]]), "是", "否")),
+        summary_item("账号状态", service_label_user_status(row$status[[1]])),
+        summary_item("数据空间功能", service_label_db_access_status(isTRUE(row$db_access_enabled[[1]]) || isTRUE(row$is_admin[[1]]))),
+        summary_item("创建时间", service_format_datetime(row$created_at[[1]])),
+        summary_item("名下数据空间", target_owned_count),
+        summary_item("当前可访问空间", target_accessible_count),
+        summary_item("待领取邀请", target_pending_invites)
+      )
+    })
+
+    output$admin_action_hint <- renderUI({
+      req(is_admin())
+      row <- get_target_user_row()
+      if (nrow(row) == 0) {
+        return(NULL)
+      }
+      current <- get_current_user()
+      hints <- c(
+        if (identical(row$status[[1]] %||% "", "inactive")) "启用账号后，该用户可重新登录并恢复已有权限边界内的访问。",
+        if (identical(row$status[[1]] %||% "", "active")) "停用账号后，该用户将无法继续登录系统，但现有数据空间元信息不会被自动删除。",
+        if (!isTRUE(row$is_admin[[1]]) && !isTRUE(row$db_access_enabled[[1]])) "开放数据库后，该用户将获得数据空间创建与管理入口；未开放时仅可在“数据准备”页临时上传单文件。",
+        if (!isTRUE(row$is_admin[[1]]) && isTRUE(row$db_access_enabled[[1]])) "锁定数据库后，该用户将失去数据空间管理入口，但仍可按当前口径继续进行临时上传分析。",
+        if (!is.null(current) && identical(current$id, row$id[[1]] %||% "")) "当前目标账号就是你自己；系统会阻止停用自己或锁定自己当前登录管理员的数据库管理权限。"
+      )
+      hints <- hints[nzchar(hints)]
+      if (length(hints) == 0) {
+        return(NULL)
+      }
+      tags$div(
+        class = "admin-impact-card",
+        tags$strong("操作影响预览"),
+        tags$ul(
+          lapply(hints, tags$li)
+        )
+      )
+    })
+
+    output$admin_workspace_summary_table <- renderDT({
+      req(is_admin())
+      refresh_tick()
+      overview_df <- build_workspace_overview_df(list_manageable_workspaces())
+      datatable(overview_df, rownames = FALSE, options = list(pageLength = 8, scrollX = TRUE, dom = "tip"))
     })
 
     output$membership_table <- renderDT({
@@ -221,9 +917,13 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
 
     observeEvent(input$activate_user, {
       req(is_admin())
-      req(nzchar(input$admin_user_email %||% ""))
+      target_user <- get_target_user_row()
+      if (nrow(target_user) == 0) {
+        showNotification("请先在账号总览中选中目标账号", type = "warning")
+        return()
+      }
       tryCatch({
-        service_set_user_status_by_email(pg_pool, input$admin_user_email %||% "", "active")
+        service_set_user_status(pg_pool, target_user$id[[1]] %||% "", "active")
         refresh_tick(as.numeric(Sys.time()))
         showNotification("账号已启用", type = "message")
       }, error = function(e) {
@@ -233,15 +933,18 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
 
     observeEvent(input$deactivate_user, {
       req(is_admin())
-      req(nzchar(input$admin_user_email %||% ""))
-      target_user <- service_get_user_by_email(pg_pool, input$admin_user_email %||% "")
+      target_user <- get_target_user_row()
+      if (nrow(target_user) == 0) {
+        showNotification("请先在账号总览中选中目标账号", type = "warning")
+        return()
+      }
       current <- get_current_user()
       if (nrow(target_user) > 0 && !is.null(current) && identical(current$id, target_user$id[[1]])) {
         showNotification("不能停用当前登录管理员账号", type = "warning")
         return()
       }
       tryCatch({
-        service_set_user_status_by_email(pg_pool, input$admin_user_email %||% "", "inactive")
+        service_set_user_status(pg_pool, target_user$id[[1]] %||% "", "inactive")
         refresh_tick(as.numeric(Sys.time()))
         showNotification("账号已停用", type = "message")
       }, error = function(e) {
@@ -251,9 +954,13 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
 
     observeEvent(input$grant_db_access, {
       req(is_admin())
-      req(nzchar(input$admin_user_email %||% ""))
+      target_user <- get_target_user_row()
+      if (nrow(target_user) == 0) {
+        showNotification("请先在账号总览中选中目标账号", type = "warning")
+        return()
+      }
       tryCatch({
-        service_set_user_db_access_by_email(pg_pool, input$admin_user_email %||% "", enabled = TRUE)
+        service_set_user_db_access(pg_pool, target_user$id[[1]] %||% "", enabled = TRUE)
         refresh_tick(as.numeric(Sys.time()))
         showNotification("数据库管理权限已开放", type = "message")
       }, error = function(e) {
@@ -263,15 +970,18 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
 
     observeEvent(input$revoke_db_access, {
       req(is_admin())
-      req(nzchar(input$admin_user_email %||% ""))
-      target_user <- service_get_user_by_email(pg_pool, input$admin_user_email %||% "")
+      target_user <- get_target_user_row()
+      if (nrow(target_user) == 0) {
+        showNotification("请先在账号总览中选中目标账号", type = "warning")
+        return()
+      }
       current <- get_current_user()
       if (nrow(target_user) > 0 && !is.null(current) && identical(current$id, target_user$id[[1]]) && isTRUE(current$is_admin)) {
         showNotification("不能锁定当前登录管理员的数据库管理权限", type = "warning")
         return()
       }
       tryCatch({
-        service_set_user_db_access_by_email(pg_pool, input$admin_user_email %||% "", enabled = FALSE)
+        service_set_user_db_access(pg_pool, target_user$id[[1]] %||% "", enabled = FALSE)
         refresh_tick(as.numeric(Sys.time()))
         showNotification("数据库管理权限已锁定", type = "message")
       }, error = function(e) {
