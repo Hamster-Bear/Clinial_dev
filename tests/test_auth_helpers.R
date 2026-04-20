@@ -128,6 +128,7 @@ test_that("认证策略守卫收紧管理员初始化与workspace访问", {
   expect_match(auth_source_text, "auth_request_current_email_verification <- function")
   expect_match(auth_source_text, "auth_request_password_reset <- function")
   expect_match(auth_source_text, "auth_reset_password <- function")
+  expect_match(auth_source_text, "auth_change_password <- function")
   expect_match(auth_source_text, "auth_request_email_change <- function")
   expect_match(auth_source_text, "auth_confirm_email_change <- function")
   expect_match(auth_source_text, "email_service_send")

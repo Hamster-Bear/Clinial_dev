@@ -373,6 +373,27 @@ test_that("邮箱换绑要求当前密码和新邮箱验证码，成功后会切
   })
 })
 
+test_that("登录后可通过当前密码修改密码", {
+  with_isolated_auth_schema(function(conn, schema_name) {
+    expect_true(nzchar(schema_name))
+
+    created <- auth_register_user(conn, "pwd_user", "pwd_user@test.local", "StrongPass123")
+    expect_true(isTRUE(created$success))
+
+    bad_change <- auth_change_password(conn, created$user$id, "WrongPass123", "NewStrongPass123")
+    expect_false(isTRUE(bad_change$success))
+    expect_match(bad_change$message, "当前密码错误")
+
+    changed <- auth_change_password(conn, created$user$id, "StrongPass123", "NewStrongPass123")
+    expect_true(isTRUE(changed$success))
+
+    old_login <- auth_authenticate_user(conn, "pwd_user@test.local", "StrongPass123")
+    expect_false(isTRUE(old_login$success))
+    new_login <- auth_authenticate_user(conn, "pwd_user@test.local", "NewStrongPass123")
+    expect_true(isTRUE(new_login$success))
+  })
+})
+
 test_that("管理员不能自动访问或管理其他用户数据空间", {
   with_isolated_auth_schema(function(conn, schema_name) {
     expect_true(nzchar(schema_name))

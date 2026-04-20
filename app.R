@@ -203,9 +203,11 @@ ui <- dashboardPage(
         .sidebar-user-card {
           margin: 12px;
           padding: 14px 14px 12px;
-          border-radius: 10px;
-          background: rgba(255, 255, 255, 0.08);
-          color: #ffffff;
+          border-radius: 14px;
+          border: 1px solid #dfe7ef;
+          background: #ffffff;
+          color: #243447;
+          box-shadow: 0 10px 24px rgba(31, 45, 61, 0.06);
         }
         .sidebar-user-card-header {
           display: flex;
@@ -216,7 +218,7 @@ ui <- dashboardPage(
         .sidebar-user-name {
           font-weight: 700;
           font-size: 15px;
-          color: #ffffff;
+          color: #243447;
         }
         .sidebar-user-role {
           margin-top: 4px;
@@ -226,20 +228,20 @@ ui <- dashboardPage(
         }
         .sidebar-user-meta {
           margin-top: 6px;
-          color: rgba(255,255,255,0.82);
+          color: #6b7785;
           font-size: 12px;
           word-break: break-all;
         }
         .sidebar-user-summary {
           margin-top: 10px;
-          color: rgba(255,255,255,0.9);
+          color: #4f5f73;
           font-size: 12px;
           line-height: 1.5;
         }
         .sidebar-user-section-title {
           margin-top: 12px;
           margin-bottom: 8px;
-          color: rgba(255,255,255,0.72);
+          color: #7b8794;
           font-size: 11px;
           font-weight: 700;
           letter-spacing: 0.06em;
@@ -256,11 +258,14 @@ ui <- dashboardPage(
           gap: 10px;
           padding: 8px 10px;
           border-radius: 8px;
-          background: rgba(255,255,255,0.08);
+          border: 1px solid #e8eef5;
+          background: #f8fbff;
           font-size: 12px;
+          color: #4f5f73;
         }
         .sidebar-user-status-item strong {
           font-weight: 600;
+          color: #243447;
         }
         .sidebar-user-status-badge {
           display: inline-flex;
@@ -289,14 +294,21 @@ ui <- dashboardPage(
           gap: 8px;
         }
         .sidebar-user-actions a {
-          color: #ffffff !important;
+          color: #3c4b5b !important;
           display: block;
           padding: 8px 10px;
-          border-radius: 6px;
-          background: rgba(255,255,255,0.12);
+          border-radius: 8px;
+          border: 1px solid #d2d9e1;
+          background: #f8fafc;
           text-align: center;
           font-size: 12px;
           font-weight: 600;
+          text-decoration: none !important;
+        }
+        .sidebar-user-actions a:hover,
+        .sidebar-user-actions a:focus {
+          background: #eef3f8;
+          color: #1f2d3d !important;
         }
         .sidebar-user-quick-entry {
           padding: 4px 10px !important;
@@ -520,6 +532,10 @@ server <- function(input, output, session) {
       div(class = "sidebar-user-meta", if (nzchar(user$email %||% "")) user$email else "未设置邮箱"),
       div(class = "sidebar-user-section-title", "账号设置"),
       div(
+        class = "sidebar-user-summary",
+        "当前账号设置区遵循统一卡片壳风格；后续新增账号相关入口也应沿用同一视觉规范。"
+      ),
+      div(
         class = "sidebar-user-status-list",
         div(
           class = "sidebar-user-status-item",
@@ -541,9 +557,7 @@ server <- function(input, output, session) {
       ),
       div(
         class = "sidebar-user-actions",
-        if (!isTRUE(user$email_verified) && nzchar(user$email %||% "")) actionLink("open_email_verify", "验证邮箱"),
-        actionLink("open_email_change", "邮箱换绑"),
-        if (!isTRUE(user$is_admin) && manageable_count > 0) actionLink("open_access_manage", "权限管理"),
+        if (!isTRUE(user$is_admin)) actionLink("open_access_manage", "用户和权限"),
         actionLink("logout_submit", "退出登录")
       )
     )
@@ -601,54 +615,6 @@ server <- function(input, output, session) {
     updateTabItems(session, "tabs", "access_manage")
   })
 
-  observeEvent(input$open_email_verify, {
-    user <- current_user()
-    req(!is.null(user))
-    showModal(modalDialog(
-      title = "验证邮箱",
-      tags$p(
-        class = "text-muted",
-        paste0(
-          "当前邮箱：",
-          if (nzchar(user$email %||% "")) user$email else "未设置邮箱",
-          "。请先发送验证码，再输入验证码完成验证。"
-        )
-      ),
-      textInput("current_email_verify_code", "验证码", value = "", placeholder = "请输入 6 位验证码"),
-      footer = tagList(
-        modalButton("取消"),
-        actionButton("request_current_email_verify", "发送验证码", class = "btn-info"),
-        actionButton("submit_current_email_verify", "确认验证", class = "btn-primary")
-      ),
-      easyClose = TRUE
-    ))
-  })
-
-  observeEvent(input$open_email_change, {
-    user <- current_user()
-    req(!is.null(user))
-    showModal(modalDialog(
-      title = "邮箱换绑",
-      textInput("change_email_new_email", "新邮箱", value = "", placeholder = "请输入新的邮箱地址"),
-      passwordInput("change_email_current_password", "当前密码", placeholder = "请输入当前密码以确认换绑"),
-      textInput("change_email_code", "换绑验证码", value = "", placeholder = "请输入 6 位验证码"),
-      tags$p(
-        class = "text-muted",
-        paste0(
-          "当前邮箱：",
-          if (nzchar(user$email %||% "")) user$email else "未设置邮箱",
-          "。先发送验证码到新邮箱，再输入验证码完成换绑。"
-        )
-      ),
-      footer = tagList(
-        modalButton("取消"),
-        actionButton("request_email_change_code", "发送换绑验证码", class = "btn-info"),
-        actionButton("submit_email_change", "确认换绑", class = "btn-primary")
-      ),
-      easyClose = TRUE
-    ))
-  })
-
   observeEvent(input$open_db_manage, {
     updateTabItems(session, "tabs", "db_manage")
   })
@@ -661,83 +627,8 @@ server <- function(input, output, session) {
     updateTabItems(session, "tabs", "admin")
   })
 
-  observeEvent(input$request_email_change_code, {
-    user <- current_user()
-    req(!is.null(user))
-    result <- tryCatch(
-      auth_request_email_change(
-        pg_pool,
-        user$id,
-        input$change_email_current_password %||% "",
-        input$change_email_new_email %||% ""
-      ),
-      error = function(e) list(success = FALSE, message = paste0("发送换绑验证码失败：", e$message))
-    )
-    if (!isTRUE(result$success)) {
-      showNotification(result$message, type = "error")
-      return()
-    }
-    showNotification(result$message, type = "message")
-  })
-
-  observeEvent(input$request_current_email_verify, {
-    user <- current_user()
-    req(!is.null(user))
-    result <- tryCatch(
-      auth_request_current_email_verification(pg_pool, user$id, purpose = "register"),
-      error = function(e) list(success = FALSE, message = paste0("发送邮箱验证码失败：", e$message))
-    )
-    if (!isTRUE(result$success)) {
-      showNotification(result$message, type = "error")
-      return()
-    }
-    showNotification(result$message, type = "message")
-  })
-
-  observeEvent(input$submit_current_email_verify, {
-    user <- current_user()
-    req(!is.null(user))
-    result <- tryCatch(
-      auth_verify_email_code(pg_pool, user$email %||% "", input$current_email_verify_code %||% "", purpose = "register"),
-      error = function(e) list(success = FALSE, message = paste0("邮箱验证失败：", e$message))
-    )
-    if (!isTRUE(result$success)) {
-      showNotification(result$message, type = "error")
-      return()
-    }
-    current_user(result$user)
-    removeModal()
-    showNotification(result$message, type = "message")
-  })
-
-  observeEvent(input$submit_email_change, {
-    user <- current_user()
-    req(!is.null(user))
-    result <- tryCatch(
-      auth_confirm_email_change(
-        pg_pool,
-        user$id,
-        input$change_email_current_password %||% "",
-        input$change_email_new_email %||% "",
-        input$change_email_code %||% ""
-      ),
-      error = function(e) list(success = FALSE, message = paste0("邮箱换绑失败：", e$message))
-    )
-    if (!isTRUE(result$success)) {
-      showNotification(result$message, type = "error")
-      return()
-    }
-    current_user(result$user)
-    tryCatch(
-      service_claim_workspace_invites(pg_pool, result$user$id, result$user$email),
-      error = function(e) invisible(NULL)
-    )
-    removeModal()
-    showNotification(result$message, type = "message")
-  })
-
   database_manager_server("db_manage", pg_pool = pg_pool, current_user = current_user)
-  workspace_access_manager_server("access_manage", pg_pool = pg_pool, current_user = current_user)
+  workspace_access_manager_server("access_manage", pg_pool = pg_pool, current_user = current_user, on_user_updated = current_user)
   data_prep_module <- data_preparation_server("data_prep", pg_pool = pg_pool, current_user = current_user)
   admin_manager_server("admin", pg_pool = pg_pool, current_user = current_user)
 

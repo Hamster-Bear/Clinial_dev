@@ -916,6 +916,45 @@ auth_confirm_email_change <- function(pool, user_id, current_password, new_email
   list(success = TRUE, message = "邮箱换绑成功", user = auth_build_user_payload(updated_user))
 }
 
+auth_change_password <- function(pool, user_id, current_password, new_password) {
+  if (!nzchar(user_id %||% "")) {
+    return(list(success = FALSE, message = "缺少当前账号信息"))
+  }
+
+  user_row <- auth_get_user_by_id(pool, user_id)
+  if (nrow(user_row) == 0) {
+    return(list(success = FALSE, message = "当前账号不存在"))
+  }
+  if (!identical(user_row$status[[1]] %||% "", "active")) {
+    return(list(success = FALSE, message = "账号已停用"))
+  }
+  if (!auth_verify_password(current_password %||% "", user_row$password_salt[[1]], user_row$password_hash[[1]])) {
+    return(list(success = FALSE, message = "当前密码错误"))
+  }
+
+  password_error <- auth_validate_password(new_password)
+  if (!is.null(password_error)) {
+    return(list(success = FALSE, message = password_error))
+  }
+  if (identical(current_password %||% "", new_password %||% "")) {
+    return(list(success = FALSE, message = "新密码不能与当前密码相同"))
+  }
+
+  salt <- auth_generate_salt()
+  password_hash <- auth_hash_password(new_password, salt)
+  DBI::dbExecute(
+    pool,
+    paste(
+      "UPDATE users",
+      "SET password_salt = $1, password_hash = $2",
+      "WHERE id = $3"
+    ),
+    params = list(salt, password_hash, user_id)
+  )
+
+  list(success = TRUE, message = "密码修改成功")
+}
+
 auth_request_password_reset <- function(pool, email) {
   normalized_email <- auth_normalize_email(email)
   email_error <- auth_validate_email(normalized_email)

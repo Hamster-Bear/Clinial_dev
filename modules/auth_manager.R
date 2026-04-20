@@ -1,6 +1,8 @@
 auth_manager_styles <- function() {
-  tags$head(
-    tags$style(HTML("
+  tagList(
+    app_card_dependencies(),
+    tags$head(
+      tags$style(HTML("
       .auth-page-shell {
         min-height: calc(100vh - 130px);
         display: flex;
@@ -12,13 +14,25 @@ auth_manager_styles <- function() {
         width: 100%;
         max-width: 620px;
       }
-      .auth-page-column .box {
+      .auth-page-column .app-card.box {
         margin-bottom: 16px;
-        box-shadow: 0 10px 24px rgba(31, 45, 61, 0.08);
       }
       .auth-intro {
         color: #5f6b7a;
         line-height: 1.75;
+      }
+      .auth-panel-list {
+        display: grid;
+        gap: 10px;
+      }
+      .auth-panel-list .app-card__panel {
+        background: #fbfdff;
+      }
+      .auth-primary-button {
+        border-radius: 8px !important;
+        padding-top: 10px !important;
+        padding-bottom: 10px !important;
+        font-weight: 600 !important;
       }
       .auth-hint {
         color: #6b7785;
@@ -49,6 +63,7 @@ auth_manager_styles <- function() {
         color: #1f2d3d !important;
       }
     "))
+    )
   )
 }
 
@@ -61,23 +76,30 @@ auth_manager_tabs <- function(id) {
         class = "auth-page-shell",
         div(
           class = "auth-page-column",
-          box(
+          app_card_box(
             width = 12,
             title = "欢迎进入 AutoTFL",
+            subtitle = "统一认证入口",
+            tone = "primary",
             status = "primary",
-            solidHeader = TRUE,
-            p(class = "auth-intro", "请先登录后进入工作台。当前支持用户名或邮箱登录，邮箱验证、换绑与协作能力会继续围绕邮箱身份扩展。")
+            solidHeader = FALSE,
+            app_card_note("请先登录后进入工作台。当前支持用户名或邮箱登录，邮箱验证、换绑与协作能力会继续围绕邮箱身份扩展。")
           ),
-          box(
+          app_card_box(
             width = 12,
             title = "登录",
-            status = "primary",
-            solidHeader = TRUE,
-            textInput(ns("login_identity"), "用户名或邮箱", placeholder = "请输入用户名或邮箱"),
-            passwordInput(ns("login_password"), "密码", placeholder = "请输入密码"),
-            br(),
-            actionButton(ns("login_submit"), "登录", class = "btn-primary", width = "100%"),
-            br(),
+            subtitle = "输入账号信息进入工作台",
+            tone = "info",
+            status = "info",
+            solidHeader = FALSE,
+            div(
+              class = "auth-panel-list",
+              app_card_panel(
+                textInput(ns("login_identity"), "用户名或邮箱", placeholder = "请输入用户名或邮箱"),
+                passwordInput(ns("login_password"), "密码", placeholder = "请输入密码"),
+                actionButton(ns("login_submit"), "登录", class = "btn-primary auth-primary-button", width = "100%")
+              )
+            ),
             br(),
             div(
               class = "auth-secondary-actions",
@@ -94,24 +116,32 @@ auth_manager_tabs <- function(id) {
         class = "auth-page-shell",
         div(
           class = "auth-page-column",
-          box(
+          app_card_box(
             width = 12,
             title = "创建账号",
+            subtitle = "创建基础账号",
+            tone = "info",
             status = "info",
-            solidHeader = TRUE,
-            p(class = "auth-intro", "注册后可由管理员开放数据库管理能力，并可通过邮箱加入协作数据空间；邮箱验证改为登录后在用户信息中自行完成。")
+            solidHeader = FALSE,
+            app_card_note("注册后可由管理员开放数据库管理能力，并可通过邮箱加入协作数据空间；邮箱验证改为登录后在用户信息中自行完成。")
           ),
-          box(
+          app_card_box(
             width = 12,
             title = "注册",
+            subtitle = "填写基础注册信息",
+            tone = "info",
             status = "info",
-            solidHeader = TRUE,
-            textInput(ns("register_username"), "用户名", placeholder = "3-32 位小写字母、数字、下划线、点或中划线"),
-            textInput(ns("register_email"), "邮箱", placeholder = "后续可用于协作授权与找回流程"),
-            passwordInput(ns("register_password"), "密码", placeholder = "至少 8 位"),
-            passwordInput(ns("register_password_confirm"), "确认密码", placeholder = "请再次输入密码"),
-            actionButton(ns("register_submit"), "注册", class = "btn-info", width = "100%"),
-            br(),
+            solidHeader = FALSE,
+            div(
+              class = "auth-panel-list",
+              app_card_panel(
+                textInput(ns("register_username"), "用户名", placeholder = "3-32 位小写字母、数字、下划线、点或中划线"),
+                textInput(ns("register_email"), "邮箱", placeholder = "后续可用于协作授权与找回流程"),
+                passwordInput(ns("register_password"), "密码", placeholder = "至少 8 位"),
+                passwordInput(ns("register_password_confirm"), "确认密码", placeholder = "请再次输入密码"),
+                actionButton(ns("register_submit"), "注册", class = "btn-info auth-primary-button", width = "100%")
+              )
+            ),
             br(),
             tags$small(class = "auth-hint", "注册成功后可直接登录；邮箱验证请在登录后的用户信息中自行完成。数据库管理权限仍需由管理员开放。"),
             br(),
@@ -127,24 +157,33 @@ auth_manager_tabs <- function(id) {
         class = "auth-page-shell",
         div(
           class = "auth-page-column",
-          box(
+          app_card_box(
             width = 12,
             title = "找回密码",
+            subtitle = "独立找回流程",
+            tone = "warning",
             status = "warning",
-            solidHeader = TRUE,
-            p(class = "auth-intro", "通过注册邮箱申请重置验证码，再用验证码设置新密码。")
+            solidHeader = FALSE,
+            app_card_note("通过注册邮箱申请重置验证码，再用验证码设置新密码。")
           ),
-          box(
+          app_card_box(
             width = 12,
             title = "忘记密码",
+            subtitle = "使用验证码重置密码",
+            tone = "warning",
             status = "warning",
-            solidHeader = TRUE,
-            textInput(ns("reset_email"), "邮箱", placeholder = "请输入注册邮箱"),
-            textInput(ns("reset_code"), "重置验证码", placeholder = "请输入 6 位验证码"),
-            passwordInput(ns("reset_new_password"), "新密码", placeholder = "至少 8 位"),
-            fluidRow(
-              column(6, actionButton(ns("request_reset"), "获取重置码", width = "100%")),
-              column(6, actionButton(ns("reset_submit"), "重置密码", class = "btn-warning", width = "100%"))
+            solidHeader = FALSE,
+            div(
+              class = "auth-panel-list",
+              app_card_panel(
+                textInput(ns("reset_email"), "邮箱", placeholder = "请输入注册邮箱"),
+                textInput(ns("reset_code"), "重置验证码", placeholder = "请输入 6 位验证码"),
+                passwordInput(ns("reset_new_password"), "新密码", placeholder = "至少 8 位"),
+                fluidRow(
+                  column(6, actionButton(ns("request_reset"), "获取重置码", class = "auth-primary-button", width = "100%")),
+                  column(6, actionButton(ns("reset_submit"), "重置密码", class = "btn-warning auth-primary-button", width = "100%"))
+                )
+              )
             ),
             br(),
             tags$small(class = "auth-hint", "测试环境默认通过 console 输出重置验证码；生产环境接入真实邮件投递后再对外开放。"),

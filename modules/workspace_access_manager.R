@@ -1,46 +1,25 @@
 workspace_access_manager_ui <- function(id) {
   ns <- NS(id)
   tagList(
+    app_card_dependencies(),
     tags$head(
       tags$style(HTML("
         .access-note {
           color: #5f6b7a;
           line-height: 1.7;
         }
-        .access-context-card {
-          margin-bottom: 15px;
-          padding: 14px 16px;
-          border-radius: 10px;
-          background: #f7fbff;
-          border: 1px solid #d9ecf7;
-        }
-        .access-context-title {
-          font-weight: 700;
-          color: #2c3e50;
-          margin-bottom: 8px;
-        }
-        .access-context-grid {
+        .access-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-          gap: 10px;
+          grid-template-columns: minmax(320px, 420px) minmax(420px, 1fr);
+          gap: 18px;
         }
-        .access-context-item {
-          padding: 10px 12px;
-          border-radius: 8px;
-          background: #ffffff;
-          border: 1px solid #e5eef5;
+        .access-stack {
+          display: grid;
+          gap: 18px;
         }
-        .access-context-label {
-          display: block;
-          font-size: 12px;
-          color: #7b8794;
-          margin-bottom: 4px;
-        }
-        .access-context-value {
-          display: block;
-          font-size: 14px;
-          font-weight: 600;
-          color: #1f2d3d;
+        .access-panel-list {
+          display: grid;
+          gap: 12px;
         }
         .access-form-note {
           color: #6b7785;
@@ -49,23 +28,61 @@ workspace_access_manager_ui <- function(id) {
           margin-top: 8px;
           margin-bottom: 10px;
         }
+        .access-inline-actions {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .access-status-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 10px;
+        }
+        .access-status-item {
+          padding: 10px 12px;
+          border-radius: 10px;
+          border: 1px solid #e8eef5;
+          background: #f8fbff;
+        }
+        .access-status-label {
+          display: block;
+          margin-bottom: 4px;
+          color: #7b8794;
+          font-size: 12px;
+        }
+        .access-status-value {
+          display: block;
+          color: #243447;
+          font-size: 14px;
+          font-weight: 600;
+          line-height: 1.5;
+        }
+        .access-security-hint {
+          color: #6b7785;
+          font-size: 12px;
+          line-height: 1.7;
+        }
+        @media (max-width: 991px) {
+          .access-grid {
+            grid-template-columns: 1fr;
+          }
+        }
       "))
     ),
-    fluidRow(
-      box(
-        width = 12,
-        title = "我的数据空间权限",
-        status = "primary",
-        solidHeader = TRUE,
-        uiOutput(ns("access_notice"))
-      )
+    app_card_box(
+      width = 12,
+      title = "用户和权限",
+      subtitle = "账号安全与数据空间协作统一收口",
+      tone = "primary",
+      status = "primary",
+      solidHeader = FALSE,
+      uiOutput(ns("access_notice"))
     ),
-    uiOutput(ns("workspace_context")),
     uiOutput(ns("access_content"))
   )
 }
 
-workspace_access_manager_server <- function(id, pg_pool, current_user = NULL) {
+workspace_access_manager_server <- function(id, pg_pool, current_user = NULL, on_user_updated = NULL) {
   moduleServer(id, function(input, output, session) {
     `%||%` <- function(x, y) if (is.null(x)) y else x
     refresh_tick <- reactiveVal(0)
@@ -75,6 +92,12 @@ workspace_access_manager_server <- function(id, pg_pool, current_user = NULL) {
         return(NULL)
       }
       isolate(current_user())
+    }
+
+    update_current_user <- function(user) {
+      if (!is.null(on_user_updated) && is.function(on_user_updated)) {
+        on_user_updated(user)
+      }
     }
 
     current_workspace_id <- reactive({
@@ -94,21 +117,193 @@ workspace_access_manager_server <- function(id, pg_pool, current_user = NULL) {
       if (is.null(user)) {
         return(data.frame())
       }
-      service_list_manageable_workspaces(pg_pool, user)
+      tryCatch(
+        service_list_manageable_workspaces(pg_pool, user),
+        error = function(e) {
+          empty_df <- data.frame(
+            id = character(),
+            name = character(),
+            stringsAsFactors = FALSE
+          )
+          attr(empty_df, "load_error") <- paste0("权限管理数据加载失败：", e$message)
+          empty_df
+        }
+      )
     })
 
     output$access_notice <- renderUI({
       user <- get_current_user()
       if (is.null(user)) {
-        return(tags$div("请先登录后管理数据空间权限。"))
+        return(app_card_note("请先登录后查看用户信息并管理数据空间权限。"))
       }
       workspace_df <- manageable_workspaces()
-      if (nrow(workspace_df) == 0) {
-        return(tags$div("当前账号尚未拥有可管理的数据空间。"))
+      load_error <- attr(workspace_df, "load_error", exact = TRUE) %||% ""
+      note_text <- if (nzchar(load_error)) {
+        paste0("当前页面分为“用户信息”和“权限管理”两部分。权限管理数据暂时加载失败，已优先保留左侧用户信息与信息变更控件。", load_error)
+      } else if (nrow(workspace_df) == 0) {
+        "当前页面分为“用户信息”和“权限管理”两部分。即使当前没有可管理空间，你仍可以在左侧查看基础资料并完成邮箱相关信息变更。"
+      } else {
+        "左侧用于查看基础用户信息与少量信息变更；右侧继续只负责数据空间协作权限。新增协作者、撤销协作和迁移负责人都通过邮箱完成，不展示库内用户选择器。"
       }
-      tags$div(
-        class = "access-note",
-        "这里用于管理你自己创建的数据空间协作权限。新增协作者、撤销协作和迁移负责人都通过邮箱完成，不展示库内用户选择器。"
+      app_card_note(note_text)
+    })
+
+    output$access_content <- renderUI({
+      user <- get_current_user()
+      req(!is.null(user))
+
+      workspace_df <- manageable_workspaces()
+      load_error <- attr(workspace_df, "load_error", exact = TRUE) %||% ""
+      workspace_choices <- if (nrow(workspace_df) > 0) setNames(workspace_df$id, workspace_df$name) else character(0)
+
+      right_column <- if (nzchar(load_error)) {
+        app_card_box(
+          width = 12,
+          title = "权限管理",
+          subtitle = "权限数据加载异常",
+          tone = "danger",
+          status = "danger",
+          solidHeader = FALSE,
+          app_card_note(paste0("当前无法加载可管理空间与协作权限数据。", load_error, " 左侧用户信息仍可正常使用，请稍后重试或联系管理员检查数据连接。"))
+        )
+      } else if (nrow(workspace_df) == 0) {
+        app_card_box(
+          width = 12,
+          title = "权限管理",
+          subtitle = "当前暂无可管理空间",
+          tone = "warning",
+          status = "warning",
+          solidHeader = FALSE,
+          app_card_note("当前账号名下还没有可管理的数据空间，因此权限管理区暂时不显示协作设置表单。后续创建或获得可管理空间后，这里会自动出现成员授权、撤销和负责人迁移能力。")
+        )
+      } else {
+        tagList(
+          uiOutput(session$ns("workspace_context")),
+          app_card_box(
+            width = 12,
+            title = "权限管理",
+            subtitle = "通过邮箱管理成员、邀请与负责人迁移",
+            tone = "info",
+            status = "info",
+            solidHeader = FALSE,
+            div(
+              class = "access-panel-list",
+              app_card_panel(
+                selectInput(session$ns("managed_workspace_id"), "选择要管理的数据空间", choices = workspace_choices),
+                div(class = "access-form-note", "未注册邮箱会自动记录为待领取邀请；已注册邮箱会直接更新成员权限。")
+              ),
+              app_card_panel(
+                textInput(session$ns("target_email"), "协作者邮箱", placeholder = "请输入协作者邮箱"),
+                selectInput(
+                  session$ns("target_role"),
+                  "协作权限等级",
+                  choices = c("只读成员" = "viewer", "可编辑成员" = "editor"),
+                  selected = "viewer"
+                ),
+                div(
+                  class = "access-inline-actions",
+                  actionButton(session$ns("grant_access"), "发送授权", class = "btn-primary", width = "100%"),
+                  actionButton(session$ns("revoke_access"), "撤销协作", class = "btn-danger", width = "100%")
+                )
+              ),
+              app_card_panel(
+                textInput(session$ns("owner_email"), "新负责人的邮箱", placeholder = "请输入新的负责人邮箱"),
+                div(class = "access-form-note", "负责人迁移后，原负责人会自动降级为可编辑成员。若目标邮箱尚未注册，会先保留待领取迁移记录。"),
+                actionButton(session$ns("transfer_owner"), "确认迁移负责人", class = "btn-warning", width = "100%")
+              )
+            )
+          ),
+          app_card_box(
+            width = 12,
+            title = "协作权限预览",
+            subtitle = "查看当前成员与待领取邀请",
+            tone = "primary",
+            status = "primary",
+            solidHeader = FALSE,
+            tabBox(
+              width = 12,
+              title = NULL,
+              id = session$ns("access_preview_tabs"),
+              tabPanel("当前成员", DTOutput(session$ns("members_table"))),
+              tabPanel("待领取邀请", DTOutput(session$ns("invite_table")))
+            )
+          )
+        )
+      }
+
+      div(
+        class = "access-grid",
+        div(
+          class = "access-stack",
+          app_card_box(
+            width = 12,
+            title = "用户信息",
+            subtitle = "基础资料与少量信息变更",
+            tone = "info",
+            status = "info",
+            solidHeader = FALSE,
+            div(
+              class = "access-panel-list",
+              app_card_panel(
+                tags$strong("基础信息"),
+                div(
+                  class = "access-status-grid",
+                  div(
+                    class = "access-status-item",
+                    span(class = "access-status-label", "用户名"),
+                    span(class = "access-status-value", user$username %||% "")
+                  ),
+                  div(
+                    class = "access-status-item",
+                    span(class = "access-status-label", "账号类型"),
+                    span(class = "access-status-value", if (isTRUE(user$is_admin)) "系统管理员" else "普通用户")
+                  ),
+                  div(
+                    class = "access-status-item",
+                    span(class = "access-status-label", "当前邮箱"),
+                    span(class = "access-status-value", if (nzchar(user$email %||% "")) user$email else "未设置邮箱")
+                  ),
+                  div(
+                    class = "access-status-item",
+                    span(class = "access-status-label", "邮箱状态"),
+                    span(class = "access-status-value", if (isTRUE(user$email_verified)) "已验证" else "未验证")
+                  )
+                )
+              ),
+              app_card_panel(
+                tags$strong("绑定邮箱"),
+                div(class = "access-security-hint", "当前邮箱验证改为登录后自助完成；未验证时可先发送验证码，再输入验证码确认。"),
+                textInput(session$ns("current_email_verify_code"), "验证码", placeholder = "请输入 6 位验证码"),
+                div(
+                  class = "access-inline-actions",
+                  actionButton(session$ns("request_current_email_verify"), "发送验证码", class = "btn-info", width = "100%"),
+                  actionButton(session$ns("submit_current_email_verify"), "确认验证", class = "btn-primary", width = "100%")
+                )
+              ),
+              app_card_panel(
+                tags$strong("邮箱换绑"),
+                div(class = "access-security-hint", "如需更换邮箱，可在这里完成邮箱换绑。先输入当前密码与新邮箱，发送换绑验证码后再确认换绑。"),
+                passwordInput(session$ns("change_email_current_password"), "当前密码", placeholder = "请输入当前密码"),
+                textInput(session$ns("change_email_new_email"), "新邮箱", placeholder = "请输入新的邮箱地址"),
+                textInput(session$ns("change_email_code"), "换绑验证码", placeholder = "请输入 6 位验证码"),
+                div(
+                  class = "access-inline-actions",
+                  actionButton(session$ns("request_email_change_code"), "发送换绑验证码", class = "btn-info", width = "100%"),
+                  actionButton(session$ns("submit_email_change"), "确认换绑", class = "btn-primary", width = "100%")
+                )
+              ),
+              app_card_panel(
+                tags$strong("修改密码"),
+                div(class = "access-security-hint", "通过当前密码验证后，直接在这里修改账号密码。该区域仅保留基础密码修改，不扩展其它账号管理能力。"),
+                passwordInput(session$ns("password_change_current_password"), "当前密码", placeholder = "请输入当前密码"),
+                passwordInput(session$ns("password_change_new_password"), "新密码", placeholder = "至少 8 位"),
+                passwordInput(session$ns("password_change_confirm_password"), "确认新密码", placeholder = "请再次输入新密码"),
+                actionButton(session$ns("submit_password_change"), "修改密码", class = "btn-warning", width = "100%")
+              )
+            )
+          )
+        ),
+        div(class = "access-stack", right_column)
       )
     })
 
@@ -122,81 +317,34 @@ workspace_access_manager_server <- function(id, pg_pool, current_user = NULL) {
       if (nrow(memberships) > 0 && any(memberships$role == "owner")) {
         owner_email <- memberships$email[match("owner", memberships$role)] %||% ""
       }
-      div(
-        class = "access-context-card",
-        div(class = "access-context-title", "当前管理上下文"),
+      app_card_box(
+        width = 12,
+        title = "当前管理上下文",
+        subtitle = "正在管理的数据空间与协作概况",
+        tone = "primary",
+        status = "primary",
+        solidHeader = FALSE,
         div(
-          class = "access-context-grid",
+          class = "access-status-grid",
           div(
-            class = "access-context-item",
-            span(class = "access-context-label", "数据空间"),
-            span(class = "access-context-value", workspace_row$name[[1]] %||% current_workspace_id())
+            class = "access-status-item",
+            span(class = "access-status-label", "数据空间"),
+            span(class = "access-status-value", workspace_row$name[[1]] %||% current_workspace_id())
           ),
           div(
-            class = "access-context-item",
-            span(class = "access-context-label", "当前负责人"),
-            span(class = "access-context-value", if (nzchar(owner_email)) owner_email else "待补充")
+            class = "access-status-item",
+            span(class = "access-status-label", "当前负责人"),
+            span(class = "access-status-value", if (nzchar(owner_email)) owner_email else "待补充")
           ),
           div(
-            class = "access-context-item",
-            span(class = "access-context-label", "当前成员数"),
-            span(class = "access-context-value", as.character(nrow(memberships)))
+            class = "access-status-item",
+            span(class = "access-status-label", "当前成员数"),
+            span(class = "access-status-value", as.character(nrow(memberships)))
           ),
           div(
-            class = "access-context-item",
-            span(class = "access-context-label", "待领取邀请"),
-            span(class = "access-context-value", as.character(sum(invites$status == "pending", na.rm = TRUE)))
-          )
-        )
-      )
-    })
-
-    output$access_content <- renderUI({
-      workspace_df <- manageable_workspaces()
-      if (nrow(workspace_df) == 0) {
-        return(NULL)
-      }
-      workspace_choices <- setNames(workspace_df$id, workspace_df$name)
-      fluidRow(
-        column(
-          width = 4,
-          box(
-            width = 12,
-            title = "协作成员设置",
-            status = "info",
-            solidHeader = TRUE,
-            selectInput(session$ns("managed_workspace_id"), "选择要管理的数据空间", choices = workspace_choices),
-            textInput(session$ns("target_email"), "协作者邮箱", placeholder = "请输入协作者邮箱"),
-            selectInput(
-              session$ns("target_role"),
-              "协作权限等级",
-              choices = c("只读成员" = "viewer", "可编辑成员" = "editor"),
-              selected = "viewer"
-            ),
-            div(class = "access-form-note", "未注册邮箱会自动记录为待领取邀请；已注册邮箱会直接更新成员权限。"),
-            fluidRow(
-              column(6, actionButton(session$ns("grant_access"), "发送授权", class = "btn-primary", width = "100%")),
-              column(6, actionButton(session$ns("revoke_access"), "撤销协作", class = "btn-danger", width = "100%"))
-            )
-          ),
-          box(
-            width = 12,
-            title = "负责人迁移",
-            status = "warning",
-            solidHeader = TRUE,
-            textInput(session$ns("owner_email"), "新负责人的邮箱", placeholder = "请输入新的负责人邮箱"),
-            div(class = "access-form-note", "负责人迁移后，原负责人会自动降级为可编辑成员。若目标邮箱尚未注册，会先保留待领取迁移记录。"),
-            actionButton(session$ns("transfer_owner"), "确认迁移负责人", class = "btn-warning", width = "100%")
-          )
-        ),
-        column(
-          width = 8,
-          tabBox(
-            width = 12,
-            title = "协作权限预览",
-            id = session$ns("access_preview_tabs"),
-            tabPanel("当前成员", DTOutput(session$ns("members_table"))),
-            tabPanel("待领取邀请", DTOutput(session$ns("invite_table")))
+            class = "access-status-item",
+            span(class = "access-status-label", "待领取邀请"),
+            span(class = "access-status-value", as.character(sum(invites$status == "pending", na.rm = TRUE)))
           )
         )
       )
@@ -268,6 +416,113 @@ workspace_access_manager_server <- function(id, pg_pool, current_user = NULL) {
       }, error = function(e) {
         showNotification(paste0("迁移失败：", e$message), type = "error")
       })
+    })
+
+    observeEvent(input$request_current_email_verify, {
+      user <- get_current_user()
+      req(!is.null(user))
+      result <- tryCatch(
+        auth_request_current_email_verification(pg_pool, user$id, purpose = "register"),
+        error = function(e) list(success = FALSE, message = paste0("发送邮箱验证码失败：", e$message))
+      )
+      if (!isTRUE(result$success)) {
+        showNotification(result$message, type = "error")
+        return()
+      }
+      showNotification(result$message, type = "message")
+    })
+
+    observeEvent(input$submit_current_email_verify, {
+      user <- get_current_user()
+      req(!is.null(user))
+      result <- tryCatch(
+        auth_verify_email_code(pg_pool, user$email %||% "", input$current_email_verify_code %||% "", purpose = "register"),
+        error = function(e) list(success = FALSE, message = paste0("邮箱验证失败：", e$message))
+      )
+      if (!isTRUE(result$success)) {
+        showNotification(result$message, type = "error")
+        return()
+      }
+      update_current_user(result$user)
+      refresh_tick(as.numeric(Sys.time()))
+      updateTextInput(session, "current_email_verify_code", value = "")
+      showNotification(result$message, type = "message")
+    })
+
+    observeEvent(input$request_email_change_code, {
+      user <- get_current_user()
+      req(!is.null(user))
+      result <- tryCatch(
+        auth_request_email_change(
+          pg_pool,
+          user$id,
+          input$change_email_current_password %||% "",
+          input$change_email_new_email %||% ""
+        ),
+        error = function(e) list(success = FALSE, message = paste0("发送换绑验证码失败：", e$message))
+      )
+      if (!isTRUE(result$success)) {
+        showNotification(result$message, type = "error")
+        return()
+      }
+      showNotification(result$message, type = "message")
+    })
+
+    observeEvent(input$submit_email_change, {
+      user <- get_current_user()
+      req(!is.null(user))
+      result <- tryCatch(
+        auth_confirm_email_change(
+          pg_pool,
+          user$id,
+          input$change_email_current_password %||% "",
+          input$change_email_new_email %||% "",
+          input$change_email_code %||% ""
+        ),
+        error = function(e) list(success = FALSE, message = paste0("邮箱换绑失败：", e$message))
+      )
+      if (!isTRUE(result$success)) {
+        showNotification(result$message, type = "error")
+        return()
+      }
+      tryCatch(
+        service_claim_workspace_invites(pg_pool, result$user$id, result$user$email),
+        error = function(e) invisible(NULL)
+      )
+      update_current_user(result$user)
+      refresh_tick(as.numeric(Sys.time()))
+      updatePasswordInput(session, "change_email_current_password", value = "")
+      updateTextInput(session, "change_email_new_email", value = "")
+      updateTextInput(session, "change_email_code", value = "")
+      showNotification(result$message, type = "message")
+    })
+
+    observeEvent(input$submit_password_change, {
+      user <- get_current_user()
+      req(!is.null(user))
+      new_password <- input$password_change_new_password %||% ""
+      confirm_password <- input$password_change_confirm_password %||% ""
+      if (!identical(new_password, confirm_password)) {
+        showNotification("两次输入的新密码不一致", type = "error")
+        return()
+      }
+      result <- tryCatch(
+        auth_change_password(
+          pg_pool,
+          user$id,
+          input$password_change_current_password %||% "",
+          new_password
+        ),
+        error = function(e) list(success = FALSE, message = paste0("修改密码失败：", e$message))
+      )
+      if (!isTRUE(result$success)) {
+        showNotification(result$message, type = "error")
+        return()
+      }
+      updatePasswordInput(session, "password_change_current_password", value = "")
+      updatePasswordInput(session, "password_change_new_password", value = "")
+      updatePasswordInput(session, "password_change_confirm_password", value = "")
+      showNotification(result$message, type = "message")
     })
   })
 }
