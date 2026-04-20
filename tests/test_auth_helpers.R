@@ -34,6 +34,30 @@ test_that("用户名、邮箱与密码校验遵循最小规则", {
   expect_null(auth_validate_password("12345678"))
 })
 
+test_that("邮箱验证配置与验证码 helper 可用", {
+  old_required <- Sys.getenv("AUTH_REQUIRE_EMAIL_VERIFICATION", unset = NA_character_)
+  old_show <- Sys.getenv("AUTH_DEV_SHOW_EMAIL_CODE", unset = NA_character_)
+  old_mode <- Sys.getenv("EMAIL_DELIVERY_MODE", unset = NA_character_)
+  on.exit({
+    if (is.na(old_required)) Sys.unsetenv("AUTH_REQUIRE_EMAIL_VERIFICATION") else Sys.setenv(AUTH_REQUIRE_EMAIL_VERIFICATION = old_required)
+    if (is.na(old_show)) Sys.unsetenv("AUTH_DEV_SHOW_EMAIL_CODE") else Sys.setenv(AUTH_DEV_SHOW_EMAIL_CODE = old_show)
+    if (is.na(old_mode)) Sys.unsetenv("EMAIL_DELIVERY_MODE") else Sys.setenv(EMAIL_DELIVERY_MODE = old_mode)
+  }, add = TRUE)
+
+  Sys.setenv(AUTH_REQUIRE_EMAIL_VERIFICATION = "0", AUTH_DEV_SHOW_EMAIL_CODE = "1", EMAIL_DELIVERY_MODE = "console")
+  expect_false(auth_email_verification_required())
+  expect_true(auth_dev_show_email_code())
+  code <- auth_generate_verification_code()
+  expect_match(code, "^[0-9]{6}$")
+  expect_identical(auth_hash_token("123456"), auth_hash_token("123456"))
+  delivery <- auth_deliver_email_verification("demo@example.com", code, purpose = "register")
+  expect_true(isTRUE(delivery$success))
+  expect_identical(delivery$preview_code, code)
+  reset_delivery <- auth_deliver_password_reset("demo@example.com", code)
+  expect_true(isTRUE(reset_delivery$success))
+  expect_identical(reset_delivery$preview_code, code)
+})
+
 test_that("非管理员 registry 过滤仅保留授权 workspace", {
   reg <- list(
     workspaces = data.frame(
@@ -75,28 +99,45 @@ test_that("用户载荷包含数据库管理开关", {
     id = "u1",
     username = "demo",
     email = "demo@example.com",
+    email_verified_at = as.POSIXct("2024-01-01", tz = "UTC"),
     is_admin = FALSE,
     db_access_enabled = TRUE,
     stringsAsFactors = FALSE
   ))
   expect_true(isTRUE(payload$db_access_enabled))
+  expect_true(isTRUE(payload$email_verified))
   admin_payload <- auth_build_user_payload(data.frame(
     id = "u2",
     username = "admin",
     email = "admin@example.com",
+    email_verified_at = as.POSIXct(NA),
     is_admin = TRUE,
     db_access_enabled = FALSE,
     stringsAsFactors = FALSE
   ))
   expect_true(isTRUE(admin_payload$db_access_enabled))
+  expect_false(isTRUE(admin_payload$email_verified))
 })
 
 test_that("认证策略守卫收紧管理员初始化与workspace访问", {
-  expect_match(auth_source_text, 'message = "注册成功，请登录"', fixed = TRUE)
+  expect_match(auth_source_text, 'message = "注册成功，请登录。登录后可在用户信息中自行验证邮箱。"', fixed = TRUE)
   expect_false(grepl("当前账号已成为系统管理员", auth_source_text, fixed = TRUE))
+  expect_match(auth_source_text, "auth_resolve_bootstrap_admin_env <- function")
+  expect_match(auth_source_text, "auth_issue_email_verification <- function")
+  expect_match(auth_source_text, "auth_verify_email_code <- function")
+  expect_match(auth_source_text, "auth_request_current_email_verification <- function")
+  expect_match(auth_source_text, "auth_request_password_reset <- function")
+  expect_match(auth_source_text, "auth_reset_password <- function")
+  expect_match(auth_source_text, "auth_request_email_change <- function")
+  expect_match(auth_source_text, "auth_confirm_email_change <- function")
+  expect_match(auth_source_text, "email_service_send")
+  expect_match(auth_source_text, "AUTH_REQUIRE_EMAIL_VERIFICATION")
+  expect_match(auth_source_text, "AUTH_PASSWORD_RESET_EXPIRE_MINUTES")
+  expect_match(auth_source_text, "APP_ADMIN_USERNAME、APP_ADMIN_EMAIL 和 APP_ADMIN_PASSWORD")
+  expect_match(auth_source_text, "APP_ADMIN_EMAIL 与 APP_ADMIN_USERNAME 分别命中不同账号")
   expect_match(
     auth_source_text,
-    "if \\(!nzchar\\(username\\) \\|\\| !nzchar\\(email\\) \\|\\| !nzchar\\(password\\)\\)"
+    "if \\(provided_count == 0\\)"
   )
   expect_false(grepl("if \\(isTRUE\\(is_admin\\)\\)", auth_source_text))
 })

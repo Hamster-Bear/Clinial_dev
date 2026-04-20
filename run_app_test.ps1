@@ -73,6 +73,22 @@ function Stop-ProcessesByPort {
   Write-Host "端口 $Port 已释放"
 }
 
+function Get-AdminBootstrapState {
+  $username = [System.Environment]::GetEnvironmentVariable("APP_ADMIN_USERNAME", "Process")
+  $email = [System.Environment]::GetEnvironmentVariable("APP_ADMIN_EMAIL", "Process")
+  $password = [System.Environment]::GetEnvironmentVariable("APP_ADMIN_PASSWORD", "Process")
+  $providedCount = @($username, $email, $password | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
+
+  if ($providedCount -eq 0) {
+    return "未配置"
+  }
+  if ($providedCount -lt 3) {
+    Write-Host "警告: APP_ADMIN_USERNAME / APP_ADMIN_EMAIL / APP_ADMIN_PASSWORD 必须同时提供，否则管理员引导同步会被跳过" -ForegroundColor Yellow
+    return "配置不完整"
+  }
+  return "已完整提供"
+}
+
 if (-not (Test-Path $EnvFile)) {
   Write-Host "未找到环境文件: $EnvFile"
   Write-Host "请先复制 .env.test.example 为 .env.test 并填写参数"
@@ -98,6 +114,7 @@ Write-Host "POSTGRES_DB=$env:POSTGRES_DB"
 Write-Host "POSTGRES_USER=$env:POSTGRES_USER"
 Write-Host "APP_ADMIN_USERNAME=$env:APP_ADMIN_USERNAME"
 Write-Host "APP_ADMIN_EMAIL=$env:APP_ADMIN_EMAIL"
+Write-Host ("ADMIN_BOOTSTRAP={0}" -f (Get-AdminBootstrapState))
 Write-Host "SHINY_PORT=$shinyPort"
 Write-Host "Rscript=$RScriptPath"
 

@@ -146,6 +146,12 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       tags$div(class = trimws(paste("app-card__panel", class)), ...)
     }
     refresh_tick <- reactiveVal(0)
+    smtp_probe_last_result <- reactiveVal(list(
+      status = "idle",
+      email = "",
+      message = "尚未发送探针邮件",
+      at = ""
+    ))
     registry_filter_mode <- reactiveVal("all")
     registry_filter_labels <- c(
       all = "全部账号",
@@ -365,7 +371,7 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
         div(
           class = "row admin-equal-row",
           app_card_box(
-            width = 4,
+            width = 3,
             title = "系统概览",
             subtitle = "摘要优先查看当前管理员与账号总体态势",
             tone = "primary",
@@ -374,7 +380,7 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
             uiOutput(session$ns("admin_system_overview"))
           ),
           app_card_box(
-            width = 4,
+            width = 3,
             title = "异常态势摘要",
             subtitle = "聚焦停用账号、未设置邮箱与待领取邀请等风险",
             tone = "warning",
@@ -383,7 +389,7 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
             uiOutput(session$ns("admin_risk_overview"))
           ),
           app_card_box(
-            width = 4,
+            width = 3,
             title = "运行环境",
             subtitle = "快速核对数据库与管理员预置环境变量",
             tone = "info",
@@ -393,6 +399,37 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
               tags$pre(
                 class = "admin-runtime-pre",
                 textOutput(session$ns("admin_runtime_meta"))
+              )
+            )
+          ),
+          app_card_box(
+            width = 3,
+            title = "SMTP 连通性测试",
+            subtitle = "管理员可向测试邮箱发送探针邮件验证投递链路",
+            tone = "success",
+            status = "success",
+            solidHeader = FALSE,
+            app_card_note("仅用于验证当前邮件投递配置是否可达。建议先使用管理员自己的测试邮箱或预发收件箱验收。"),
+            textInput(
+              session$ns("smtp_probe_email"),
+              "测试收件邮箱",
+              value = get_current_user()$email %||% "",
+              placeholder = "请输入用于接收探针邮件的邮箱"
+            ),
+            actionButton(session$ns("smtp_probe_send"), "发送探针邮件", class = "btn-success", width = "100%"),
+            br(),
+            br(),
+            app_card_panel(
+              tags$pre(
+                class = "admin-runtime-pre",
+                textOutput(session$ns("admin_smtp_probe_meta"))
+              )
+            ),
+            br(),
+            app_card_panel(
+              tags$pre(
+                class = "admin-runtime-pre",
+                textOutput(session$ns("admin_smtp_probe_last_result"))
               )
             )
           )
@@ -520,6 +557,10 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
         "数据库主机: ", Sys.getenv("POSTGRES_HOST", "未设置"), "\n",
         "数据库名称: ", Sys.getenv("POSTGRES_DB", "未设置"), "\n",
         "数据库端口: ", Sys.getenv("POSTGRES_PORT", "未设置"), "\n",
+        "邮件模式: ", Sys.getenv("EMAIL_DELIVERY_MODE", "console"), "\n",
+        "发件邮箱: ", ifelse(nzchar(Sys.getenv("EMAIL_FROM_ADDRESS", "")), Sys.getenv("EMAIL_FROM_ADDRESS", ""), "未设置"), "\n",
+        "SMTP_HOST: ", ifelse(nzchar(Sys.getenv("SMTP_HOST", "")), Sys.getenv("SMTP_HOST", ""), "未设置"), "\n",
+        "SMTP_PORT: ", ifelse(nzchar(Sys.getenv("SMTP_PORT", "")), Sys.getenv("SMTP_PORT", ""), "未设置"), "\n",
         "管理员环境变量用户名: ", ifelse(nzchar(Sys.getenv("APP_ADMIN_USERNAME", "")), Sys.getenv("APP_ADMIN_USERNAME", ""), "未设置"), "\n",
         "管理员环境变量邮箱: ", ifelse(nzchar(Sys.getenv("APP_ADMIN_EMAIL", "")), Sys.getenv("APP_ADMIN_EMAIL", ""), "未设置"), "\n",
         "管理员引导配置: ", ifelse(
@@ -527,6 +568,30 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
           "已提供",
           "未提供"
         )
+      )
+    })
+
+    output$admin_smtp_probe_meta <- renderText({
+      req(is_admin())
+      email_service_probe_summary()
+    })
+
+    output$admin_smtp_probe_last_result <- renderText({
+      req(is_admin())
+      result <- smtp_probe_last_result()
+      paste0(
+        "最近一次探针状态: ",
+        switch(
+          result$status %||% "idle",
+          success = "成功",
+          error = "失败",
+          idle = "未执行",
+          result$status %||% "未执行"
+        ),
+        "\n",
+        "目标邮箱: ", if (nzchar(result$email %||% "")) result$email else "未设置", "\n",
+        "执行时间: ", if (nzchar(result$at %||% "")) result$at else "未执行", "\n",
+        "结果说明: ", result$message %||% ""
       )
     })
 
@@ -926,6 +991,40 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
       }, error = function(e) {
         showNotification(paste0("锁定失败：", e$message), type = "error")
       })
+    })
+
+    observeEvent(input$smtp_probe_send, {
+      req(is_admin())
+      target_email <- trimws(input$smtp_probe_email %||% "")
+      email_error <- auth_validate_email(target_email)
+      if (!is.null(email_error)) {
+        smtp_probe_last_result(list(
+          status = "error",
+          email = target_email,
+          message = email_error,
+          at = format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z")
+        ))
+        showNotification(email_error, type = "warning")
+        return()
+      }
+      result <- email_service_send_probe(target_email)
+      if (isTRUE(result$success)) {
+        smtp_probe_last_result(list(
+          status = "success",
+          email = target_email,
+          message = result$message %||% "探针邮件已发送",
+          at = format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z")
+        ))
+        showNotification(result$message, type = "message")
+      } else {
+        smtp_probe_last_result(list(
+          status = "error",
+          email = target_email,
+          message = result$message %||% "探针邮件发送失败",
+          at = format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z")
+        ))
+        showNotification(result$message, type = "error")
+      }
     })
   })
 }

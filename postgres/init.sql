@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(50) PRIMARY KEY,
     username VARCHAR(64) NOT NULL UNIQUE,
     email VARCHAR(255),
+    email_verified_at TIMESTAMP WITH TIME ZONE,
     password_salt VARCHAR(128) NOT NULL,
     password_hash VARCHAR(128) NOT NULL,
     is_admin BOOLEAN NOT NULL DEFAULT FALSE,
@@ -59,6 +60,27 @@ CREATE TABLE IF NOT EXISTS workspace_invites (
     UNIQUE(workspace_id, invited_email)
 );
 
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    id VARCHAR(50) PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_email VARCHAR(255) NOT NULL,
+    purpose VARCHAR(30) NOT NULL DEFAULT 'register',
+    token_hash VARCHAR(128) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    consumed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id VARCHAR(50) PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email_snapshot VARCHAR(255) NOT NULL,
+    token_hash VARCHAR(128) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    consumed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS analysis_states (
     id VARCHAR(50) PRIMARY KEY,
     user_id VARCHAR(50) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -74,6 +96,7 @@ CREATE TABLE IF NOT EXISTS analysis_states (
 
 CREATE INDEX IF NOT EXISTS idx_workspaces_owner_user ON workspaces(owner_user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_email_verified ON users(email_verified_at);
 CREATE INDEX IF NOT EXISTS idx_folders_workspace ON folders(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_datasets_workspace ON datasets(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_datasets_folder ON datasets(folder_id);
@@ -81,6 +104,12 @@ CREATE INDEX IF NOT EXISTS idx_workspace_memberships_workspace ON workspace_memb
 CREATE INDEX IF NOT EXISTS idx_workspace_memberships_user ON workspace_memberships(user_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_invites_workspace ON workspace_invites(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_invites_email ON workspace_invites(invited_email);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user ON email_verification_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_email ON email_verification_tokens(target_email);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expire ON email_verification_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_email ON password_reset_tokens(email_snapshot);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expire ON password_reset_tokens(expires_at);
 CREATE INDEX IF NOT EXISTS idx_analysis_states_user_scope ON analysis_states(user_id, scope);
 CREATE INDEX IF NOT EXISTS idx_analysis_states_workspace_module ON analysis_states(workspace_id, module_type);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_analysis_states_user_workspace_scope_module_name

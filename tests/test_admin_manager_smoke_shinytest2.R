@@ -129,6 +129,28 @@ test_that("管理员可登录并进入系统管理页", {
   expect_match(runtime_meta %||% "", "数据库主机", fixed = TRUE)
   expect_match(runtime_meta %||% "", "数据库名称", fixed = TRUE)
 
+  smtp_probe_meta <- wait_until(function() {
+    value <- app$get_value(output = "admin-admin_smtp_probe_meta")
+    text <- paste(value, collapse = "\n")
+    if (nzchar(text) && grepl("邮件模式", text, fixed = TRUE)) {
+      text
+    } else {
+      NULL
+    }
+  }, timeout = 20)
+  expect_match(smtp_probe_meta %||% "", "邮件模式", fixed = TRUE)
+
+  smtp_probe_last_result <- wait_until(function() {
+    value <- app$get_value(output = "admin-admin_smtp_probe_last_result")
+    text <- paste(value, collapse = "\n")
+    if (nzchar(text) && grepl("最近一次探针状态", text, fixed = TRUE)) {
+      text
+    } else {
+      NULL
+    }
+  }, timeout = 20)
+  expect_match(smtp_probe_last_result %||% "", "最近一次探针状态", fixed = TRUE)
+
   risk_panel <- wait_until(function() {
     value <- app$get_value(output = "admin-admin_risk_overview")
     text <- paste(capture.output(str(value)), collapse = " ")

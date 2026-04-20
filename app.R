@@ -142,6 +142,7 @@ if (requireNamespace("showtext", quietly = TRUE) && requireNamespace("sysfonts",
 # 加载所有模块
 source("modules/common/storage_backend.R")
 source("modules/common/data_metadata.R")
+source("modules/common/email_service.R")
 source("modules/common/auth.R")
 source("modules/common/account_service.R")
 source("modules/common/ui_shell.R")
@@ -235,15 +236,67 @@ ui <- dashboardPage(
           font-size: 12px;
           line-height: 1.5;
         }
+        .sidebar-user-section-title {
+          margin-top: 12px;
+          margin-bottom: 8px;
+          color: rgba(255,255,255,0.72);
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+        }
+        .sidebar-user-status-list {
+          display: grid;
+          gap: 8px;
+        }
+        .sidebar-user-status-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          padding: 8px 10px;
+          border-radius: 8px;
+          background: rgba(255,255,255,0.08);
+          font-size: 12px;
+        }
+        .sidebar-user-status-item strong {
+          font-weight: 600;
+        }
+        .sidebar-user-status-badge {
+          display: inline-flex;
+          align-items: center;
+          padding: 2px 8px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 700;
+          white-space: nowrap;
+        }
+        .sidebar-user-status-badge--success {
+          background: rgba(0, 166, 90, 0.22);
+          color: #7ef0b4;
+        }
+        .sidebar-user-status-badge--warning {
+          background: rgba(243, 156, 18, 0.22);
+          color: #ffd27a;
+        }
+        .sidebar-user-status-badge--info {
+          background: rgba(60, 141, 188, 0.22);
+          color: #9fd8ff;
+        }
         .sidebar-user-actions {
           margin-top: 12px;
+          display: grid;
+          gap: 8px;
         }
         .sidebar-user-actions a {
           color: #ffffff !important;
-          display: inline-block;
-          padding: 6px 10px;
+          display: block;
+          padding: 8px 10px;
           border-radius: 6px;
           background: rgba(255,255,255,0.12);
+          text-align: center;
+          font-size: 12px;
+          font-weight: 600;
         }
         .sidebar-user-quick-entry {
           padding: 4px 10px !important;
@@ -255,6 +308,9 @@ ui <- dashboardPage(
           white-space: nowrap;
         }
         section.sidebar li[data-value='access_manage'] {
+          display: none !important;
+        }
+        section.sidebar li[data-value='reset_password'] {
           display: none !important;
         }
       ")),
@@ -310,6 +366,28 @@ server <- function(input, output, session) {
   current_user <- reactiveVal(NULL)
   filtered_data <- reactiveVal(NULL)
 
+  refresh_current_user <- function(notify_on_logout = FALSE) {
+    user <- isolate(current_user())
+    if (is.null(user) || !nzchar(user$id %||% "")) {
+      return(invisible(NULL))
+    }
+    fresh_row <- tryCatch(
+      auth_get_user_by_id(pg_pool, user$id),
+      error = function(e) data.frame()
+    )
+    if (nrow(fresh_row) == 0 || !identical(fresh_row$status[[1]] %||% "", "active")) {
+      current_user(NULL)
+      filtered_data(NULL)
+      updateTabItems(session, "tabs", "login")
+      if (isTRUE(notify_on_logout)) {
+        showNotification("当前账号已被停用或删除，请联系系统管理员确认。", type = "error")
+      }
+      return(invisible(NULL))
+    }
+    current_user(auth_build_user_payload(fresh_row))
+    invisible(current_user())
+  }
+
   user_has_database_access <- function(user) {
     if (is.null(user)) {
       return(FALSE)
@@ -345,7 +423,8 @@ server <- function(input, output, session) {
         id = "tabs",
         selected = "login",
         menuItem("登录", tabName = "login", icon = icon("sign-in")),
-        menuItem("注册", tabName = "register", icon = icon("user-plus"))
+        menuItem("注册", tabName = "register", icon = icon("user-plus")),
+        menuItem("找回密码", tabName = "reset_password", icon = icon("life-ring"))
       ))
     }
     allowed_tabs <- c("db_manage", "data_prep", "explore", "stats", "plots", "tables")
@@ -411,6 +490,17 @@ server <- function(input, output, session) {
     manageable_count <- nrow(manageable_df)
     accessible_count <- length(auth_accessible_workspace_ids(pg_pool, user$id, isTRUE(user$is_admin)))
     database_access_label <- if (user_has_database_access(user)) "已开通" else "未开通（可临时上传）"
+    email_status_label <- if (isTRUE(user$email_verified)) "已验证" else "未验证"
+    email_status_badge_class <- if (isTRUE(user$email_verified)) {
+      "sidebar-user-status-badge sidebar-user-status-badge--success"
+    } else {
+      "sidebar-user-status-badge sidebar-user-status-badge--warning"
+    }
+    database_status_badge_class <- if (user_has_database_access(user)) {
+      "sidebar-user-status-badge sidebar-user-status-badge--info"
+    } else {
+      "sidebar-user-status-badge sidebar-user-status-badge--warning"
+    }
     div(
       class = "sidebar-user-card",
       div(
@@ -419,24 +509,43 @@ server <- function(input, output, session) {
           div(class = "sidebar-user-name", user$username),
           if (isTRUE(user$is_admin)) div(class = "sidebar-user-role", "系统管理员")
         ),
-        if (!isTRUE(user$is_admin)) {
-          if (user_has_database_access(user) && manageable_count > 0) {
-            actionButton("open_access_manage", "权限管理", icon = icon("key"), class = "sidebar-user-quick-entry")
-          } else if (!user_has_database_access(user)) {
-            actionButton("open_data_prep", "临时上传", icon = icon("upload"), class = "sidebar-user-quick-entry")
-          }
+        if (isTRUE(user$is_admin)) {
+          actionButton("open_admin", "系统管理", icon = icon("users"), class = "sidebar-user-quick-entry")
+        } else if (user_has_database_access(user)) {
+          actionButton("open_db_manage", "数据空间", icon = icon("database"), class = "sidebar-user-quick-entry")
+        } else {
+          actionButton("open_data_prep", "临时上传", icon = icon("upload"), class = "sidebar-user-quick-entry")
         }
       ),
       div(class = "sidebar-user-meta", if (nzchar(user$email %||% "")) user$email else "未设置邮箱"),
+      div(class = "sidebar-user-section-title", "账号设置"),
+      div(
+        class = "sidebar-user-status-list",
+        div(
+          class = "sidebar-user-status-item",
+          tags$strong("邮箱状态"),
+          tags$span(class = email_status_badge_class, email_status_label)
+        ),
+        div(
+          class = "sidebar-user-status-item",
+          tags$strong("数据空间功能"),
+          tags$span(class = database_status_badge_class, database_access_label)
+        )
+      ),
+      div(class = "sidebar-user-section-title", "工作台概况"),
       div(
         class = "sidebar-user-summary",
-        paste0("数据空间功能: ", database_access_label),
-        br(),
         paste0("我创建并可管理的数据空间: ", manageable_count),
         br(),
         paste0("当前可访问的数据空间: ", accessible_count)
       ),
-      div(class = "sidebar-user-actions", actionLink("logout_submit", "退出登录"))
+      div(
+        class = "sidebar-user-actions",
+        if (!isTRUE(user$email_verified) && nzchar(user$email %||% "")) actionLink("open_email_verify", "验证邮箱"),
+        actionLink("open_email_change", "邮箱换绑"),
+        if (!isTRUE(user$is_admin) && manageable_count > 0) actionLink("open_access_manage", "权限管理"),
+        actionLink("logout_submit", "退出登录")
+      )
     )
   })
 
@@ -492,8 +601,139 @@ server <- function(input, output, session) {
     updateTabItems(session, "tabs", "access_manage")
   })
 
+  observeEvent(input$open_email_verify, {
+    user <- current_user()
+    req(!is.null(user))
+    showModal(modalDialog(
+      title = "验证邮箱",
+      tags$p(
+        class = "text-muted",
+        paste0(
+          "当前邮箱：",
+          if (nzchar(user$email %||% "")) user$email else "未设置邮箱",
+          "。请先发送验证码，再输入验证码完成验证。"
+        )
+      ),
+      textInput("current_email_verify_code", "验证码", value = "", placeholder = "请输入 6 位验证码"),
+      footer = tagList(
+        modalButton("取消"),
+        actionButton("request_current_email_verify", "发送验证码", class = "btn-info"),
+        actionButton("submit_current_email_verify", "确认验证", class = "btn-primary")
+      ),
+      easyClose = TRUE
+    ))
+  })
+
+  observeEvent(input$open_email_change, {
+    user <- current_user()
+    req(!is.null(user))
+    showModal(modalDialog(
+      title = "邮箱换绑",
+      textInput("change_email_new_email", "新邮箱", value = "", placeholder = "请输入新的邮箱地址"),
+      passwordInput("change_email_current_password", "当前密码", placeholder = "请输入当前密码以确认换绑"),
+      textInput("change_email_code", "换绑验证码", value = "", placeholder = "请输入 6 位验证码"),
+      tags$p(
+        class = "text-muted",
+        paste0(
+          "当前邮箱：",
+          if (nzchar(user$email %||% "")) user$email else "未设置邮箱",
+          "。先发送验证码到新邮箱，再输入验证码完成换绑。"
+        )
+      ),
+      footer = tagList(
+        modalButton("取消"),
+        actionButton("request_email_change_code", "发送换绑验证码", class = "btn-info"),
+        actionButton("submit_email_change", "确认换绑", class = "btn-primary")
+      ),
+      easyClose = TRUE
+    ))
+  })
+
+  observeEvent(input$open_db_manage, {
+    updateTabItems(session, "tabs", "db_manage")
+  })
+
   observeEvent(input$open_data_prep, {
     updateTabItems(session, "tabs", "data_prep")
+  })
+
+  observeEvent(input$open_admin, {
+    updateTabItems(session, "tabs", "admin")
+  })
+
+  observeEvent(input$request_email_change_code, {
+    user <- current_user()
+    req(!is.null(user))
+    result <- tryCatch(
+      auth_request_email_change(
+        pg_pool,
+        user$id,
+        input$change_email_current_password %||% "",
+        input$change_email_new_email %||% ""
+      ),
+      error = function(e) list(success = FALSE, message = paste0("发送换绑验证码失败：", e$message))
+    )
+    if (!isTRUE(result$success)) {
+      showNotification(result$message, type = "error")
+      return()
+    }
+    showNotification(result$message, type = "message")
+  })
+
+  observeEvent(input$request_current_email_verify, {
+    user <- current_user()
+    req(!is.null(user))
+    result <- tryCatch(
+      auth_request_current_email_verification(pg_pool, user$id, purpose = "register"),
+      error = function(e) list(success = FALSE, message = paste0("发送邮箱验证码失败：", e$message))
+    )
+    if (!isTRUE(result$success)) {
+      showNotification(result$message, type = "error")
+      return()
+    }
+    showNotification(result$message, type = "message")
+  })
+
+  observeEvent(input$submit_current_email_verify, {
+    user <- current_user()
+    req(!is.null(user))
+    result <- tryCatch(
+      auth_verify_email_code(pg_pool, user$email %||% "", input$current_email_verify_code %||% "", purpose = "register"),
+      error = function(e) list(success = FALSE, message = paste0("邮箱验证失败：", e$message))
+    )
+    if (!isTRUE(result$success)) {
+      showNotification(result$message, type = "error")
+      return()
+    }
+    current_user(result$user)
+    removeModal()
+    showNotification(result$message, type = "message")
+  })
+
+  observeEvent(input$submit_email_change, {
+    user <- current_user()
+    req(!is.null(user))
+    result <- tryCatch(
+      auth_confirm_email_change(
+        pg_pool,
+        user$id,
+        input$change_email_current_password %||% "",
+        input$change_email_new_email %||% "",
+        input$change_email_code %||% ""
+      ),
+      error = function(e) list(success = FALSE, message = paste0("邮箱换绑失败：", e$message))
+    )
+    if (!isTRUE(result$success)) {
+      showNotification(result$message, type = "error")
+      return()
+    }
+    current_user(result$user)
+    tryCatch(
+      service_claim_workspace_invites(pg_pool, result$user$id, result$user$email),
+      error = function(e) invisible(NULL)
+    )
+    removeModal()
+    showNotification(result$message, type = "message")
   })
 
   database_manager_server("db_manage", pg_pool = pg_pool, current_user = current_user)
@@ -510,6 +750,14 @@ server <- function(input, output, session) {
   statistical_analysis_server("stats", data = filtered_data)
   statistical_graphics_server("plots", data = filtered_data, pg_pool = pg_pool, current_user = current_user)
   tables_server("tables", data = filtered_data)
+
+  observe({
+    if (is.null(current_user())) {
+      return(invisible(NULL))
+    }
+    invalidateLater(5000, session)
+    refresh_current_user(notify_on_logout = TRUE)
+  })
 
   observe({
     if (is.null(current_user())) {

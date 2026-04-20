@@ -25,6 +25,29 @@ auth_manager_styles <- function() {
         font-size: 12px;
         line-height: 1.7;
       }
+      .auth-secondary-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .auth-secondary-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 140px;
+        padding: 10px 14px;
+        border: 1px solid #d2d9e1;
+        border-radius: 8px;
+        background: #f8fafc;
+        color: #3c4b5b !important;
+        font-weight: 600;
+        text-decoration: none !important;
+      }
+      .auth-secondary-link:hover,
+      .auth-secondary-link:focus {
+        background: #eef3f8;
+        color: #1f2d3d !important;
+      }
     "))
   )
 }
@@ -43,7 +66,7 @@ auth_manager_tabs <- function(id) {
             title = "欢迎进入 AutoTFL",
             status = "primary",
             solidHeader = TRUE,
-            p(class = "auth-intro", "请先登录后进入工作台。当前支持用户名或邮箱登录，后续协作能力会继续围绕邮箱身份扩展。")
+            p(class = "auth-intro", "请先登录后进入工作台。当前支持用户名或邮箱登录，邮箱验证、换绑与协作能力会继续围绕邮箱身份扩展。")
           ),
           box(
             width = 12,
@@ -52,15 +75,15 @@ auth_manager_tabs <- function(id) {
             solidHeader = TRUE,
             textInput(ns("login_identity"), "用户名或邮箱", placeholder = "请输入用户名或邮箱"),
             passwordInput(ns("login_password"), "密码", placeholder = "请输入密码"),
-            actionButton(ns("login_submit"), "登录", class = "btn-primary", width = "100%")
-          ),
-          box(
-            width = 12,
-            title = "当前工具声明",
-            status = "warning",
-            solidHeader = TRUE,
-            p("当前工具暂不负责数据安全；数据传到服务端后不保证安全，请使用方自行妥善保管数据。"),
-            p("如需更高的数据隔离或运行保障，可提供独立部署服务。")
+            br(),
+            actionButton(ns("login_submit"), "登录", class = "btn-primary", width = "100%"),
+            br(),
+            br(),
+            div(
+              class = "auth-secondary-actions",
+              actionLink(ns("goto_register"), "注册账号", class = "auth-secondary-link"),
+              actionLink(ns("goto_reset_password"), "忘记密码", class = "auth-secondary-link")
+            )
           )
         )
       )
@@ -76,7 +99,7 @@ auth_manager_tabs <- function(id) {
             title = "创建账号",
             status = "info",
             solidHeader = TRUE,
-            p(class = "auth-intro", "注册后可由管理员开放数据库管理能力，并可通过邮箱加入协作数据空间。")
+            p(class = "auth-intro", "注册后可由管理员开放数据库管理能力，并可通过邮箱加入协作数据空间；邮箱验证改为登录后在用户信息中自行完成。")
           ),
           box(
             width = 12,
@@ -90,7 +113,44 @@ auth_manager_tabs <- function(id) {
             actionButton(ns("register_submit"), "注册", class = "btn-info", width = "100%"),
             br(),
             br(),
-            tags$small(class = "auth-hint", "当前已支持邮箱格式校验，暂未接入真实邮箱验证与邮件发送服务。数据库管理权限需由管理员开放。")
+            tags$small(class = "auth-hint", "注册成功后可直接登录；邮箱验证请在登录后的用户信息中自行完成。数据库管理权限仍需由管理员开放。"),
+            br(),
+            br(),
+            div(class = "auth-secondary-actions", actionLink(ns("goto_login_from_register"), "返回登录", class = "auth-secondary-link"))
+          )
+        )
+      )
+    ),
+    tabItem(
+      tabName = "reset_password",
+      div(
+        class = "auth-page-shell",
+        div(
+          class = "auth-page-column",
+          box(
+            width = 12,
+            title = "找回密码",
+            status = "warning",
+            solidHeader = TRUE,
+            p(class = "auth-intro", "通过注册邮箱申请重置验证码，再用验证码设置新密码。")
+          ),
+          box(
+            width = 12,
+            title = "忘记密码",
+            status = "warning",
+            solidHeader = TRUE,
+            textInput(ns("reset_email"), "邮箱", placeholder = "请输入注册邮箱"),
+            textInput(ns("reset_code"), "重置验证码", placeholder = "请输入 6 位验证码"),
+            passwordInput(ns("reset_new_password"), "新密码", placeholder = "至少 8 位"),
+            fluidRow(
+              column(6, actionButton(ns("request_reset"), "获取重置码", width = "100%")),
+              column(6, actionButton(ns("reset_submit"), "重置密码", class = "btn-warning", width = "100%"))
+            ),
+            br(),
+            tags$small(class = "auth-hint", "测试环境默认通过 console 输出重置验证码；生产环境接入真实邮件投递后再对外开放。"),
+            br(),
+            br(),
+            div(class = "auth-secondary-actions", actionLink(ns("goto_login_from_reset"), "返回登录", class = "auth-secondary-link"))
           )
         )
       )
@@ -127,15 +187,12 @@ auth_manager_server <- function(id, pg_pool, on_login, goto_tab, send_loading = 
         showNotification(result$message, type = "error")
         return()
       }
-      tryCatch(
-        service_claim_workspace_invites(pg_pool, result$user$id, result$user$email),
-        error = function(e) invisible(NULL)
-      )
       updateTextInput(session, "register_username", value = "")
       updateTextInput(session, "register_email", value = "")
       updateTextInput(session, "register_password", value = "")
       updateTextInput(session, "register_password_confirm", value = "")
       updateTextInput(session, "login_identity", value = auth_normalize_email(email))
+      updateTextInput(session, "reset_email", value = auth_normalize_email(email))
       goto_tab("login")
       showNotification(result$message, type = "message")
     })
@@ -159,6 +216,62 @@ auth_manager_server <- function(id, pg_pool, on_login, goto_tab, send_loading = 
       updateTextInput(session, "login_identity", value = "")
       on_login(result$user)
       goto_tab("db_manage")
+      showNotification(result$message, type = "message")
+      if (!isTRUE(result$user$email_verified) && nzchar(result$user$email %||% "")) {
+        showNotification("当前邮箱尚未验证，可在左侧账号设置区点击“验证邮箱”完成验证。", type = "warning", duration = 7)
+      }
+    })
+
+    observeEvent(input$goto_register, {
+      goto_tab("register")
+    })
+
+    observeEvent(input$goto_reset_password, {
+      goto_tab("reset_password")
+    })
+
+    observeEvent(input$goto_login_from_register, {
+      goto_tab("login")
+    })
+
+    observeEvent(input$goto_login_from_reset, {
+      goto_tab("login")
+    })
+
+    observeEvent(input$request_reset, {
+      set_loading("show")
+      on.exit(set_loading("hide"), add = TRUE)
+      result <- tryCatch(
+        auth_request_password_reset(pg_pool, input$reset_email %||% ""),
+        error = function(e) list(success = FALSE, message = paste0("重置验证码发送失败：", e$message))
+      )
+      if (!isTRUE(result$success)) {
+        showNotification(result$message, type = "error")
+        return()
+      }
+      showNotification(result$message, type = "message")
+    })
+
+    observeEvent(input$reset_submit, {
+      set_loading("show")
+      on.exit(set_loading("hide"), add = TRUE)
+      result <- tryCatch(
+        auth_reset_password(
+          pg_pool,
+          input$reset_email %||% "",
+          input$reset_code %||% "",
+          input$reset_new_password %||% ""
+        ),
+        error = function(e) list(success = FALSE, message = paste0("密码重置失败：", e$message))
+      )
+      if (!isTRUE(result$success)) {
+        showNotification(result$message, type = "error")
+        return()
+      }
+      updateTextInput(session, "login_identity", value = auth_normalize_email(input$reset_email %||% ""))
+      updateTextInput(session, "login_password", value = "")
+      updateTextInput(session, "reset_code", value = "")
+      updateTextInput(session, "reset_new_password", value = "")
       showNotification(result$message, type = "message")
     })
   })

@@ -66,6 +66,7 @@ required_packages <- c(
   
   # 数据安全
   "digest",
+  "curl",
   
   # 列表处理与测试
   "rlistings",

@@ -89,9 +89,17 @@ Write-Host "POSTGRES_DB=$env:POSTGRES_DB"
 Write-Host "POSTGRES_USER=$env:POSTGRES_USER"
 Write-Host "APP_ADMIN_USERNAME=$env:APP_ADMIN_USERNAME"
 Write-Host "APP_ADMIN_EMAIL=$env:APP_ADMIN_EMAIL"
+Write-Host "AUTH_REQUIRE_EMAIL_VERIFICATION=$env:AUTH_REQUIRE_EMAIL_VERIFICATION"
+Write-Host "EMAIL_DELIVERY_MODE=$env:EMAIL_DELIVERY_MODE"
+Write-Host "EMAIL_FROM_ADDRESS=$env:EMAIL_FROM_ADDRESS"
+Write-Host "SMTP_HOST=$env:SMTP_HOST"
+Write-Host "SMTP_PORT=$env:SMTP_PORT"
+Write-Host "AUTH_DEV_SHOW_EMAIL_CODE=$env:AUTH_DEV_SHOW_EMAIL_CODE"
+Write-Host "AUTH_PASSWORD_RESET_EXPIRE_MINUTES=$env:AUTH_PASSWORD_RESET_EXPIRE_MINUTES"
 Write-Host "Rscript=$RScriptPath"
 
 $testScripts = @(
+  "tests/test_email_service_helpers.R",
   "tests/test_auth_helpers.R",
   "tests/test_account_service_helpers.R",
   "tests/test_workspace_access_manager_guard.R",
