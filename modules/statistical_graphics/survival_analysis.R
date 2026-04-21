@@ -8,6 +8,16 @@ library(plotly)
 library(DT)
 library(cowplot)
 
+if (!exists("app_card_box", mode = "function") ||
+    !exists("app_card_note", mode = "function") ||
+    !exists("app_result_panel", mode = "function")) {
+  if (file.exists("modules/common/ui_shell.R")) {
+    source("modules/common/ui_shell.R")
+  } else {
+    source(file.path("..", "modules", "common", "ui_shell.R"))
+  }
+}
+
 .resolve_survival_choice <- function(input_value, state_value, choices, default_value = NULL) {
   if (length(choices) == 0) return(default_value %||% NULL)
   if (!is.null(input_value) && input_value %in% choices) return(input_value)
@@ -748,22 +758,48 @@ library(cowplot)
 
 .build_survival_output_box <- function(ns) {
   fluidRow(
-    box(
-      width = 12,
-      title = "结果区",
-      status = "success",
-      solidHeader = TRUE,
-      graphics_output_action_bar_ui(ns, render_button_id = "render_km_plot", download_id = "download_plot"),
-      tabsetPanel(
-        id = ns("km_output_tabs"),
-        tabPanel("静态图", div(style = "height: 10px;"), uiOutput(ns("survPlotUI"))),
-        tabPanel("交互图", div(style = "height: 10px;"), uiOutput(ns("interactiveSurvPlotUI"))),
-        tabPanel(
-          "数据",
-          div(style = "height: 10px;"),
-          tabsetPanel(
-            tabPanel("数据表", DTOutput(ns("km_data_table"))),
-            tabPanel("统计报告", uiOutput(ns("survival_report")))
+    column(
+      12,
+      app_card_box(
+        width = 12,
+        title = "结果区",
+        subtitle = "继续保留动作条与 静态图 / 交互图 / 数据 结果结构",
+        tone = "success",
+        status = "success",
+        solidHeader = FALSE,
+        app_card_note("当前统一结果卡片与说明块，不改变生成图形按钮、下载链路、结果页签或统计报告输出逻辑。"),
+        graphics_output_action_bar_ui(ns, render_button_id = "render_km_plot", download_id = "download_plot"),
+        tabsetPanel(
+          id = ns("km_output_tabs"),
+          tabPanel(
+            "静态图",
+            app_result_panel(
+              title = "静态图结果",
+              note = "展示当前提交态参数生成的静态生存曲线与风险表组合结果。",
+              tone = "success",
+              uiOutput(ns("survPlotUI"))
+            )
+          ),
+          tabPanel(
+            "交互图",
+            app_result_panel(
+              title = "交互图结果",
+              note = "展示当前提交态参数对应的 Plotly 交互式生存曲线结果。",
+              tone = "info",
+              uiOutput(ns("interactiveSurvPlotUI"))
+            )
+          ),
+          tabPanel(
+            "数据",
+            app_result_panel(
+              title = "结果数据与统计报告",
+              note = "继续保留数据表与统计报告双页签，不调整汇总数据或报告解释链路。",
+              tone = "warning",
+              tabsetPanel(
+                tabPanel("数据表", DTOutput(ns("km_data_table"))),
+                tabPanel("统计报告", uiOutput(ns("survival_report")))
+              )
+            )
           )
         )
       )
@@ -798,43 +834,57 @@ survival_analysis_ui <- function(id) {
 
   tagList(
     fluidRow(
-      box(
-        width = 12,
-        title = "生存分析参数配置",
-        status = "primary",
-        solidHeader = TRUE,
-        collapsible = TRUE,
-        collapsed = FALSE,
-        fluidRow(
-          column(
-            4,
-            wellPanel(
-              style = "height: 680px; overflow-y: auto;",
-              h4("数据与变量", style = "color: #007bff; margin-top: 0;"),
-              .build_survival_mapping_tab(ns)
-            )
-          ),
-          column(
-            4,
-            wellPanel(
-              style = "height: 680px; overflow-y: auto;",
-              h4("图形与样式", style = "color: #007bff; margin-top: 0;"),
-              do.call(
-                tabsetPanel,
-                c(
-                  .build_survival_theme_tab(ns),
-                  .build_survival_analysis_tab(ns)
-                )
+      column(
+        4,
+        app_card_box(
+          width = 12,
+          title = "数据与变量",
+          subtitle = "继续保留核心映射、分组分面与时间范围配置链路",
+          tone = "primary",
+          status = "primary",
+          solidHeader = FALSE,
+          app_card_note("本轮只统一顶层参数卡视觉与说明块，不调整时间/状态变量选择、分层参考组、分面值和时间轴控制逻辑。"),
+          tags$div(
+            style = "height: 680px; overflow-y: auto;",
+            .build_survival_mapping_tab(ns)
+          )
+        )
+      ),
+      column(
+        4,
+        app_card_box(
+          width = 12,
+          title = "图形与样式",
+          subtitle = "继续保留显示坐标、标题文字、图层样式与阈值设置",
+          tone = "warning",
+          status = "warning",
+          solidHeader = FALSE,
+          app_card_note("当前统一顶层功能卡与说明块，不改变中位生存辅助线、统计摘要、图例文字与风险表文字的原有业务语义。"),
+          tags$div(
+            style = "height: 680px; overflow-y: auto;",
+            do.call(
+              tabsetPanel,
+              c(
+                .build_survival_theme_tab(ns),
+                .build_survival_analysis_tab(ns)
               )
             )
-          ),
-          column(
-            4,
-            wellPanel(
-              style = "height: 680px; overflow-y: auto;",
-              h4("输出与导出", style = "color: #007bff; margin-top: 0;"),
-              .build_survival_export_tab(ns)
-            )
+          )
+        )
+      ),
+      column(
+        4,
+        app_card_box(
+          width = 12,
+          title = "输出与导出",
+          subtitle = "继续保留尺寸模式、导出格式与分层标签输出链路",
+          tone = "info",
+          status = "info",
+          solidHeader = FALSE,
+          app_card_note("本轮只统一顶层导出卡与说明块，不调整画布尺寸同步、导出 DPI、格式选择或分层标签恢复逻辑。"),
+          tags$div(
+            style = "height: 680px; overflow-y: auto;",
+            .build_survival_export_tab(ns)
           )
         )
       )

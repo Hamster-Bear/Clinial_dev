@@ -4,25 +4,34 @@ library(DT)
 library(dplyr)
 library(scales)
 
+if (!exists("app_card_box", mode = "function") ||
+    !exists("app_card_note", mode = "function") ||
+    !exists("app_result_panel", mode = "function")) {
+  if (file.exists("modules/common/ui_shell.R")) {
+    source("modules/common/ui_shell.R")
+  } else {
+    source(file.path("..", "modules", "common", "ui_shell.R"))
+  }
+}
+
 spider_plot_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
     fluidRow(
-      box(
-        width = 12,
-        title = "蜘蛛图参数配置",
-        status = "primary",
-        solidHeader = TRUE,
-        collapsible = TRUE,
-        collapsed = TRUE,
-        fluidRow(
-          column(
-            4,
-            wellPanel(
-              style = "height: 680px; overflow-y: auto;",
-              h4("数据与变量", style = "color: #007bff; margin-top: 0;"),
-              tabsetPanel(
+      column(
+        4,
+        app_card_box(
+          width = 12,
+          title = "数据与变量",
+          subtitle = "继续保留核心映射、分组与分面变量链路",
+          tone = "primary",
+          status = "primary",
+          solidHeader = FALSE,
+          app_card_note("本轮只统一蜘蛛图外层参数卡和说明块，不调整受试者/时间/变化值映射、颜色分组、分面变量或任务历史恢复逻辑。"),
+          tags$div(
+            style = "height: 680px; overflow-y: auto;",
+            tabsetPanel(
                 tabPanel(
                   "核心映射",
                   br(),
@@ -51,14 +60,22 @@ spider_plot_ui <- function(id) {
                   )
                 )
               )
-            )
-          ),
-          column(
-            4,
-            wellPanel(
-              style = "height: 680px; overflow-y: auto;",
-              h4("图形与样式", style = "color: #007bff; margin-top: 0;"),
-              tabsetPanel(
+          )
+        )
+      ),
+      column(
+        4,
+        app_card_box(
+          width = 12,
+          title = "图形与样式",
+          subtitle = "继续保留标题、坐标、图层样式与 RECIST 阈值控制",
+          tone = "warning",
+          status = "warning",
+          solidHeader = FALSE,
+          app_card_note("当前统一蜘蛛图样式卡和说明块，不改变时间单位换算、Y 轴标签格式、点层/末次标签、补基线原点和 RECIST 参考线语义。"),
+          tags$div(
+            style = "height: 680px; overflow-y: auto;",
+            tabsetPanel(
                 tabPanel(
                   "标题与说明",
                   br(),
@@ -168,14 +185,22 @@ spider_plot_ui <- function(id) {
                   )
                 )
               )
-            )
-          ),
-          column(
-            4,
-            wellPanel(
-              style = "height: 680px; overflow-y: auto;",
-              h4("输出与导出", style = "color: #007bff; margin-top: 0;"),
-              tabsetPanel(
+          )
+        )
+      ),
+      column(
+        4,
+        app_card_box(
+          width = 12,
+          title = "输出与导出",
+          subtitle = "继续保留尺寸模式、画布同步与导出参数链路",
+          tone = "info",
+          status = "info",
+          solidHeader = FALSE,
+          app_card_note("本轮只统一导出卡和说明块，不调整前端尺寸同步、PX/英寸换算、导出格式与 committed 静态图尺寸逻辑。"),
+          tags$div(
+            style = "height: 680px; overflow-y: auto;",
+            tabsetPanel(
                 tabPanel(
                   "尺寸与画布",
                   br(),
@@ -230,23 +255,52 @@ spider_plot_ui <- function(id) {
                   )
                 )
               )
-            )
           )
         )
       )
     ),
     fluidRow(
-      box(
-        width = 12,
-        title = "结果区",
-        status = "success",
-        solidHeader = TRUE,
-        graphics_output_action_bar_ui(ns, render_button_id = "render_plot", download_id = "dl_plot"),
-        tabsetPanel(
-          id = ns("output_tabs"),
-          tabPanel("静态图", uiOutput(ns("static_plot_ui"))),
-          tabPanel("交互图", uiOutput(ns("interactive_plot_ui"))),
-          tabPanel("数据", DTOutput(ns("data_table")))
+      column(
+        12,
+        app_card_box(
+          width = 12,
+          title = "结果区",
+          subtitle = "继续保留动作条与 静态图 / 交互图 / 数据 结果结构",
+          tone = "success",
+          status = "success",
+          solidHeader = FALSE,
+          app_card_note("当前统一蜘蛛图结果卡和说明块，不改变生成图形按钮、下载链路、数据表输出或 committed 参数快照逻辑。"),
+          graphics_output_action_bar_ui(ns, render_button_id = "render_plot", download_id = "dl_plot"),
+          tabsetPanel(
+            id = ns("output_tabs"),
+            tabPanel(
+              "静态图",
+              app_result_panel(
+                title = "静态图结果",
+                note = "展示当前 committed 参数生成的蜘蛛图静态结果。",
+                tone = "success",
+                uiOutput(ns("static_plot_ui"))
+              )
+            ),
+            tabPanel(
+              "交互图",
+              app_result_panel(
+                title = "交互图结果",
+                note = "展示当前参数生成的交互式蜘蛛图结果。",
+                tone = "info",
+                uiOutput(ns("interactive_plot_ui"))
+              )
+            ),
+            tabPanel(
+              "数据",
+              app_result_panel(
+                title = "蜘蛛图数据",
+                note = "继续保留蜘蛛图结果数据表输出，不调整数据整理链路。",
+                tone = "warning",
+                DTOutput(ns("data_table"))
+              )
+            )
+          )
         )
       )
     )

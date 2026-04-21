@@ -7,6 +7,7 @@ source("modules/common/plot_export.R")
 source("modules/common/analysis_format.R")
 source("modules/common/graphics_repro.R")
 source("modules/common/graphics_common.R")
+source("modules/common/ui_shell.R")
 source("modules/common/graphics/forest_table_state_helpers.R")
 source("modules/common/graphics/forest_result_schema_helpers.R")
 source("modules/common/graphics/forest_model_helpers.R")
@@ -29,26 +30,16 @@ statistical_graphics_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
-    fluidRow(
-      column(
-        width = 12,
-        box(
-          width = NULL,
-          title = "全局数据筛选",
-          status = "info",
-          solidHeader = TRUE,
-          collapsible = TRUE,
-          collapsed = TRUE,
-          data_filter_ui(ns("global_filter"))
-        )
-      )
-    ),
-    fluidRow(
-      box(
-        width = 12,
-        title = "统计图形类型选择",
-        status = "primary",
-        solidHeader = TRUE,
+    data_filter_ui(ns("global_filter")),
+    app_card_box(
+      width = 12,
+      title = "统计图形类型选择",
+      subtitle = "继续保留图形子模块切换链路，只统一入口卡片视觉与说明块",
+      tone = "primary",
+      status = "primary",
+      solidHeader = FALSE,
+      app_card_note("全局筛选卡和任务历史卡已作为公共模块独立收口；这里仅保留图形类型选择入口。"),
+      app_card_panel(
         selectInput(
           ns("fig_type"),
           "选择图形类型",
@@ -66,11 +57,9 @@ statistical_graphics_ui <- function(id) {
         )
       )
     ),
-    fluidRow(
-      task_history_ui(
-        ns("task_history"),
-        help_text = "当前已支持将图形参数、界面状态与模块类型保存为任务历史；按用户隔离，workspace 为空时保存为个人任务。"
-      )
+    task_history_ui(
+      ns("task_history"),
+      help_text = "当前已支持将图形参数、界面状态与模块类型保存为任务历史；按用户隔离，workspace 为空时保存为个人任务。"
     ),
     uiOutput(ns("selected_graphic_ui"))
   )
@@ -165,14 +154,20 @@ statistical_graphics_server <- function(id, data, pg_pool = NULL, current_user =
           "swimmer" = swimmer_plot_ui(ns("swimmer")),
           "spider" = spider_plot_ui(ns("spider"))
         ),
-        fluidRow(
-          box(
-            width = 12,
-            title = "可复现代码",
-            status = "info",
-            solidHeader = TRUE,
-            collapsible = TRUE,
-            collapsed = TRUE,
+        app_card_box(
+          width = 12,
+          title = "可复现代码",
+          subtitle = "按当前图形类型和参数生成代码草稿",
+          tone = "info",
+          status = "info",
+          solidHeader = FALSE,
+          collapsible = TRUE,
+          collapsed = TRUE,
+          app_card_note("继续保留原有代码生成逻辑，只统一代码容器与说明块。"),
+          app_result_panel(
+            title = "图形复现代码",
+            note = "根据当前图形模块和参数状态生成 R 代码草稿，便于本地复现或文档整理。",
+            tone = "info",
             verbatimTextOutput(ns("graphic_repro_code_out"))
           )
         )

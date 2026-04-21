@@ -1,5 +1,13 @@
 `%||%` <- function(x, y) if (is.null(x)) y else x
 
+if (!exists("app_card_box", mode = "function") || !exists("app_card_note", mode = "function")) {
+  if (file.exists("modules/common/ui_shell.R")) {
+    source("modules/common/ui_shell.R")
+  } else {
+    source(file.path("..", "modules", "common", "ui_shell.R"))
+  }
+}
+
 task_history_ui <- function(
   id,
   title = "任务历史",
@@ -9,30 +17,56 @@ task_history_ui <- function(
   help_text = "当前已支持将参数、界面状态与模块类型保存为任务历史。"
 ) {
   ns <- NS(id)
-  box(
-    width = 12,
-    title = title,
-    status = "warning",
-    solidHeader = TRUE,
-    collapsible = TRUE,
-    collapsed = TRUE,
-    fluidRow(
-      column(4, textInput(ns("task_name"), "任务名称", value = "", placeholder = "如：KM-默认模板", width = "100%")),
-      column(4, uiOutput(ns("task_choice_ui"))),
-      column(
-        4,
-        div(
-          style = "display:flex; gap:8px; align-items:flex-end; height:74px;",
-          actionButton(ns("refresh_tasks"), refresh_label, class = "btn-default"),
-          actionButton(ns("save_task"), save_label, class = "btn-primary"),
-          actionButton(ns("load_task"), load_label, class = "btn-info"),
-          actionButton(ns("delete_task"), "删除任务", class = "btn-danger")
-        )
-      )
+  tagList(
+    tags$head(
+      tags$style(HTML("
+        .task-history-toolbar {
+          display: flex;
+          gap: 8px;
+          align-items: flex-end;
+          flex-wrap: wrap;
+          min-height: 74px;
+        }
+      "))
     ),
-    textAreaInput(ns("task_note"), "任务备注", value = "", placeholder = "记录任务目的、筛选口径或复核说明", width = "100%", rows = 3),
-    DT::dataTableOutput(ns("task_history_table")),
-    helpText(help_text)
+    app_card_box(
+      width = 12,
+      title = title,
+      subtitle = "按用户与模块类型保存、加载、刷新和删除任务历史；默认折叠",
+      tone = "warning",
+      status = "warning",
+      solidHeader = FALSE,
+      collapsible = TRUE,
+      collapsed = TRUE,
+      class = "task-history-card",
+      app_card_note("当前统一任务历史工作台卡片、操作按钮区和说明块，不改变任务历史持久化、加载回填与删除逻辑。"),
+      app_card_panel(
+        fluidRow(
+          column(4, textInput(ns("task_name"), "任务名称", value = "", placeholder = "如：KM-默认模板", width = "100%")),
+          column(4, uiOutput(ns("task_choice_ui"))),
+          column(
+            4,
+            tags$div(
+              class = "task-history-toolbar",
+              actionButton(ns("refresh_tasks"), refresh_label, class = "btn-default"),
+              actionButton(ns("save_task"), save_label, class = "btn-primary"),
+              actionButton(ns("load_task"), load_label, class = "btn-info"),
+              actionButton(ns("delete_task"), "删除任务", class = "btn-danger")
+            )
+          )
+        )
+      ),
+      app_card_panel(
+        tags$strong("任务说明"),
+        app_card_note(help_text),
+        textAreaInput(ns("task_note"), "任务备注", value = "", placeholder = "记录任务目的、筛选口径或复核说明", width = "100%", rows = 3)
+      ),
+      app_card_panel(
+        tags$strong("历史记录"),
+        app_card_note("表格按最近更新时间展示当前模块下可加载的任务历史；选择后可同步回填任务名称和备注。"),
+        DT::dataTableOutput(ns("task_history_table"))
+      )
+    )
   )
 }
 

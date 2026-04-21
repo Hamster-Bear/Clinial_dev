@@ -15,25 +15,34 @@ library(RColorBrewer)
 library(shinyalert)
 library(scales)
 
+if (!exists("app_card_box", mode = "function") ||
+    !exists("app_card_note", mode = "function") ||
+    !exists("app_result_panel", mode = "function")) {
+  if (file.exists("modules/common/ui_shell.R")) {
+    source("modules/common/ui_shell.R")
+  } else {
+    source(file.path("..", "modules", "common", "ui_shell.R"))
+  }
+}
+
 combo_plot_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
     fluidRow(
-      box(
-        width = 12,
-        title = "组合图形参数配置",
-        status = "primary",
-        solidHeader = TRUE,
-        collapsible = TRUE,
-        collapsed = TRUE,
-        fluidRow(
-          column(
-            4,
-            wellPanel(
-              style = "height: 680px; overflow-y: auto;",
-              h4("数据与变量", style = "color: #007bff; margin-top: 0;"),
-              tabsetPanel(
+      column(
+        4,
+        app_card_box(
+          width = 12,
+          title = "数据与变量",
+          subtitle = "继续保留主映射、分组分面与组合方式入口",
+          tone = "primary",
+          status = "primary",
+          solidHeader = FALSE,
+          app_card_note("本轮只统一组合图外层参数卡和说明块，不调整主 X/Y 映射、分组分面、组合方式、多图层选择或任务历史恢复逻辑。"),
+          tags$div(
+            style = "height: 680px; overflow-y: auto;",
+            tabsetPanel(
                 tabPanel(
                   "核心映射",
                   br(),
@@ -96,14 +105,22 @@ combo_plot_ui <- function(id) {
                   )
                 )
               )
-            )
-          ),
-          column(
-            4,
-            wellPanel(
-              style = "height: 680px; overflow-y: auto;",
-              h4("图形与样式", style = "color: #007bff; margin-top: 0;"),
-              tabsetPanel(
+          )
+        )
+      ),
+      column(
+        4,
+        app_card_box(
+          width = 12,
+          title = "图形与样式",
+          subtitle = "继续保留标题说明、动态图层样式与参考占位",
+          tone = "warning",
+          status = "warning",
+          solidHeader = FALSE,
+          app_card_note("当前统一组合图样式卡和说明块，不改变动态页签参数、自动标题生成、图层叠加方式或参考线占位语义。"),
+          tags$div(
+            style = "height: 680px; overflow-y: auto;",
+            tabsetPanel(
                 tabPanel(
                   "标题与说明",
                   br(),
@@ -143,14 +160,22 @@ combo_plot_ui <- function(id) {
                   )
                 )
               )
-            )
-          ),
-          column(
-            4,
-            wellPanel(
-              style = "height: 680px; overflow-y: auto;",
-              h4("输出与导出", style = "color: #007bff; margin-top: 0;"),
-              tabsetPanel(
+          )
+        )
+      ),
+      column(
+        4,
+        app_card_box(
+          width = 12,
+          title = "输出与导出",
+          subtitle = "继续保留固定画布说明与导出参数链路",
+          tone = "info",
+          status = "info",
+          solidHeader = FALSE,
+          app_card_note("本轮只统一导出卡和说明块，不调整固定 12 x 8 英寸画布、导出格式与 DPI 逻辑。"),
+          tags$div(
+            style = "height: 680px; overflow-y: auto;",
+            tabsetPanel(
                 tabPanel(
                   "尺寸与画布",
                   br(),
@@ -175,23 +200,52 @@ combo_plot_ui <- function(id) {
                   )
                 )
               )
-            )
           )
         )
       )
     ),
     fluidRow(
-      box(
-        width = 12,
-        title = "结果区",
-        status = "success",
-        solidHeader = TRUE,
-        graphics_output_action_bar_ui(ns, render_button_id = "generate_plot", download_id = "download_plot"),
-        tabsetPanel(
-          id = ns("output_tabs"),
-          tabPanel("静态图", plotOutput(ns("static_plot"), height = "700px")),
-          tabPanel("交互图", uiOutput(ns("interactive_plot_ui"))),
-          tabPanel("数据", DTOutput(ns("combo_data_table")))
+      column(
+        12,
+        app_card_box(
+          width = 12,
+          title = "结果区",
+          subtitle = "继续保留动作条与 静态图 / 交互图 / 数据 结果结构",
+          tone = "success",
+          status = "success",
+          solidHeader = FALSE,
+          app_card_note("当前统一组合图结果卡和说明块，不改变生成图形按钮、下载链路、交互图输出或结果数据表逻辑。"),
+          graphics_output_action_bar_ui(ns, render_button_id = "generate_plot", download_id = "download_plot"),
+          tabsetPanel(
+            id = ns("output_tabs"),
+            tabPanel(
+              "静态图",
+              app_result_panel(
+                title = "静态图结果",
+                note = "展示当前组合方式和图层配置生成的静态图结果。",
+                tone = "success",
+                plotOutput(ns("static_plot"), height = "700px")
+              )
+            ),
+            tabPanel(
+              "交互图",
+              app_result_panel(
+                title = "交互图结果",
+                note = "展示当前参数生成的交互式组合图结果。",
+                tone = "info",
+                uiOutput(ns("interactive_plot_ui"))
+              )
+            ),
+            tabPanel(
+              "数据",
+              app_result_panel(
+                title = "组合图结果数据",
+                note = "继续保留组合图结果数据表输出，不调整数据整理链路。",
+                tone = "warning",
+                DTOutput(ns("combo_data_table"))
+              )
+            )
+          )
         )
       )
     )

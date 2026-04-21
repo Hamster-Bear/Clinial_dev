@@ -1,77 +1,107 @@
 # 探索分析模块
 # 负责数据的交互式可视化和探索性分析
 
+source("modules/common/ui_shell.R")
+
 exploratory_analysis_ui <- function(id) {
   ns <- NS(id)
   
   tagList(
     fluidRow(
-      box(
+      app_card_box(
         width = 3,
         title = "变量托盘",
+        subtitle = "继续保留可用变量浏览与类型提示，只统一入口卡片视觉",
+        tone = "primary",
         status = "primary",
-        solidHeader = TRUE,
-        style = "max-height: 500px; overflow-y: auto;",
-        uiOutput(ns("variable_tray"))
+        solidHeader = FALSE,
+        app_card_note("当前统一变量托盘卡片、说明块与滚动容器，不调整变量类型判定或输出内容。"),
+        app_card_panel(
+          tags$div(
+            style = "max-height: 500px; overflow-y: auto;",
+            uiOutput(ns("variable_tray"))
+          )
+        )
       ),
-      box(
+      app_card_box(
         width = 9,
         title = "图形控制器",
+        subtitle = "继续保留图形类型切换、变量映射与标题设置链路",
+        tone = "warning",
         status = "warning",
-        solidHeader = TRUE,
-        fluidRow(
-          column(6,
-                selectizeInput(ns("plot_type_exp"), "图形类型",
-                              choices = c("散点图", "箱线图", "直方图", "条形图")),
-                bsTooltip(ns("plot_type_exp"), "选择图形类型将自动过滤可用的变量选项")
-          ),
-          column(6, actionButton(ns("reset_mapping"), "重置映射", icon = icon("refresh")))
-        ),
-        fluidRow(
-          column(3,
-                uiOutput(ns("aes_x")),
-                bsTooltip(ns("aes_x"), "X轴变量：散点图和箱线图需要数值变量，直方图和条形图需要分类变量")
-          ),
-          column(3,
-                uiOutput(ns("aes_y")),
-                bsTooltip(ns("aes_y"), "Y轴变量：散点图和箱线图需要数值变量")
-          ),
-          column(3,
-                uiOutput(ns("aes_color")),
-                bsTooltip(ns("aes_color"), "颜色变量：可以是分类变量或数值变量")
-          ),
-          column(3,
-                uiOutput(ns("aes_facet")),
-                bsTooltip(ns("aes_facet"), "分面变量：应该是分类变量")
+        solidHeader = FALSE,
+        app_card_note("本轮只统一控制器入口卡、参数分区与说明块，不改变 tooltip、动态变量过滤与重置行为。"),
+        app_card_panel(
+          fluidRow(
+            column(6,
+                  selectizeInput(ns("plot_type_exp"), "图形类型",
+                                choices = c("散点图", "箱线图", "直方图", "条形图")),
+                  bsTooltip(ns("plot_type_exp"), "选择图形类型将自动过滤可用的变量选项")
+            ),
+            column(6, actionButton(ns("reset_mapping"), "重置映射", icon = icon("refresh")))
           )
         ),
-        # 新增：图形标题和坐标轴标签设置
-        fluidRow(
-          column(6,
-                 textInput(ns("plot_title"), "图形标题", value = "", placeholder = "输入图形标题")
-          ),
-          column(6,
-                 textInput(ns("plot_subtitle"), "图形副标题", value = "", placeholder = "输入图形副标题（可选）")
+        app_card_panel(
+          tags$strong("变量映射"),
+          app_card_note("继续通过动态 UI 输出 X/Y/颜色/分面变量选择；图形类型切换后保持原有变量过滤规则。"),
+          fluidRow(
+            column(3,
+                  uiOutput(ns("aes_x")),
+                  bsTooltip(ns("aes_x"), "X轴变量：散点图和箱线图需要数值变量，直方图和条形图需要分类变量")
+            ),
+            column(3,
+                  uiOutput(ns("aes_y")),
+                  bsTooltip(ns("aes_y"), "Y轴变量：散点图和箱线图需要数值变量")
+            ),
+            column(3,
+                  uiOutput(ns("aes_color")),
+                  bsTooltip(ns("aes_color"), "颜色变量：可以是分类变量或数值变量")
+            ),
+            column(3,
+                  uiOutput(ns("aes_facet")),
+                  bsTooltip(ns("aes_facet"), "分面变量：应该是分类变量")
+            )
           )
         ),
-        fluidRow(
-          column(6,
-                 textInput(ns("x_axis_label"), "X轴标签", value = "", placeholder = "输入X轴标签")
+        app_card_panel(
+          tags$strong("标题与标签"),
+          app_card_note("继续保留图形标题、副标题和坐标轴标签自定义输入，不改变默认回退文案逻辑。"),
+          fluidRow(
+            column(6,
+                   textInput(ns("plot_title"), "图形标题", value = "", placeholder = "输入图形标题")
+            ),
+            column(6,
+                   textInput(ns("plot_subtitle"), "图形副标题", value = "", placeholder = "输入图形副标题（可选）")
+            )
           ),
-          column(6,
-                 textInput(ns("y_axis_label"), "Y轴标签", value = "", placeholder = "输入Y轴标签")
+          fluidRow(
+            column(6,
+                   textInput(ns("x_axis_label"), "X轴标签", value = "", placeholder = "输入X轴标签")
+            ),
+            column(6,
+                   textInput(ns("y_axis_label"), "Y轴标签", value = "", placeholder = "输入Y轴标签")
+            )
           )
         )
       )
     ),
     fluidRow(
-      box(
+      app_card_box(
         width = 12, 
         title = "图形输出", 
+        subtitle = "继续保留 Plotly 结果输出与分页提示链路",
+        tone = "success",
         status = "success",
-        plotly::plotlyOutput(ns("exploratory_plot"), height = "600px"),
-        br(),
-        uiOutput(ns("plotly_info"))
+        solidHeader = FALSE,
+        app_card_note("当前统一结果卡与说明块，不调整 Plotly 渲染、错误占位图或分页提示逻辑。"),
+        app_result_panel(
+          title = "探索图形结果",
+          note = "展示当前变量映射生成的交互式图形，并继续保留分页说明与异常提示输出。",
+          tone = "success",
+          plotly::plotlyOutput(ns("exploratory_plot"), height = "600px"),
+          br(),
+          uiOutput(ns("plotly_info"))
+        )
       )
     )
   )

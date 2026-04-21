@@ -6,6 +6,7 @@ library(shiny)
 library(dplyr)
 library(gt)
 library(shinyjs)
+source("modules/common/ui_shell.R")
 
 # 加载子模块分析函数
 source("modules/tables/t_dm.R")
@@ -22,90 +23,108 @@ tables_ui <- function(id) {
   
   tagList(
     useShinyjs(),
-    fluidRow(
-      # 顶部：数据筛选（新增）
-      column(
-        width = 12,
-        box(
-          width = NULL,
-          title = "全局数据筛选",
-          status = "info",
-          solidHeader = TRUE,
-          collapsible = TRUE,
-          collapsed = TRUE, # 默认折叠
-          # 调用筛选模块 UI
-          data_filter_ui(ns("global_filter"))
-        )
-      )
-    ),
+    data_filter_ui(ns("global_filter")),
     fluidRow(
       # 左侧：参数设置
       column(
         width = 3,
-        box(
+        app_card_box(
           width = NULL,
           title = "预设图表参数设置",
+          subtitle = "继续保留表格类型切换与动态参数链路，只统一入口卡片视觉",
+          tone = "primary",
           status = "primary",
-          solidHeader = TRUE,
+          solidHeader = FALSE,
           collapsible = TRUE,
           collapsed = FALSE,
-          # 表格类型选择
-          selectizeInput(
-            ns("table_type"),
-            "选择图表类型",
-            choices = c(
-              "人口统计表格 (t_dm)" = "t_dm",
-              "分级统计表 (t_ae_soc_pt)" = "t_ae_soc_pt",
-              "一般列表 (listing_general)" = "listing_general",
-              "不良事件并列对比图 (ae_sidebyside)" = "ae_sidebyside"
-            ),
-            selected = "t_dm"
+          app_card_note("全局筛选卡已作为公共模块独立收口；这里统一参数入口卡、动态参数容器与生成按钮区。"),
+          app_card_panel(
+            selectizeInput(
+              ns("table_type"),
+              "选择图表类型",
+              choices = c(
+                "人口统计表格 (t_dm)" = "t_dm",
+                "分级统计表 (t_ae_soc_pt)" = "t_ae_soc_pt",
+                "一般列表 (listing_general)" = "listing_general",
+                "不良事件并列对比图 (ae_sidebyside)" = "ae_sidebyside"
+              ),
+              selected = "t_dm"
+            )
           ),
-          # 动态参数UI（由服务器端根据数据渲染）
-          uiOutput(ns("dm_params_ui")),
-          # 生成按钮
-          actionButton(
-            ns("generate"),
-            "生成表格",
-            icon = icon("table"),
-            class = "btn-success",
-            width = "100%"
+          app_card_panel(
+            tags$strong("参数设置"),
+            app_card_note("根据当前表格类型动态渲染参数 UI，不改变已有参数计算、可用性控制和生成逻辑。"),
+            uiOutput(ns("dm_params_ui"))
+          ),
+          app_card_panel(
+            tags$strong("执行"),
+            app_card_note("在当前参数可用时生成结果；按钮启停逻辑保持原有 server 校验。"),
+            actionButton(
+              ns("generate"),
+              "生成表格",
+              icon = icon("table"),
+              class = "btn-success",
+              width = "100%"
+            )
           )
         )
       ),
       # 右侧：结果展示
       column(
         width = 9,
-        box(
+        app_card_box(
           width = NULL,
           title = "预设图表结果",
+          subtitle = "继续保留表格结果与 R 代码结构，只统一结果卡和导出说明块",
+          tone = "success",
           status = "success",
-          solidHeader = TRUE,
+          solidHeader = FALSE,
           collapsible = TRUE,
           collapsed = FALSE,
+          app_card_note("结果区继续保留“表格结果 / R代码”结构，不改变输出对象、渲染方式或导出逻辑。"),
           tabsetPanel(
-            tabPanel("表格结果", uiOutput(ns("table_output"))),
-            tabPanel("R代码", verbatimTextOutput(ns("code_output"), placeholder = TRUE))
-          ),
-          br(),
-          fluidRow(
-            column(
-              width = 4,
-              selectInput(
-                ns("table_export_format"),
-                "导出格式",
-                choices = c("Word (.docx)" = "docx", "PNG (.png)" = "png"),
-                selected = "docx"
+            tabPanel(
+              "表格结果",
+              app_result_panel(
+                title = "表格结果",
+                note = "展示当前所选表格类型生成的结果对象；渲染方式继续由类型分支决定。",
+                tone = "success",
+                uiOutput(ns("table_output"))
               )
             ),
-            column(
-              width = 4,
-              textInput(ns("table_export_name"), "文件名前缀", value = "table_result")
-            ),
-            column(
-              width = 4,
-              br(),
-              downloadButton(ns("table_download"), "导出结果", class = "btn-primary")
+            tabPanel(
+              "R代码",
+              app_result_panel(
+                title = "R 代码",
+                note = "展示当前表格参数对应的代码草稿，便于复现或写入报告。",
+                tone = "info",
+                verbatimTextOutput(ns("code_output"), placeholder = TRUE)
+              )
+            )
+          ),
+          app_result_panel(
+            title = "导出配置",
+            note = "继续沿用现有格式选择、文件名前缀和导出按钮，不调整底层导出实现。",
+            tone = "warning",
+            fluidRow(
+              column(
+                width = 4,
+                selectInput(
+                  ns("table_export_format"),
+                  "导出格式",
+                  choices = c("Word (.docx)" = "docx", "PNG (.png)" = "png"),
+                  selected = "docx"
+                )
+              ),
+              column(
+                width = 4,
+                textInput(ns("table_export_name"), "文件名前缀", value = "table_result")
+              ),
+              column(
+                width = 4,
+                br(),
+                downloadButton(ns("table_download"), "导出结果", class = "btn-primary")
+              )
             )
           )
         )

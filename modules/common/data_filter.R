@@ -5,6 +5,13 @@ library(shiny)
 library(dplyr)
 library(shinyWidgets)
 source("modules/common/data_metadata.R")
+if (!exists("app_card_box", mode = "function") || !exists("app_card_note", mode = "function")) {
+  if (file.exists("modules/common/ui_shell.R")) {
+    source("modules/common/ui_shell.R")
+  } else {
+    source(file.path("..", "modules", "common", "ui_shell.R"))
+  }
+}
 
 # ==============================================================================
 # 辅助函数 (复制自 data_preparation.R)
@@ -27,6 +34,42 @@ data_filter_ui <- function(id) {
   tagList(
     tags$head(
       tags$style(HTML("
+        .data-filter-card .app-card__panel {
+          margin-top: 12px;
+        }
+        .data-filter-toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          align-items: flex-end;
+        }
+        .data-filter-toolbar__field {
+          flex: 1 1 260px;
+          min-width: 220px;
+        }
+        .data-filter-toolbar__actions {
+          display: flex;
+          gap: 8px;
+          align-items: flex-end;
+          flex-wrap: wrap;
+        }
+        .data-filter-toolbar__stats {
+          flex: 1 1 280px;
+          min-width: 240px;
+          padding: 10px 12px;
+          border: 1px solid #e8eef5;
+          border-radius: 10px;
+          background: #f8fbff;
+        }
+        .data-filter-toolbar__stats .shiny-text-output,
+        .data-filter-toolbar__stats pre {
+          margin: 0;
+          white-space: pre-wrap;
+          word-break: break-word;
+          background: transparent;
+          border: 0;
+          padding: 0;
+        }
         .filter-group .selectize-control.multi .selectize-input > div {
           display: block !important;
           margin-bottom: 4px !important;
@@ -35,56 +78,72 @@ data_filter_ui <- function(id) {
           scrollbar-width: thin;
           scrollbar-color: #888 #f1f1f1;
         }
+        .filter-card-item {
+          border: 1px solid #dce7f2;
+          padding: 10px;
+          margin: 4px;
+          border-radius: 10px;
+          background-color: #f8fbff;
+          display: inline-block;
+          vertical-align: top;
+          width: 288px;
+          margin-right: 8px;
+        }
       "))
     ),
     
-    box(
+    app_card_box(
       width = 12,
       title = "数据筛选 (可选)",
+      subtitle = "作为全局公共筛选工作台复用；默认折叠，不干扰主流程",
+      tone = "info",
       status = "info",
-      solidHeader = TRUE,
+      solidHeader = FALSE,
       collapsible = TRUE,
-      collapsed = TRUE, # 默认折叠，不干扰主流程
-      
-      fluidRow(
-        column(
-          width = 4,
-          selectizeInput(
-            ns("selected_var"),
-            "添加筛选变量:",
-            choices = NULL,
-            multiple = TRUE,
-            options = list(placeholder = '选择变量...')
+      collapsed = TRUE,
+      class = "data-filter-card",
+      app_card_note("当前统一可折叠工作台卡片、按钮区和筛选条件容器，不改变筛选语义、动态控件生成与应用时机。"),
+      app_card_panel(
+        tags$div(
+          class = "data-filter-toolbar",
+          tags$div(
+            class = "data-filter-toolbar__field",
+            selectizeInput(
+              ns("selected_var"),
+              "添加筛选变量:",
+              choices = NULL,
+              multiple = TRUE,
+              options = list(placeholder = "选择变量...")
+            )
+          ),
+          tags$div(
+            class = "data-filter-toolbar__actions",
+            actionButton(
+              ns("apply_filters"),
+              "应用筛选",
+              class = "btn-primary",
+              icon = icon("play")
+            ),
+            actionButton(
+              ns("reset_filters"),
+              "重置筛选",
+              class = "btn-warning",
+              icon = icon("refresh")
+            )
+          ),
+          tags$div(
+            class = "data-filter-toolbar__stats",
+            tags$strong("筛选统计"),
+            verbatimTextOutput(ns("filter_stats"), placeholder = TRUE)
           )
-        ),
-        column(
-          width = 2,
-          actionButton(
-            ns("apply_filters"),
-            "应用筛选",
-            class = "btn-primary",
-            style = "margin-top: 25px;",
-            icon = icon("play")
-          )
-        ),
-        column(
-          width = 2,
-          actionButton(
-            ns("reset_filters"),
-            "重置筛选",
-            class = "btn-warning",
-            style = "margin-top: 25px;",
-            icon = icon("refresh")
-          )
-        ),
-        column(
-          width = 4,
-          verbatimTextOutput(ns("filter_stats"), placeholder = TRUE)
         )
       ),
       
-      # 动态筛选控件容器
-      uiOutput(ns("filter_controls"))
+      app_card_panel(
+        tags$strong("筛选条件"),
+        app_card_note("按变量类型动态生成数值、分类、日期或文本条件；所选条件在点击“应用筛选”后统一生效。"),
+        uiOutput(ns("filter_controls"))
+      )
     )
   )
 }
@@ -180,7 +239,7 @@ data_filter_server <- function(id, data) {
         
         div(
           class = "filter-group",
-          style = "border: 1px solid #ddd; padding: 8px; margin: 3px; border-radius: 4px; background-color: #f8f9fa; display: inline-block; vertical-align: top; width: 280px; margin-right: 8px;",
+          class = "filter-card-item",
           
           h5(if (!identical(var_label, var_name)) paste0(var_name, " [", var_label, "] (", var_type, ")") else paste0(var_name, " (", var_type, ")"), style = "margin-top: 0; color: #333; font-size: 13px;"),
           if (var_type != "factor") {

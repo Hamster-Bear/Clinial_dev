@@ -110,6 +110,17 @@ Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README
 - 统计分析回归类子模块样板已继续落到 `logistic.R` 与 `linear.R`：统一响应/分层、总计列或事件映射、预测变量与参考组分区，但保留原有输入项、动态输出、tooltip、建模逻辑与结果链路不变。
 - 统计分析基础检验子模块样板已继续落到 `anova.R` 与 `chisq.R`：统一响应变量、分组因素或变量选择说明块，但保留原有输入项、检验逻辑与结果链路不变。
 - 统计分析结果区当前已继续统一：`统计表格 / 统计报告 / 可复现代码` 三个 tab 现统一使用结果 panel 和空状态 helper，导出区也统一为结果区说明面板，但不调整结果对象、报告生成与导出逻辑。
+- 第一批 UI 归一当前已接入公共扩散源：`modules/common/data_filter.R` 与 `modules/task_history.R` 已统一到公共壳下的可折叠工作台卡片，减少旧式 `box()` 壳继续扩散到统计分析、统计图形与 Tables 入口。
+- 统计图形总入口当前已接入公共卡片壳：统一图形类型选择卡与可复现代码卡，直接复用已收口的全局筛选卡与任务历史卡，但保持原有图形子模块切换、任务历史回填和代码生成链路不变。
+- 箱线图外层当前已接入公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有 X/Y 映射、固定 `10 x 8` 英寸导出与任务历史契约不变。
+- 组合图外层当前已接入公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有高动态图层参数页签、两阶段任务历史恢复与固定 `12 x 8` 英寸导出链路不变。
+- 生存分析外层当前已接入公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有风险表、统计报告、提交态快照与导出链路不变。
+- 森林图外层当前已接入公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有 `precalculated/raw_data` 双模式、列配置、统计报告与导出链路不变。
+- 蜘蛛图外层当前已接入公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有时间轴换算、点层/末次标签、RECIST 阈值与 committed 参数快照链路不变。
+- 泳道图外层当前已接入公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有事件映射、轨道变量、committed 参数快照与导出链路不变。
+- 瀑布图外层当前已接入公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有排序/轨道、RECIST 阈值、committed 参数快照与导出链路不变。
+- Tables 总入口当前已接入公共卡片壳：直接复用已收口的全局筛选卡，并统一参数设置卡、结果卡与导出区说明块，但保持原有表格类型切换、动态参数 UI、生成与导出链路不变。
+- 探索分析总入口当前已接入公共卡片壳：统一变量托盘、图形控制器与图形输出三块入口卡片，补充说明块与结果 panel，但保持原有变量映射、Plotly 输出与重置链路不变。
 - `run_app_test.ps1` 对应的测试环境变量示例已写入 `.env.test.example`；`docker-compose.local.yml` 现直接读取 `.env.test`，与本机测试脚本共用同一套 PostgreSQL 与管理员参数；本地若使用 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起 PostgreSQL，宿主机测试端口统一使用 `5432`，默认管理员示例为 `admin / admin@example.com / admin123`。
 - `docker-compose1.yml` 当前收口为轻量测试基础设施栈，只启动 PostgreSQL 与 Redis，并复用宿主机 `5432/6379`；用于项目更新期间避免反复重建整套应用镜像时，仍可让本机 `run_app.R` / `run_app_test.ps1` 直接连库跑业务测试。
 - 账号与权限模块已补充 PostgreSQL 集成测试 `tests/common/auth/test_auth_access_postgres_integration.R`；测试会优先读取 `.env.test`，并在隔离 schema 中验证管理员初始化、workspace 访问边界与清理逻辑，避免污染现有数据。
@@ -119,6 +130,16 @@ Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README
 - 统计分析回归类子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_regression_submodule_ui_guard.R`，用于约束 `logistic.R` 与 `linear.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
 - 统计分析基础检验子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_basic_submodule_ui_guard.R`，用于约束 `anova.R` 与 `chisq.R` 持续保留最小参数分区与公共壳 helper 接入。
 - 统计分析结果区当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_result_ui_guard.R`，用于约束结果 tab、空状态与导出说明块继续复用统一 helper。
+- 公共扩散源当前补充 UI 守卫 `tests/common/ui/test_data_filter_card_ui_guard.R` 与 `tests/common/ui/test_task_history_card_ui_guard.R`，用于约束 `data_filter.R`、`task_history.R` 持续保留公共壳、默认折叠行为与主要交互入口。
+- 入口层当前补充 UI 守卫 `tests/statistical_graphics/ui/test_statistical_graphics_layout_guard.R` 与 `tests/tables/test_tables_layout_guard.R`，用于约束 `statistical_graphics.R` 与 `tables.R` 持续保留公共壳入口结构、复用公共筛选/任务历史模块，并避免回退为入口层裸 `box()`。
+- 生存分析外层当前补充 UI 守卫 `tests/statistical_graphics/survival/test_survival_layout_guard.R`，用于约束 `survival_analysis.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
+- 组合图外层当前补充 UI 守卫 `tests/statistical_graphics/combo/test_combo_layout_guard.R`，用于约束 `combo_plot.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
+- 箱线图外层当前补充 UI 守卫 `tests/statistical_graphics/boxplot/test_boxplot_layout_guard.R`，用于约束 `boxplot.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
+- 森林图外层当前补充 UI 守卫 `tests/statistical_graphics/forest/test_forest_layout_guard.R`，用于约束 `forest_plot.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
+- 蜘蛛图外层当前补充 UI 守卫 `tests/statistical_graphics/spider/test_spider_layout_guard.R`，用于约束 `spider_plot.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
+- 泳道图外层当前补充 UI 守卫 `tests/statistical_graphics/swimmer/test_swimmer_layout_guard.R`，用于约束 `swimmer_plot.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
+- 瀑布图外层当前补充 UI 守卫 `tests/statistical_graphics/waterfall/test_waterfall_layout_guard.R`，用于约束 `waterfall_plot.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
+- 探索分析入口当前补充 UI 守卫 `tests/exploratory_analysis/test_exploratory_analysis_layout_guard.R`，用于约束 `exploratory_analysis.R` 持续保留三块入口卡、变量托盘输出、图形类型选择与 Plotly 输出链路，并避免回退为入口层裸 `box()`。
 - 发布前可执行 `run_auth_regression.ps1` 作为账号模块统一回归入口；脚本会校验 `.env.test` 中的 PostgreSQL 与管理员变量，并按 `tests/common/auth/auth_regression_manifest.json` 的固定顺序运行账号 helper、文档守卫和 PostgreSQL 集成测试。
 
 ### 当前阶段风险与优化建议

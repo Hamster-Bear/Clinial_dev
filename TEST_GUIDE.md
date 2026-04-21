@@ -57,6 +57,9 @@
 
 - 数据元数据与标签一致性:
   - `tests/common/data/test_data_metadata_consistency.R`
+- 公共筛选与任务历史 UI 守卫:
+  - `tests/common/ui/test_data_filter_card_ui_guard.R`
+  - `tests/common/ui/test_task_history_card_ui_guard.R`
 - 数据准备 UI 守卫:
   - `tests/data_preparation/test_data_preparation_card_ui_guard.R`
 - 数据库管理布局守卫:
@@ -107,20 +110,36 @@
 
 ### 3.7 统计图形子模块
 
+- 入口层 UI 守卫:
+  - `tests/statistical_graphics/ui/test_statistical_graphics_layout_guard.R`
 - Survival:
+  - `tests/statistical_graphics/survival/test_survival_layout_guard.R`
   - `tests/statistical_graphics/survival/test_survival_display_contract.R`
   - `tests/statistical_graphics/survival/test_survival_median_ci_baseline.R`
   - `tests/statistical_graphics/survival/test_survival_selection_resolution.R`
   - `tests/statistical_graphics/survival/test_survival_view_committed_state.R`
   - `tests/statistical_graphics/survival/legacy/test_label_mapping.R`
+- Combo:
+  - `tests/statistical_graphics/combo/test_combo_layout_guard.R`
+- Boxplot:
+  - `tests/statistical_graphics/boxplot/test_boxplot_layout_guard.R`
+- Spider:
+  - `tests/statistical_graphics/spider/test_spider_layout_guard.R`
+- Swimmer:
+  - `tests/statistical_graphics/swimmer/test_swimmer_layout_guard.R`
 - Forest:
+  - `tests/statistical_graphics/forest/test_forest_layout_guard.R`
   - `tests/common/graphics/test_forest_table_state_helpers.R`
 - Waterfall:
+  - `tests/statistical_graphics/waterfall/test_waterfall_layout_guard.R`
   - `tests/statistical_graphics/waterfall/test_waterfall_symbol_choices.R`
 
 ### 3.8 预设输出、导出与外部页面
 
+- 探索分析入口:
+  - `tests/exploratory_analysis/test_exploratory_analysis_layout_guard.R`
 - Listing / 表格导出:
+  - `tests/tables/test_tables_layout_guard.R`
   - `tests/tables/test_listing_general_contract.R`
 - Landing 与外部入口:
   - `tests/nginx/landing/test_landing_copy_guard.R`

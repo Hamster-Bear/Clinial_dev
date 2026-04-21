@@ -283,7 +283,9 @@ app_card_box <- function(...,
                          tone = "primary",
                          status = tone,
                          solidHeader = FALSE,
-                         collapsible = FALSE) {
+                         collapsible = FALSE,
+                         collapsed = FALSE,
+                         class = NULL) {
   shinydashboard::box(
     ...,
     width = width,
@@ -291,7 +293,8 @@ app_card_box <- function(...,
     status = status,
     solidHeader = solidHeader,
     collapsible = collapsible,
-    class = paste("app-card", paste0("app-card--", tone))
+    collapsed = collapsed,
+    class = trimws(paste("app-card", paste0("app-card--", tone), class))
   )
 }
 
