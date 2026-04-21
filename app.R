@@ -142,9 +142,9 @@ if (requireNamespace("showtext", quietly = TRUE) && requireNamespace("sysfonts",
 # 加载所有模块
 source("modules/common/storage_backend.R")
 source("modules/common/data_metadata.R")
-source("modules/common/email_service.R")
-source("modules/common/auth.R")
-source("modules/common/account_service.R")
+source("modules/common/auth/email_service.R")
+source("modules/common/auth/auth.R")
+source("modules/common/auth/account_service.R")
 source("modules/common/ui_shell.R")
 source("modules/auth_manager.R")
 source("modules/data_preparation.R")

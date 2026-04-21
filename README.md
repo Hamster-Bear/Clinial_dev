@@ -59,6 +59,7 @@ Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README
 
 - 部署细节、镜像构建与保存、目录结构、挂载关系、环境变量、服务器流程：`DEPLOYMENT_GUIDE.md`
 - 项目架构、模块职责、部署矩阵与实现边界：`PROJECT_GUIDE.md`
+- 测试资产索引、按架构归类的测试清单与回归入口：`TEST_GUIDE.md`
 
 ### 当前访问与账号边界
 
@@ -71,7 +72,7 @@ Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README
 - 登录后的侧边栏当前统一提供“用户和权限”入口；该页左侧只保留基础用户信息与少量信息变更控件，如绑定邮箱、邮箱换绑和修改密码。右侧按权限分支展示：Owner 继续看到 workspace 协作权限管理卡，被授予 viewer/editor 的普通用户会看到“我的已授权空间”信息卡；若两者都没有，页面会保留明确的非空态说明。
 - 当前忘记密码已改为独立找回页：用户可申请 6 位重置验证码并完成重置；本地/测试环境同样通过 `EMAIL_DELIVERY_MODE=console` 输出验证码，过期时间由 `AUTH_PASSWORD_RESET_EXPIRE_MINUTES` 控制。
 - 当前已支持登录后邮箱换绑：用户需先输入当前密码，再向新邮箱发送 6 位换绑验证码，验证成功后才会正式切换主邮箱；换绑成功后会自动尝试认领该邮箱名下待领取的协作邀请。
-- 当前邮件投递已抽象为 `email_service.R`：默认保留 `console/disabled` 模式，并新增 `smtp` 模式；启用真实发信时需补齐 `EMAIL_FROM_ADDRESS`、`SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_USE_SSL`。
+- 当前邮件投递已抽象为 `modules/common/auth/email_service.R`：默认保留 `console/disabled` 模式，并新增 `smtp` 模式；启用真实发信时需补齐 `EMAIL_FROM_ADDRESS`、`SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_USE_SSL`。
 - 管理员页现已补充 `SMTP 连通性测试` 卡片，可向测试邮箱发送探针邮件；建议在预发环境先验证 `smtp` 投递成功、失败提示和收件链路，再切正式环境。
 - `SMTP 连通性测试` 卡片当前会保留最近一次探针结果，展示成功/失败状态、目标邮箱、执行时间与结果说明，方便部署验收和排障留痕。
 - 认证主体区域已抽到 `auth_manager.R`；当前用户信息、退出入口与普通用户的“权限管理”快捷入口已合并到侧边栏卡片中。
@@ -86,7 +87,7 @@ Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README
 - 管理员账号必须通过环境变量预置 `APP_ADMIN_USERNAME`、`APP_ADMIN_EMAIL` 与 `APP_ADMIN_PASSWORD`；未配置时不自动提升首个注册用户。
 - 管理员环境变量当前视为引导权威输入：启动时若数据库中已存在同邮箱或同用户名账号，会同步校准用户名、邮箱、密码摘要、管理员身份、数据库管理开关与 `active` 状态；若邮箱与用户名分别命中不同账号，则拒绝静默同步并要求先清理历史记录。
 - 当前已提供管理员操作入口；workspace、membership、invite 与 owner 迁移能力已统一下沉到 service 层。
-- workspace 创建与删除也统一复用 `account_service.R`，避免数据库管理页继续直连 owner / membership 迁移细节。
+- workspace 创建与删除也统一复用 `modules/common/auth/account_service.R`，避免数据库管理页继续直连 owner / membership 迁移细节。
 - 普通用户可对自己拥有的数据空间进行权限管理，且授权、撤销与 owner 迁移统一通过邮箱输入完成，不通过下拉选择数据库中的用户。
 - 管理员页保持独立系统入口，不并入侧边栏用户卡片；账号状态调整与数据空间功能开关继续集中在管理员页，若管理员需要处理数据空间负责人或协作授权，也仅限自己名下可管理的数据空间。
 - 管理员页现补充信息型增强：顶部系统概览、运行环境摘要、目标账号完整状态卡片、操作影响预览，以及“我名下数据空间概览”，用于强化管理决策与排障信息，但不扩大权限边界。
@@ -111,13 +112,13 @@ Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README
 - 统计分析结果区当前已继续统一：`统计表格 / 统计报告 / 可复现代码` 三个 tab 现统一使用结果 panel 和空状态 helper，导出区也统一为结果区说明面板，但不调整结果对象、报告生成与导出逻辑。
 - `run_app_test.ps1` 对应的测试环境变量示例已写入 `.env.test.example`；`docker-compose.local.yml` 现直接读取 `.env.test`，与本机测试脚本共用同一套 PostgreSQL 与管理员参数；本地若使用 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起 PostgreSQL，宿主机测试端口统一使用 `5432`，默认管理员示例为 `admin / admin@example.com / admin123`。
 - `docker-compose1.yml` 当前收口为轻量测试基础设施栈，只启动 PostgreSQL 与 Redis，并复用宿主机 `5432/6379`；用于项目更新期间避免反复重建整套应用镜像时，仍可让本机 `run_app.R` / `run_app_test.ps1` 直接连库跑业务测试。
-- 账号与权限模块已补充 PostgreSQL 集成测试 `tests/test_auth_access_postgres_integration.R`；测试会优先读取 `.env.test`，并在隔离 schema 中验证管理员初始化、workspace 访问边界与清理逻辑，避免污染现有数据。
-- 管理员页另补充了按需启用的 `shinytest2` smoke test `tests/test_admin_manager_smoke_shinytest2.R`；仅在显式设置 `RUN_ADMIN_SMOKE=1` 且本地具备 `.env.test`、管理员账号与 `shinytest2` 依赖时运行，用于验证管理员登录、进入系统管理页与关键信息区块加载。
-- 统计分析总入口当前补充了布局守卫 `tests/test_statistical_analysis_layout_guard.R`，用于约束公共卡片壳接入后继续保留结果区页签结构、导出入口与动态参数输出链路。
-- 统计分析子模块当前补充了 UI 守卫 `tests/test_statistical_analysis_submodule_ui_guard.R`，用于约束 `desc.R` 与 `cox.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
-- 统计分析回归类子模块当前补充了 UI 守卫 `tests/test_statistical_analysis_regression_submodule_ui_guard.R`，用于约束 `logistic.R` 与 `linear.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
-- 统计分析基础检验子模块当前补充了 UI 守卫 `tests/test_statistical_analysis_basic_submodule_ui_guard.R`，用于约束 `anova.R` 与 `chisq.R` 持续保留最小参数分区与公共壳 helper 接入。
-- 统计分析结果区当前补充了 UI 守卫 `tests/test_statistical_analysis_result_ui_guard.R`，用于约束结果 tab、空状态与导出说明块继续复用统一 helper。
+- 账号与权限模块已补充 PostgreSQL 集成测试 `tests/common/auth/test_auth_access_postgres_integration.R`；测试会优先读取 `.env.test`，并在隔离 schema 中验证管理员初始化、workspace 访问边界与清理逻辑，避免污染现有数据。
+- 管理员页另补充了按需启用的 `shinytest2` smoke test `tests/admin_manager/test_admin_manager_smoke_shinytest2.R`；仅在显式设置 `RUN_ADMIN_SMOKE=1` 且本地具备 `.env.test`、管理员账号与 `shinytest2` 依赖时运行，用于验证管理员登录、进入系统管理页与关键信息区块加载。
+- 统计分析总入口当前补充了布局守卫 `tests/statistical_analysis/ui/test_statistical_analysis_layout_guard.R`，用于约束公共卡片壳接入后继续保留结果区页签结构、导出入口与动态参数输出链路。
+- 统计分析子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_submodule_ui_guard.R`，用于约束 `desc.R` 与 `cox.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
+- 统计分析回归类子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_regression_submodule_ui_guard.R`，用于约束 `logistic.R` 与 `linear.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
+- 统计分析基础检验子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_basic_submodule_ui_guard.R`，用于约束 `anova.R` 与 `chisq.R` 持续保留最小参数分区与公共壳 helper 接入。
+- 统计分析结果区当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_result_ui_guard.R`，用于约束结果 tab、空状态与导出说明块继续复用统一 helper。
 - 发布前可执行 `run_auth_regression.ps1` 作为账号模块统一回归入口；脚本会校验 `.env.test` 中的 PostgreSQL 与管理员变量，并顺序运行账号 helper、文档守卫和 PostgreSQL 集成测试。
 
 ### 当前阶段风险与优化建议
@@ -203,3 +204,4 @@ if (!require("survminer")) {
 ## 许可证
 
 本项目仅供学习和研究使用。
+

@@ -188,7 +188,7 @@ AutoTFL/
 - 登录后的侧边栏当前统一提供“用户和权限”入口；该页左侧只保留基础用户信息与少量信息变更控件，如绑定邮箱、邮箱换绑和修改密码。右侧按权限分支展示：Owner 继续看到 workspace 协作权限管理卡，被授予 viewer/editor 的普通用户会看到“我的已授权空间”信息卡；若两者都没有，页面会保留明确的非空态说明。
 - 当前忘记密码已改为独立找回页：用户可申请 6 位重置验证码并完成重置；本地/测试环境同样通过 `EMAIL_DELIVERY_MODE=console` 输出验证码，过期时间由 `AUTH_PASSWORD_RESET_EXPIRE_MINUTES` 控制；生产环境在接入真实邮件投递前不应对外宣称已具备真实邮件找回能力。
 - 当前已支持登录后邮箱换绑：用户需先输入当前密码，再向新邮箱发送 6 位换绑验证码，验证成功后才会正式切换主邮箱；本地/测试环境仍通过 `EMAIL_DELIVERY_MODE=console` 暴露验证码，生产环境在接入真实邮件投递前不应对外宣称已具备真实邮件换绑能力。
-- 当前邮件投递已抽象为 `modules/common/email_service.R`，支持 `console / disabled / smtp` 三种模式；生产环境切到 `smtp` 前，必须补齐 `EMAIL_FROM_ADDRESS`、`SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_USE_SSL`，并先在预发环境验证投递成功与失败告警路径。
+- 当前邮件投递已抽象为 `modules/common/auth/email_service.R`，支持 `console / disabled / smtp` 三种模式；生产环境切到 `smtp` 前，必须补齐 `EMAIL_FROM_ADDRESS`、`SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_USE_SSL`，并先在预发环境验证投递成功与失败告警路径。
 - 管理员页现已补充 `SMTP 连通性测试` 卡片，可向测试邮箱发送探针邮件；建议先在预发环境使用该卡片验证收件链路、失败提示与 SMTP 配置完整性，再切正式环境。
 - `SMTP 连通性测试` 卡片当前会保留最近一次探针结果，展示成功/失败状态、目标邮箱、执行时间与结果说明，便于部署验收时留痕与排障。
 - 当前用户信息与退出入口稳定显示在侧边栏卡片中；普通用户的权限管理快捷入口也合并在该卡片内。
@@ -199,7 +199,7 @@ AutoTFL/
 - 当前系统角色口径仅保留系统管理员与普通用户；非管理员用户默认按个人空间隔离。
 - 系统管理员负责账号状态、数据空间功能开通和服务器目录导入等系统级能力；可查看数据库信息与 workspace 元信息，但不得读取、浏览或导出其他用户数据空间中的实际数据，这条约束是上线后的服务层保密底线。
 - 当前已提供管理员操作入口；workspace、membership、invite 与 owner 迁移能力统一下沉到 service 层。
-- workspace 创建与删除也统一通过 `account_service.R` 收口，部署后的数据库管理页不再直接拼装 owner / membership 初始化逻辑。
+- workspace 创建与删除也统一通过 `modules/common/auth/account_service.R` 收口，部署后的数据库管理页不再直接拼装 owner / membership 初始化逻辑。
 - 普通用户可对自己拥有的数据空间进行权限管理，且授权、撤销与 owner 迁移统一通过邮箱输入完成。
 - 管理员页保持独立系统入口，不并入侧边栏用户卡片；账号状态调整与数据空间功能开关继续集中在管理员页，若管理员需要处理负责人或协作授权，也仅限自己名下可管理的数据空间。
 - 管理员页现补充信息型增强：顶部系统概览、运行环境摘要、目标账号完整状态卡片、操作影响预览，以及“我名下数据空间概览”；这些信息只用于管理判断与排障，不扩大现有权限边界。
@@ -257,12 +257,12 @@ AutoTFL/
 - 本地若数据库由 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起，应用应连接 `localhost:5432`。
 - `docker-compose.local.yml` 现直接读取 `.env.test`，以统一本地联调与 `run_app_test.ps1` 使用的 PostgreSQL 与管理员参数；其中 app 容器仍会在内部网络中覆盖 `POSTGRES_HOST=postgres`。
 - `docker-compose1.yml` 只提供 PostgreSQL 与 Redis 基础设施，适用于项目更新期间避免重建整套应用镜像时，继续让本机 `run_app.R` / `run_app_test.ps1` 复用同一组 `5432/6379` 端口做业务测试。
-- 管理员页交互验证当前补充了按需启用的 `shinytest2` smoke test `tests/test_admin_manager_smoke_shinytest2.R`；仅在显式设置 `RUN_ADMIN_SMOKE=1` 且本地具备 `.env.test`、管理员账号与 `shinytest2` 依赖时运行。
-- 统计分析总入口当前补充了布局守卫 `tests/test_statistical_analysis_layout_guard.R`，用于约束公共卡片壳接入后继续保留结果区页签结构、导出入口与动态参数输出链路。
-- 统计分析子模块当前补充了 UI 守卫 `tests/test_statistical_analysis_submodule_ui_guard.R`，用于约束 `desc.R` 与 `cox.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
-- 统计分析回归类子模块当前补充了 UI 守卫 `tests/test_statistical_analysis_regression_submodule_ui_guard.R`，用于约束 `logistic.R` 与 `linear.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
-- 统计分析基础检验子模块当前补充了 UI 守卫 `tests/test_statistical_analysis_basic_submodule_ui_guard.R`，用于约束 `anova.R` 与 `chisq.R` 持续保留最小参数分区与公共壳 helper 接入。
-- 统计分析结果区当前补充了 UI 守卫 `tests/test_statistical_analysis_result_ui_guard.R`，用于约束结果 tab、空状态与导出说明块继续复用统一 helper。
+- 管理员页交互验证当前补充了按需启用的 `shinytest2` smoke test `tests/admin_manager/test_admin_manager_smoke_shinytest2.R`；仅在显式设置 `RUN_ADMIN_SMOKE=1` 且本地具备 `.env.test`、管理员账号与 `shinytest2` 依赖时运行。
+- 统计分析总入口当前补充了布局守卫 `tests/statistical_analysis/ui/test_statistical_analysis_layout_guard.R`，用于约束公共卡片壳接入后继续保留结果区页签结构、导出入口与动态参数输出链路。
+- 统计分析子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_submodule_ui_guard.R`，用于约束 `desc.R` 与 `cox.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
+- 统计分析回归类子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_regression_submodule_ui_guard.R`，用于约束 `logistic.R` 与 `linear.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
+- 统计分析基础检验子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_basic_submodule_ui_guard.R`，用于约束 `anova.R` 与 `chisq.R` 持续保留最小参数分区与公共壳 helper 接入。
+- 统计分析结果区当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_result_ui_guard.R`，用于约束结果 tab、空状态与导出说明块继续复用统一 helper。
 - 当前测试环境管理员示例为 `APP_ADMIN_USERNAME=admin`、`APP_ADMIN_EMAIL=admin@example.com`、`APP_ADMIN_PASSWORD=admin123`。
 - 账号/权限 PostgreSQL 集成测试会直接复用 `.env.test` 中的数据库连接，并在隔离 schema 中执行建表、验证与清理；测试库应预留建 schema 权限。
 - 发布前可执行 `run_auth_regression.ps1` 作为账号模块统一回归入口；脚本会先校验 `.env.test`，再顺序执行账号 helper、边界守卫、文档守卫与 PostgreSQL 集成测试。
@@ -879,3 +879,4 @@ deploy/alicloud/
 文档用途：部署细节单一真相源\
 适用版本：当前仓库主线实现\
 维护原则：实现变更即同步修订
+

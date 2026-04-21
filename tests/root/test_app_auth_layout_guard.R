@@ -1,0 +1,120 @@
+test_find_project_root <- function() {
+  args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- "--file="
+  script_path <- sub(file_arg, "", args[grep(file_arg, args)])
+  script_path <- if (length(script_path) > 0) script_path[[1]] else ""
+  start_candidates <- unique(c(
+    if (nzchar(script_path)) dirname(normalizePath(script_path, winslash = "/", mustWork = FALSE)) else character(0),
+    normalizePath(getwd(), winslash = "/", mustWork = FALSE)
+  ))
+
+  for (candidate in start_candidates) {
+    current <- candidate
+    repeat {
+      if (file.exists(file.path(current, "app.R")) &&
+          dir.exists(file.path(current, "modules")) &&
+          dir.exists(file.path(current, "tests"))) {
+        return(normalizePath(current, winslash = "/", mustWork = TRUE))
+      }
+      parent <- dirname(current)
+      if (identical(parent, current)) break
+      current <- parent
+    }
+  }
+
+  stop("无法定位项目根目录。", call. = FALSE)
+}
+
+project_root <- test_find_project_root()
+setwd(file.path(project_root, "tests"))
+args <- commandArgs(trailingOnly = FALSE)
+file_arg <- "--file="
+script_path <- sub(file_arg, "", args[grep(file_arg, args)])
+script_dir <- dirname(normalizePath(script_path, winslash = "/", mustWork = FALSE))
+project_root <- test_find_project_root()
+
+read_utf8 <- function(...) {
+  file_path <- file.path(project_root, ...)
+  if (length(file_path) == 0 || !file.exists(file_path)) return("")
+  paste(readLines(file_path, encoding = "UTF-8", warn = FALSE), collapse = "\n")
+}
+
+app_text <- read_utf8("app.R")
+auth_manager_text <- read_utf8("modules", "auth_manager.R")
+if (!nzchar(app_text) || !nzchar(auth_manager_text)) return(invisible(NULL))
+
+expect_contains <- function(text, pattern, label) {
+  if (!grepl(pattern, text, perl = TRUE)) {
+    stop(sprintf("缺少预期内容: %s", label), call. = FALSE)
+  }
+}
+
+expect_contains(app_text, "return\\(sidebarMenu\\(", "未登录侧边栏应立即返回登录注册菜单")
+expect_contains(app_text, "selected = \"login\"", "未登录侧边栏默认选中登录页")
+expect_contains(app_text, "title = \"Hamster Analysis · AutoTFL\"", "顶栏标题文本")
+expect_contains(app_text, "includeCSS\\(\"style\\.css\"\\)", "应用内联加载 style.css，避免静态路径 404")
+expect_contains(app_text, "uiOutput\\(\"sidebar_user_panel\"\\)", "侧边栏用户信息输出")
+expect_contains(app_text, "source\\(\"modules/common/auth/email_service.R\"\\)", "应用加载邮件投递模块")
+expect_contains(app_text, "jsonlite::toJSON\\(selector, auto_unbox = TRUE\\)", "侧边栏步骤状态使用安全 JS 选择器转义")
+expect_contains(app_text, "sidebar-user-card", "侧边栏用户卡片样式")
+expect_contains(app_text, "sidebar-user-section-title", "侧边栏用户卡片分组标题样式")
+expect_contains(app_text, "sidebar-user-status-list", "侧边栏账号设置状态列表样式")
+expect_contains(app_text, "账号设置", "侧边栏账号设置分组标题")
+expect_contains(app_text, "open_access_manage", "侧边栏用户卡片快捷权限入口")
+expect_contains(app_text, "open_db_manage", "侧边栏用户卡片数据空间快捷入口")
+expect_contains(app_text, "open_data_prep", "侧边栏用户卡片临时上传快捷入口")
+expect_contains(app_text, "open_admin", "侧边栏管理员卡片快捷入口")
+expect_contains(app_text, "actionLink\\(\"open_access_manage\", \"用户和权限\"\\)", "侧边栏统一用户和权限入口")
+expect_contains(app_text, "li\\[data-value='access_manage'\\]", "权限管理侧边栏隐藏样式")
+expect_contains(app_text, "li\\[data-value='reset_password'\\]", "忘记密码侧边栏隐藏样式")
+expect_contains(app_text, "tabName = \"access_manage\"", "权限管理页签")
+expect_contains(app_text, "badgeLabel = db_manage_badge_label", "数据空间页签 badge 根据权限动态显示")
+expect_contains(app_text, "badgeLabel = data_prep_badge_label", "数据准备页签 badge 根据权限动态显示")
+expect_contains(app_text, "default_tab <- if \\(user_has_database_access\\(user\\)\\) \"db_manage\" else \"data_prep\"", "未开通数据空间功能用户默认落到数据准备页")
+expect_contains(app_text, "数据空间功能: ", "侧边栏用户卡片展示数据空间功能状态")
+expect_contains(app_text, "refresh_current_user <- function", "当前用户会话刷新函数")
+expect_contains(app_text, "invalidateLater\\(5000, session\\)", "当前用户会话定时刷新")
+expect_contains(app_text, "workspace_access_manager_ui\\(\"access_manage\"\\)", "Owner 权限管理模块挂载")
+expect_contains(app_text, "workspace_access_manager_server\\(\"access_manage\", pg_pool = pg_pool, current_user = current_user, on_user_updated = current_user\\)", "用户和权限模块回写当前用户")
+expect_contains(app_text, "auth_manager_tabs\\(\"auth\"\\)", "认证页面模块挂载")
+expect_contains(app_text, "auth_manager_server\\(", "认证服务模块挂载")
+expect_contains(app_text, "do.call\\(tabItems, tab_nodes\\)", "业务 tab 使用列表方式渲染，避免非管理员报错")
+expect_contains(app_text, "#shiny-notification-panel", "通知面板位置样式")
+expect_contains(auth_manager_text, "auth-page-shell", "认证页面使用上下居中外层容器")
+expect_contains(auth_manager_text, "app_card_dependencies\\(", "认证页加载公共卡片壳依赖")
+expect_contains(auth_manager_text, "app_card_box\\(", "认证页使用公共卡片壳")
+expect_contains(auth_manager_text, "app_card_panel\\(", "认证页使用公共面板壳")
+expect_contains(auth_manager_text, "app_card_note\\(", "认证页使用公共说明壳")
+expect_contains(auth_manager_text, "欢迎进入 AutoTFL", "登录页欢迎卡片")
+expect_contains(auth_manager_text, "创建账号", "注册页引导卡片")
+expect_contains(auth_manager_text, "找回密码", "忘记密码页引导卡片")
+expect_contains(auth_manager_text, "textInput\\(ns\\(\"login_identity\"\\), \"用户名或邮箱\"", "登录页支持用户名或邮箱")
+expect_contains(auth_manager_text, "auth-secondary-actions", "登录页次级操作按钮容器")
+expect_contains(auth_manager_text, "auth-secondary-link", "登录页次级操作按钮样式")
+expect_not_contains <- function(text, pattern, label) {
+  if (grepl(pattern, text, perl = TRUE)) {
+    stop(sprintf("发现应移除内容: %s", label), call. = FALSE)
+  }
+}
+expect_contains(auth_manager_text, "goto_reset_password", "登录页忘记密码跳转链接")
+expect_contains(auth_manager_text, "goto_register", "登录页注册跳转链接")
+expect_contains(auth_manager_text, "tabName = \"reset_password\"", "独立忘记密码页签")
+expect_contains(auth_manager_text, "title = \"忘记密码\"", "独立密码重置卡片")
+expect_contains(auth_manager_text, "textInput\\(ns\\(\"reset_email\"\\), \"邮箱\"", "密码重置输入邮箱")
+expect_contains(auth_manager_text, "textInput\\(ns\\(\"reset_code\"\\), \"重置验证码\"", "密码重置输入验证码")
+expect_contains(auth_manager_text, "passwordInput\\(ns\\(\"reset_new_password\"\\), \"新密码\"", "密码重置输入新密码")
+expect_contains(auth_manager_text, "auth_request_password_reset\\(", "密码重置请求逻辑")
+expect_contains(auth_manager_text, "auth_reset_password\\(", "密码重置提交逻辑")
+expect_contains(auth_manager_text, "textInput\\(ns\\(\"register_email\"\\), \"邮箱\"", "注册页包含邮箱字段")
+expect_contains(auth_manager_text, "注册成功后可直接登录；邮箱验证请在登录后的用户信息中自行完成", "注册页邮箱验证提示")
+expect_contains(auth_manager_text, "goto_tab\\(\"login\"\\)", "注册成功后跳回登录")
+expect_contains(auth_manager_text, "当前邮箱尚未验证，可在左侧账号设置区点击“验证邮箱”完成验证。", "未验证邮箱登录后提示")
+expect_not_contains(auth_manager_text, "title = \"邮箱验证\"", "登录注册页不再展示邮箱验证卡片")
+expect_not_contains(auth_manager_text, "auth_verify_email_code\\(", "认证页不再直接提交邮箱验证")
+expect_not_contains(auth_manager_text, "auth_resend_email_verification\\(", "认证页不再直接重发邮箱验证")
+expect_not_contains(app_text, "open_email_verify", "侧边栏不再保留邮箱验证弹窗入口")
+expect_not_contains(app_text, "open_email_change", "侧边栏不再保留邮箱换绑弹窗入口")
+expect_not_contains(app_text, "shinyjs::runjs\\(paste0\\('", "不再使用易出错的 runjs 直拼字符串")
+
+cat("App auth layout guard passed.\n")
+

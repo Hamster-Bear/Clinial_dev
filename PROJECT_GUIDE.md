@@ -38,6 +38,7 @@
 - 新增或修改功能时，先更新本文件中对应章节，再改代码或同步提交代码变更。
 - 本文件描述“当前已实现”，不把占位菜单、计划能力、外部设想写成既成事实。
 - 若其他文档与本文件冲突，以当前代码实现和本文件为准，并在后续文档清理中同步收敛。
+- 测试目录结构、回归入口或测试归类发生变化时，需同步更新根目录 `TEST_GUIDE.md`。
 
 ## 2. 系统概览
 
@@ -135,10 +136,11 @@
 - 登录页底部当前显式提供“注册账号 / 忘记密码”入口；“忘记密码”通过隐藏页签切到独立找回页，避免首页堆叠多张卡片。
 - 登录页底部的“注册账号 / 忘记密码”当前已改为更明显的按钮式次级操作，提升首屏可发现性。
 - 当前邮箱验证已移到登录后的用户信息区，改为用户自行触发和完成，不再阻断注册或登录；本地/测试环境默认通过 `EMAIL_DELIVERY_MODE=console` 输出验证码，可配合 `AUTH_DEV_SHOW_EMAIL_CODE=1` 直接在日志与提示中查看验证码。
+- 认证写操作当前统一通过 `modules/common/auth/auth.R` 中的 `auth_with_transaction()` 收口事务入口：应用运行时若传入 `pool::dbPool()`，必须走 `pool::poolWithTransaction()`；测试或脚本若传入普通连接，则继续兼容 `DBI::dbWithTransaction()`，避免注册、邮箱验证、邮箱换绑与密码重置出现“实际已提交但前端误报失败”。
 - 登录后的侧边栏当前统一提供“用户和权限”入口；该页左侧只保留基础用户信息与少量信息变更控件，如绑定邮箱、邮箱换绑和修改密码。右侧按权限分支展示：Owner 继续看到 workspace 协作权限管理卡，被授予 viewer/editor 的普通用户会看到“我的已授权空间”信息卡；若两者都没有，页面会保留明确的非空态说明。
 - 当前忘记密码已改为独立找回页：用户可申请 6 位重置验证码并完成重置；本地/测试环境同样通过 `EMAIL_DELIVERY_MODE=console` 输出验证码，过期时间由 `AUTH_PASSWORD_RESET_EXPIRE_MINUTES` 控制。
 - 当前已支持登录后邮箱换绑：用户需先输入当前密码，再向新邮箱发送 6 位换绑验证码，验证成功后才会正式切换主邮箱；换绑成功后应自动尝试认领该邮箱名下待领取的协作邀请。
-- 当前邮件投递已抽象为 `modules/common/email_service.R`：默认保留 `console/disabled` 模式，并新增 `smtp` 模式；启用真实发信时需补齐 `EMAIL_FROM_ADDRESS`、`SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_USE_SSL`。
+- 当前邮件投递已抽象为 `modules/common/auth/email_service.R`：默认保留 `console/disabled` 模式，并新增 `smtp` 模式；启用真实发信时需补齐 `EMAIL_FROM_ADDRESS`、`SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_USE_SSL`。
 - 管理员页现已补充 `SMTP 连通性测试` 卡片，可向测试邮箱发送探针邮件；建议在预发环境先验证 `smtp` 投递成功、失败提示和收件链路，再切正式环境。
 - `SMTP 连通性测试` 卡片当前会保留最近一次探针结果，展示成功/失败状态、目标邮箱、执行时间与结果说明，方便部署验收和排障留痕。
 - 当前用户信息与退出入口稳定显示在侧边栏卡片中；普通用户的权限管理快捷入口也合并在该卡片内。
@@ -149,8 +151,8 @@
 - 非管理员用户默认按个人空间隔离，只能看到自己拥有或被授权的 workspace。
 - 当前系统角色口径仅保留系统管理员与普通用户。
 - 系统管理员负责账号状态、数据空间功能开通和服务器目录导入等系统级能力；可查看数据库信息与 workspace 元信息，但不得读取、浏览或导出其他用户数据空间中的实际数据，这条约束是上线后的服务层保密底线。
-- 当前已提供管理员操作入口；workspace、membership、invite 与 owner 迁移能力统一下沉到 service 层。
-- workspace 创建与删除也统一通过 `account_service.R` 收口，数据库管理模块不再直接拼装 owner / membership 初始化逻辑。
+- 当前已提供管理员操作入口；workspace、membership、invite、账号状态切换、数据库功能开关与任务历史覆盖保存能力统一下沉到 `modules/common/auth/account_service.R` 等 service 层。
+- workspace 创建与删除也统一通过 `modules/common/auth/account_service.R` 收口，数据库管理模块不再直接拼装 owner / membership 初始化逻辑。
 - 普通用户可对自己拥有的数据空间进行权限管理，且授权、撤销与 owner 迁移统一通过邮箱输入完成。
 - 管理员页保持独立系统入口，不并入侧边栏用户卡片；账号状态调整与数据空间功能开关继续集中在管理员页，若管理员需要处理负责人或协作授权，也仅限自己名下可管理的数据空间。
 - 管理员页现补充信息型增强：顶部系统概览、运行环境摘要、目标账号完整状态卡片、操作影响预览，以及“我名下数据空间概览”；这些信息只用于管理判断与排障，不扩大现有权限边界。
@@ -184,11 +186,13 @@
 ### 3.8 当前阶段风险与优化建议
 
 - 技术风险：当前权限主边界仍在 workspace 级别，`viewer` / `editor` 对数据写操作的差异尚未完全落实到所有模块；数据库管理锁当前仍是账号级开关。
+- 技术风险：认证链路同时服务应用运行时 `pool` 与测试脚本直连两种数据库入口；后续若新增事务型写操作但未复用 `auth_with_transaction()`，仍可能再次出现“数据库已写入但前端提示失败”的假异常。
 - 维护风险：邮箱邀请支持未注册用户占位，但尚未提供邀请过期、撤回审计与邮箱真实性校验；普通用户入口与管理员入口的交互规范需要持续同步。
 - 项目风险：owner 自助授权已开放给创建者，后续若扩展共享协作，需要同步补齐审计日志与异常回滚策略。
+- 立即可做：继续沿 `modules/common/auth/` 服务域补齐剩余认证/用户管理 service 拆分，并在管理员状态调整、邀请领取、Owner 迁移等链路维持 `pool` 模式回归。
 - 立即可做：补充 service 层数据库集成测试，覆盖授权、撤销、owner 迁移、invite 领取与 workspace 删除链路，并验证数据库管理新布局与数据库管理锁的可用性。
 - 中长期建议：引入邮箱验证、邀请有效期、组织级 / 项目级协作模型与更细粒度权限矩阵。
-- 工具链建议：在 `tests/` 现有守卫测试基础上，持续维护 PostgreSQL 隔离 schema 回归测试与 pre-commit 文档一致性校验；账号权限链路可优先参考 `tests/test_auth_access_postgres_integration.R`。
+- 工具链建议：在 `tests/` 现有守卫测试基础上，持续维护 PostgreSQL 隔离 schema 回归测试、`pool` 模式回归与 pre-commit 文档一致性校验；账号权限链路可优先参考 `tests/common/auth/test_auth_access_postgres_integration.R`。
 
 ## 4. 仓库目录结构
 
@@ -199,8 +203,10 @@ AutoTFL/
 │   ├── common/
 │   │   ├── analysis_format.R
 │   │   ├── analysis_shared.R
-│   │   ├── account_service.R
-│   │   ├── auth.R
+│   │   ├── auth/
+│   │   │   ├── account_service.R
+│   │   │   ├── auth.R
+│   │   │   └── email_service.R
 │   │   ├── data_filter.R
 │   │   ├── data_metadata.R
 │   │   ├── graphics_common.R
@@ -277,6 +283,8 @@ AutoTFL/
 - 这里所说的“后端服务层/服务域”优先指账号认证、权限、会话、workspace 与持久化服务，不指图形模块内部的 `server` 函数拆分；图形模块当前仍优先按 common helper 下沉，不单独引入新的图形 server 目录。
 - `modules/statistical_graphics_ui/` 用于图形 UI 壳层与公共控件，和 `modules/statistical_graphics/` 的 server/分析逻辑分离。
 - `tests/` 为统一测试目录，新增测试文件必须放在这里。
+- `tests/` 内部目录应尽量与项目结构同层语义对齐，例如 `tests/common/auth/`、`tests/statistical_analysis/`、`tests/statistical_graphics/`、`tests/nginx/landing/`、`tests/root/`；测试夹具统一收口到 `tests/fixtures/`。
+- `TEST_GUIDE.md` 为根目录测试索引文档，按项目架构维护测试归类；整体性测试说明优先收口到这里，不散落到 `tests/`。
 - `nginx/landing/index.html` 作为平台主 Landing，保持精简，只负责入口说明与跳转。
 - `nginx/landing/autotfl.html` 作为 AutoTFL 子页，承接功能产出、使用指南与结果示意。
 - `nginx/landing/style.css` 与 `nginx/landing/script.js` 为主 Landing 和 AutoTFL 子页共享静态资源，改动时需同时验证两页。
@@ -335,8 +343,8 @@ AutoTFL/
 | 文件                           | 核心职责                                | 当前作用                         |
 | ---------------------------- | ----------------------------------- | ---------------------------- |
 | `analysis_shared.R`          | 回归公共校验、交互项 P 值计算、统一结果整理             | Cox / Logistic / Linear 共享核心 |
-| `account_service.R`          | 用户、workspace、membership 与数据入口服务封装   | 管理员入口与数据模块复用服务层              |
-| `auth.R`                     | 注册、登录、密码摘要、权限过滤与管理员引导               | `app.R`、数据库管理、数据准备共享认证边界     |
+| `modules/common/auth/account_service.R` | 用户、workspace、membership 与数据入口服务封装   | 管理员入口、任务历史与数据模块复用服务层        |
+| `modules/common/auth/auth.R`            | 注册、登录、密码摘要、权限过滤、事务 helper 与管理员引导 | `app.R`、数据库管理、数据准备共享认证边界     |
 | `auth_manager.R`             | 登录/注册页面、认证交互与 loading 反馈            | 精简 `app.R` 并统一认证入口 UI        |
 | `workspace_access_manager.R` | owner 邮箱授权、撤销权限、invite 与 owner 迁移入口 | 用户自助管理自己拥有的数据空间权限            |
 | `analysis_format.R`          | 数值格式化、统计值格式化、复现代码模板                 | 控制结果显示和导出文案                  |
@@ -385,7 +393,7 @@ AutoTFL/
 | 复现代码    | `graphics_repro.R`                          | 为图形模块生成可复现代码片段                                                                                                                                                                                                                         |
 | UI 壳层   | `statistical_graphics_ui/common_ui_shell.R` | 统一页签容器、导出控件、主按钮样式，以及图形输出居中容器                                                                                                                                                                                                           |
 | 导出      | `plot_export.R`                             | 图形导出辅助能力                                                                                                                                                                                                                               |
-| 任务历史    | `task_history.R` + `account_service.R`      | 共享任务历史模块负责保存/加载入口、最近任务列表、用户自定义 note、删除操作与用户友好提示；底层使用 PostgreSQL `analysis_states` 表持久化图形子模块完整参数、UI 状态与模块类型 JSON 快照，不保存图对象、结果对象或原始数据副本；快照只保留业务参数，不应混入 DT/Plotly 等派生交互输入，也不应保存配置折叠/页签这类导航态；旧任务恢复时也要跳过这些临时字段，避免加载任务触发未定义列、过滤异常或动态 UI 异步崩溃 |
+| 任务历史    | `task_history.R` + `modules/common/auth/account_service.R` | 共享任务历史模块负责保存/加载入口、最近任务列表、用户自定义 note、删除操作与用户友好提示；底层使用 PostgreSQL `analysis_states` 表持久化图形子模块完整参数、UI 状态与模块类型 JSON 快照，不保存图对象、结果对象或原始数据副本；快照只保留业务参数，不应混入 DT/Plotly 等派生交互输入，也不应保存配置折叠/页签这类导航态；旧任务恢复时也要跳过这些临时字段，避免加载任务触发未定义列、过滤异常或动态 UI 异步崩溃 |
 
 ### 7.4 生存分析当前实现口径
 
@@ -691,40 +699,41 @@ AutoTFL/
 
 ### 11.1 当前测试范围
 
-`tests/` 目录当前已覆盖以下主题：
+当前测试已按项目架构整理到根目录 `TEST_GUIDE.md`，`PROJECT_GUIDE.md` 仅保留范围摘要：
 
-- 回归分析输入校验、稀疏数据和前后端一致性。
-- 注册登录、密码摘要与 workspace 权限过滤辅助逻辑。
-- 管理员入口、邮箱校验与文档边界守卫。
-- 数据元数据一致性与标签映射。
-- 生存分析中位生存时间、选择解析、view/committed 状态。
-- 图形公共进度、图例/颜色覆盖与 Waterfall 符号选择。
-- 计算层与渲染层解耦相关回归。
-- Landing 文案、访问控制边界与导入入口文案守卫。
-- 图形任务历史持久化守卫、analysis\_states 建表契约、以及 common UI 新增控件。
+- 全局与跨架构：文档守卫、访问边界、Landing 文案、运行脚本与部署脚本契约。
+- 认证与权限：注册登录 helper、邮箱投递、workspace 权限、管理员入口、`analysis_states` 契约与 PostgreSQL 集成测试。
+- 数据接入：数据元数据一致性、数据准备卡片与数据库管理布局守卫。
+- 统计分析：总入口布局、结果区、描述性统计、回归公式校验、稀疏数据、前后端一致性与纯函数解耦回归。
+- 统计图形：common UI、导出、字体、任务历史恢复、Survival / Forest / Waterfall 子模块契约。
+- 预设输出：Listing/导出契约，以及共享测试数据与少量历史专项验证脚本。
 
 ### 11.2 当前测试契约
 
-- 新增功能或修改现有逻辑时，测试文件统一放在 `tests/`。
+- 新增功能或修改现有逻辑时，测试文件统一放在 `tests/`，并按项目架构落到对应子目录。
+- 整体性测试文档统一维护在项目根目录 `TEST_GUIDE.md`；`tests/` 目录只放测试代码、测试数据和暂未标准化的专项验证脚本。
 - 共享层改动至少要补一条可回归的最小测试。
 - 图形或统计口径改动优先补“同口径断言”，避免只测 UI 是否渲染成功。
 - `run_app_test.ps1` 依赖 `.env.test`；仓库当前提供 `.env.test.example` 作为测试环境变量模板。`docker-compose.local.yml` 也直接读取 `.env.test` 作为 PostgreSQL 与管理员参数来源；本地若使用 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起 PostgreSQL，测试端口统一使用 `5432`。
 - `docker-compose1.yml` 当前定位为轻量测试基础设施栈：只启动 PostgreSQL 与 Redis，复用宿主机 `5432/6379`，供本机 `run_app.R` / `run_app_test.ps1` 直接连接，避免项目更新时因重建整套应用镜像影响业务测试节奏。
 - `run_app_test.ps1` 启动前会读取 `SHINY_PORT`（未设置时默认为 `8109`）；若该端口已被占用，脚本会强制关闭占用进程后再拉起应用（且会妥善处理进程在检测后已自行退出的并发情况）。
 - 账号/权限的 PostgreSQL 集成测试优先复用 `.env.test` 中的连接信息，并在隔离 schema 中建表、验证和清理，避免污染现有测试库数据。
-- 管理员页交互回归当前补充了按需启用的 `shinytest2` smoke test `tests/test_admin_manager_smoke_shinytest2.R`；仅在显式设置 `RUN_ADMIN_SMOKE=1` 且本地具备 `.env.test`、管理员账号与 `shinytest2` 依赖时执行。
-- 统计分析总入口当前补充了布局守卫 `tests/test_statistical_analysis_layout_guard.R`，用于约束公共卡片壳接入后继续保留结果区页签结构、导出入口与动态参数输出链路。
-- 统计分析子模块当前补充了 UI 守卫 `tests/test_statistical_analysis_submodule_ui_guard.R`，用于约束 `desc.R` 与 `cox.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
-- 统计分析回归类子模块当前补充了 UI 守卫 `tests/test_statistical_analysis_regression_submodule_ui_guard.R`，用于约束 `logistic.R` 与 `linear.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
-- 统计分析基础检验子模块当前补充了 UI 守卫 `tests/test_statistical_analysis_basic_submodule_ui_guard.R`，用于约束 `anova.R` 与 `chisq.R` 持续保留最小参数分区与公共壳 helper 接入。
-- 统计分析结果区当前补充了 UI 守卫 `tests/test_statistical_analysis_result_ui_guard.R`，用于约束结果 tab、空状态与导出说明块继续复用统一 helper。
+- 认证链路涉及事务时，除连接级集成测试外，还应至少保留一条 `pool` 模式回归测试，确认注册、验证码与密码相关写操作不会因 `dbWithTransaction()` / `poolWithTransaction()` 入口不匹配而产生假失败提示。
+- 管理员页交互回归当前补充了按需启用的 `shinytest2` smoke test `tests/admin_manager/test_admin_manager_smoke_shinytest2.R`；仅在显式设置 `RUN_ADMIN_SMOKE=1` 且本地具备 `.env.test`、管理员账号与 `shinytest2` 依赖时执行。
+- 统计分析总入口当前补充了布局守卫 `tests/statistical_analysis/ui/test_statistical_analysis_layout_guard.R`，用于约束公共卡片壳接入后继续保留结果区页签结构、导出入口与动态参数输出链路。
+- 统计分析子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_submodule_ui_guard.R`，用于约束 `desc.R` 与 `cox.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
+- 统计分析回归类子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_regression_submodule_ui_guard.R`，用于约束 `logistic.R` 与 `linear.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
+- 统计分析基础检验子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_basic_submodule_ui_guard.R`，用于约束 `anova.R` 与 `chisq.R` 持续保留最小参数分区与公共壳 helper 接入。
+- 统计分析结果区当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_result_ui_guard.R`，用于约束结果 tab、空状态与导出说明块继续复用统一 helper。
 - `run_auth_regression.ps1` 是当前账号模块的统一回归入口；脚本会先校验 `.env.test` 中的 PostgreSQL 与管理员变量，再顺序执行账号 helper、文档守卫与 PostgreSQL 集成测试。
+- `check_test_guide_index.R` 是当前测试索引一致性校验入口，用于比对 `tests/` 实际文件与 `TEST_GUIDE.md` 是否一致；调整测试目录或新增测试后应至少执行一次。
 - 当前仓库已补充 `.pre-commit-config.yaml` 与 `.lintr`，用于在提交前串联 `styler`、`lintr` 与 `tests/` 守卫；`install_dependencies.R` 也已纳入 `jsonlite`、`lintr`、`styler`、`shinytest2` 开发依赖入口。
 
 ### 11.3 当前缺口
 
 - 尚未形成完整的部署文档自动校验。
 - 文档与实现一致性巡检目前仍以轻量守卫脚本为主；账号模块已形成 `run_auth_regression.ps1` 统一测试入口，其它模块后续可按同样方式收口。
+- `tests/` 目录中仍有少量历史脚本式验证文件（如标签映射、缩进专项排查）未完全收口为标准 `testthat` 套件，后续应继续标准化。
 - `MMRM`、`MI` 等占位菜单没有对应测试，因为尚未落地。
 
 ## 12. 当前未落地项与路线图
@@ -791,6 +800,7 @@ AutoTFL/
 ### 14.3 当前文档维护建议
 
 - `PROJECT_GUIDE.md` 负责“全局开发事实”。
+- `TEST_GUIDE.md` 负责“测试资产按架构归类后的总索引”，新增测试或调整归属时需同步维护。
 - 部署细节文档应与 `deploy/alicloud/README.md` 同步清理，避免路径和流程分叉。
 - 后续可新增轻量文档巡检脚本，校验关键文件、compose 文件和入口 URL 是否与本文档一致。
 - 图形模块后续新增输出样式时，应优先检查是否已接入统一画布配置；尚未切换到公共画布层的模块，需在下一轮收敛中补齐页面距、导出高度同步与居中容器。
@@ -803,3 +813,4 @@ AutoTFL/
 文档校验基线：2026-04-14\
 校验范围：仓库结构、核心模块、部署编排、共享层、测试目录\
 状态说明：本文仅记录当前仓库已实现或已明确暴露的能力
+

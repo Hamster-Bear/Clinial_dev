@@ -1,0 +1,73 @@
+test_find_project_root <- function() {
+  args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- "--file="
+  script_path <- sub(file_arg, "", args[grep(file_arg, args)])
+  script_path <- if (length(script_path) > 0) script_path[[1]] else ""
+  start_candidates <- unique(c(
+    if (nzchar(script_path)) dirname(normalizePath(script_path, winslash = "/", mustWork = FALSE)) else character(0),
+    normalizePath(getwd(), winslash = "/", mustWork = FALSE)
+  ))
+
+  for (candidate in start_candidates) {
+    current <- candidate
+    repeat {
+      if (file.exists(file.path(current, "app.R")) &&
+          dir.exists(file.path(current, "modules")) &&
+          dir.exists(file.path(current, "tests"))) {
+        return(normalizePath(current, winslash = "/", mustWork = TRUE))
+      }
+      parent <- dirname(current)
+      if (identical(parent, current)) break
+      current <- parent
+    }
+  }
+
+  stop("无法定位项目根目录。", call. = FALSE)
+}
+
+project_root <- test_find_project_root()
+setwd(file.path(project_root, "tests"))
+args <- commandArgs(trailingOnly = FALSE)
+file_arg <- "--file="
+script_path <- sub(file_arg, "", args[grep(file_arg, args)])
+script_dir <- dirname(normalizePath(script_path, winslash = "/", mustWork = FALSE))
+project_root <- test_find_project_root()
+
+read_utf8 <- function(...) {
+  file_path <- file.path(project_root, ...)
+  if (length(file_path) == 0 || !file.exists(file_path)) return("")
+  paste(readLines(file_path, encoding = "UTF-8", warn = FALSE), collapse = "\n")
+}
+
+database_manager_text <- read_utf8("modules", "database_manager.R")
+if (!nzchar(database_manager_text)) return(invisible(NULL))
+
+expect_contains <- function(text, pattern, label) {
+  if (!grepl(pattern, text, perl = TRUE)) {
+    stop(sprintf("缺少预期内容: %s", label), call. = FALSE)
+  }
+}
+
+expect_contains(database_manager_text, "title = \"数据空间工作台\"", "数据库管理页主标题")
+expect_contains(database_manager_text, "app_card_dependencies\\(\\)", "数据库管理页加载公共卡片依赖")
+expect_contains(database_manager_text, "app_card_note\\(", "数据库管理页使用公共说明块")
+expect_contains(database_manager_text, "app_stat_card\\(", "数据库管理页使用公共摘要卡")
+expect_contains(database_manager_text, "uiOutput\\(ns\\(\"db_context_summary\"\\)\\)", "数据库管理页上下文摘要")
+expect_contains(database_manager_text, "uiOutput\\(ns\\(\"db_gate_content\"\\)\\)", "数据库管理页访问锁内容输出")
+expect_contains(database_manager_text, "tabBox\\(", "数据库管理页使用标签页布局")
+expect_contains(database_manager_text, "\"空间与目录\"", "数据库管理页空间与目录标签")
+expect_contains(database_manager_text, "\"上传与导入\"", "数据库管理页上传与导入标签")
+expect_contains(database_manager_text, "\"结构总览\"", "数据库管理页结构总览标签")
+expect_contains(database_manager_text, "title = \"数据空间\"", "数据库管理页数据空间区块")
+expect_contains(database_manager_text, "title = \"目录管理\"", "数据库管理页目录区块")
+expect_contains(database_manager_text, "title = \"数据集管理\"", "数据库管理页数据集区块")
+expect_contains(database_manager_text, "数据库管理已锁定", "数据库管理页锁定提示标题")
+expect_contains(database_manager_text, "前往“数据准备”页临时上传单个文件用于当前会话分析", "数据库管理页锁定态临时上传说明")
+expect_contains(database_manager_text, "前往数据准备页", "数据库管理页锁定态跳转按钮")
+expect_contains(database_manager_text, "li\\[data-value='data_prep'\\]", "数据库管理页锁定态跳转到数据准备页")
+expect_contains(database_manager_text, "refresh_workspace_choices <- function\\(selected = NULL\\)", "数据库管理页保留 workspace 选择值")
+expect_contains(database_manager_text, "observeEvent\\(input\\$workspace_select", "数据库管理页 workspace 切换单独监听")
+expect_contains(database_manager_text, "output\\$db_context_summary <- renderUI\\(", "数据库管理页上下文摘要服务")
+
+cat("Database manager layout guard passed.\n")
+

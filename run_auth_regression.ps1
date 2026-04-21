@@ -99,13 +99,13 @@ Write-Host "AUTH_PASSWORD_RESET_EXPIRE_MINUTES=$env:AUTH_PASSWORD_RESET_EXPIRE_M
 Write-Host "Rscript=$RScriptPath"
 
 $testScripts = @(
-  "tests/test_email_service_helpers.R",
-  "tests/test_auth_helpers.R",
-  "tests/test_account_service_helpers.R",
-  "tests/test_workspace_access_manager_guard.R",
-  "tests/test_access_boundary_guard.R",
-  "tests/test_project_docs_guard.R",
-  "tests/test_auth_access_postgres_integration.R"
+  "tests/common/auth/test_email_service_helpers.R",
+  "tests/common/auth/test_auth_helpers.R",
+  "tests/common/auth/test_account_service_helpers.R",
+  "tests/workspace_access_manager/test_workspace_access_manager_guard.R",
+  "tests/root/test_access_boundary_guard.R",
+  "tests/root/test_project_docs_guard.R",
+  "tests/common/auth/test_auth_access_postgres_integration.R"
 )
 
 foreach ($script in $testScripts) {
@@ -114,3 +114,4 @@ foreach ($script in $testScripts) {
 
 Write-Host "`n账号模块回归测试全部通过。" -ForegroundColor Green
 exit 0
+

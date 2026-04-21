@@ -43,8 +43,14 @@ AutoTFL 旨在为医学和临床数据分析提供一套自动化、可复现的
 - **森林图参考线语义边界**: `参考线` 页签只承载参考线语义，并统一走公共参考线控件；参考线位置、颜色、线型、线宽必须真实传递到绘图层。误差线宽和端帽长度属于图层样式参数，不属于参考线参数。
 - **森林图目标目录收口**: 为保持 `modules/statistical_graphics/` 目录干净，森林图后续按“1 个模块主文件 + 4 个 common helper 文件”推进，不再在 `modules/statistical_graphics/` 下继续新增辅助文件。目标 helper 归档到 `modules/common/graphics/`，暂定拆分为 `forest_table_state_helpers.R`、`forest_result_schema_helpers.R`、`forest_model_helpers.R`、`forest_analysis_pipeline.R`。
 - **common 目标归类**: `modules/common/` 后续按 `auth / data / analysis / graphics / export` 五类清爽收口。这里的“后端服务域”优先指账号认证、权限、会话、workspace 与持久化服务，而不是图形模块内部 `server` 函数拆分。
+- **auth 服务域已落地**: 用户登录、注册、邮箱投递、workspace 授权与任务历史相关的共享后端能力，当前统一收口到 `modules/common/auth/`，至少包含 `auth.R`、`account_service.R`、`email_service.R`；新增认证/用户管理通用逻辑默认继续进入该目录，不再回铺到 `modules/common/` 根目录。
 - **森林图图形 server 拆分暂缓**: 当前只收紧 helper 与目录声明，不直接改动图形模块内部 `server` 实现；后续若拆后端服务域，也优先进入 `modules/common/auth/` 等服务域目录，不再单独新增图形专属的 server 目录层级。
 - **测试执行策略**: 对长输出守卫测试或联调脚本，优先采用“静态定位 + 最小验证”流程：先用代码检索定位失败范围，再使用 `testthat::test_file(..., reporter = "summary")` 执行目标测试文件，避免整份长输出脚本占满终端或造成沙盒卡住。
+- **测试文档归类**: 整体性测试说明统一收口到根目录 `TEST_GUIDE.md`，按项目架构维护测试索引；`tests/` 目录只放测试代码、测试数据与少量待标准化的专项验证脚本，内部优先按项目结构分层到 `common / statistical_analysis / statistical_graphics / root / fixtures` 等同层语义目录。
+- **测试索引校验**: 调整测试目录或新增测试后，需通过 `check_test_guide_index.R` 或对应守卫测试校验 `TEST_GUIDE.md` 与 `tests/` 实际文件是否一致，避免文档与目录漂移。
+- **认证事务兼容边界**: 认证链路中的事务型写操作必须统一复用 `auth_with_transaction()`；应用运行时若传入 `pool::dbPool()`，内部需走 `pool::poolWithTransaction()`，测试脚本或迁移脚本传入普通连接时继续兼容 `DBI::dbWithTransaction()`，避免注册、邮箱验证、邮箱换绑与密码重置出现“实际已成功写入但界面误报失败”。
+- **用户管理事务边界**: workspace 创建、成员授权、Owner 迁移、邀请登记/领取、账号状态开关、数据空间功能开关与任务历史覆盖保存等多步或状态型写操作，必须从 service 层进入并复用共享事务 helper；UI 层不得重新拼装事务细节。
+- **认证回归补充要求**: 账号与认证回归除连接级 PostgreSQL 集成测试外，还应至少保留一条最小 `pool` 模式集成测试，优先覆盖注册及其他事务型写操作，防止 `pool` / 普通连接两条运行路径行为分叉。
 
 ## 3.1 研发工具链
 
@@ -59,6 +65,7 @@ AutoTFL 旨在为医学和临床数据分析提供一套自动化、可复现的
 - 普通用户默认按个人 Workspace 隔离；仅能访问自己拥有或被授权的数据空间。
 - 普通用户未开通数据空间功能时，仅允许单文件临时上传；上传数据只用于当前会话分析，不写入持久化数据空间。
 - 新注册账号当前允许先注册并直接登录；邮箱验证改为登录后的用户信息区自助完成，验证码默认 6 位，测试环境通过 `EMAIL_DELIVERY_MODE=console` 暴露，生产环境需在接入真实邮件投递后再开启外发。
+- 认证相关事务写操作必须同时兼容应用运行时的 `pool` 和测试/脚本中的普通连接；新增注册、验证码、密码或用户状态相关写逻辑时，不得直接对 `pool` 调用 `DBI::dbWithTransaction()`。
 - 登录页底部应将“注册账号 / 忘记密码”呈现为更明显的按钮式次级操作；登录后的侧边栏应提供统一“用户和权限”入口，其中左侧只保留基础用户信息与少量信息变更控件，如绑定邮箱、邮箱换绑和修改密码。右侧按权限分支展示：Owner 显示 workspace 协作权限管理卡，被授予 viewer/editor 的普通用户显示“我的已授权空间”信息卡，且无可管理空间时必须展示非空态说明。
 - 认证页、账号设置区与系统管理页的新增 UI 默认必须复用 `modules/common/ui_shell.R` 的公共卡片壳、说明块与按钮语言；若确需偏离，必须先更新规范文档并同步守卫测试。
 - 密码重置默认采用 6 位重置验证码闭环；测试环境通过 `EMAIL_DELIVERY_MODE=console` 暴露，过期时间由 `AUTH_PASSWORD_RESET_EXPIRE_MINUTES` 控制，生产环境需在接入真实邮件投递后再对外开放。
