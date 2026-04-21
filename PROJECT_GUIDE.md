@@ -191,8 +191,10 @@
 - 项目风险：owner 自助授权已开放给创建者，后续若扩展共享协作，需要同步补齐审计日志与异常回滚策略。
 - 立即可做：继续沿 `modules/common/auth/` 服务域补齐剩余认证/用户管理 service 拆分，并在管理员状态调整、邀请领取、Owner 迁移等链路维持 `pool` 模式回归。
 - 立即可做：补充 service 层数据库集成测试，覆盖授权、撤销、owner 迁移、invite 领取与 workspace 删除链路，并验证数据库管理新布局与数据库管理锁的可用性。
+- 立即可做：将 `run_auth_regression.ps1` 继续收口为清单驱动入口，统一从 `tests/common/auth/auth_regression_manifest.json` 读取固定顺序，减少后续新增认证测试时的手工同步成本。
 - 中长期建议：引入邮箱验证、邀请有效期、组织级 / 项目级协作模型与更细粒度权限矩阵。
-- 工具链建议：在 `tests/` 现有守卫测试基础上，持续维护 PostgreSQL 隔离 schema 回归测试、`pool` 模式回归与 pre-commit 文档一致性校验；账号权限链路可优先参考 `tests/common/auth/test_auth_access_postgres_integration.R`。
+- 中长期建议：继续将 `tests/.../legacy/` 下的脚本式验证迁移为标准 `testthat` 用例，并回收到对应模块主目录，逐步消除长期并行维护成本。
+- 工具链建议：在 `tests/` 现有守卫测试基础上，持续维护 PostgreSQL 隔离 schema 回归测试、`pool` 模式回归与 pre-commit 文档一致性校验；账号权限链路可优先参考 `tests/common/auth/test_auth_access_postgres_integration.R`，并将 `check_test_guide_index.R` 作为固定质量闸门。
 
 ## 4. 仓库目录结构
 
@@ -725,15 +727,15 @@ AutoTFL/
 - 统计分析回归类子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_regression_submodule_ui_guard.R`，用于约束 `logistic.R` 与 `linear.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
 - 统计分析基础检验子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_basic_submodule_ui_guard.R`，用于约束 `anova.R` 与 `chisq.R` 持续保留最小参数分区与公共壳 helper 接入。
 - 统计分析结果区当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_result_ui_guard.R`，用于约束结果 tab、空状态与导出说明块继续复用统一 helper。
-- `run_auth_regression.ps1` 是当前账号模块的统一回归入口；脚本会先校验 `.env.test` 中的 PostgreSQL 与管理员变量，再顺序执行账号 helper、文档守卫与 PostgreSQL 集成测试。
+- `run_auth_regression.ps1` 是当前账号模块的统一回归入口；脚本会先校验 `.env.test` 中的 PostgreSQL 与管理员变量，再根据 `tests/common/auth/auth_regression_manifest.json` 顺序执行账号 helper、文档守卫与 PostgreSQL 集成测试。
 - `check_test_guide_index.R` 是当前测试索引一致性校验入口，用于比对 `tests/` 实际文件与 `TEST_GUIDE.md` 是否一致；调整测试目录或新增测试后应至少执行一次。
-- 当前仓库已补充 `.pre-commit-config.yaml` 与 `.lintr`，用于在提交前串联 `styler`、`lintr` 与 `tests/` 守卫；`install_dependencies.R` 也已纳入 `jsonlite`、`lintr`、`styler`、`shinytest2` 开发依赖入口。
+- 当前仓库已补充 `.pre-commit-config.yaml` 与 `.lintr`，用于在提交前串联 `styler`、`lintr`、`check_test_guide_index.R` 与 `tests/` 守卫；`install_dependencies.R` 也已纳入 `jsonlite`、`lintr`、`styler`、`shinytest2` 开发依赖入口。
 
 ### 11.3 当前缺口
 
 - 尚未形成完整的部署文档自动校验。
 - 文档与实现一致性巡检目前仍以轻量守卫脚本为主；账号模块已形成 `run_auth_regression.ps1` 统一测试入口，其它模块后续可按同样方式收口。
-- `tests/` 目录中仍有少量历史脚本式验证文件（如标签映射、缩进专项排查）未完全收口为标准 `testthat` 套件，后续应继续标准化。
+- `tests/` 目录中仍有少量历史脚本式验证文件（当前主要位于 `tests/statistical_analysis/regression/legacy/` 与 `tests/statistical_graphics/survival/legacy/`）未完全收口为标准 `testthat` 套件，后续应继续标准化。
 - `MMRM`、`MI` 等占位菜单没有对应测试，因为尚未落地。
 
 ## 12. 当前未落地项与路线图

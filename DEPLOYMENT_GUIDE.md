@@ -240,7 +240,7 @@ AutoTFL/
 - 项目风险：owner 自助授权会提升协作效率，但也放大误授权与误迁移带来的运维成本。
 - 立即可做：为 service 层增加 PostgreSQL 集成回归，并在部署前把管理员账号、邮箱配置和测试库连通性纳入检查清单，同时验证数据库管理新布局与数据库管理锁的可达性。
 - 中长期建议：补齐邮箱验证、邀请有效期、审计日志和组织级 / 项目级共享模型。
-- 工具链建议：将 `tests/` 回归、文档守卫和环境变量自检串入 pre-commit 或 CI，减少部署前口径漂移。
+- 工具链建议：将 `tests/` 回归、文档守卫、`check_test_guide_index.R` 与环境变量自检串入 pre-commit 或 CI，减少部署前口径漂移。
 
 ## 5. 方案 A：本地直接运行
 
@@ -265,7 +265,7 @@ AutoTFL/
 - 统计分析结果区当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_result_ui_guard.R`，用于约束结果 tab、空状态与导出说明块继续复用统一 helper。
 - 当前测试环境管理员示例为 `APP_ADMIN_USERNAME=admin`、`APP_ADMIN_EMAIL=admin@example.com`、`APP_ADMIN_PASSWORD=admin123`。
 - 账号/权限 PostgreSQL 集成测试会直接复用 `.env.test` 中的数据库连接，并在隔离 schema 中执行建表、验证与清理；测试库应预留建 schema 权限。
-- 发布前可执行 `run_auth_regression.ps1` 作为账号模块统一回归入口；脚本会先校验 `.env.test`，再顺序执行账号 helper、边界守卫、文档守卫与 PostgreSQL 集成测试。
+- 发布前可执行 `run_auth_regression.ps1` 作为账号模块统一回归入口；脚本会先校验 `.env.test`，再根据 `tests/common/auth/auth_regression_manifest.json` 的固定顺序执行账号 helper、边界守卫、文档守卫与 PostgreSQL 集成测试。
 
 ### 5.2 启动链路
 

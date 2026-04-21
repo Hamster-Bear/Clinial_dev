@@ -1,0 +1,33 @@
+{
+  "description": "账号与权限统一回归清单，按固定顺序执行。",
+  "tests": [
+    {
+      "path": "tests/common/auth/test_email_service_helpers.R",
+      "purpose": "邮箱服务 helper"
+    },
+    {
+      "path": "tests/common/auth/test_auth_helpers.R",
+      "purpose": "认证 helper"
+    },
+    {
+      "path": "tests/common/auth/test_account_service_helpers.R",
+      "purpose": "账号 service helper"
+    },
+    {
+      "path": "tests/workspace_access_manager/test_workspace_access_manager_guard.R",
+      "purpose": "workspace 协作边界"
+    },
+    {
+      "path": "tests/root/test_access_boundary_guard.R",
+      "purpose": "访问边界守卫"
+    },
+    {
+      "path": "tests/root/test_project_docs_guard.R",
+      "purpose": "文档守卫"
+    },
+    {
+      "path": "tests/common/auth/test_auth_access_postgres_integration.R",
+      "purpose": "PostgreSQL 集成测试"
+    }
+  ]
+}

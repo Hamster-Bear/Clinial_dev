@@ -11,6 +11,11 @@ repos:
         entry: Rscript -e "results <- c(lintr::lint('app.R'), lintr::lint('run_app.R'), lintr::lint('install_dependencies.R'), lintr::lint_dir('modules'), lintr::lint_dir('tests')); if (length(results) > 0) { print(results); quit(status = 1) }"
         language: system
         pass_filenames: false
+      - id: r-test-guide-index
+        name: r-test-guide-index
+        entry: Rscript check_test_guide_index.R
+        language: system
+        pass_filenames: false
       - id: r-testthat-guards
         name: r-testthat-guards
         entry: Rscript -e "testthat::test_dir('tests', reporter = 'summary')"

@@ -50,6 +50,7 @@ test_that("核心规范文档必须存在于项目根目录", {
     "DEPLOYMENT_GUIDE.md",
     "TEST_GUIDE.md",
     "check_test_guide_index.R",
+    file.path("tests", "common", "auth", "auth_regression_manifest.json"),
     "AI prompt.md"
   )
   

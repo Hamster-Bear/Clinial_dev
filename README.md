@@ -119,7 +119,7 @@ Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README
 - 统计分析回归类子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_regression_submodule_ui_guard.R`，用于约束 `logistic.R` 与 `linear.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
 - 统计分析基础检验子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_basic_submodule_ui_guard.R`，用于约束 `anova.R` 与 `chisq.R` 持续保留最小参数分区与公共壳 helper 接入。
 - 统计分析结果区当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_result_ui_guard.R`，用于约束结果 tab、空状态与导出说明块继续复用统一 helper。
-- 发布前可执行 `run_auth_regression.ps1` 作为账号模块统一回归入口；脚本会校验 `.env.test` 中的 PostgreSQL 与管理员变量，并顺序运行账号 helper、文档守卫和 PostgreSQL 集成测试。
+- 发布前可执行 `run_auth_regression.ps1` 作为账号模块统一回归入口；脚本会校验 `.env.test` 中的 PostgreSQL 与管理员变量，并按 `tests/common/auth/auth_regression_manifest.json` 的固定顺序运行账号 helper、文档守卫和 PostgreSQL 集成测试。
 
 ### 当前阶段风险与优化建议
 
@@ -128,7 +128,7 @@ Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README
 - 项目风险：owner 迁移与协作能力已进入主流程，若后续继续扩展共享模型，需要尽快补齐审计日志与操作留痕。
 - 立即可做：补充 membership / invite / owner 迁移的数据库级集成测试，并明确 `viewer` / `editor` 的读写边界；继续验证新数据库管理布局与数据库管理锁在高频操作下的可达性。
 - 中长期建议：引入邮箱验证、邀请有效期、操作审计日志，并评估组织级 / 项目级协作模型。
-- 工具链建议：在现有 `tests/` 守卫测试之外持续维护基于 PostgreSQL 测试库的自动化回归，并把 `run_auth_regression.ps1` 纳入发布前固定校验入口。
+- 工具链建议：在现有 `tests/` 守卫测试之外持续维护基于 PostgreSQL 测试库的自动化回归，并把 `run_auth_regression.ps1` 与 `check_test_guide_index.R` 一并纳入发布前固定校验入口。
 
 ## 依赖管理
 

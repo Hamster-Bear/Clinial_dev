@@ -137,6 +137,7 @@
 
 - 账号与权限链路:
   - `run_auth_regression.ps1`
+  - `tests/common/auth/auth_regression_manifest.json`
 - 本地应用联调与集成回归:
   - `run_app_test.ps1`
 - 测试索引一致性校验:
@@ -157,6 +158,15 @@
 - 在本文件登记该测试的架构归属、完整相对路径，以及它属于 UI 守卫、契约测试、集成测试还是专项回归。
 - 若测试依赖夹具、示例数据、环境变量、数据库 schema 或管理员账号，需同步登记依赖前置条件。
 - 若测试被纳入统一回归入口，如 `run_auth_regression.ps1`，需同步更新脚本列表与对应契约测试。
+- `run_auth_regression.ps1` 当前通过 `tests/common/auth/auth_regression_manifest.json` 读取固定执行顺序；新增或移除认证链路测试时，需同步更新清单与契约测试。
 - 若测试路径被产品文档、部署文档或守卫测试引用，需同步更新 `README.md`、`PROJECT_GUIDE.md`、`DEPLOYMENT_GUIDE.md` 与相关守卫断言。
 - 调整测试目录后，至少执行一次 `check_test_guide_index.R` 或对应守卫测试，确认 `TEST_GUIDE.md` 与 `tests/` 实际文件保持一致。
 
+## 7. Legacy 收口计划
+
+- 当前 `legacy` 目录仅保留两类历史脚本式验证：
+  - `tests/statistical_analysis/regression/legacy/test_indent_issue.R`
+  - `tests/statistical_graphics/survival/legacy/test_label_mapping.R`
+- 迁移目标：逐步改写为标准 `testthat` 用例，并移动回对应模块主目录，避免长期保留“脚本式验证”分支。
+- 迁移优先级：先迁移被业务逻辑频繁触达、且已经有相邻 `testthat` 套件可复用夹具的文件。
+- 迁移完成后：从 `legacy/` 移除原脚本，同时更新本文件索引、相关回归入口和守卫断言。
