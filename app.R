@@ -172,7 +172,7 @@ ui <- dashboardPage(
     auth_manager_styles(),
     tags$head(
       tags$title("Hamster Analysis · AutoTFL"),
-      tags$link(rel = "stylesheet", type = "text/css", href = "style.css"),
+      includeCSS("style.css"),
       tags$style(HTML("
         #shiny-notification-panel {
           top: auto !important;
@@ -409,22 +409,19 @@ server <- function(input, output, session) {
 
   update_step_status <- function(step, status) {
     selector <- paste0('[data-value="', step, '"]')
+    selector_js <- jsonlite::toJSON(selector, auto_unbox = TRUE)
     if (status == "accessible") {
       shinyjs::enable(selector = selector)
-      shinyjs::runjs(paste0('
-        $("', selector, '").find(".badge")
-          .removeClass("bg-black")
-          .addClass("bg-blue")
-          .text("可访问");
-      '))
+      shinyjs::runjs(sprintf(
+        '$(%s).find(".badge").removeClass("bg-black").addClass("bg-blue").text("可访问");',
+        selector_js
+      ))
     } else {
       shinyjs::disable(selector = selector)
-      shinyjs::runjs(paste0('
-        $("', selector, '").find(".badge")
-          .removeClass("bg-blue")
-          .addClass("bg-black")
-          .text("需数据");
-      '))
+      shinyjs::runjs(sprintf(
+        '$(%s).find(".badge").removeClass("bg-blue").addClass("bg-black").text("需数据");',
+        selector_js
+      ))
     }
   }
 

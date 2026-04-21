@@ -197,6 +197,26 @@ service_list_manageable_workspaces <- function(pool, user) {
   )
 }
 
+service_list_accessible_workspaces <- function(pool, user) {
+  if (is.null(user)) {
+    return(data.frame())
+  }
+  DBI::dbGetQuery(
+    pool,
+    paste(
+      "SELECT w.id, w.name, w.owner_user_id, w.created_at AS workspace_created_at,",
+      "wm.role, wm.created_at AS membership_created_at,",
+      "owner_user.username AS owner_username, owner_user.email AS owner_email",
+      "FROM workspace_memberships wm",
+      "JOIN workspaces w ON w.id = wm.workspace_id",
+      "LEFT JOIN users owner_user ON owner_user.id = w.owner_user_id",
+      "WHERE wm.user_id = $1 AND wm.role IN ('viewer', 'editor')",
+      "ORDER BY wm.created_at DESC"
+    ),
+    params = list(user$id)
+  )
+}
+
 service_can_manage_workspace <- function(pool, workspace_id, user) {
   if (is.null(user) || !nzchar(workspace_id %||% "")) {
     return(FALSE)

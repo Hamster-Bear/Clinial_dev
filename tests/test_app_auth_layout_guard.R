@@ -23,8 +23,10 @@ expect_contains <- function(text, pattern, label) {
 expect_contains(app_text, "return\\(sidebarMenu\\(", "未登录侧边栏应立即返回登录注册菜单")
 expect_contains(app_text, "selected = \"login\"", "未登录侧边栏默认选中登录页")
 expect_contains(app_text, "title = \"Hamster Analysis · AutoTFL\"", "顶栏标题文本")
+expect_contains(app_text, "includeCSS\\(\"style\\.css\"\\)", "应用内联加载 style.css，避免静态路径 404")
 expect_contains(app_text, "uiOutput\\(\"sidebar_user_panel\"\\)", "侧边栏用户信息输出")
 expect_contains(app_text, "source\\(\"modules/common/email_service.R\"\\)", "应用加载邮件投递模块")
+expect_contains(app_text, "jsonlite::toJSON\\(selector, auto_unbox = TRUE\\)", "侧边栏步骤状态使用安全 JS 选择器转义")
 expect_contains(app_text, "sidebar-user-card", "侧边栏用户卡片样式")
 expect_contains(app_text, "sidebar-user-section-title", "侧边栏用户卡片分组标题样式")
 expect_contains(app_text, "sidebar-user-status-list", "侧边栏账号设置状态列表样式")
@@ -83,5 +85,6 @@ expect_not_contains(auth_manager_text, "auth_verify_email_code\\(", "认证页�
 expect_not_contains(auth_manager_text, "auth_resend_email_verification\\(", "认证页不再直接重发邮箱验证")
 expect_not_contains(app_text, "open_email_verify", "侧边栏不再保留邮箱验证弹窗入口")
 expect_not_contains(app_text, "open_email_change", "侧边栏不再保留邮箱换绑弹窗入口")
+expect_not_contains(app_text, "shinyjs::runjs\\(paste0\\('", "不再使用易出错的 runjs 直拼字符串")
 
 cat("App auth layout guard passed.\n")

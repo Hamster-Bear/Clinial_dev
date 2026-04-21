@@ -284,7 +284,7 @@ app_card_box <- function(...,
                          status = tone,
                          solidHeader = FALSE,
                          collapsible = FALSE) {
-  box(
+  shinydashboard::box(
     ...,
     width = width,
     title = app_card_title(title, subtitle = subtitle, tone = tone),

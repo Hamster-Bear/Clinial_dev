@@ -91,7 +91,7 @@ workspace_access_manager_server <- function(id, pg_pool, current_user = NULL, on
       if (is.null(current_user)) {
         return(NULL)
       }
-      isolate(current_user())
+      current_user()
     }
 
     update_current_user <- function(user) {
@@ -131,15 +131,42 @@ workspace_access_manager_server <- function(id, pg_pool, current_user = NULL, on
       )
     })
 
+    accessible_workspaces <- reactive({
+      user <- get_current_user()
+      if (is.null(user)) {
+        return(data.frame())
+      }
+      tryCatch(
+        service_list_accessible_workspaces(pg_pool, user),
+        error = function(e) {
+          empty_df <- data.frame(
+            id = character(),
+            name = character(),
+            role = character(),
+            owner_username = character(),
+            owner_email = character(),
+            membership_created_at = character(),
+            stringsAsFactors = FALSE
+          )
+          attr(empty_df, "load_error") <- paste0("已授权空间数据加载失败：", e$message)
+          empty_df
+        }
+      )
+    })
+
     output$access_notice <- renderUI({
       user <- get_current_user()
       if (is.null(user)) {
         return(app_card_note("请先登录后查看用户信息并管理数据空间权限。"))
       }
       workspace_df <- manageable_workspaces()
+      accessible_df <- accessible_workspaces()
       load_error <- attr(workspace_df, "load_error", exact = TRUE) %||% ""
-      note_text <- if (nzchar(load_error)) {
-        paste0("当前页面分为“用户信息”和“权限管理”两部分。权限管理数据暂时加载失败，已优先保留左侧用户信息与信息变更控件。", load_error)
+      accessible_error <- attr(accessible_df, "load_error", exact = TRUE) %||% ""
+      note_text <- if (nzchar(load_error) || nzchar(accessible_error)) {
+        paste0("当前页面分为“用户信息”和“权限管理”两部分。权限相关数据暂时加载失败，已优先保留左侧用户信息与信息变更控件。", load_error, accessible_error)
+      } else if (nrow(workspace_df) == 0 && nrow(accessible_df) > 0) {
+        "左侧用于查看基础用户信息与少量信息变更；你当前暂无可管理空间，但右侧会展示已被授予访问权限的数据空间与当前角色。"
       } else if (nrow(workspace_df) == 0) {
         "当前页面分为“用户信息”和“权限管理”两部分。即使当前没有可管理空间，你仍可以在左侧查看基础资料并完成邮箱相关信息变更。"
       } else {
@@ -153,10 +180,12 @@ workspace_access_manager_server <- function(id, pg_pool, current_user = NULL, on
       req(!is.null(user))
 
       workspace_df <- manageable_workspaces()
+      accessible_df <- accessible_workspaces()
       load_error <- attr(workspace_df, "load_error", exact = TRUE) %||% ""
+      accessible_error <- attr(accessible_df, "load_error", exact = TRUE) %||% ""
       workspace_choices <- if (nrow(workspace_df) > 0) setNames(workspace_df$id, workspace_df$name) else character(0)
 
-      right_column <- if (nzchar(load_error)) {
+      right_column <- if (nzchar(load_error) || nzchar(accessible_error)) {
         app_card_box(
           width = 12,
           title = "权限管理",
@@ -164,7 +193,20 @@ workspace_access_manager_server <- function(id, pg_pool, current_user = NULL, on
           tone = "danger",
           status = "danger",
           solidHeader = FALSE,
-          app_card_note(paste0("当前无法加载可管理空间与协作权限数据。", load_error, " 左侧用户信息仍可正常使用，请稍后重试或联系管理员检查数据连接。"))
+          app_card_note(paste0("当前无法加载可管理空间或已授权空间数据。", load_error, accessible_error, " 左侧用户信息仍可正常使用，请稍后重试或联系管理员检查数据连接。"))
+        )
+      } else if (nrow(workspace_df) == 0 && nrow(accessible_df) > 0) {
+        app_card_box(
+          width = 12,
+          title = "我的已授权空间",
+          subtitle = "查看当前被授予访问权限的数据空间与角色",
+          tone = "primary",
+          status = "primary",
+          solidHeader = FALSE,
+          app_card_note("当前账号不是这些数据空间的负责人，因此这里展示的是你被授予的访问权限信息，而不是成员管理表单。"),
+          app_card_panel(
+            DTOutput(session$ns("accessible_workspace_table"))
+          )
         )
       } else if (nrow(workspace_df) == 0) {
         app_card_box(
@@ -364,6 +406,41 @@ workspace_access_manager_server <- function(id, pg_pool, current_user = NULL, on
       access_data <- service_list_workspace_access(pg_pool, current_workspace_id())
       invites <- service_invite_preview_df(access_data$invites)
       datatable(invites, rownames = FALSE, options = list(pageLength = 6, scrollX = TRUE, dom = "tip"))
+    })
+
+    output$accessible_workspace_table <- renderDT({
+      refresh_tick()
+      accessible_df <- accessible_workspaces()
+      req(nrow(accessible_df) > 0)
+      role_label <- dplyr::case_when(
+        accessible_df$role == "editor" ~ "可编辑成员",
+        accessible_df$role == "viewer" ~ "只读成员",
+        TRUE ~ accessible_df$role %||% ""
+      )
+      owner_label <- ifelse(
+        nzchar(accessible_df$owner_email %||% ""),
+        accessible_df$owner_email,
+        accessible_df$owner_username %||% ""
+      )
+      joined_at <- if ("membership_created_at" %in% names(accessible_df)) {
+        format(as.POSIXct(accessible_df$membership_created_at), "%Y-%m-%d %H:%M")
+      } else {
+        rep("", nrow(accessible_df))
+      }
+      table_df <- data.frame(
+        数据空间 = accessible_df$name %||% character(0),
+        我的角色 = role_label,
+        负责人 = owner_label,
+        加入时间 = joined_at,
+        check.names = FALSE,
+        stringsAsFactors = FALSE
+      )
+      datatable(
+        table_df,
+        rownames = FALSE,
+        options = list(pageLength = 6, autoWidth = TRUE, dom = "tip"),
+        class = "stripe hover compact"
+      )
     })
 
     observeEvent(input$grant_access, {
