@@ -1,5 +1,6 @@
 user_profile_ui <- function(id) {
   ns <- NS(id)
+  copy <- ACCOUNT_ENTRY_COPY$profile
   tagList(
     app_card_dependencies(),
     tags$head(
@@ -8,50 +9,19 @@ user_profile_ui <- function(id) {
           display: grid;
           gap: 12px;
         }
-        .profile-inline-actions {
+        .profile-page-stack {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 10px;
-        }
-        .profile-status-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-          gap: 10px;
-        }
-        .profile-status-item {
-          padding: 10px 12px;
-          border-radius: 10px;
-          border: 1px solid #e8eef5;
-          background: #f8fbff;
-        }
-        .profile-status-label {
-          display: block;
-          margin-bottom: 4px;
-          color: #7b8794;
-          font-size: 12px;
-        }
-        .profile-status-value {
-          display: block;
-          color: #243447;
-          font-size: 14px;
-          font-weight: 600;
-          line-height: 1.5;
+          gap: 14px;
         }
         .profile-security-hint {
           color: #6b7785;
           font-size: 12px;
           line-height: 1.7;
         }
+        .profile-workbench-note {
+          margin-bottom: 12px;
+        }
       "))
-    ),
-    app_card_box(
-      width = 12,
-      title = "用户信息",
-      subtitle = "基础资料与少量信息变更",
-      tone = "primary",
-      status = "primary",
-      solidHeader = FALSE,
-      uiOutput(ns("profile_notice"))
     ),
     uiOutput(ns("profile_content"))
   )
@@ -60,6 +30,7 @@ user_profile_ui <- function(id) {
 user_profile_server <- function(id, pg_pool, current_user = NULL, on_user_updated = NULL) {
   moduleServer(id, function(input, output, session) {
     `%||%` <- function(x, y) if (is.null(x)) y else x
+    copy <- ACCOUNT_ENTRY_COPY$profile
 
     get_current_user <- function() {
       if (is.null(current_user)) {
@@ -74,86 +45,118 @@ user_profile_server <- function(id, pg_pool, current_user = NULL, on_user_update
       }
     }
 
+    build_profile_notice <- function(user) {
+      if (is.null(user)) {
+        return("请先登录后查看个人信息与账号设置。")
+      }
+      if (isTRUE(user$email_verified)) {
+        return("当前页仅保留基础用户信息与少量信息变更控件，如绑定邮箱、邮箱换绑和修改密码。")
+      }
+      "当前邮箱尚未验证，可在本页直接发送验证码并完成验证。邮箱验证不会阻断登录，但建议尽快完成，以便后续协作授权与邮箱换绑流程正常使用。"
+    }
+
     build_profile_content <- function(user) {
-      app_card_box(
-        width = 12,
-        title = "用户信息",
-        subtitle = "基础资料与少量信息变更",
-        tone = "info",
-        status = "info",
-        solidHeader = FALSE,
+      username_value <- user$username %||% ""
+      role_value <- if (isTRUE(user$is_admin)) "系统管理员" else "普通用户"
+      email_value <- if (nzchar(user$email %||% "")) user$email else "未设置邮箱"
+      email_status_value <- if (isTRUE(user$email_verified)) "已验证" else "未验证"
+      email_status_tone <- if (isTRUE(user$email_verified)) "success" else "warning"
+      email_status_meta <- if (isTRUE(user$email_verified)) {
+        "当前可直接用于协作授权与邮箱换绑。"
+      } else {
+        "建议先完成邮箱验证，避免后续协作与换绑流程受限。"
+      }
+
+      tagList(
         div(
-          class = "profile-panel-list",
-          app_card_panel(
-            tags$strong("基础信息"),
+          class = "profile-page-stack",
+          app_card_box(
+            width = 12,
+            title = copy$title,
+            subtitle = copy$subtitle,
+            tone = "primary",
+            status = "primary",
+            solidHeader = FALSE,
+            app_card_note(build_profile_notice(user)),
             div(
-              class = "profile-status-grid",
+              class = "app-stat-grid",
+              app_stat_card("用户名", username_value, meta = "当前登录账号", tone = "primary"),
+              app_stat_card("账号类型", role_value, meta = "系统角色与入口能力边界", tone = "info"),
+              app_stat_card("当前邮箱", email_value, meta = "账号主邮箱", tone = "primary"),
+              app_stat_card("邮箱状态", email_status_value, meta = email_status_meta, tone = email_status_tone)
+            )
+          ),
+          app_card_box(
+            width = 12,
+            title = copy$workbench_title,
+            subtitle = copy$workbench_subtitle,
+            tone = "info",
+            status = "info",
+            solidHeader = FALSE,
+            div(
+              class = "profile-workbench-note",
+              app_card_note("当前页将账号安全相关操作集中到同一张功能卡片中，减少纵向滚动和重复说明。")
+            )
+          ),
+          tabBox(
+            width = 12,
+            title = NULL,
+            id = session$ns("profile_action_tabs"),
+            tabPanel(
+              copy$tabs$verify_email,
               div(
-                class = "profile-status-item",
-                span(class = "profile-status-label", "用户名"),
-                span(class = "profile-status-value", user$username %||% "")
-              ),
+                class = "profile-panel-list",
+                app_card_panel(
+                  tags$strong("邮箱验证"),
+                  div(class = "profile-security-hint", "当前邮箱验证改为登录后自助完成；未验证时可先发送验证码，再输入验证码确认。"),
+                  textInput(session$ns("current_email_verify_code"), "验证码", placeholder = "请输入 6 位验证码"),
+                  div(
+                    class = "app-action-row",
+                    actionButton(session$ns("request_current_email_verify"), "发送验证码", class = "btn-info app-action-btn"),
+                    actionButton(session$ns("submit_current_email_verify"), "确认验证", class = "btn-primary app-action-btn")
+                  )
+                )
+              )
+            ),
+            tabPanel(
+              copy$tabs$change_email,
               div(
-                class = "profile-status-item",
-                span(class = "profile-status-label", "账号类型"),
-                span(class = "profile-status-value", if (isTRUE(user$is_admin)) "系统管理员" else "普通用户")
-              ),
+                class = "profile-panel-list",
+                app_card_panel(
+                  tags$strong("邮箱换绑"),
+                  div(class = "profile-security-hint", "如需更换邮箱，可在这里完成邮箱换绑。先输入当前密码与新邮箱，发送换绑验证码后再确认换绑。"),
+                  passwordInput(session$ns("change_email_current_password"), "当前密码", placeholder = "请输入当前密码"),
+                  textInput(session$ns("change_email_new_email"), "新邮箱", placeholder = "请输入新的邮箱地址"),
+                  textInput(session$ns("change_email_code"), "换绑验证码", placeholder = "请输入 6 位验证码"),
+                  div(
+                    class = "app-action-row",
+                    actionButton(session$ns("request_email_change_code"), "发送换绑验证码", class = "btn-info app-action-btn"),
+                    actionButton(session$ns("submit_email_change"), "确认换绑", class = "btn-primary app-action-btn")
+                  )
+                )
+              )
+            ),
+            tabPanel(
+              copy$tabs$change_password,
               div(
-                class = "profile-status-item",
-                span(class = "profile-status-label", "当前邮箱"),
-                span(class = "profile-status-value", if (nzchar(user$email %||% "")) user$email else "未设置邮箱")
-              ),
-              div(
-                class = "profile-status-item",
-                span(class = "profile-status-label", "邮箱状态"),
-                span(class = "profile-status-value", if (isTRUE(user$email_verified)) "已验证" else "未验证")
+                class = "profile-panel-list",
+                app_card_panel(
+                  tags$strong("修改密码"),
+                  div(class = "profile-security-hint", "通过当前密码验证后，直接在这里修改账号密码。该区域仅保留基础密码修改，不扩展其它账号管理能力。"),
+                  passwordInput(session$ns("password_change_current_password"), "当前密码", placeholder = "请输入当前密码"),
+                  passwordInput(session$ns("password_change_new_password"), "新密码", placeholder = "至少 8 位"),
+                  passwordInput(session$ns("password_change_confirm_password"), "确认新密码", placeholder = "请再次输入新密码"),
+                  div(
+                    class = "app-action-row",
+                    actionButton(session$ns("submit_password_change"), "修改密码", class = "btn-warning app-action-btn")
+                  )
+                )
               )
             )
-          ),
-          app_card_panel(
-            tags$strong("绑定邮箱"),
-            div(class = "profile-security-hint", "当前邮箱验证改为登录后自助完成；未验证时可先发送验证码，再输入验证码确认。"),
-            textInput(session$ns("current_email_verify_code"), "验证码", placeholder = "请输入 6 位验证码"),
-            div(
-              class = "profile-inline-actions",
-              actionButton(session$ns("request_current_email_verify"), "发送验证码", class = "btn-info", width = "100%"),
-              actionButton(session$ns("submit_current_email_verify"), "确认验证", class = "btn-primary", width = "100%")
-            )
-          ),
-          app_card_panel(
-            tags$strong("邮箱换绑"),
-            div(class = "profile-security-hint", "如需更换邮箱，可在这里完成邮箱换绑。先输入当前密码与新邮箱，发送换绑验证码后再确认换绑。"),
-            passwordInput(session$ns("change_email_current_password"), "当前密码", placeholder = "请输入当前密码"),
-            textInput(session$ns("change_email_new_email"), "新邮箱", placeholder = "请输入新的邮箱地址"),
-            textInput(session$ns("change_email_code"), "换绑验证码", placeholder = "请输入 6 位验证码"),
-            div(
-              class = "profile-inline-actions",
-              actionButton(session$ns("request_email_change_code"), "发送换绑验证码", class = "btn-info", width = "100%"),
-              actionButton(session$ns("submit_email_change"), "确认换绑", class = "btn-primary", width = "100%")
-            )
-          ),
-          app_card_panel(
-            tags$strong("修改密码"),
-            div(class = "profile-security-hint", "通过当前密码验证后，直接在这里修改账号密码。该区域仅保留基础密码修改，不扩展其它账号管理能力。"),
-            passwordInput(session$ns("password_change_current_password"), "当前密码", placeholder = "请输入当前密码"),
-            passwordInput(session$ns("password_change_new_password"), "新密码", placeholder = "至少 8 位"),
-            passwordInput(session$ns("password_change_confirm_password"), "确认新密码", placeholder = "请再次输入新密码"),
-            actionButton(session$ns("submit_password_change"), "修改密码", class = "btn-warning", width = "100%")
           )
         )
       )
     }
-
-    output$profile_notice <- renderUI({
-      user <- get_current_user()
-      if (is.null(user)) {
-        return(app_card_note("请先登录后查看个人信息与账号设置。"))
-      }
-      if (isTRUE(user$email_verified)) {
-        return(app_card_note("当前页仅保留基础用户信息与少量信息变更控件，如绑定邮箱、邮箱换绑和修改密码。"))
-      }
-      app_card_note("当前邮箱尚未验证，可在本页直接发送验证码并完成验证。邮箱验证不会阻断登录，但建议尽快完成，以便后续协作授权与邮箱换绑流程正常使用。")
-    })
 
     output$profile_content <- renderUI({
       user <- get_current_user()
@@ -163,8 +166,8 @@ user_profile_server <- function(id, pg_pool, current_user = NULL, on_user_update
         error = function(e) {
           app_card_box(
             width = 12,
-            title = "用户信息",
-            subtitle = "基础资料与少量信息变更",
+            title = copy$title,
+            subtitle = copy$subtitle,
             tone = "danger",
             status = "danger",
             solidHeader = FALSE,

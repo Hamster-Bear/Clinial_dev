@@ -30,6 +30,10 @@
       "purpose": "权限管理边界"
     },
     {
+      "path": "tests/account_access/test_account_access_smoke_shinytest2.R",
+      "purpose": "账号页聚合布局 smoke"
+    },
+    {
       "path": "tests/root/test_access_boundary_guard.R",
       "purpose": "访问边界守卫"
     },

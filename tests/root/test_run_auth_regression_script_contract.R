@@ -70,6 +70,7 @@ test_that("run_auth_regression.ps1 会校验环境并串联关键测试", {
   expect_match(manifest_txt, 'tests/account_access/test_sidebar_account_card_guard.R', fixed = TRUE)
   expect_match(manifest_txt, 'tests/account_access/test_user_profile_guard.R', fixed = TRUE)
   expect_match(manifest_txt, 'tests/account_access/test_permission_manager_guard.R', fixed = TRUE)
+  expect_match(manifest_txt, 'tests/account_access/test_account_access_smoke_shinytest2.R', fixed = TRUE)
   expect_match(manifest_txt, 'tests/root/test_access_boundary_guard.R', fixed = TRUE)
   expect_match(manifest_txt, 'tests/root/test_project_docs_guard.R', fixed = TRUE)
   expect_match(manifest_txt, 'tests/common/auth/test_auth_access_postgres_integration.R', fixed = TRUE)

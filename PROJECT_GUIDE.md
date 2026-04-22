@@ -140,6 +140,9 @@
 - 登录后的侧边栏当前保留“用户和权限”这一概念入口，但入口标签、卡片摘要与快捷按钮等对外展示文案，统一以 `modules/common/auth/auth_copy.R` 中的 `ACCOUNT_ENTRY_COPY` 为唯一源。`PROJECT_GUIDE.md` 只描述结构职责，不再重复维护按钮或摘要原句。结构上，侧边栏入口继续收口到个人信息卡；`user_profile` 只保留基础用户信息与少量信息变更控件，如绑定邮箱、邮箱换绑和修改密码；`access_permissions` 按权限分支展示协作权限或“我的已授权空间”，且无可管理空间时必须提供非空态说明。
 - 侧边栏个人信息卡必须由独立模块承载，并在模块内维护隐藏内部页签的 CSS 守卫；`user_profile` 与 `access_permissions` 仅作为内部路由存在，禁止再次直接暴露为侧边栏菜单项。
 - `用户信息` 与 `权限管理` 必须采用文件夹级模块拆分并分别独立输出、独立兜底，禁止再用单个 `renderUI` 同时包裹两类职责内容；权限查询异常或组件渲染失败时，不得影响用户信息页继续显示。
+- 账号页前端当前统一采用“概览优先 + 工作台聚合”布局：`user_profile` 首屏主卡需直接展示页面说明与账号概览统计，避免进入后只看到空标题卡；随后再用单一“安全与验证”工作台聚合邮箱验证、邮箱换绑与修改密码。`access_permissions` 顶部先展示空间/权限概览，再将成员协作、负责人迁移与成员/邀请预览集中到同一张协作工作台，降低纵向滚动与重复标题。
+- 账号页聚合布局的标题、工作台名称与标签页文案也应继续复用 `modules/common/auth/auth_copy.R`，避免新一轮前端优化后再次在 `user_profile.R`、`permission_manager.R` 与规范文档中平行维护相似文案。
+- 账号页工作台卡片中的动作按钮应与输入控件保持同一视觉节奏：默认使用公共紧凑动作区样式，优先横向紧凑排列并保留适度最小宽度，仅在窄屏下再自动切到整行堆叠，避免桌面端出现“按钮单独占满一个框”的割裂感。
 - 当前忘记密码已改为独立找回页：用户可申请 6 位重置验证码并完成重置；本地/测试环境同样通过 `EMAIL_DELIVERY_MODE=console` 输出验证码，过期时间由 `AUTH_PASSWORD_RESET_EXPIRE_MINUTES` 控制。
 - 当前已支持登录后邮箱换绑：用户需先输入当前密码，再向新邮箱发送 6 位换绑验证码，验证成功后才会正式切换主邮箱；换绑成功后应自动尝试认领该邮箱名下待领取的协作邀请。
 - 当前邮件投递已抽象为 `modules/common/auth/email_service.R`：默认保留 `console/disabled` 模式，并新增 `smtp` 模式；启用真实发信时需补齐 `EMAIL_FROM_ADDRESS`、`SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_USE_SSL`。
@@ -737,6 +740,7 @@ AutoTFL/
 - 账号/权限的 PostgreSQL 集成测试优先复用 `.env.test` 中的连接信息，并在隔离 schema 中建表、验证和清理，避免污染现有测试库数据。
 - 认证链路涉及事务时，除连接级集成测试外，还应至少保留一条 `pool` 模式回归测试，确认注册、验证码与密码相关写操作不会因 `dbWithTransaction()` / `poolWithTransaction()` 入口不匹配而产生假失败提示。
 - 管理员页交互回归当前补充了按需启用的 `shinytest2` smoke test `tests/admin_manager/test_admin_manager_smoke_shinytest2.R`；仅在显式设置 `RUN_ADMIN_SMOKE=1` 且本地具备 `.env.test`、管理员账号与 `shinytest2` 依赖时执行。
+- 账号页交互回归当前补充了按需启用的 `shinytest2` smoke test `tests/account_access/test_account_access_smoke_shinytest2.R`；仅在显式设置 `RUN_ACCOUNT_ACCESS_SMOKE=1` 且本地提供普通用户 smoke 账号环境变量时执行，用于验证登录后切换 `用户信息` / `权限管理` 以及聚合工作台可见性。
 - 统计分析总入口当前补充了布局守卫 `tests/statistical_analysis/ui/test_statistical_analysis_layout_guard.R`，用于约束公共卡片壳接入后继续保留结果区页签结构、导出入口与动态参数输出链路。
 - 统计分析子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_submodule_ui_guard.R`，用于约束 `desc.R` 与 `cox.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
 - 统计分析回归类子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_regression_submodule_ui_guard.R`，用于约束 `logistic.R` 与 `linear.R` 持续保留参数分区、动态输出与公共壳 helper 接入。

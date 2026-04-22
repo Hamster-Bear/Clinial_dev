@@ -51,6 +51,7 @@
   - `tests/account_access/test_sidebar_account_card_guard.R`
   - `tests/account_access/test_user_profile_guard.R`
   - `tests/account_access/test_permission_manager_guard.R`
+  - `tests/account_access/test_account_access_smoke_shinytest2.R`
   - `tests/common/auth/test_auth_access_postgres_integration.R`
 - `analysis_states` 契约:
   - `tests/common/auth/test_auth_analysis_states_schema_contract.R`
@@ -184,6 +185,7 @@
 - `run_auth_regression.ps1` 当前通过 `tests/common/auth/auth_regression_manifest.json` 读取固定执行顺序；新增或移除认证链路测试时，需同步更新清单与契约测试。
 - 账号设置与协作入口的 UI 守卫，优先验证“侧边栏个人信息卡快捷入口 + 隐藏页签接线 + 模块挂载”，不再把侧边栏菜单可见性作为主断言。
 - 账号入口展示文案调整后，除更新模块代码外，还需同步检查 `modules/common/auth/auth_copy.R`、对应守卫测试以及 `PROJECT_GUIDE.md` / `PROJECT_SPEC.md` 中的结构约束描述是否仍一致。
+- 账号页聚合布局若涉及标签页切换、卡片可见性或登录后真实跳转，优先补充 `shinytest2` smoke；当前 `tests/account_access/test_account_access_smoke_shinytest2.R` 仅在显式设置 `RUN_ACCOUNT_ACCESS_SMOKE=1` 且提供普通用户 smoke 账号环境变量时执行。
 - 若测试路径被产品文档、部署文档或守卫测试引用，需同步更新 `README.md`、`PROJECT_GUIDE.md`、`DEPLOYMENT_GUIDE.md` 与相关守卫断言。
 - 调整测试目录后，至少执行一次 `check_test_guide_index.R` 或对应守卫测试，确认 `TEST_GUIDE.md` 与 `tests/` 实际文件保持一致。
 

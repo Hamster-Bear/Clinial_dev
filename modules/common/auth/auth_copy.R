@@ -35,6 +35,37 @@ ACCOUNT_ENTRY_COPY <- list(
     workspace_manageable_prefix = "我创建并可管理的数据空间: ",
     workspace_accessible_prefix = "当前可访问的数据空间: "
   ),
+  profile = list(
+    title = "用户信息",
+    subtitle = "基础资料与少量信息变更",
+    overview_title = "账号概览",
+    overview_subtitle = "快速查看当前身份、邮箱与安全状态",
+    workbench_title = "安全与验证",
+    workbench_subtitle = "将验证邮箱、邮箱换绑与修改密码集中到同一工作台",
+    tabs = list(
+      verify_email = "验证邮箱",
+      change_email = "邮箱换绑",
+      change_password = "修改密码"
+    )
+  ),
+  permissions = list(
+    title = "权限管理",
+    subtitle = "数据空间协作与已授权空间",
+    accessible_title = "我的已授权空间",
+    accessible_subtitle = "集中查看当前被授予访问权限的数据空间与角色",
+    empty_title = "权限管理",
+    empty_subtitle = "当前暂无可管理空间或已授权空间",
+    workbench_title = "协作工作台",
+    workbench_subtitle = "将概览、成员协作、负责人迁移与预览集中到同一工作台",
+    tabs = list(
+      collaboration = "成员协作",
+      ownership = "负责人迁移",
+      members = "当前成员",
+      invites = "待领取邀请",
+      accessible = "已授权空间",
+      usage = "使用说明"
+    )
+  ),
   doc_rule = paste(
     "账号入口对外展示文案以 modules/common/auth/auth_copy.R 中 ACCOUNT_ENTRY_COPY 为唯一源；",
     "PROJECT_GUIDE.md、PROJECT_SPEC.md 等规范文档只描述结构职责，不重复维护按钮或摘要原句。"

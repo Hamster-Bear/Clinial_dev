@@ -126,6 +126,7 @@ Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README
 - `docker-compose1.yml` 当前收口为轻量测试基础设施栈，只启动 PostgreSQL 与 Redis，并复用宿主机 `5432/6379`；用于项目更新期间避免反复重建整套应用镜像时，仍可让本机 `run_app.R` / `run_app_test.ps1` 直接连库跑业务测试。
 - 账号与权限模块已补充 PostgreSQL 集成测试 `tests/common/auth/test_auth_access_postgres_integration.R`；测试会优先读取 `.env.test`，并在隔离 schema 中验证管理员初始化、workspace 访问边界与清理逻辑，避免污染现有数据。
 - 管理员页另补充了按需启用的 `shinytest2` smoke test `tests/admin_manager/test_admin_manager_smoke_shinytest2.R`；仅在显式设置 `RUN_ADMIN_SMOKE=1` 且本地具备 `.env.test`、管理员账号与 `shinytest2` 依赖时运行，用于验证管理员登录、进入系统管理页与关键信息区块加载。
+- 账号页另补充了按需启用的 `shinytest2` smoke test `tests/account_access/test_account_access_smoke_shinytest2.R`；仅在显式设置 `RUN_ACCOUNT_ACCESS_SMOKE=1` 且本地提供普通用户 smoke 账号环境变量时运行，用于验证登录后切换 `用户信息` / `权限管理` 以及聚合工作台可见性。
 - 统计分析总入口当前补充了布局守卫 `tests/statistical_analysis/ui/test_statistical_analysis_layout_guard.R`，用于约束公共卡片壳接入后继续保留结果区页签结构、导出入口与动态参数输出链路。
 - 统计分析子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_submodule_ui_guard.R`，用于约束 `desc.R` 与 `cox.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
 - 统计分析回归类子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_regression_submodule_ui_guard.R`，用于约束 `logistic.R` 与 `linear.R` 持续保留参数分区、动态输出与公共壳 helper 接入。

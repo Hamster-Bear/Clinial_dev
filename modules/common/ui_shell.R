@@ -240,6 +240,25 @@ app_card_dependencies <- function() {
         .app-card .btn {
           border-radius: 8px;
         }
+        .app-action-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          align-items: center;
+          margin-top: 10px;
+        }
+        .app-action-btn {
+          min-width: 132px;
+          width: auto !important;
+          padding: 8px 16px;
+          border-radius: 10px !important;
+          font-weight: 600;
+          box-shadow: 0 4px 12px rgba(31, 45, 61, 0.08);
+        }
+        .app-action-btn.btn-warning,
+        .app-action-btn.btn-danger {
+          color: #ffffff;
+        }
         .app-card .shiny-input-container {
           margin-bottom: 14px;
         }
@@ -256,6 +275,15 @@ app_card_dependencies <- function() {
         }
         .app-card .form-group:last-child {
           margin-bottom: 0;
+        }
+        @media (max-width: 767px) {
+          .app-action-row {
+            display: grid;
+            grid-template-columns: 1fr;
+          }
+          .app-action-btn {
+            width: 100% !important;
+          }
         }
       "))
     )

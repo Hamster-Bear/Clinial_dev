@@ -271,6 +271,7 @@ AutoTFL/
 - `docker-compose.local.yml` 现直接读取 `.env.test`，以统一本地联调与 `run_app_test.ps1` 使用的 PostgreSQL 与管理员参数；其中 app 容器仍会在内部网络中覆盖 `POSTGRES_HOST=postgres`。
 - `docker-compose1.yml` 只提供 PostgreSQL 与 Redis 基础设施，适用于项目更新期间避免重建整套应用镜像时，继续让本机 `run_app.R` / `run_app_test.ps1` 复用同一组 `5432/6379` 端口做业务测试。
 - 管理员页交互验证当前补充了按需启用的 `shinytest2` smoke test `tests/admin_manager/test_admin_manager_smoke_shinytest2.R`；仅在显式设置 `RUN_ADMIN_SMOKE=1` 且本地具备 `.env.test`、管理员账号与 `shinytest2` 依赖时运行。
+- 账号页交互验证当前补充了按需启用的 `shinytest2` smoke test `tests/account_access/test_account_access_smoke_shinytest2.R`；仅在显式设置 `RUN_ACCOUNT_ACCESS_SMOKE=1` 且本地提供普通用户 smoke 账号环境变量时运行。
 - 统计分析总入口当前补充了布局守卫 `tests/statistical_analysis/ui/test_statistical_analysis_layout_guard.R`，用于约束公共卡片壳接入后继续保留结果区页签结构、导出入口与动态参数输出链路。
 - 统计分析子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_submodule_ui_guard.R`，用于约束 `desc.R` 与 `cox.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
 - 统计分析回归类子模块当前补充了 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_regression_submodule_ui_guard.R`，用于约束 `logistic.R` 与 `linear.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
