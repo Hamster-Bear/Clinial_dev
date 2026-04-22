@@ -653,7 +653,57 @@ AutoTFL/
 - 任务历史保存/恢复要区分“业务输入”与“派生交互输入”：DT 行选择、列过滤、Plotly relayout/hover，以及 `config_tabs` 这类配置页签导航态都不得写入快照；恢复旧任务时若 payload 中仍含这些字段，common 层也必须跳过，避免回填时把表格/交互组件带入异常状态。
 - 森林图表格列选择当前新增一条稳定性约束：`selected_table_cols` 在进入 `sort()`、`intersect()` 或 observer 比较前，必须先通过 `forest_normalize_selected_columns()` 归一化为原子字符向量；任务历史恢复、`selectizeInput` 回填或复杂 list 形态都不得直接参与排序比较，否则会触发 `sort.int: 'x' 必需为基元`。
 - 森林图任务历史恢复当前再补一条约束：列映射类选择器（如 `subgroup_col / study_col / estimate_col / lower_col / upper_col / time_col / status_col / outcome_col / covariates`）不得在 choices 尚未就绪时跟随第一阶段 `input_state` 直接回填，而应在数据列 choices 更新后再统一恢复，避免预处理数据模式下出现列映射错位。当前实现采用 pending restore：先缓存历史映射快照，待当前数据列可解析保存列名后再消费恢复。
-- 森林图参考线当前再补一条语义约束：`参考线` 页签必须使用公共参考线控件承载参考线位置、颜色、线型和线宽；误差线宽与端帽长度属于图层样式，不得继续混用为“参考线线条”参数。绘图层必须真实读取参考线 spec，而不能再硬编码黑色实线。
+- 森林图参考线当前再补一条语义约束：`参考线` 页签必须使用公共参考线控件承载参考线位置、颜色、线型和线宽；误差线宽与端帽长度属于图层样式，不得继续混用为”参考线线条”参数。绘图层必须真实读取参考线 spec，而不能再硬编码黑色实线。
+
+### 7.7 UI 改进与职责边界现状
+
+#### 7.7.1 UI 改进现状
+
+各图形模块已按统一外层公共壳收口，现状如下：
+
+| 模块 | 外层壳收口 | 参数卡片结构 | 结果区收口 | 任务历史回填 |
+|------|----------|------------|---------|------------|
+| statistical_graphics.R（总入口） | 已完成 | 图形类型切换 + 代码卡 | 代码容器已收口 | 已接入共享 task_history |
+| survival_analysis.R（生存曲线） | 已完成 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 需标准化 apply_state |
+| boxplot.R（箱线图） | 已完成 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 需标准化 apply_state |
+| forest_plot.R（森林图） | 已完成 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据（含数据预览/统计报告） | 已完成 schema 桥接 |
+| heatmap.R（热图） | 已完成 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 待接入 |
+| correlation_matrix.R（相关性矩阵） | 已完成 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 待接入 |
+| combo_plot.R（组合图） | 已完成 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据（双阶段回填） | 需扩展双阶段恢复 |
+| swimmer_plot.R（泳道图） | 已完成 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 需标准化 apply_state |
+| spider_plot.R（蜘蛛图） | 已完成 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 需标准化 apply_state |
+| waterfall_plot.R（瀑布图） | 已完成 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据（瀑布数据/分组轨道数据） | 需标准化 apply_state |
+| tables.R（Tables 总入口） | 已完成 | 参数设置卡已收口 | 结果卡与导出说明已收口 | 待接入 |
+
+#### 7.7.2 分析链路问题现状
+
+**森林图边界最清晰**：已拆为 4 个 common helper 文件（`forest_table_state_helpers.R`、`forest_result_schema_helpers.R`、`forest_model_helpers.R`、`forest_analysis_pipeline.R`），主模块只保留 UI 编排、通知与结果消费，分析流水线（预处理->公式构造->模型拟合->结果提取->汇总格式化）已完整下沉，precalculated/raw_data 双模式通过统一 result schema 收敛消费。
+
+**其余 8 个模块存在不同程度的链路混沌**：
+
+1. **UI / 逻辑 / 分析耦合**：server 函数既渲染 UI 又执行分析，控件值与绘图参数混用，导致”点击生成后又改控件但图局部漂移”等问题（如箱线图、生存分析都曾出现过提交态不一致）。
+2. **committed 参数边界模糊**：graphics_state / committed_params / result 三层职责在部分模块中未做清晰分离，间接导致结果缓存、任务历史恢复与导出逻辑相互耦合。
+3. **缺少统一结果 schema**：各子模块直接返回原始 plot 对象或内部散乱的 result list，无统一接口约束，导致跨模块复用困难。
+4. **公共 helper 利用率低**：图形参数抽象类（列映射、时间轴、导出）已在 common 层实现，但多数模块只在少数参数上调用，大量重复逻辑仍散落在各模块内。
+5. **任务历史回填契约不一致**：森林图已建立 `extra_state` 桥接 + pending restore 机制，但箱线图、生存分析、蜘蛛图、泳道图、瀑布图的 apply_state 实现各不相同，combo_plot 的双阶段回填策略尚未标准化为公共模式。
+
+#### 7.7.3 核心矛盾与改进优先级
+
+**理想架构 vs 现状对比**：
+
+| 层级 | 理想架构 | 当前现状 |
+|------|---------|---------|
+| UI 层 | 仅负责输入控件与布局编排 | 约 50% 模块的 server 仍混有分析逻辑 |
+| 分析层 | 独立 helper 或 service，无状态依赖 | 多处散落在模块内，命名和入参不统一 |
+| 结果层 | 统一 schema（如 forest_result_schema） | 各模块返回格式各异，无标准化消费接口 |
+| 导出层 | 按当前画布高度同步扩展 | 存在导出截断问题（如组合图固定 12x8） |
+| 任务历史 | 统一恢复契约 + schema 桥接 | 5 个模块的 apply_state 未标准化 |
+
+**改进优先级建议**：
+
+- **一级（立即修复）**：箱线图、生存分析、蜘蛛图、泳道图、瀑布图的 committed 参数边界收紧，解决”改控件但图漂移”；combo_plot 导出高度按前端画布同步扩展；heatmap/correlation 的 task_history 接入。
+- **二级（短期收敛）**：箱线图/生存分析/蜘蛛图/泳道图/瀑布图参照森林图模式引入 `extra_state` 桥接与 pending restore 机制；combo_plot 双阶段回填策略标准化；各模块引入结果 normalizer（类似 `normalize_forest_result_schema`），统一消费口径。
+- **三级（架构演进）**：将高频调用的分析链路抽为 service（如 survival_analysis_pipeline），各模块通过 service 调用而非内嵌逻辑；统一 graphics_state 管理机制；进一步将 heatmap/correlation/combo 拆分为多个 common helper 文件。
 
 ## 10. 数据、存储与规范
 
