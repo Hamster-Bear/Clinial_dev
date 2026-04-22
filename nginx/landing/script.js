@@ -321,9 +321,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       this.loadingOverlay.classList.add("active");
-      window.setTimeout(() => {
-        this.loadingOverlay.classList.remove("active");
-      }, 2200);
+      const cleanUp = () => this.loadingOverlay.classList.remove("active");
+      window.addEventListener("beforeunload", cleanUp, { once: true });
+      setTimeout(cleanUp, 30000);
     }
   }
 
