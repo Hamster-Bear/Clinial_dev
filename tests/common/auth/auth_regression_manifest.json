@@ -14,8 +14,20 @@
       "purpose": "账号 service helper"
     },
     {
-      "path": "tests/workspace_access_manager/test_workspace_access_manager_guard.R",
-      "purpose": "workspace 协作边界"
+      "path": "tests/common/auth/test_auth_copy_guard.R",
+      "purpose": "账号入口共享文案守卫"
+    },
+    {
+      "path": "tests/account_access/test_sidebar_account_card_guard.R",
+      "purpose": "侧边栏账号卡入口与隐藏页签"
+    },
+    {
+      "path": "tests/account_access/test_user_profile_guard.R",
+      "purpose": "用户信息边界"
+    },
+    {
+      "path": "tests/account_access/test_permission_manager_guard.R",
+      "purpose": "权限管理边界"
     },
     {
       "path": "tests/root/test_access_boundary_guard.R",

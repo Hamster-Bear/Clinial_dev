@@ -143,14 +143,17 @@ if (requireNamespace("showtext", quietly = TRUE) && requireNamespace("sysfonts",
 source("modules/common/storage_backend.R")
 source("modules/common/data_metadata.R")
 source("modules/common/auth/email_service.R")
+source("modules/common/auth/auth_copy.R")
 source("modules/common/auth/auth.R")
 source("modules/common/auth/account_service.R")
 source("modules/common/ui_shell.R")
+source("modules/account_access/sidebar_account_card.R")
 source("modules/auth_manager.R")
 source("modules/data_preparation.R")
 source("modules/database_manager.R")
 source("modules/admin_manager.R")
-source("modules/workspace_access_manager.R")
+source("modules/account_access/user_profile.R")
+source("modules/account_access/permission_manager.R")
 source("modules/exploratory_analysis.R")
 source("modules/statistical_analysis.R")
 source("modules/statistical_graphics.R")
@@ -165,7 +168,7 @@ ui <- dashboardPage(
   dashboardSidebar(
     width = 300,
     uiOutput("sidebar_content"),
-    uiOutput("sidebar_user_panel")
+    sidebar_account_card_ui("sidebar_account")
   ),
   dashboardBody(
     useShinyjs(),
@@ -173,6 +176,7 @@ ui <- dashboardPage(
     tags$head(
       tags$title("Hamster Analysis · AutoTFL"),
       includeCSS("style.css"),
+      sidebar_account_card_styles(),
       tags$style(HTML("
         #shiny-notification-panel {
           top: auto !important;
@@ -199,128 +203,6 @@ ui <- dashboardPage(
           background: #ffffff;
           text-align: center;
           box-shadow: 0 10px 30px rgba(0,0,0,0.18);
-        }
-        .sidebar-user-card {
-          margin: 12px;
-          padding: 14px 14px 12px;
-          border-radius: 14px;
-          border: 1px solid #dfe7ef;
-          background: #ffffff;
-          color: #243447;
-          box-shadow: 0 10px 24px rgba(31, 45, 61, 0.06);
-        }
-        .sidebar-user-card-header {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 10px;
-        }
-        .sidebar-user-name {
-          font-weight: 700;
-          font-size: 15px;
-          color: #243447;
-        }
-        .sidebar-user-role {
-          margin-top: 4px;
-          color: #f39c12;
-          font-size: 12px;
-          font-weight: 600;
-        }
-        .sidebar-user-meta {
-          margin-top: 6px;
-          color: #6b7785;
-          font-size: 12px;
-          word-break: break-all;
-        }
-        .sidebar-user-summary {
-          margin-top: 10px;
-          color: #4f5f73;
-          font-size: 12px;
-          line-height: 1.5;
-        }
-        .sidebar-user-section-title {
-          margin-top: 12px;
-          margin-bottom: 8px;
-          color: #7b8794;
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 0.06em;
-          text-transform: uppercase;
-        }
-        .sidebar-user-status-list {
-          display: grid;
-          gap: 8px;
-        }
-        .sidebar-user-status-item {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          padding: 8px 10px;
-          border-radius: 8px;
-          border: 1px solid #e8eef5;
-          background: #f8fbff;
-          font-size: 12px;
-          color: #4f5f73;
-        }
-        .sidebar-user-status-item strong {
-          font-weight: 600;
-          color: #243447;
-        }
-        .sidebar-user-status-badge {
-          display: inline-flex;
-          align-items: center;
-          padding: 2px 8px;
-          border-radius: 999px;
-          font-size: 11px;
-          font-weight: 700;
-          white-space: nowrap;
-        }
-        .sidebar-user-status-badge--success {
-          background: rgba(0, 166, 90, 0.22);
-          color: #7ef0b4;
-        }
-        .sidebar-user-status-badge--warning {
-          background: rgba(243, 156, 18, 0.22);
-          color: #ffd27a;
-        }
-        .sidebar-user-status-badge--info {
-          background: rgba(60, 141, 188, 0.22);
-          color: #9fd8ff;
-        }
-        .sidebar-user-actions {
-          margin-top: 12px;
-          display: grid;
-          gap: 8px;
-        }
-        .sidebar-user-actions a {
-          color: #3c4b5b !important;
-          display: block;
-          padding: 8px 10px;
-          border-radius: 8px;
-          border: 1px solid #d2d9e1;
-          background: #f8fafc;
-          text-align: center;
-          font-size: 12px;
-          font-weight: 600;
-          text-decoration: none !important;
-        }
-        .sidebar-user-actions a:hover,
-        .sidebar-user-actions a:focus {
-          background: #eef3f8;
-          color: #1f2d3d !important;
-        }
-        .sidebar-user-quick-entry {
-          padding: 4px 10px !important;
-          border-radius: 999px !important;
-          border: none !important;
-          background: #3c8dbc !important;
-          color: #ffffff !important;
-          font-size: 12px !important;
-          white-space: nowrap;
-        }
-        section.sidebar li[data-value='access_manage'] {
-          display: none !important;
         }
         section.sidebar li[data-value='reset_password'] {
           display: none !important;
@@ -438,7 +320,7 @@ server <- function(input, output, session) {
     }
     allowed_tabs <- c("db_manage", "data_prep", "explore", "stats", "plots", "tables")
     if (!isTRUE(user$is_admin)) {
-      allowed_tabs <- append(allowed_tabs, "access_manage", after = 1)
+      allowed_tabs <- append(allowed_tabs, c("user_profile", "access_permissions"), after = 1)
     }
     if (isTRUE(user$is_admin)) {
       allowed_tabs <- c(allowed_tabs, "admin")
@@ -460,7 +342,8 @@ server <- function(input, output, session) {
                icon = icon("database"),
                badgeLabel = db_manage_badge_label,
                badgeColor = db_manage_badge_color),
-      if (!isTRUE(user$is_admin)) menuItem("我的权限管理", tabName = "access_manage", icon = icon("key")),
+      if (!isTRUE(user$is_admin)) menuItem("用户信息", tabName = "user_profile", icon = icon("id-card")),
+      if (!isTRUE(user$is_admin)) menuItem("权限管理", tabName = "access_permissions", icon = icon("key")),
       menuItem("数据准备",
                tabName = "data_prep",
                icon = icon("upload"),
@@ -490,76 +373,6 @@ server <- function(input, output, session) {
     )
   })
 
-  output$sidebar_user_panel <- renderUI({
-    user <- current_user()
-    if (is.null(user)) {
-      return(NULL)
-    }
-    manageable_df <- service_list_manageable_workspaces(pg_pool, user)
-    manageable_count <- nrow(manageable_df)
-    accessible_count <- length(auth_accessible_workspace_ids(pg_pool, user$id, isTRUE(user$is_admin)))
-    database_access_label <- if (user_has_database_access(user)) "已开通" else "未开通（可临时上传）"
-    email_status_label <- if (isTRUE(user$email_verified)) "已验证" else "未验证"
-    email_status_badge_class <- if (isTRUE(user$email_verified)) {
-      "sidebar-user-status-badge sidebar-user-status-badge--success"
-    } else {
-      "sidebar-user-status-badge sidebar-user-status-badge--warning"
-    }
-    database_status_badge_class <- if (user_has_database_access(user)) {
-      "sidebar-user-status-badge sidebar-user-status-badge--info"
-    } else {
-      "sidebar-user-status-badge sidebar-user-status-badge--warning"
-    }
-    div(
-      class = "sidebar-user-card",
-      div(
-        class = "sidebar-user-card-header",
-        div(
-          div(class = "sidebar-user-name", user$username),
-          if (isTRUE(user$is_admin)) div(class = "sidebar-user-role", "系统管理员")
-        ),
-        if (isTRUE(user$is_admin)) {
-          actionButton("open_admin", "系统管理", icon = icon("users"), class = "sidebar-user-quick-entry")
-        } else if (user_has_database_access(user)) {
-          actionButton("open_db_manage", "数据空间", icon = icon("database"), class = "sidebar-user-quick-entry")
-        } else {
-          actionButton("open_data_prep", "临时上传", icon = icon("upload"), class = "sidebar-user-quick-entry")
-        }
-      ),
-      div(class = "sidebar-user-meta", if (nzchar(user$email %||% "")) user$email else "未设置邮箱"),
-      div(class = "sidebar-user-section-title", "账号设置"),
-      div(
-        class = "sidebar-user-summary",
-        "当前账号设置区遵循统一卡片壳风格；后续新增账号相关入口也应沿用同一视觉规范。"
-      ),
-      div(
-        class = "sidebar-user-status-list",
-        div(
-          class = "sidebar-user-status-item",
-          tags$strong("邮箱状态"),
-          tags$span(class = email_status_badge_class, email_status_label)
-        ),
-        div(
-          class = "sidebar-user-status-item",
-          tags$strong("数据空间功能"),
-          tags$span(class = database_status_badge_class, database_access_label)
-        )
-      ),
-      div(class = "sidebar-user-section-title", "工作台概况"),
-      div(
-        class = "sidebar-user-summary",
-        paste0("我创建并可管理的数据空间: ", manageable_count),
-        br(),
-        paste0("当前可访问的数据空间: ", accessible_count)
-      ),
-      div(
-        class = "sidebar-user-actions",
-        if (!isTRUE(user$is_admin)) actionLink("open_access_manage", "用户和权限"),
-        actionLink("logout_submit", "退出登录")
-      )
-    )
-  })
-
   output$body_content <- renderUI({
     user <- current_user()
     if (is.null(user)) {
@@ -567,7 +380,8 @@ server <- function(input, output, session) {
     }
     tab_nodes <- list(
       tabItem(tabName = "db_manage", database_manager_ui("db_manage")),
-      tabItem(tabName = "access_manage", workspace_access_manager_ui("access_manage")),
+      tabItem(tabName = "user_profile", user_profile_ui("user_profile")),
+      tabItem(tabName = "access_permissions", permission_manager_ui("access_permissions")),
       tabItem(tabName = "data_prep", data_preparation_ui("data_prep")),
       tabItem(tabName = "explore", exploratory_analysis_ui("explore")),
       tabItem(tabName = "stats", statistical_analysis_ui("stats")),
@@ -601,31 +415,25 @@ server <- function(input, output, session) {
     }
   )
 
-  observeEvent(input$logout_submit, {
-    current_user(NULL)
-    filtered_data(NULL)
-    updateTabItems(session, "tabs", "login")
-    showNotification("已退出登录", type = "message")
-  })
-
-  observeEvent(input$open_access_manage, {
-    updateTabItems(session, "tabs", "access_manage")
-  })
-
-  observeEvent(input$open_db_manage, {
-    updateTabItems(session, "tabs", "db_manage")
-  })
-
-  observeEvent(input$open_data_prep, {
-    updateTabItems(session, "tabs", "data_prep")
-  })
-
-  observeEvent(input$open_admin, {
-    updateTabItems(session, "tabs", "admin")
-  })
+  sidebar_account_card_server(
+    "sidebar_account",
+    pg_pool = pg_pool,
+    current_user = current_user,
+    user_has_database_access = user_has_database_access,
+    goto_tab = function(tab_name) {
+      updateTabItems(session, "tabs", tab_name)
+    },
+    on_logout = function() {
+      current_user(NULL)
+      filtered_data(NULL)
+      updateTabItems(session, "tabs", "login")
+      showNotification("已退出登录", type = "message")
+    }
+  )
 
   database_manager_server("db_manage", pg_pool = pg_pool, current_user = current_user)
-  workspace_access_manager_server("access_manage", pg_pool = pg_pool, current_user = current_user, on_user_updated = current_user)
+  user_profile_server("user_profile", pg_pool = pg_pool, current_user = current_user, on_user_updated = current_user)
+  permission_manager_server("access_permissions", pg_pool = pg_pool, current_user = current_user)
   data_prep_module <- data_preparation_server("data_prep", pg_pool = pg_pool, current_user = current_user)
   admin_manager_server("admin", pg_pool = pg_pool, current_user = current_user)
 

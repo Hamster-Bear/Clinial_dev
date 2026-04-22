@@ -45,8 +45,12 @@
 - 账号与服务层 helper:
   - `tests/common/auth/test_account_service_helpers.R`
   - `tests/common/auth/test_account_service_analysis_states.R`
-- 权限边界与协作入口:
-  - `tests/workspace_access_manager/test_workspace_access_manager_guard.R`
+- 账号入口共享文案守卫:
+  - `tests/common/auth/test_auth_copy_guard.R`
+- 账号设置与协作入口:
+  - `tests/account_access/test_sidebar_account_card_guard.R`
+  - `tests/account_access/test_user_profile_guard.R`
+  - `tests/account_access/test_permission_manager_guard.R`
   - `tests/common/auth/test_auth_access_postgres_integration.R`
 - `analysis_states` 契约:
   - `tests/common/auth/test_auth_analysis_states_schema_contract.R`
@@ -178,6 +182,8 @@
 - 若测试依赖夹具、示例数据、环境变量、数据库 schema 或管理员账号，需同步登记依赖前置条件。
 - 若测试被纳入统一回归入口，如 `run_auth_regression.ps1`，需同步更新脚本列表与对应契约测试。
 - `run_auth_regression.ps1` 当前通过 `tests/common/auth/auth_regression_manifest.json` 读取固定执行顺序；新增或移除认证链路测试时，需同步更新清单与契约测试。
+- 账号设置与协作入口的 UI 守卫，优先验证“侧边栏个人信息卡快捷入口 + 隐藏页签接线 + 模块挂载”，不再把侧边栏菜单可见性作为主断言。
+- 账号入口展示文案调整后，除更新模块代码外，还需同步检查 `modules/common/auth/auth_copy.R`、对应守卫测试以及 `PROJECT_GUIDE.md` / `PROJECT_SPEC.md` 中的结构约束描述是否仍一致。
 - 若测试路径被产品文档、部署文档或守卫测试引用，需同步更新 `README.md`、`PROJECT_GUIDE.md`、`DEPLOYMENT_GUIDE.md` 与相关守卫断言。
 - 调整测试目录后，至少执行一次 `check_test_guide_index.R` 或对应守卫测试，确认 `TEST_GUIDE.md` 与 `tests/` 实际文件保持一致。
 
