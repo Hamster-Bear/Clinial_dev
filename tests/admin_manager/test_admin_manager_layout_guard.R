@@ -55,6 +55,7 @@ expect_contains(module_text, "title = \"账号状态管理\"", "管理员页账�
 expect_contains(module_text, "title = \"数据空间管理\"", "管理员页数据空间管理卡片")
 expect_contains(module_text, "subtitle = \"合并处理我名下空间的负责人调整与协作授权\"", "管理员页合并后的数据空间管理副标题")
 expect_contains(module_text, "selected_manage_workspace_id <- reactive", "管理员页统一数据空间选择器")
+expect_contains(module_text, "if \\(length\\(workspace_ids\\) == 0\\) \\{[\\s\\S]*?return\\(\"\"\\)", "管理员页统一数据空间选择器为空 id 向量提供兜底")
 expect_contains(module_text, "selectInput\\(session\\$ns\\(\"workspace_manage_select\"\\), \"选择目标数据空间\"", "管理员页统一数据空间下拉")
 expect_contains(module_text, "uiOutput\\(session\\$ns\\(\"admin_workspace_manage_summary\"\\)\\)", "管理员页数据空间摘要输出")
 expect_contains(module_text, "output\\$admin_workspace_manage_summary <- renderUI", "管理员页数据空间摘要渲染")

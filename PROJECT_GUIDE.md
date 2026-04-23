@@ -27,11 +27,11 @@
 
 ### 1.2 名称约定
 
-| 名称                         | 当前含义         | 备注                                         |
-| -------------------------- | ------------ | ------------------------------------------ |
-| Hamster Analysis           | 平台级命名        | 当前用于 Landing 页与部分部署资源，承载平台入口语义             |
-| AutoTFL                    | 当前核心应用名      | 当前已上线并由 Hamster Analysis Landing 页承载入口的主应用 |
-| Hamster Analysis · AutoTFL | 当前应用页头与浏览器标题 | 已用于 `app.R` 的 dashboardHeader 与浏览器标题       |
+| 名称            | 当前含义           | 备注                                                       |
+| ------------- | -------------- | -------------------------------------------------------- |
+| Medev         | Landing 对外名称   | 当前用于 `nginx/landing/*.html` 的前端产品文案与浏览器标题               |
+| AutoTFL       | 仓库与应用内部名称     | 当前仍用于仓库目录、`/app/` 实际应用入口与部分 legacy 文件名                  |
+| `autotfl.html` | Landing 子页文件名 | 当前继续保留旧文件名以减少部署与路由改动，但对外文案不再直接展示 AutoTFL               |
 
 ### 1.3 文档使用原则
 
@@ -97,9 +97,10 @@
 - `docker-compose.yml` 使用 `nginx/default.conf`，根路径 `/` 直接转发到 Shiny。
 - `docker-compose.local.yml` 使用 `nginx/local-test.conf`，根路径为 Landing 页，应用走 `/app/`。
 - `docker-compose.server.yml` 使用 `nginx/server_ssl.conf`，80 自动跳转 443，根路径为 Landing 页，应用走 `/app/`。
-- 当前 Landing 页使用 Hamster Analysis 平台口径，对外说明平台定位；AutoTFL 作为当前已上线应用，通过 `/app/` 提供实际分析能力。
-- `nginx/landing/index.html` 只保留平台入口与最短访问路径，不在主页展开 AutoTFL 细节。
-- `nginx/landing/autotfl.html` 单独承接 AutoTFL 的功能产出、使用指南与结果示意；文案风格继续保持少字、高识别。
+- Landing 页当前统一使用 Medev 对外口径；`/app/` 继续指向仓库内的实际 Shiny 应用入口。
+- `nginx/landing/index.html` 作为 Medev 首页，只保留简洁入口说明与跳转，不展开大段功能细节。
+- `nginx/landing/autotfl.html` 作为 Medev 产品介绍子页，承接真实功能范围、最短使用路径与结果图片占位；当前继续保留旧文件名以避免额外路由改动。
+- Landing 文案必须保持少字、真实、可验证：不插入虚构图表、不描述未落地能力、不出现“当前已上线”之类项目进度口径。
 - 本地联调 Landing 页的静态资源在 `local-test.conf` 中已设置 no-store/no-cache，减少浏览器缓存导致的“re-up 后页面看起来未更新”问题。
 
 ### 3.3 当前部署边界
@@ -165,6 +166,7 @@
 - 系统概览、异常态势摘要与账号状态管理中的状态卡现统一切到紧凑统计卡布局，在同等信息量下压缩留白并提高首屏可读性。
 - 管理员页现已接入 `modules/common/ui_shell.R` 公共卡片壳：统一系统入口卡、摘要卡、说明块与主要管理卡片视觉，但保持现有“摘要优先、明细随后”的信息结构、账号总览联动逻辑与协作预览 tab 结构不变。
 - 管理员页中的账号状态管理已与“所有注册账号总览”联动：系统管理员在总览表中选中账号后即可直接启用、停用或开关数据空间功能，不再手工输入邮箱定位账号。
+- 管理员页统一空间选择器 `selected_manage_workspace_id()` 在回退默认空间前，必须先处理零长度 `workspace_ids`；即使 `list_manageable_workspaces()` 返回了非零行数据，只要提取后的 id 向量为空，也应返回空字符串而不是直接取首项。
 - 管理员页现已补充“异常态势摘要”，集中展示停用账号、未设置邮箱账号、未开通数据空间功能账号、待领取邀请与未注册邀请邮箱等风险项；该摘要只基于元信息，不应越界展示其他用户实际数据内容。
 - 管理员页的异常态势摘要现支持页内快捷跳转，可直接定位到账号状态管理、数据空间管理与我名下数据空间概览；在数据空间管理场景下可进一步聚焦负责人邮箱或协作者邮箱输入框，并在协作相关场景切换到相关预览 tab，不新增任何权限入口。
 - 管理员页现已补充“所有注册账号总览”，通过摘要卡、预设筛选按钮与总览表结合的方式展示所有已注册账号的元信息、数据空间功能状态、待领取邀请、名下数据空间数与当前可访问空间数；该总览只基于元信息，不应越界展示其他用户实际数据内容。
@@ -304,9 +306,9 @@ AutoTFL/
 - `tests/` 为统一测试目录，新增测试文件必须放在这里。
 - `tests/` 内部目录应尽量与项目结构同层语义对齐，例如 `tests/common/auth/`、`tests/statistical_analysis/`、`tests/statistical_graphics/`、`tests/nginx/landing/`、`tests/root/`；测试夹具统一收口到 `tests/fixtures/`。
 - `TEST_GUIDE.md` 为根目录测试索引文档，按项目架构维护测试归类；整体性测试说明优先收口到这里，不散落到 `tests/`。
-- `nginx/landing/index.html` 作为平台主 Landing，保持精简，只负责入口说明与跳转。
-- `nginx/landing/autotfl.html` 作为 AutoTFL 子页，承接功能产出、使用指南与结果示意。
-- `nginx/landing/style.css` 与 `nginx/landing/script.js` 为主 Landing 和 AutoTFL 子页共享静态资源，改动时需同时验证两页。
+- `nginx/landing/index.html` 作为 Medev 首页，保持精简，只负责入口说明与跳转。
+- `nginx/landing/autotfl.html` 作为 Medev 产品介绍子页，承接真实功能说明、使用路径与图片占位。
+- `nginx/landing/style.css` 与 `nginx/landing/script.js` 为 Medev 首页和产品介绍子页共享静态资源，改动时需同时验证两页。
 - `deploy/alicloud/` 只存放生产部署辅助资源，不承载应用业务逻辑。
 
 ## 5. 核心模块总览

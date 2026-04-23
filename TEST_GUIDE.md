@@ -189,6 +189,7 @@
 - 账号入口展示文案调整后，除更新模块代码外，还需同步检查 `modules/common/auth/auth_copy.R`、对应守卫测试以及 `PROJECT_GUIDE.md` / `PROJECT_SPEC.md` 中的结构约束描述是否仍一致。
 - 账号页聚合布局若涉及标签页切换、卡片可见性或登录后真实跳转，优先补充 `shinytest2` smoke；当前 `tests/account_access/test_account_access_smoke_shinytest2.R` 仅在显式设置 `RUN_ACCOUNT_ACCESS_SMOKE=1` 且提供普通用户 smoke 账号环境变量时执行。
 - 若测试路径被产品文档、部署文档或守卫测试引用，需同步更新 `README.md`、`PROJECT_GUIDE.md`、`DEPLOYMENT_GUIDE.md` 与相关守卫断言。
+- Landing 页改动需同步校验 `tests/nginx/landing/test_landing_copy_guard.R`：对外命名应保持 Medev，禁止引入虚构图表示意、项目进度文案，并保留真实截图的图片占位结构。
 - 调整测试目录后，至少执行一次 `check_test_guide_index.R` 或对应守卫测试，确认 `TEST_GUIDE.md` 与 `tests/` 实际文件保持一致。
 
 ## 7. Legacy 收口计划

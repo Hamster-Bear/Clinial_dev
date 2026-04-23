@@ -73,8 +73,8 @@
 | `nginx/default.conf`         | 根路径直接反代到 Shiny 的最简配置              |
 | `nginx/local-test.conf`      | 本地联调配置，包含 Landing 和 `/app/` 子路径代理 |
 | `nginx/server_ssl.conf`      | 生产 HTTPS 配置，包含 80→443 跳转          |
-| `nginx/landing/index.html`   | 平台主 Landing                       |
-| `nginx/landing/autotfl.html` | AutoTFL 子页                        |
+| `nginx/landing/index.html`   | Medev 首页                          |
+| `nginx/landing/autotfl.html` | Medev 产品介绍子页                   |
 | `nginx/landing/style.css`    | Landing 共享样式                      |
 | `nginx/landing/script.js`    | Landing 共享脚本                      |
 | `nginx/landing/assets/`      | Landing 静态资源                      |
@@ -372,7 +372,7 @@ AutoTFL/
 
 | 路径            | 行为             |
 | ------------- | -------------- |
-| `/`           | Landing 页      |
+| `/`           | Medev Landing 页 |
 | `/landing/`   | Landing 静态资源目录 |
 | `/app/`       | AutoTFL 应用入口   |
 | `/shared/`    | Shiny 共享资源代理   |
@@ -434,7 +434,7 @@ AutoTFL/
 | 80 端口        | 强制跳转到 443                     |
 | 443 端口       | 提供 HTTPS 服务                   |
 | 根路径 `/`      | Landing 页                     |
-| 应用路径 `/app/` | AutoTFL                       |
+| 应用路径 `/app/` | AutoTFL 应用入口                 |
 
 ### 8.5 标准启动顺序
 

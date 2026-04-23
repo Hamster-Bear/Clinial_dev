@@ -656,6 +656,47 @@ img {
   padding: 1.55rem;
 }
 
+.preview-placeholder-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.preview-placeholder {
+  display: grid;
+  gap: 1rem;
+}
+
+.preview-placeholder-large .preview-image-slot {
+  min-height: 320px;
+}
+
+.preview-image-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  padding: 1.5rem;
+  border-radius: var(--radius);
+  border: 1px dashed rgba(255, 179, 106, 0.3);
+  background: radial-gradient(circle at top left, rgba(249, 115, 22, 0.08), transparent 30%), rgba(255, 255, 255, 0.02);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.preview-image-slot span {
+  max-width: 18rem;
+}
+
+.preview-caption h3 {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  margin: 0.7rem 0 0.55rem;
+}
+
+.preview-caption p {
+  color: var(--text-secondary);
+}
+
 .chart-tabs {
   display: flex;
   flex-wrap: wrap;

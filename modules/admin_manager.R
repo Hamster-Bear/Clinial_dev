@@ -268,6 +268,9 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
         return("")
       }
       workspace_ids <- workspaces_df$id %||% character(0)
+      if (length(workspace_ids) == 0) {
+        return("")
+      }
       selected_id <- input$workspace_manage_select %||% ""
       if (nzchar(selected_id) && selected_id %in% workspace_ids) {
         selected_id
