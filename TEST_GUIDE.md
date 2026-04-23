@@ -57,6 +57,8 @@
   - `tests/common/auth/test_auth_analysis_states_schema_contract.R`
 - 管理员入口 smoke:
   - `tests/admin_manager/test_admin_manager_smoke_shinytest2.R`
+- 管理员入口布局守卫:
+  - `tests/admin_manager/test_admin_manager_layout_guard.R`
 
 ### 3.3 数据接入、数据准备与数据库管理
 
