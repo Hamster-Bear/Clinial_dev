@@ -167,6 +167,9 @@
 - 管理员页现已接入 `modules/common/ui_shell.R` 公共卡片壳：统一系统入口卡、摘要卡、说明块与主要管理卡片视觉，但保持现有“摘要优先、明细随后”的信息结构、账号总览联动逻辑与协作预览 tab 结构不变。
 - 管理员页中的账号状态管理已与“所有注册账号总览”联动：系统管理员在总览表中选中账号后即可直接启用、停用或开关数据空间功能，不再手工输入邮箱定位账号。
 - 管理员页统一空间选择器 `selected_manage_workspace_id()` 在回退默认空间前，必须先处理零长度 `workspace_ids`；即使 `list_manageable_workspaces()` 返回了非零行数据，只要提取后的 id 向量为空，也应返回空字符串而不是直接取首项。
+- `app.R` 当前通过 `modules/common/ui_shell.R` 提供的公共 helper 挂载全局 loading overlay：应用首屏连接与首次 UI 挂载期间默认显示仓鼠 loading 主视觉与“应用加载中”，并按“正在连接服务 -> 正在初始化模块 -> 正在进入工作台”的阶段文案减轻误判；待浏览器收到首次 `shiny:idle` 后自动隐藏，认证链路仍继续通过 `hamster-loading` 自定义消息复用同一 overlay，避免应用初始化期间前端出现长时间空白。
+- loading 静态资源当前收口到 `www/assets/loading/`：`hamster.svg` 提供主视觉，`loading.css` 提供覆盖层、轨道流动和浮动动效；`modules/common/ui_shell.R` 只负责挂载资源和控制状态，不再内联维护整套 loading 样式。
+- 登录成功链路的“正在进入工作台”文案不得与同一 `observeEvent` 内的立即 `hide` 冲突；当前约定为成功后发送 `hide_delayed` 延迟隐藏，让用户能实际看到进入工作台提示，失败分支则立即隐藏。
 - 管理员页现已补充“异常态势摘要”，集中展示停用账号、未设置邮箱账号、未开通数据空间功能账号、待领取邀请与未注册邀请邮箱等风险项；该摘要只基于元信息，不应越界展示其他用户实际数据内容。
 - 管理员页的异常态势摘要现支持页内快捷跳转，可直接定位到账号状态管理、数据空间管理与我名下数据空间概览；在数据空间管理场景下可进一步聚焦负责人邮箱或协作者邮箱输入框，并在协作相关场景切换到相关预览 tab，不新增任何权限入口。
 - 管理员页现已补充“所有注册账号总览”，通过摘要卡、预设筛选按钮与总览表结合的方式展示所有已注册账号的元信息、数据空间功能状态、待领取邀请、名下数据空间数与当前可访问空间数；该总览只基于元信息，不应越界展示其他用户实际数据内容。
@@ -366,7 +369,7 @@ AutoTFL/
 | `analysis_shared.R`          | 回归公共校验、交互项 P 值计算、统一结果整理             | Cox / Logistic / Linear 共享核心 |
 | `modules/common/auth/account_service.R` | 用户、workspace、membership 与数据入口服务封装   | 管理员入口、任务历史与数据模块复用服务层        |
 | `modules/common/auth/auth.R`            | 注册、登录、密码摘要、权限过滤、事务 helper 与管理员引导 | `app.R`、数据库管理、数据准备共享认证边界     |
-| `auth_manager.R`             | 登录/注册页面、认证交互与 loading 反馈            | 精简 `app.R` 并统一认证入口 UI        |
+| `auth_manager.R`             | 登录/注册页面、认证交互与 loading 反馈            | 精简 `app.R` 并统一认证入口 UI；认证动作继续复用公共 loading overlay |
 | `modules/account_access/sidebar_account_card.R` | 侧边栏个人信息卡、快捷入口与隐藏页签 CSS 守卫 | 收口账号入口并降低 `app.R` 拼装复杂度 |
 | `modules/account_access/user_profile.R` | 用户基础资料、邮箱验证、邮箱换绑与密码修改入口 | 统一承接登录后的个人信息与少量账号设置 |
 | `modules/account_access/permission_manager.R` | owner 邮箱授权、撤销权限、invite 与 owner 迁移入口 | 用户自助管理自己拥有的数据空间权限 |

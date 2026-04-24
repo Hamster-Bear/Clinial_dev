@@ -174,6 +174,7 @@ ui <- dashboardPage(
     useShinyjs(),
     auth_manager_styles(),
     tags$head(
+      app_loading_overlay_dependencies(),
       tags$title("Hamster Analysis · AutoTFL"),
       includeCSS("style.css"),
       sidebar_account_card_styles(),
@@ -184,65 +185,17 @@ ui <- dashboardPage(
           bottom: 16px !important;
           left: 16px !important;
         }
-        #auth-loading-overlay {
-          display: none;
-          position: fixed;
-          inset: 0;
-          z-index: 3000;
-          background: rgba(0, 0, 0, 0.28);
-          align-items: center;
-          justify-content: center;
-        }
-        #auth-loading-overlay.is-visible {
-          display: flex;
-        }
-        .auth-loading-card {
-          min-width: 220px;
-          padding: 24px 28px;
-          border-radius: 12px;
-          background: #ffffff;
-          text-align: center;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.18);
-        }
         section.sidebar li[data-value='reset_password'] {
           display: none !important;
         }
       ")),
       tags$script(HTML("
-        window.hamsterLoading = {
-          show: function() {
-            $('#auth-loading-overlay').addClass('is-visible');
-          },
-          hide: function() {
-            $('#auth-loading-overlay').removeClass('is-visible');
-          }
-        };
         $(document).on('shiny:connected', function() {
           Shiny.setInputValue('plotly_pagination_info', 'Plotly目前不支持图形分页功能。对于大型数据集，建议使用数据筛选或抽样来减少数据点数量，或者使用交互式缩放功能来浏览数据的不同区域。');
         });
-        $(document).on('click', '[data-value=\"login\"], [data-value=\"register\"]', function() {
-          window.hamsterLoading.show();
-          setTimeout(function() {
-            window.hamsterLoading.hide();
-          }, 250);
-        });
-        Shiny.addCustomMessageHandler('hamster-loading', function(message) {
-          if (message.action === 'show') {
-            window.hamsterLoading.show();
-          } else {
-            window.hamsterLoading.hide();
-          }
-        });
       "))
     ),
-    div(
-      id = "auth-loading-overlay",
-      div(
-        class = "auth-loading-card",
-        waiter::spin_fading_circles(),
-        tags$div(style = "margin-top: 12px;", "正在加载...")
-      )
-    ),
+    app_loading_overlay_ui(title = "应用加载中", subtitle = "正在连接服务..."),
     uiOutput("body_content")
   )
 )
@@ -410,8 +363,11 @@ server <- function(input, output, session) {
     goto_tab = function(tab_name) {
       updateTabItems(session, "tabs", tab_name)
     },
-    send_loading = function(action) {
-      session$sendCustomMessage("hamster-loading", list(action = action))
+    send_loading = function(action, text = NULL, delay_ms = NULL) {
+      session$sendCustomMessage(
+        "hamster-loading",
+        list(action = action, text = text %||% "", delay_ms = delay_ms %||% 0)
+      )
     }
   )
 

@@ -290,6 +290,105 @@ app_card_dependencies <- function() {
   )
 }
 
+app_loading_overlay_dependencies <- function() {
+  tags$head(
+    singleton(
+      tags$link(rel = "stylesheet", type = "text/css", href = "assets/loading/loading.css")
+    ),
+    singleton(
+      tags$script(HTML("
+        window.hamsterLoading = {
+          hasBooted: false,
+          phaseTimer: null,
+          setText: function(message) {
+            var nextText = message || '正在连接服务...';
+            $('#app-loading-text').text(nextText);
+          },
+          show: function(message) {
+            clearTimeout(this.phaseTimer);
+            this.setText(message);
+            $('#app-loading-overlay').addClass('is-visible').attr('aria-hidden', 'false');
+          },
+          hideDelayed: function(delayMs) {
+            var self = this;
+            var waitMs = Number(delayMs || 0);
+            clearTimeout(this.phaseTimer);
+            this.phaseTimer = setTimeout(function() {
+              self.hide();
+            }, waitMs > 0 ? waitMs : 0);
+          },
+          scheduleBootPhases: function() {
+            var self = this;
+            self.show('正在连接服务...');
+            self.phaseTimer = setTimeout(function() {
+              if (!self.hasBooted && $('#app-loading-overlay').hasClass('is-visible')) {
+                self.setText('正在初始化模块...');
+              }
+            }, 700);
+          },
+          hide: function() {
+            clearTimeout(this.phaseTimer);
+            $('#app-loading-overlay').removeClass('is-visible').attr('aria-hidden', 'true');
+          },
+          bootComplete: function() {
+            if (!this.hasBooted) {
+              this.hasBooted = true;
+            }
+            this.hide();
+          }
+        };
+        $(document).on('shiny:connected', function() {
+          window.hamsterLoading.scheduleBootPhases();
+        });
+        $(document).on('shiny:idle', function() {
+          window.hamsterLoading.bootComplete();
+        });
+        Shiny.addCustomMessageHandler('hamster-loading', function(message) {
+          if (message.action === 'show') {
+            window.hamsterLoading.show(message.text);
+          } else if (message.action === 'hide_delayed') {
+            window.hamsterLoading.hideDelayed(message.delay_ms);
+          } else {
+            window.hamsterLoading.hide();
+          }
+        });
+      "))
+    )
+  )
+}
+
+app_loading_overlay_ui <- function(title = "应用加载中", subtitle = "正在连接服务...") {
+  tags$div(
+    id = "app-loading-overlay",
+    class = "is-visible",
+    `aria-hidden` = "false",
+    tags$div(
+      class = "app-loading-card",
+      tags$div(
+        class = "app-loading-scene",
+        tags$div(
+          class = "app-loading-badge",
+          tags$span(class = "app-loading-badge__dot"),
+          "Loading"
+        ),
+        tags$div(class = "app-loading-spark"),
+        tags$div(
+          class = "app-loading-asset-shell",
+          tags$img(
+            class = "app-loading-asset",
+            src = "assets/loading/hamster.svg",
+            alt = "",
+            `aria-hidden` = "true"
+          )
+        ),
+        tags$div(class = "app-loading-lane")
+      ),
+      tags$div(class = "app-loading-title", title),
+      tags$div(id = "app-loading-text", class = "app-loading-subtitle", subtitle)
+    )
+  )
+}
+
 app_card_title <- function(title, subtitle = NULL, tone = "primary") {
   tags$div(
     class = "app-card__title",

@@ -31,6 +31,7 @@
   - `tests/nginx/landing/test_landing_copy_guard.R`
 - 应用入口与认证页整体布局:
   - `tests/root/test_app_auth_layout_guard.R`
+  - `tests/root/test_app_loading_smoke_shinytest2.R`
 - 运行与回归脚本契约:
   - `tests/root/test_run_app_test_script_contract.R`
   - `tests/root/test_run_auth_regression_script_contract.R`

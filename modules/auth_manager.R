@@ -201,14 +201,14 @@ auth_manager_server <- function(id, pg_pool, on_login, goto_tab, send_loading = 
   moduleServer(id, function(input, output, session) {
     `%||%` <- function(x, y) if (is.null(x)) y else x
 
-    set_loading <- function(action) {
+    set_loading <- function(action, text = NULL, delay_ms = NULL) {
       if (!is.null(send_loading) && is.function(send_loading)) {
-        send_loading(action)
+        send_loading(action, text = text, delay_ms = delay_ms)
       }
     }
 
     observeEvent(input$register_submit, {
-      set_loading("show")
+      set_loading("show", "正在连接服务...")
       on.exit(set_loading("hide"), add = TRUE)
       username <- input$register_username %||% ""
       email <- input$register_email %||% ""
@@ -237,13 +237,13 @@ auth_manager_server <- function(id, pg_pool, on_login, goto_tab, send_loading = 
     })
 
     observeEvent(input$login_submit, {
-      set_loading("show")
-      on.exit(set_loading("hide"), add = TRUE)
+      set_loading("show", "正在连接服务...")
       result <- tryCatch(
         auth_authenticate_user(pg_pool, input$login_identity %||% "", input$login_password %||% ""),
         error = function(e) list(success = FALSE, message = paste0("登录失败：", e$message), user = NULL)
       )
       if (!isTRUE(result$success)) {
+        set_loading("hide")
         showNotification(result$message, type = "error")
         return()
       }
@@ -251,6 +251,7 @@ auth_manager_server <- function(id, pg_pool, on_login, goto_tab, send_loading = 
         service_claim_workspace_invites(pg_pool, result$user$id, result$user$email),
         error = function(e) invisible(NULL)
       )
+      set_loading("show", "正在进入工作台...")
       updateTextInput(session, "login_password", value = "")
       updateTextInput(session, "login_identity", value = "")
       on_login(result$user)
@@ -259,6 +260,7 @@ auth_manager_server <- function(id, pg_pool, on_login, goto_tab, send_loading = 
       if (!isTRUE(result$user$email_verified) && nzchar(result$user$email %||% "")) {
         showNotification("当前邮箱尚未验证，可在左侧账号设置区点击“验证邮箱”完成验证。", type = "warning", duration = 7)
       }
+      set_loading("hide_delayed", delay_ms = 450)
     })
 
     observeEvent(input$goto_register, {
@@ -278,7 +280,7 @@ auth_manager_server <- function(id, pg_pool, on_login, goto_tab, send_loading = 
     })
 
     observeEvent(input$request_reset, {
-      set_loading("show")
+      set_loading("show", "正在连接服务...")
       on.exit(set_loading("hide"), add = TRUE)
       result <- tryCatch(
         auth_request_password_reset(pg_pool, input$reset_email %||% ""),
@@ -292,7 +294,7 @@ auth_manager_server <- function(id, pg_pool, on_login, goto_tab, send_loading = 
     })
 
     observeEvent(input$reset_submit, {
-      set_loading("show")
+      set_loading("show", "正在连接服务...")
       on.exit(set_loading("hide"), add = TRUE)
       result <- tryCatch(
         auth_reset_password(
