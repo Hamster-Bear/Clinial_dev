@@ -306,7 +306,12 @@ AutoTFL/
 │   └── postgresql.conf
 ├── deploy/
 │   └── alicloud/
+├── docs/
+│   ├── AI prompt.md
+│   ├── app_design.md
+│   └── superpowers/
 ├── tests/
+│   └── check_test_guide_index.R
 ├── Dockerfile
 ├── docker-compose.yml
 ├── docker-compose.local.yml
@@ -316,8 +321,7 @@ AutoTFL/
 ├── install_dependencies.R
 ├── PROJECT_GUIDE.md
 ├── run_app.R
-├── run_app_test.ps1
-└── style.css
+└── run_app_test.ps1
 ```
 
 ### 4.1 目录使用约定
@@ -361,8 +365,9 @@ AutoTFL/
 1. 数据通过数据库管理模块或数据准备模块进入系统。
 2. 元数据通过 PostgreSQL 中的 workspaces / folders / datasets 管理。
 3. 数据体通过 `storage_backend.R` 保存到本地 `RDS` 或 S3。
-4. `data_metadata.R` 与 `data_filter.R` 统一变量标签、类型和筛选逻辑。
-5. 下游统计分析、图形和预设图表消费经过筛选后的数据。
+4. 数据准备模块在数据库记录仍在但物理数据文件缺失、路径失配或旧记录缺少 `folder_id` 时，应优先返回可见错误提示，不得因路径回退分支异常导致会话中断。
+5. `data_metadata.R` 与 `data_filter.R` 统一变量标签、类型和筛选逻辑。
+6. 下游统计分析、图形和预设图表消费经过筛选后的数据。
 
 ## 6. 统计分析实现
 
@@ -800,7 +805,7 @@ AutoTFL/
 
 - 全局与跨架构：文档守卫、访问边界、Landing 文案、运行脚本与部署脚本契约。
 - 认证与权限：注册登录 helper、邮箱投递、workspace 权限、管理员入口、`analysis_states` 契约与 PostgreSQL 集成测试。
-- 数据接入：数据元数据一致性、数据准备卡片与数据库管理布局守卫。
+- 数据接入：数据元数据一致性、数据准备卡片、数据集路径回退与数据库管理布局守卫。
 - 统计分析：总入口布局、结果区、描述性统计、回归公式校验、稀疏数据、前后端一致性与纯函数解耦回归。
 - 统计图形：common UI、导出、字体、任务历史恢复、Survival / Forest / Waterfall 子模块契约。
 - 预设输出：Listing/导出契约，以及共享测试数据与少量历史专项验证脚本。

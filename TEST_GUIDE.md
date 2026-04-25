@@ -101,6 +101,8 @@
   - `tests/common/ui/test_task_history_card_ui_guard.R`
 - 数据准备 UI 守卫:
   - `tests/data_preparation/test_data_preparation_card_ui_guard.R`
+- 数据准备数据集路径回退守卫:
+  - `tests/data_preparation/test_data_preparation_dataset_path_guard.R`
 - 数据库管理布局守卫:
   - `tests/database_manager/test_database_manager_layout_guard.R`
 

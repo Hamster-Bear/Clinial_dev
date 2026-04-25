@@ -15,6 +15,38 @@ library(DBI)
 library(RPostgres)
 library(pool)
 
+data_preparation_scalar_chr <- function(x, default = "") {
+  if (is.null(x) || length(x) == 0) {
+    return(default)
+  }
+  value <- x[[1]]
+  if (is.null(value) || length(value) == 0 || is.na(value)) {
+    return(default)
+  }
+  value_chr <- as.character(value)
+  if (!nzchar(value_chr)) {
+    return(default)
+  }
+  value_chr
+}
+
+data_preparation_build_fallback_dataset_path <- function(storage_root, ds_row) {
+  workspace_id <- data_preparation_scalar_chr(ds_row$workspace_id, default = "")
+  dataset_id <- data_preparation_scalar_chr(ds_row$id, default = "")
+  folder_id <- data_preparation_scalar_chr(ds_row$folder_id, default = "")
+
+  if (!nzchar(storage_root) || !nzchar(workspace_id) || !nzchar(dataset_id)) {
+    return("")
+  }
+
+  path_parts <- c(storage_root, workspace_id)
+  if (nzchar(folder_id)) {
+    path_parts <- c(path_parts, folder_id)
+  }
+
+  do.call(file.path, as.list(c(path_parts, paste0(dataset_id, ".rds"))))
+}
+
 # 数据准备UI
 data_preparation_ui <- function(id) {
   ns <- NS(id)
@@ -500,8 +532,8 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
   }
 
   resolve_dataset_data_path <- function(ds_row) {
-    raw_path <- ds_row$data_path[[1]]
-    if (is.null(raw_path) || !nzchar(raw_path)) {
+    raw_path <- data_preparation_scalar_chr(ds_row$data_path, default = "")
+    if (!nzchar(raw_path)) {
       return("")
     }
     if (grepl("^s3://", raw_path)) {
@@ -519,24 +551,31 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
     if (!identical(mapped_path, raw_path) && file.exists(mapped_path)) {
       tryCatch({
         if (!is.null(pool)) {
-          dbExecute(pool, "UPDATE datasets SET data_path = $1 WHERE id = $2", params = list(mapped_path, ds_row$id[[1]]))
+          dbExecute(
+            pool,
+            "UPDATE datasets SET data_path = $1 WHERE id = $2",
+            params = list(mapped_path, data_preparation_scalar_chr(ds_row$id, default = ""))
+          )
         }
       }, error = function(e) NULL)
       return(mapped_path)
     }
-    folder_id <- if (is.na(ds_row$folder_id[[1]]) || !nzchar(ds_row$folder_id[[1]])) NULL else ds_row$folder_id[[1]]
-    fallback_path <- file.path(storage_root, ds_row$workspace_id[[1]], folder_id, paste0(ds_row$id[[1]], ".rds"))
-    if (file.exists(fallback_path)) {
+    fallback_path <- data_preparation_build_fallback_dataset_path(storage_root, ds_row)
+    if (nzchar(fallback_path) && file.exists(fallback_path)) {
       tryCatch({
         if (!is.null(pool) && !identical(fallback_path, raw_path)) {
-          dbExecute(pool, "UPDATE datasets SET data_path = $1 WHERE id = $2", params = list(fallback_path, ds_row$id[[1]]))
+          dbExecute(
+            pool,
+            "UPDATE datasets SET data_path = $1 WHERE id = $2",
+            params = list(fallback_path, data_preparation_scalar_chr(ds_row$id, default = ""))
+          )
         }
       }, error = function(e) NULL)
       return(fallback_path)
     }
     matched_paths <- list.files(
       path = storage_root,
-      pattern = paste0("^", ds_row$id[[1]], "\\.rds$"),
+      pattern = paste0("^", data_preparation_scalar_chr(ds_row$id, default = ""), "\\.rds$"),
       recursive = TRUE,
       full.names = TRUE
     )
@@ -544,7 +583,11 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
       resolved_path <- matched_paths[[1]]
       tryCatch({
         if (!is.null(pool) && !identical(resolved_path, raw_path)) {
-          dbExecute(pool, "UPDATE datasets SET data_path = $1 WHERE id = $2", params = list(resolved_path, ds_row$id[[1]]))
+          dbExecute(
+            pool,
+            "UPDATE datasets SET data_path = $1 WHERE id = $2",
+            params = list(resolved_path, data_preparation_scalar_chr(ds_row$id, default = ""))
+          )
         }
       }, error = function(e) NULL)
       return(resolved_path)

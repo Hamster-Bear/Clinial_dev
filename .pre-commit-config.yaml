@@ -13,7 +13,7 @@ repos:
         pass_filenames: false
       - id: r-test-guide-index
         name: r-test-guide-index
-        entry: Rscript check_test_guide_index.R
+        entry: Rscript tests/check_test_guide_index.R
         language: system
         pass_filenames: false
       - id: r-frontend-copy-guard

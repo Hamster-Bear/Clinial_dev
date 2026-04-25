@@ -42,16 +42,16 @@ script_dir <- dirname(normalizePath(script_path, winslash = "/", mustWork = FALS
 project_root <- test_find_project_root()
 
 
-test_that("核心规范文档必须存在于项目根目录", {
+test_that("核心规范文档与工具脚本必须存在于项目预期路径", {
   required_docs <- c(
     "PROJECT_GUIDE.md",
     "PROJECT_SPEC.md",
     "CODE_STYLE.md",
     "DEPLOYMENT_GUIDE.md",
     "TEST_GUIDE.md",
-    "check_test_guide_index.R",
+    file.path("tests", "check_test_guide_index.R"),
     file.path("tests", "common", "auth", "auth_regression_manifest.json"),
-    "AI prompt.md"
+    file.path("docs", "AI prompt.md")
   )
   
   for (doc in required_docs) {
