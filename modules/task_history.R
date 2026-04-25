@@ -92,7 +92,7 @@ task_history_operation_user_message <- function(err, action = "保存") {
     ))
   }
   if (grepl("connection|连接|could not connect|server closed", raw, ignore.case = TRUE)) {
-    return("数据库连接异常，暂时无法操作任务历史，请稍后重试。")
+    return("数据库连接异常，当前无法操作任务历史，请稍后重试。")
   }
   if (grepl("json|lexical error|parse", raw, ignore.case = TRUE)) {
     return("当前任务中包含暂不支持保存的内容，请调整设置后重试。")

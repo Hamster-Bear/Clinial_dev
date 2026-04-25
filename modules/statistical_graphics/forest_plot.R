@@ -1,6 +1,6 @@
-# 森林图子模块 - 基于 sample_forest.r 重构（简化版）
-# 只保留核心功能：列映射、表格配置、图形设置和文本自定义
-# 数据从父模块传入，不包含数据上传和CSS
+# 森林图子模块
+# 提供列映射、表格配置、图形设置和文本自定义
+# 数据由父模块传入
 
 # 加载必要的包
 library(shiny)
@@ -1242,15 +1242,14 @@ forest_plot_server <- function(input, output, session, data) {
           }
           
           # 对数值列应用智能格式化
-          # 检查是否为数值列 (Estimate, Lower, Upper, P_Value等)
-          # 注意：在 raw_data 模式下，P_Value_Str 已经是格式化好的字符串，不需要再次格式化
-          # 这里主要针对 Estimate, Lower, Upper 或者用户传入的原始数值
+          # raw_data 模式下，P_Value_Str 已经是格式化后的字符串
+          # 这里主要处理 Estimate、Lower、Upper 或用户传入的原始数值
           
           is_numeric_col <- col_name %in% estimate_col_names
           
           if (is_numeric_col) {
              # 尝试转换为数值并格式化
-             # 先暂时保留 NA/空值处理逻辑
+             # 保留 NA 和空字符串
              col_values_formatted <- sapply(col_values, function(v) {
                 if (is.na(v) || v == "" || v == "NA") return(v)
                 # 尝试转数字

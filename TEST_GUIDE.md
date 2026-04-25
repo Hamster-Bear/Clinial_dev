@@ -223,10 +223,11 @@
 - 账号页聚合布局若涉及标签页切换、卡片可见性或登录后真实跳转，优先补充 `shinytest2` smoke；当前 `tests/account_access/test_account_access_smoke_shinytest2.R` 仅在显式设置 `RUN_ACCOUNT_ACCESS_SMOKE=1` 且提供普通用户 smoke 账号环境变量时执行。
 - 若测试路径被产品文档、部署文档或守卫测试引用，需同步更新 `README.md`、`PROJECT_GUIDE.md`、`DEPLOYMENT_GUIDE.md` 与相关守卫断言。
 - Landing 页改动需同步校验 `tests/nginx/landing/test_landing_copy_guard.R`：对外命名应保持 Medev，禁止引入虚构图表示意、项目进度文案，并保留真实截图的图片占位结构。
-- 调整前端用户可见说明文案后，需同步检查 `tests/root/test_frontend_copy_guard.R`，确保 `subtitle`、`app_card_note`、`helpText`、`note` 等位置未回流开发阶段口径。
+- 调整前端用户可见说明文案后，需同步检查 `tests/root/test_frontend_copy_guard.R`，确保 `subtitle`、`app_card_note`、`helpText`、`note` 等位置未回流开发阶段口径，并继续覆盖“开发阶段”“内部使用”“暂定”“后续可”“暂时”等更通用的阶段性词汇。
 - 调整入口层共享文案、公共筛选卡、任务历史卡或入口页结果说明后，需同步检查 `tests/root/test_frontend_internal_jargon_guard.R`，确保“工作台复用”“总入口内”“动态 UI”“类型分支”“代码草稿”等内部实现视角词未回流到用户文案。
 - 调整 `tables.R`、`statistical_analysis.R` 或 `modules/common/stat_analysis_submodule_copy.R` 中的参数说明、结果 `note` 与共享 copy 后，需同步检查 `tests/root/test_frontend_implementation_copy_guard.R`，确保“保持原有逻辑”“server 校验”“统一空状态提示”“原有处理方式”等实现保持型表述未回流到用户文案。
-- 调整 `auth_manager.R`、`modules/common/auth/auth_copy.R`、`data_preparation.R`、`permission_manager.R` 或 `user_profile.R` 的用户说明后，需同步检查 `tests/root/test_frontend_auth_data_copy_guard.R`，确保“统一认证入口”“后续扩展”“聚合展示”“协作工作台”“不改变原有加载能力”等结构或开发口径未回流。
+- 调整 `auth_manager.R`、`modules/common/auth/auth_copy.R`、`data_preparation.R`、`permission_manager.R` 或 `user_profile.R` 的用户说明后，需同步检查 `tests/root/test_frontend_auth_data_copy_guard.R`，确保“统一认证入口”“后续扩展”“聚合展示”“协作工作台”“不改变原有加载能力”，以及“改为登录后在用户信息中自行完成”“集中到同一工作台”“按变量类型动态生成筛选控件，并在增减筛选变量时尽量保留已选值”等结构或开发口径未回流。
+- 调整 `data_preparation.R` 或 `modules/common/graphics_common.R` 的 inline 注释后，需同步检查 `tests/root/test_source_comment_process_guard.R`，确保“优化滚动条样式”“渲染性能参数”“default 保持主题默认样式”等过程型注释未回流到应用源码。
 - 调整 `admin_manager.R` 或 `database_manager.R` 的主卡标题、副标题、说明文案后，需同步检查 `tests/root/test_frontend_admin_database_copy_guard.R`，确保“系统管理入口”“集中处理”“统一筛查”“数据空间工作台”“统一完成整理与导入”“阶段二将 ...”等结构或阶段口径未回流。
 - 调整 `user_profile.R` 或 `database_manager.R` 锁定态中的说明文案后，需同步检查 `tests/root/test_frontend_user_lock_copy_guard.R`，确保“集中到同一张功能卡片”“改为登录后自助完成”“仅保留基础密码修改”“不扩展其它账号管理能力”“开放前”等灰区结构口径未回流。
 - 调整 `README.md`、`PROJECT_GUIDE.md` 或 `DEPLOYMENT_GUIDE.md` 中的认证、入口和管理员说明后，需同步检查 `tests/root/test_docs_grey_copy_guard.R`，确保“当前显式提供”“当前已改为更明显的”“当前已抽成独立模块”“当前已提供管理员操作入口”“继续看到 ...”等进度口径未回流。

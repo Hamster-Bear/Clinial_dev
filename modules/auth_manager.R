@@ -123,7 +123,7 @@ auth_manager_tabs <- function(id) {
             tone = "info",
             status = "info",
             solidHeader = FALSE,
-            app_card_note("注册后可由管理员开放数据库管理能力，并可通过邮箱加入协作数据空间；邮箱验证改为登录后在用户信息中自行完成。")
+            app_card_note("注册后可由管理员开放数据库管理能力，并可通过邮箱加入协作数据空间；邮箱验证在登录后的用户信息页面中完成。")
           ),
           app_card_box(
             width = 12,
@@ -136,7 +136,7 @@ auth_manager_tabs <- function(id) {
               class = "auth-panel-list",
               app_card_panel(
                 textInput(ns("register_username"), "用户名", placeholder = "3-32 位小写字母、数字、下划线、点或中划线"),
-                textInput(ns("register_email"), "邮箱", placeholder = "后续可用于协作授权与找回流程"),
+                textInput(ns("register_email"), "邮箱", placeholder = "用于协作授权与找回密码"),
                 passwordInput(ns("register_password"), "密码", placeholder = "至少 8 位"),
                 passwordInput(ns("register_password_confirm"), "确认密码", placeholder = "请再次输入密码"),
                 actionButton(ns("register_submit"), "注册", class = "btn-info auth-primary-button", width = "100%")

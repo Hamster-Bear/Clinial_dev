@@ -41,7 +41,7 @@ ACCOUNT_ENTRY_COPY <- list(
     overview_title = "账号概览",
     overview_subtitle = "快速查看当前身份、邮箱与安全状态",
     workbench_title = "安全与验证",
-    workbench_subtitle = "将验证邮箱、邮箱换绑与修改密码集中到同一工作台",
+    workbench_subtitle = "在这里完成邮箱验证、邮箱换绑和修改密码。",
     tabs = list(
       verify_email = "验证邮箱",
       change_email = "邮箱换绑",

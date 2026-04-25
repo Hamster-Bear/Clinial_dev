@@ -65,8 +65,24 @@ forbidden_patterns <- c(
   "继续保留",
   "当前统一",
   "继续沿用",
-  "后续如补充"
+  "后续如补充",
+  "开发阶段",
+  "内部使用",
+  "暂定",
+  "后续可",
+  "暂时"
 )
+
+test_that("前端 copy 守卫应覆盖通用开发阶段词汇", {
+  generic_patterns <- c("开发阶段", "内部使用", "暂定", "后续可", "暂时")
+
+  for (pattern in generic_patterns) {
+    expect_true(
+      any(grepl(pattern, forbidden_patterns, fixed = TRUE)),
+      info = sprintf("forbidden_patterns 尚未覆盖通用词汇: %s", pattern)
+    )
+  }
+})
 
 test_that("前端用户文案不得暴露开发阶段口径", {
   for (relative_path in frontend_copy_targets) {

@@ -53,7 +53,7 @@ listing_general_params_ui <- function(ns, data) {
     checkboxInput(ns("listing_landscape"), "横向页面 (Landscape)", value = TRUE),
     sliderInput(ns("listing_font_size"), "字体大小", min = 7, max = 11, value = 9),
     
-    # 下载按钮 (注意：需要在 server 端绑定 downloadHandler)
+    # 下载按钮，server 端需绑定 downloadHandler
     downloadButton(ns("listing_download_rtf"), "导出 RTF (三线表+Group)")
   )
 }
@@ -75,7 +75,7 @@ perform_listing_general_analysis <- function(data, key_cols, disp_cols) {
   }
   
   # 数据清洗 (参考 listing_sample.R)
-  # 优化：先排序，再格式化为字符，确保数值列按大小排序而非字典序
+  # 先排序，再格式化为字符，保证数值列按数值大小排序
   clean_df <- data
   
   if (!is.null(key_cols) && length(key_cols) > 0) {
@@ -116,7 +116,7 @@ export_listing_general_rtf <- function(data, key_cols, disp_cols, file, landscap
   }
   
   # 1. 数据准备
-  # 优化：先排序，再格式化为字符，确保数值列按大小排序而非字典序
+  # 先排序，再格式化为字符，保证数值列按数值大小排序
   clean_df <- data
   
   if (!is.null(key_cols) && length(key_cols) > 0) {

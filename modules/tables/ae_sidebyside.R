@@ -112,12 +112,8 @@ perform_ae_sidebyside_analysis <- function(data, term_col, sev_col, subj_col, gr
   subj_sym <- rlang::sym(subj_col)
   
   # 0. 分组处理 (如果选择了分组变量)
-  # 目前 Side-by-Side Plot 是针对单个组 (Safety Set) 的总体展示。
-  # 如果选择了分组变量，应该提示用户这通常是针对整个 Safety Set 的，或者我们需要为每个组生成一个图。
-  # 为了简化，我们暂时只处理第一个组，或者忽略分组变量（展示总体）。
-  # 但更合理的做法是：如果选了分组，就在 UI 上加个 Filter 选具体哪个组，或者默认展示 Overall。
-  # 这里为了保持简单，我们假设用户已经通过全局筛选器筛选了特定的 Population。
-  # 但为了严谨，我们计算 N_TOTAL 时需要注意。
+  # 当前按首个分组或整体数据绘制；更细粒度分组建议先用全局筛选限定人群。
+  # N_TOTAL 仍按当前展示数据重新计算。
   
   # 1. 数据预处理与汇总
   # 即使是 Subject Level 数据，也需要先汇总成 Term + Grade 级别的计数
@@ -227,8 +223,7 @@ perform_ae_sidebyside_analysis <- function(data, term_col, sev_col, subj_col, gr
   }
   
   # 按 TEAE 总发生率降序排列
-  # 注意：如果某个 Term 没有最高 Grade，可能需要调整排序逻辑
-  # 这里使用每个 Term 的总百分比排序
+  # 若某个 Term 缺少最高 Grade，则按总百分比排序
   term_order_df <- plot_prep %>%
       group_by(AEDECOD) %>%
       summarise(max_teae = max(total_teae_pct)) %>%

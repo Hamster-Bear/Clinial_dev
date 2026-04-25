@@ -32,7 +32,7 @@ data_preparation_ui <- function(id) {
           padding: 4px !important;
           height: auto !important;
         }
-        /* 优化滚动条样式 */
+        /* 滚动条样式 */
         .filter-controls-container {
           scrollbar-width: thin;
           scrollbar-color: #888 #f1f1f1;
@@ -220,7 +220,7 @@ data_preparation_ui <- function(id) {
           app_card_box(
             width = NULL,
             title = "高级筛选",
-            subtitle = "按变量类型动态生成筛选控件，并在增减筛选变量时尽量保留已选值",
+            subtitle = "筛选控件会按所选变量类型自动调整；增减筛选条件时尽可能保留已有设置。",
             tone = "primary",
             status = "primary",
             solidHeader = FALSE,
@@ -308,7 +308,7 @@ data_preparation_ui <- function(id) {
   )
 }
 
-# 缓存列定义函数 - 使用memoise优化
+# 缓存列定义
 get_column_def_cached <- memoise(function(col_name, col_data) {
   if (col_name == "行号") {
     return(reactable::colDef(
@@ -1416,7 +1416,7 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
     metadata_attach_to_data(data, type_overrides = var_type_overrides(), label_overrides = var_label_overrides())
   })
   
-  # 显示数据表 - 优化渲染性能
+  # 渲染数据表
   output$data_table <- reactable::renderReactable({
     req(filtered_data())
     
@@ -1471,7 +1471,7 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
       c(100, 200, 500)
     }
     
-    # 优化的Reactable配置
+    # Reactable 配置
     table_output <- reactable(
       data,
       columns = col_defs,
@@ -1487,7 +1487,7 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
       pageSizeOptions = page_size_options,
       resizable = TRUE,
       height = 600,  # 固定高度
-      # 性能优化参数
+      # 渲染参数
       rownames = FALSE,
       fullWidth = TRUE,
       wrap = FALSE,  # 不自动换行提高性能

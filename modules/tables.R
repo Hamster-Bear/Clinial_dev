@@ -287,7 +287,7 @@ tables_server <- function(id, data) {
       } else if (input$table_type == "listing_general") {
         req(input$listing_disp_cols)
       } else if (input$table_type == "ae_sidebyside") {
-        # 注意：ae_sidebyside_params_ui 生成的输入带有 ae_sidebyside_params- 前缀
+        # ae_sidebyside 参数输入使用 ae_sidebyside_params- 前缀
         req(input[["ae_sidebyside_params-ae_term_col"]], input[["ae_sidebyside_params-ae_sev_col"]])
       }
     

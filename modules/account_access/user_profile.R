@@ -50,7 +50,7 @@ user_profile_server <- function(id, pg_pool, current_user = NULL, on_user_update
         return("请先登录后查看个人信息与账号设置。")
       }
       if (isTRUE(user$email_verified)) {
-        return("当前页仅保留基础用户信息与少量信息变更控件，如绑定邮箱、邮箱换绑和修改密码。")
+        return("在这里查看账号信息，并完成邮箱验证、邮箱换绑和密码修改。")
       }
       "当前邮箱尚未验证，可在本页直接发送验证码并完成验证。邮箱验证不会阻断登录，但建议尽快完成，以便后续协作授权与邮箱换绑流程正常使用。"
     }

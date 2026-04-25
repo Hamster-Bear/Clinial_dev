@@ -1080,8 +1080,7 @@ survival_analysis_server <- function(input, output, session, data) {
       # 创建选择列表，只包含实际的分面值（不包含"全部"）
       choices <- facet_values_char
       if (length(choices) > 0) {
-        # 注意：这里我们不再依赖 graphics_state$km_facet_values，而是直接看当前是否有有效选项
-        # 这是为了避免在不同分面变量切换时，旧的 state 值导致 selectInput 无法选中有效值
+        # 用当前可用选项决定分面值选择，避免旧 state 残留造成无效选项
         selectInput(ns("facet_value"), "分面值选择", choices = choices)
       } else {
         selectInput(ns("facet_value"), "分面值选择", choices = NULL)
@@ -2175,7 +2174,7 @@ survival_analysis_server <- function(input, output, session, data) {
     }, error = function(e) {
       message(sprintf("[SurvivalTableError] %s", conditionMessage(e)))
       data.frame(
-        错误 = "结果表暂时无法生成",
+        错误 = "结果表当前无法生成",
         信息 = "请检查当前分层、分面与变量设置后重试。"
       )
     })

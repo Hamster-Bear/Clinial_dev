@@ -38,35 +38,24 @@ read_utf8 <- function(relative_path) {
   paste(readLines(file_path, encoding = "UTF-8", warn = FALSE), collapse = "\n")
 }
 
-target_files <- c(
-  file.path("modules", "auth_manager.R"),
-  file.path("modules", "common", "auth", "auth_copy.R"),
+comment_targets <- c(
   file.path("modules", "data_preparation.R"),
-  file.path("modules", "account_access", "permission_manager.R"),
-  file.path("modules", "account_access", "user_profile.R")
+  file.path("modules", "common", "graphics_common.R")
 )
 
 forbidden_patterns <- c(
-  "统一认证入口",
-  "后续新增账号相关入口",
-  "继续围绕邮箱身份扩展",
-  "聚合展示",
-  "协作工作台",
-  "不改变原有加载能力",
-  "不改动数据库侧原有结构",
-  "改为登录后在用户信息中自行完成",
-  "集中到同一工作台",
-  "按变量类型动态生成筛选控件，并在增减筛选变量时尽量保留已选值",
-  "后续可用于协作授权与找回流程"
+  "优化滚动条样式",
+  "渲染性能参数",
+  "\"default\" 保持主题默认样式"
 )
 
-test_that("账号入口与数据准备用户文案不应暴露开发或结构视角口径", {
-  for (relative_path in target_files) {
+test_that("应用源码注释不应继续保留过程型说明", {
+  for (relative_path in comment_targets) {
     content <- read_utf8(relative_path)
     for (pattern in forbidden_patterns) {
       expect_false(
         grepl(pattern, content, perl = TRUE),
-        info = sprintf("%s 仍包含开发或结构视角文案: %s", relative_path, pattern)
+        info = sprintf("%s 仍包含过程型源码注释: %s", relative_path, pattern)
       )
     }
   }

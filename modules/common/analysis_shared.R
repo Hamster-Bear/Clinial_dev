@@ -1067,7 +1067,7 @@ get_regression_total_cols_settings <- function(input_list, ns_prefix, count_val)
   settings
 }
 
-# UI 生成器 (重构版本)
+# 生成总列设置的 UI
 generate_total_cols_ui <- function(ns, ns_prefix, facet_var, data, count_val) {
   if (is.null(facet_var) || facet_var == "None" || facet_var == "无") return(NULL)
   

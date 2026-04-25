@@ -1057,7 +1057,7 @@ graphics_apply_axis_style <- function(plot_obj, axis_style = "default", arrow_si
       axis.line = ggplot2::element_line(colour = "black", lineend = "square")
     )
   }
-  # "default" 不做任何操作，保留原主题默认样式
+  # "default" 使用主题默认样式
   plot_obj
 }
 

@@ -260,8 +260,8 @@ perform_t_dm_analysis <- function(data,
         tbl <- tbl_merge(tbl_list, tab_spanner = FALSE)
         # 设置列标签
         # 原始表格的列标签已由分组变量定义，总计列表格的列标签使用设置名称
-        # tbl_merge 会自动使用每个表格的默认列名，这里手动设置列名较复杂，暂不处理
-        # 后续可通过 modify_header 调整
+        # tbl_merge 会自动使用每个表格的默认列名
+        # 如需调整合并后的列标题，可再调用 modify_header()
       }
     }
     
