@@ -26,6 +26,37 @@
 - 文档与规范守卫:
   - `tests/root/test_project_docs_guard.R`
   - `tests/root/test_test_guide_index_contract.R`
+- 工具链与入口层文案守卫:
+  - `tests/root/test_precommit_contract.R`
+  - `tests/root/test_entry_copy_guard.R`
+- 统计分析子模块文案守卫:
+  - `tests/statistical_analysis/ui/test_statistical_analysis_copy_guard.R`
+- 统计图形结果区文案守卫:
+  - `tests/statistical_graphics/ui/test_graphics_result_copy_guard.R`
+- 统计图形导出卡文案守卫:
+  - `tests/statistical_graphics/ui/test_graphics_export_copy_guard.R`
+- 核心统计图形开发口径守卫:
+  - `tests/statistical_graphics/ui/test_graphics_dev_copy_guard.R`
+- 前端用户文案守卫:
+  - `tests/root/test_frontend_copy_guard.R`
+- 前端内部实现视角文案守卫:
+  - `tests/root/test_frontend_internal_jargon_guard.R`
+- 前端实现保持型文案守卫:
+  - `tests/root/test_frontend_implementation_copy_guard.R`
+- 账号入口与数据准备文案守卫:
+  - `tests/root/test_frontend_auth_data_copy_guard.R`
+- 管理员页与数据库管理页文案守卫:
+  - `tests/root/test_frontend_admin_database_copy_guard.R`
+- 账号页与数据库锁定态灰区文案守卫:
+  - `tests/root/test_frontend_user_lock_copy_guard.R`
+- 核心文档灰区进度口径守卫:
+  - `tests/root/test_docs_grey_copy_guard.R`
+- 核心文档公共壳与样板推进口径守卫:
+  - `tests/root/test_docs_ui_progress_copy_guard.R`
+- 核心文档 helper 与守卫新增口径守卫:
+  - `tests/root/test_docs_helper_guard_copy_guard.R`
+- PROJECT_GUIDE 状态型过程口径守卫:
+  - `tests/root/test_project_guide_status_terms_guard.R`
 - 访问边界与对外口径:
   - `tests/root/test_access_boundary_guard.R`
   - `tests/nginx/landing/test_landing_copy_guard.R`
@@ -120,6 +151,7 @@
 
 - 入口层 UI 守卫:
   - `tests/statistical_graphics/ui/test_statistical_graphics_layout_guard.R`
+  - `tests/statistical_graphics/ui/test_graphics_dev_copy_guard.R`
 - Survival:
   - `tests/statistical_graphics/survival/test_survival_layout_guard.R`
   - `tests/statistical_graphics/survival/test_survival_display_contract.R`
@@ -191,6 +223,23 @@
 - 账号页聚合布局若涉及标签页切换、卡片可见性或登录后真实跳转，优先补充 `shinytest2` smoke；当前 `tests/account_access/test_account_access_smoke_shinytest2.R` 仅在显式设置 `RUN_ACCOUNT_ACCESS_SMOKE=1` 且提供普通用户 smoke 账号环境变量时执行。
 - 若测试路径被产品文档、部署文档或守卫测试引用，需同步更新 `README.md`、`PROJECT_GUIDE.md`、`DEPLOYMENT_GUIDE.md` 与相关守卫断言。
 - Landing 页改动需同步校验 `tests/nginx/landing/test_landing_copy_guard.R`：对外命名应保持 Medev，禁止引入虚构图表示意、项目进度文案，并保留真实截图的图片占位结构。
+- 调整前端用户可见说明文案后，需同步检查 `tests/root/test_frontend_copy_guard.R`，确保 `subtitle`、`app_card_note`、`helpText`、`note` 等位置未回流开发阶段口径。
+- 调整入口层共享文案、公共筛选卡、任务历史卡或入口页结果说明后，需同步检查 `tests/root/test_frontend_internal_jargon_guard.R`，确保“工作台复用”“总入口内”“动态 UI”“类型分支”“代码草稿”等内部实现视角词未回流到用户文案。
+- 调整 `tables.R`、`statistical_analysis.R` 或 `modules/common/stat_analysis_submodule_copy.R` 中的参数说明、结果 `note` 与共享 copy 后，需同步检查 `tests/root/test_frontend_implementation_copy_guard.R`，确保“保持原有逻辑”“server 校验”“统一空状态提示”“原有处理方式”等实现保持型表述未回流到用户文案。
+- 调整 `auth_manager.R`、`modules/common/auth/auth_copy.R`、`data_preparation.R`、`permission_manager.R` 或 `user_profile.R` 的用户说明后，需同步检查 `tests/root/test_frontend_auth_data_copy_guard.R`，确保“统一认证入口”“后续扩展”“聚合展示”“协作工作台”“不改变原有加载能力”等结构或开发口径未回流。
+- 调整 `admin_manager.R` 或 `database_manager.R` 的主卡标题、副标题、说明文案后，需同步检查 `tests/root/test_frontend_admin_database_copy_guard.R`，确保“系统管理入口”“集中处理”“统一筛查”“数据空间工作台”“统一完成整理与导入”“阶段二将 ...”等结构或阶段口径未回流。
+- 调整 `user_profile.R` 或 `database_manager.R` 锁定态中的说明文案后，需同步检查 `tests/root/test_frontend_user_lock_copy_guard.R`，确保“集中到同一张功能卡片”“改为登录后自助完成”“仅保留基础密码修改”“不扩展其它账号管理能力”“开放前”等灰区结构口径未回流。
+- 调整 `README.md`、`PROJECT_GUIDE.md` 或 `DEPLOYMENT_GUIDE.md` 中的认证、入口和管理员说明后，需同步检查 `tests/root/test_docs_grey_copy_guard.R`，确保“当前显式提供”“当前已改为更明显的”“当前已抽成独立模块”“当前已提供管理员操作入口”“继续看到 ...”等进度口径未回流。
+- 调整 `README.md`、`PROJECT_GUIDE.md` 或 `DEPLOYMENT_GUIDE.md` 中的公共壳接入、样板覆盖和结果区统一说明后，需同步检查 `tests/root/test_docs_ui_progress_copy_guard.R`，确保“接入推进”“样板落到”“继续统一”这类研发推进口径未回流。
+- 调整 `PROJECT_GUIDE.md`、`README.md` 或 `DEPLOYMENT_GUIDE.md` 中的共享 helper、共享 copy 源、smoke test 或布局/UI 守卫说明后，需同步检查 `tests/root/test_docs_helper_guard_copy_guard.R`，确保“新增共享源”“收口到”“补充守卫”“补充 smoke test”这类实施记录式口径未回流。
+- 调整 `PROJECT_GUIDE.md` 中的模块现状、能力矩阵或章节标题后，需同步检查 `tests/root/test_project_guide_status_terms_guard.R`，确保“已完成”“已落地”“增强中”“已开始接入”这类状态型过程口径未回流。
+- 调整统计分析、统计图形、Tables 或探索分析入口层文案后，需同步检查 `tests/root/test_entry_copy_guard.R`，确保入口模块仍从 `modules/common/entry_copy.R` 读取共享文案。
+- 调整 `statistical_graphics.R` 的入口共享文案接线或 `renderUI()` 结果区时，需同步检查 `tests/statistical_graphics/ui/test_statistical_graphics_layout_guard.R`，确保 server 侧也在本作用域内读取 `ENTRY_COPY$statistical_graphics`，避免运行时报 `找不到对象 'copy'`。
+- 调整 `desc`、`cox`、`logistic`、`linear`、`anova`、`chisq` 的说明块后，需同步检查 `tests/statistical_analysis/ui/test_statistical_analysis_copy_guard.R`，确保子模块继续从 `modules/common/stat_analysis_submodule_copy.R` 读取共享说明文案。
+- 调整 `survival_analysis`、`forest_plot`、`combo_plot`、`waterfall_plot`、`swimmer_plot`、`spider_plot` 结果区通用文案后，需同步检查 `tests/statistical_graphics/ui/test_graphics_result_copy_guard.R`，确保模块继续从 `modules/common/graphics_result_copy.R` 读取共享结果区文案。
+- 调整 `survival_analysis`、`forest_plot`、`combo_plot`、`waterfall_plot`、`swimmer_plot`、`spider_plot` 导出卡通用文案后，需同步检查 `tests/statistical_graphics/ui/test_graphics_export_copy_guard.R`，确保模块继续从 `modules/common/graphics_export_copy.R` 读取共享导出卡文案。
+- 调整 `combo_plot`、`forest_plot`、`swimmer_plot`、`waterfall_plot`、`spider_plot` 的 `helpText()`、`help_text` 或局部 `note` 后，需同步检查 `tests/statistical_graphics/ui/test_graphics_dev_copy_guard.R`，确保高风险开发阶段口径未回流到核心图形模块。
+- 调整 `.pre-commit-config.yaml` 或新增快速守卫入口后，需同步检查 `tests/root/test_precommit_contract.R`，确保独立的前端文案守卫 hook 未被移除。
 - 调整测试目录后，至少执行一次 `check_test_guide_index.R` 或对应守卫测试，确认 `TEST_GUIDE.md` 与 `tests/` 实际文件保持一致。
 
 ## 7. Legacy 收口计划

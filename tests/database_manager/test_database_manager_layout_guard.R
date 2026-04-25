@@ -48,7 +48,7 @@ expect_contains <- function(text, pattern, label) {
   }
 }
 
-expect_contains(database_manager_text, "title = \"数据空间工作台\"", "数据库管理页主标题")
+expect_contains(database_manager_text, "title = \"数据空间管理\"", "数据库管理页主标题")
 expect_contains(database_manager_text, "app_card_dependencies\\(\\)", "数据库管理页加载公共卡片依赖")
 expect_contains(database_manager_text, "app_card_note\\(", "数据库管理页使用公共说明块")
 expect_contains(database_manager_text, "app_stat_card\\(", "数据库管理页使用公共摘要卡")

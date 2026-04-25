@@ -168,7 +168,7 @@ permission_manager_server <- function(id, pg_pool, current_user = NULL) {
               app_stat_card("可编辑空间", as.character(editor_count), meta = "拥有 editor 权限", tone = "info"),
               app_stat_card("只读空间", as.character(viewer_count), meta = "拥有 viewer 权限", tone = "warning")
             ),
-            app_card_note("当前账号不是这些数据空间的负责人，因此这里聚合展示的是你被授予的访问权限信息，而不是成员管理表单。"),
+            app_card_note("你可在这里查看被授予的数据空间与角色信息；成员管理仅对负责人开放。"),
             tabBox(
               width = 12,
               title = NULL,
@@ -179,7 +179,7 @@ permission_manager_server <- function(id, pg_pool, current_user = NULL) {
               ),
               tabPanel(
                 copy$tabs$usage,
-                app_card_panel("若后续获得负责人权限或创建新的数据空间，当前页会自动切换为协作工作台布局。")
+                app_card_panel("获得负责人权限或拥有可管理空间后，这里会显示成员授权、撤销和负责人迁移功能。")
               )
             )
           )
@@ -201,7 +201,7 @@ permission_manager_server <- function(id, pg_pool, current_user = NULL) {
               app_stat_card("可管理空间", "0", meta = "当前暂无 owner 权限空间", tone = "warning"),
               app_stat_card("已授权空间", "0", meta = "当前也没有来自其它空间的授权", tone = "warning")
             ),
-            app_card_note("当前账号名下还没有可管理的数据空间，因此权限管理区暂时不显示协作设置表单。后续创建或获得可管理空间后，这里会自动出现成员授权、撤销和负责人迁移能力。")
+            app_card_note("当前账号名下还没有可管理的数据空间。拥有可管理空间后，这里会显示成员授权、撤销和负责人迁移功能。")
           )
         ))
       }
@@ -216,7 +216,7 @@ permission_manager_server <- function(id, pg_pool, current_user = NULL) {
           solidHeader = FALSE,
           div(
             class = "permission-workbench-note",
-            app_card_note("当前页将可管理空间概览、邮箱授权、负责人迁移与成员预览聚合展示，减少上下跳转。")
+            app_card_note("在这里查看可管理空间概览，并通过邮箱完成成员授权、负责人迁移与预览。")
           ),
           uiOutput(session$ns("workspace_context"))
         ),

@@ -26,11 +26,18 @@ expect_not_contains <- function(text, pattern, label) {
 }
 
 expect_contains(graphics_text, "source\\(\"modules/common/ui_shell.R\"\\)", "统计图形总入口加载公共 UI 壳")
+expect_contains(graphics_text, "source\\(\"modules/common/entry_copy.R\"\\)", "统计图形总入口加载入口层共享文案")
+expect_contains(graphics_text, "copy <- ENTRY_COPY\\$statistical_graphics", "统计图形总入口读取共享文案")
+expect_contains(
+  graphics_text,
+  "statistical_graphics_server <- function\\(id, data, pg_pool = NULL, current_user = NULL, workspace_id = NULL\\) \\{[\\s\\S]*?moduleServer\\(id, function\\(input, output, session\\) \\{[\\s\\S]*?copy <- ENTRY_COPY\\$statistical_graphics",
+  "统计图形服务端在 renderUI 前读取共享文案"
+)
 expect_contains(graphics_text, "data_filter_ui\\(ns\\(\"global_filter\"\\)\\)", "统计图形总入口直接复用全局筛选卡")
 expect_contains(graphics_text, "task_history_ui\\(", "统计图形总入口直接复用任务历史卡")
 expect_contains(graphics_text, "app_card_box\\(", "统计图形总入口使用公共卡片 helper")
-expect_contains(graphics_text, "title = \"统计图形类型选择\"", "统计图形总入口保留类型选择卡")
-expect_contains(graphics_text, "title = \"可复现代码\"", "统计图形总入口保留可复现代码卡")
+expect_contains(graphics_text, "title = copy\\$selector\\$title", "统计图形总入口保留类型选择卡")
+expect_contains(graphics_text, "title = copy\\$repro\\$title", "统计图形总入口保留可复现代码卡")
 expect_contains(graphics_text, "app_result_panel\\(", "统计图形总入口可复现代码使用结果 panel")
 expect_contains(graphics_text, "switch\\(input\\$fig_type", "统计图形总入口保留子模块切换逻辑")
 expect_not_contains(graphics_text, "(?<!app_card_)box\\([\\s\\S]*title = \"统计图形类型选择\"", "统计图形总入口不再用裸 box 包裹类型选择卡")

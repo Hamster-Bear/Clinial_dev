@@ -6,6 +6,11 @@ if (file.exists("modules/common/analysis_shared.R")) {
 } else {
   source(file.path("..", "modules", "common", "analysis_shared.R"))
 }
+if (file.exists("modules/common/stat_analysis_submodule_copy.R")) {
+  source("modules/common/stat_analysis_submodule_copy.R")
+} else {
+  source(file.path("..", "modules", "common", "stat_analysis_submodule_copy.R"))
+}
 if (!exists("app_card_note", mode = "function") || !exists("app_card_panel", mode = "function")) {
   if (file.exists("modules/common/ui_shell.R")) {
     source("modules/common/ui_shell.R")
@@ -17,14 +22,15 @@ ensure_stat_analysis_dependencies()
 
 # Cox回归参数UI
 cox_params_ui <- function(ns, data) {
+  copy <- STAT_ANALYSIS_SUBMODULE_COPY$cox
   numeric_vars <- names(data)[sapply(data, is.numeric)]
   factor_vars <- names(data)[sapply(data, function(x) is.factor(x) || is.character(x))]
   
   tagList(
-    app_card_note("Cox 回归参数区已接入公共壳分组样式；本轮只统一参数分区与说明块，不改变建模、交互检验或结果展示逻辑。"),
+    app_card_note(copy$intro),
     app_card_panel(
       tags$strong("结局与分层"),
-      app_card_note("先定义生存时间、事件状态，再按需设置亚组、分面与模型内分层因素。"),
+      app_card_note(copy$outcome),
       fluidRow(
         column(6,
                selectInput(ns("cox_time"), "时间变量 (Time)", choices = numeric_vars),
@@ -54,13 +60,13 @@ cox_params_ui <- function(ns, data) {
     ),
     app_card_panel(
       tags$strong("总计列与状态映射"),
-      app_card_note("继续保留总计列设置与事件值映射，用于控制列展示与删失/事件判定。"),
+      app_card_note(copy$total_cols),
       uiOutput(ns("cox_total_cols_ui")),
       uiOutput(ns("cox_status_mapping_ui"))
     ),
     app_card_panel(
       tags$strong("协变量与参考组"),
-      app_card_note("协变量选择、分类变量参考组与后续模型公式保持原有处理方式。"),
+      app_card_note(copy$covariates),
       selectizeInput(ns("cox_covariates"), "协变量 (Covariates)", choices = names(data), multiple = TRUE),
       bsTooltip(ns("cox_covariates"), "纳入 Cox 模型的协变量", placement = "top", trigger = "hover"),
       uiOutput(ns("cox_reference_ui"))

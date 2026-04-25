@@ -164,8 +164,8 @@ admin_manager_ui <- function(id) {
     fluidRow(
       app_card_box(
         width = 12,
-        title = "系统管理入口",
-        subtitle = "集中处理系统级账号状态、数据空间权限与协作排障入口",
+        title = "系统管理",
+        subtitle = "在这里查看账号状态、数据空间权限与协作处理信息",
         tone = "info",
         status = "info",
         solidHeader = FALSE,
@@ -420,7 +420,7 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
     output$admin_access_notice <- renderUI({
       if (isTRUE(is_admin())) {
         app_card_note(
-          "当前页面仅面向系统管理员，用于执行账号状态调整、数据库管理权限开关和查看数据库信息。若需要处理数据空间负责人或协作授权，仅限当前管理员自己名下可管理的数据空间。管理员入口保持独立，不并入普通用户侧边栏卡片。"
+          "当前页面仅面向系统管理员，用于执行账号状态调整、数据库管理权限开关和查看数据库信息。若需要处理数据空间负责人或协作授权，仅限当前管理员自己名下可管理的数据空间。"
         )
       } else {
         app_card_note("当前页面仅系统管理员可用。")
@@ -475,11 +475,11 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
           app_card_box(
             width = 8,
             title = "所有注册账号总览",
-            subtitle = "按元信息统一筛查账号状态、数据空间功能与协作概况",
+            subtitle = "按账号状态、数据空间功能与协作概况筛选查看",
             tone = "primary",
             status = "primary",
             solidHeader = FALSE,
-            app_card_note("仅展示所有已注册账号的元信息、数据空间功能状态和协作摘要，便于系统管理员统一排查与筛查；不展示其他用户数据空间中的实际数据内容。"),
+            app_card_note("仅展示所有已注册账号的元信息、数据空间功能状态和协作摘要，便于系统管理员查看和筛选；不展示其他用户数据空间中的实际数据内容。"),
             uiOutput(session$ns("admin_user_registry_summary")),
             uiOutput(session$ns("admin_user_registry_filters")),
             uiOutput(session$ns("admin_user_registry_filter_note")),
@@ -541,12 +541,12 @@ admin_manager_server <- function(id, pg_pool, current_user = NULL) {
           app_card_box(
             width = 7,
             title = "数据空间管理",
-            subtitle = "合并处理我名下空间的负责人调整与协作授权",
+            subtitle = "处理我名下空间的负责人调整与协作授权",
             tone = "info",
             status = "info",
             solidHeader = FALSE,
             div(id = session$ns("admin_workspace_manage_section"), class = "admin-risk-anchor"),
-            app_card_note("当前卡片统一处理我名下数据空间的负责人迁移、协作授权与待领取邀请跟进，不展示库内用户选择器。"),
+            app_card_note("在这里处理我名下数据空间的负责人迁移、协作授权与待领取邀请跟进，不展示库内用户选择器。"),
             selectInput(session$ns("workspace_manage_select"), "选择目标数据空间", choices = workspace_choices),
             uiOutput(session$ns("admin_workspace_manage_summary")),
             div(

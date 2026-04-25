@@ -1,21 +1,23 @@
 # 探索分析模块
 # 负责数据的交互式可视化和探索性分析
 
+source("modules/common/entry_copy.R")
 source("modules/common/ui_shell.R")
 
 exploratory_analysis_ui <- function(id) {
   ns <- NS(id)
+  copy <- ENTRY_COPY$exploratory_analysis
   
   tagList(
     fluidRow(
       app_card_box(
         width = 3,
-        title = "变量托盘",
-        subtitle = "继续保留可用变量浏览与类型提示，只统一入口卡片视觉",
+        title = copy$tray$title,
+        subtitle = copy$tray$subtitle,
         tone = "primary",
         status = "primary",
         solidHeader = FALSE,
-        app_card_note("当前统一变量托盘卡片、说明块与滚动容器，不调整变量类型判定或输出内容。"),
+        app_card_note(copy$tray$note),
         app_card_panel(
           tags$div(
             style = "max-height: 500px; overflow-y: auto;",
@@ -25,12 +27,12 @@ exploratory_analysis_ui <- function(id) {
       ),
       app_card_box(
         width = 9,
-        title = "图形控制器",
-        subtitle = "继续保留图形类型切换、变量映射与标题设置链路",
+        title = copy$controller$title,
+        subtitle = copy$controller$subtitle,
         tone = "warning",
         status = "warning",
         solidHeader = FALSE,
-        app_card_note("本轮只统一控制器入口卡、参数分区与说明块，不改变 tooltip、动态变量过滤与重置行为。"),
+        app_card_note(copy$controller$note),
         app_card_panel(
           fluidRow(
             column(6,
@@ -43,7 +45,7 @@ exploratory_analysis_ui <- function(id) {
         ),
         app_card_panel(
           tags$strong("变量映射"),
-          app_card_note("继续通过动态 UI 输出 X/Y/颜色/分面变量选择；图形类型切换后保持原有变量过滤规则。"),
+          app_card_note("在这里选择 X/Y/颜色/分面变量；切换图形类型后会自动更新可选变量。"),
           fluidRow(
             column(3,
                   uiOutput(ns("aes_x")),
@@ -65,7 +67,7 @@ exploratory_analysis_ui <- function(id) {
         ),
         app_card_panel(
           tags$strong("标题与标签"),
-          app_card_note("继续保留图形标题、副标题和坐标轴标签自定义输入，不改变默认回退文案逻辑。"),
+          app_card_note("可自定义图形标题、副标题和坐标轴标签。"),
           fluidRow(
             column(6,
                    textInput(ns("plot_title"), "图形标题", value = "", placeholder = "输入图形标题")
@@ -88,15 +90,15 @@ exploratory_analysis_ui <- function(id) {
     fluidRow(
       app_card_box(
         width = 12, 
-        title = "图形输出", 
-        subtitle = "继续保留 Plotly 结果输出与分页提示链路",
+        title = copy$result$title, 
+        subtitle = copy$result$subtitle,
         tone = "success",
         status = "success",
         solidHeader = FALSE,
-        app_card_note("当前统一结果卡与说明块，不调整 Plotly 渲染、错误占位图或分页提示逻辑。"),
+        app_card_note(copy$result$note),
         app_result_panel(
           title = "探索图形结果",
-          note = "展示当前变量映射生成的交互式图形，并继续保留分页说明与异常提示输出。",
+          note = "展示当前变量映射生成的交互式图形结果，并按需要显示分页说明和异常提示。",
           tone = "success",
           plotly::plotlyOutput(ns("exploratory_plot"), height = "600px"),
           br(),

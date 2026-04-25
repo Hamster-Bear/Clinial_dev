@@ -73,11 +73,9 @@ expect_contains(linear_text, "uiOutput\\(ns\\(\"linear_reference_ui\"\\)\\)", "l
 expect_contains(linear_text, "selectizeInput\\(ns\\(\"linear_predictors\"\\)", "linear 模块保留预测变量输入")
 
 module_path <- function(p) file.path(project_root, p)
+assign("bsTooltip", function(...) NULL, envir = .GlobalEnv)
 source(module_path(file.path("modules", "statistical_analysis", "logistic.R")))
 source(module_path(file.path("modules", "statistical_analysis", "linear.R")))
-if (!exists("bsTooltip", mode = "function")) {
-  bsTooltip <- function(...) NULL
-}
 
 demo_df <- data.frame(
   arm = factor(c("A", "A", "B", "B", "A", "B")),
@@ -92,6 +90,8 @@ logistic_ui <- logistic_params_ui(NS("logistic"), demo_df)
 linear_ui <- linear_params_ui(NS("linear"), demo_df)
 if (!inherits(logistic_ui, "shiny.tag.list")) stop("logistic_params_ui 未返回 shiny.tag.list", call. = FALSE)
 if (!inherits(linear_ui, "shiny.tag.list")) stop("linear_params_ui 未返回 shiny.tag.list", call. = FALSE)
+
+rm("bsTooltip", envir = .GlobalEnv)
 
 cat("Statistical analysis regression submodule UI guard passed.\n")
 

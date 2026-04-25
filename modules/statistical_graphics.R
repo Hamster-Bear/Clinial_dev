@@ -7,6 +7,7 @@ source("modules/common/plot_export.R")
 source("modules/common/analysis_format.R")
 source("modules/common/graphics_repro.R")
 source("modules/common/graphics_common.R")
+source("modules/common/entry_copy.R")
 source("modules/common/ui_shell.R")
 source("modules/common/graphics/forest_table_state_helpers.R")
 source("modules/common/graphics/forest_result_schema_helpers.R")
@@ -28,17 +29,18 @@ source("modules/common/data_filter.R")
 
 statistical_graphics_ui <- function(id) {
   ns <- NS(id)
+  copy <- ENTRY_COPY$statistical_graphics
 
   tagList(
     data_filter_ui(ns("global_filter")),
     app_card_box(
       width = 12,
-      title = "统计图形类型选择",
-      subtitle = "继续保留图形子模块切换链路，只统一入口卡片视觉与说明块",
+      title = copy$selector$title,
+      subtitle = copy$selector$subtitle,
       tone = "primary",
       status = "primary",
       solidHeader = FALSE,
-      app_card_note("全局筛选卡和任务历史卡已作为公共模块独立收口；这里仅保留图形类型选择入口。"),
+      app_card_note(copy$selector$note),
       app_card_panel(
         selectInput(
           ns("fig_type"),
@@ -59,7 +61,7 @@ statistical_graphics_ui <- function(id) {
     ),
     task_history_ui(
       ns("task_history"),
-      help_text = "当前已支持将图形参数、界面状态与模块类型保存为任务历史；按用户隔离，workspace 为空时保存为个人任务。"
+      help_text = "按用户保存图形参数、页面选择和任务备注；workspace 为空时保存为个人任务。"
     ),
     uiOutput(ns("selected_graphic_ui"))
   )
@@ -68,6 +70,7 @@ statistical_graphics_ui <- function(id) {
 statistical_graphics_server <- function(id, data, pg_pool = NULL, current_user = NULL, workspace_id = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+    copy <- ENTRY_COPY$statistical_graphics
 
     resolve_workspace_id <- function() {
       raw_workspace_id <- if (is.null(workspace_id)) {
@@ -156,17 +159,17 @@ statistical_graphics_server <- function(id, data, pg_pool = NULL, current_user =
         ),
         app_card_box(
           width = 12,
-          title = "可复现代码",
-          subtitle = "按当前图形类型和参数生成代码草稿",
+          title = copy$repro$title,
+          subtitle = copy$repro$subtitle,
           tone = "info",
           status = "info",
           solidHeader = FALSE,
           collapsible = TRUE,
           collapsed = TRUE,
-          app_card_note("继续保留原有代码生成逻辑，只统一代码容器与说明块。"),
+          app_card_note(copy$repro$note),
           app_result_panel(
             title = "图形复现代码",
-            note = "根据当前图形模块和参数状态生成 R 代码草稿，便于本地复现或文档整理。",
+            note = "根据当前图形参数生成 R 代码，便于本地复现或整理文档。",
             tone = "info",
             verbatimTextOutput(ns("graphic_repro_code_out"))
           )

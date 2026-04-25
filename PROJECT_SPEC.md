@@ -21,6 +21,11 @@ AutoTFL 旨在为医学和临床数据分析提供一套自动化、可复现的
 - **统计分析 (Statistical Analysis)**: 覆盖描述性统计、Cox/Logistic/线性回归、ANOVA 等。
 - **统计图形 (Statistical Graphics)**: 提供生存分析图、森林图、泳道图等医学常用图形；其中生存分析的统计摘要当前区分主开关 `show_stats` 与细粒度开关 `show_cox_p`，后者仅控制分层时 Cox 摘要行中的 P 值显示，不影响 HR 与 95%CI 计算。
 - **图形输出一致性**: 统计图形模块需保证前端静态图、交互图与导出尺寸模式一致；带轨道/风险表的组合图在导出时需按当前前端画布高度同步扩展导出高度。
+- **前端展示文案边界**: `subtitle`、`app_card_note`、`helpText`、`help_text`、`note` 等用户可见文案只描述当前能力、操作边界和结果含义；不得暴露“本轮只统一”“继续保留”“当前统一”“继续沿用”“统一收纳”“暂不额外暴露”“不改绘图/导出”等开发阶段口径，也避免使用“总入口内”“公共复用”“动态 UI”“类型分支”“代码草稿”“不改变已有计算和生成逻辑”“保持原有 server 校验”“统一空状态提示”“保持原有处理方式”“统一认证入口”“继续围绕邮箱身份扩展”“后续新增账号相关入口”“聚合展示”“协作工作台”“不改变原有加载能力”“不改动数据库侧原有结构”“系统管理入口”“集中处理”“统一筛查”“统一排查与筛查”“当前卡片统一处理”“数据空间工作台”“统一完成整理与导入”“阶段二将”“集中到同一张功能卡片”“改为登录后自助完成”“仅保留基础密码修改”“不扩展其它账号管理能力”“开放前”等内部实现、结构视角或实现保持型表述。
+- **文档说明边界**: `README.md`、`PROJECT_GUIDE.md` 与 `DEPLOYMENT_GUIDE.md` 中面向使用者或维护者的说明，也应避免“当前显式提供”“当前已改为更明显的”“当前已抽成独立模块”“当前已提供管理员操作入口”“继续看到 ...”这类进度口径，统一改写为稳定事实说明。
+- **公共壳与样板文档边界**: 核心文档中的公共壳接入、样板覆盖与结果区说明，也应避免“接入推进/样板落到/继续统一”这类研发推进口径，统一改写为模块使用范围、覆盖范围与当前稳定状态说明。
+- **helper 与守卫文档边界**: 核心文档中的共享 helper、共享 copy 源、smoke test 与布局/UI 守卫说明，也应避免“新增/补充/收口式过程口径”，统一改写为用途、覆盖范围与运行前提说明。
+- **状态型过程口径边界**: `PROJECT_GUIDE.md` 中的模块现状、能力矩阵与章节标题，也应避免“已完成/已落地/增强中/已开始接入”这类状态型过程口径，统一改写为结构、覆盖范围与能力说明。
 - **报表导出**: 支持 Word (RTF/DOCX), PDF, HTML 格式。
 - **分析状态管理 (Analysis State Manager)**: 当前已为统计图形模块落地 `analysis_states` 持久化底座，并抽离共享 `task_history` 模块承载任务历史 UI/加载逻辑；现阶段仍嵌入统计图形页内，不单列左侧一级菜单。当前支持按用户保存/加载图形子模块的完整参数、UI 状态、模块类型与用户自定义 note；不保存图对象、分析结果对象或原始数据副本，载入后由各模块按 `state/apply_state` 契约恢复控件状态。状态快照只应包含业务参数，不应持久化 DT/Plotly 等输出组件派生的临时交互输入，也不应保存配置页签等纯导航态；恢复旧快照时也需跳过这些字段。任务历史同时支持删除。workspace 为空时保存为个人任务；service 层需通过 `service_normalize_analysis_state_workspace_id()` 将空字符串/NULL 以及带 `id` 字段的 list/data.frame 统一归一为数据库中的 `NULL` 或单一 workspace id。`analysis_states` 的数据库约束需保证“同一用户 + 同一任务作用域 + 同一模块 + 同一任务名”在 workspace 内唯一，个人任务与 workspace 任务分别使用独立唯一索引；但运行时覆盖保存不能依赖 `ON CONFLICT` 成为前置条件，service 层必须先按自然键查找同名任务，命中时显式更新 `payload/note/updated_at`，未命中才插入新记录，从而兼容尚未完成迁移的旧库。对已部署旧库的 schema 变更必须提供显式迁移脚本与运行时迁移逻辑，避免旧 UNIQUE 约束、重复数据或字段漂移导致上线后失败。后续再继续扩展到统计分析模块与更完整的任务资产管理。
 - **图形参数抽象层 (Graphics Parameter Abstractions)**: 首批共享参数卡片限定为列映射块、时间轴块、导出块三类，统一沉淀在 `common_ui_shell.R`；它们只负责高重复 UI 结构和布局规范，不直接承载业务计算。动态事件映射、复杂颜色映射、列显示配置等高动态区块留待下一批单独抽象。
@@ -34,6 +39,21 @@ AutoTFL 旨在为医学和临床数据分析提供一套自动化、可复现的
 - **统计分析结果区收口**: `statistical_analysis.R` 的 `统计表格 / 统计报告 / 可复现代码` 三个结果 tab 与导出区已继续统一到结果 panel/空状态 helper；当前只统一结果容器、空状态与导出说明，不调整结果对象、报告生成或导出逻辑。
 - **公共扩散源 UI 收口**: `modules/common/data_filter.R` 与 `modules/task_history.R` 作为多个入口复用的公共模块，当前已接入 `modules/common/ui_shell.R` 的公共卡片壳；本轮只统一可折叠工作台卡片、说明块与按钮区，不改变筛选语义、任务历史持久化与交互链路。
 - **统计图形总入口公共壳**: `statistical_graphics.R` 已接入 `modules/common/ui_shell.R` 公共卡片壳，统一图形类型选择卡与可复现代码卡，并直接复用已收口的 `data_filter` / `task_history` 公共卡片；本轮只统一入口壳层与说明块，不调整图形子模块切换、任务历史回填或代码生成逻辑。
+- **入口层共享文案源**: `modules/common/entry_copy.R` 当前只负责 `statistical_analysis.R`、`statistical_graphics.R`、`tables.R`、`exploratory_analysis.R` 四个入口层模块的标题、副标题和说明文案收口；不承载按钮文字、结果页签名或子模块内部说明，避免 helper 过重并与账号域 `auth_copy.R` 混淆。
+- **共享文案作用域约束**: 入口层共享文案若同时在 UI 函数与 server 侧的 `renderUI()`、`renderText()` 等渲染中使用，必须在各自作用域内独立读取；禁止假设 UI 函数中的局部 `copy` 变量可直接穿透到 server，避免运行时作用域错误。
+- **统计分析子模块说明共享源**: `modules/common/stat_analysis_submodule_copy.R` 当前只负责 `desc.R`、`cox.R`、`logistic.R`、`linear.R`、`anova.R`、`chisq.R` 六个统计分析子模块中的 `app_card_note()` 说明块；字段标签、`helpText()`、`bsTooltip()` 和 server 结果解释暂不纳入该 helper。
+- **统计图形结果区共享源**: `modules/common/graphics_result_copy.R` 当前只负责 `survival_analysis.R`、`forest_plot.R`、`combo_plot.R`、`waterfall_plot.R`、`swimmer_plot.R`、`spider_plot.R` 六个图形模块结果区中的通用 `subtitle`、`app_card_note()` 和 `app_result_panel(note = ...)`；模块专属结果边界说明可保留在原模块中。
+- **统计图形导出卡共享源**: `modules/common/graphics_export_copy.R` 当前只负责 `survival_analysis.R`、`forest_plot.R`、`combo_plot.R`、`waterfall_plot.R`、`swimmer_plot.R`、`spider_plot.R` 六个图形模块导出卡中的通用 `subtitle` 和 `app_card_note()`；`helpText()`、固定画布、宽高比和分层标签等专属导出语义仍保留在原模块中。
+- **核心统计图形帮助文案净化**: `combo_plot.R`、`forest_plot.R`、`swimmer_plot.R`、`waterfall_plot.R`、`spider_plot.R` 当前已清理 `helpText()`、`help_text` 和局部 `note` 中的开发阶段口径；保留真实功能边界，但不再向用户暴露“本轮优先收口”“统一收纳”“不改绘图/导出”等研发过程表述。
+- **入口层与公共模块文案净化**: `entry_copy.R`、`data_filter.R`、`task_history.R`、`tables.R`、`exploratory_analysis.R`、`statistical_graphics.R`、`statistical_analysis.R` 当前已继续清理内部实现视角文案；面向用户的说明统一改写为“这里做什么 / 会显示什么 / 如何使用”，不再直接写“工作台复用”“总入口内”“动态 UI”“类型分支”或“代码草稿”。
+- **实现保持型文案净化**: `tables.R`、`statistical_analysis.R` 与 `modules/common/stat_analysis_submodule_copy.R` 当前已继续清理“保持原有逻辑 / server 校验 / 统一空状态 / 原有处理方式”这类实现保持型说明；文案统一改写为用户能理解的执行条件、页面行为和模型生成语义。
+- **账号入口与数据准备文案净化**: `auth_manager.R`、`modules/common/auth/auth_copy.R`、`data_preparation.R`、`permission_manager.R` 与 `user_profile.R` 当前已继续清理“统一认证入口 / 后续扩展 / 聚合展示 / 协作工作台 / 不改变原有加载能力”等结构或开发口径；文案统一改写为登录、协作、上传与加载的实际用途说明。
+- **管理员页与数据库管理页文案净化**: `admin_manager.R` 与 `database_manager.R` 当前已继续清理“系统管理入口 / 集中处理 / 统一筛查 / 数据空间工作台 / 统一完成整理与导入 / 阶段二将 ...”等结构或阶段口径；文案统一改写为查看、筛选、管理和导入的直接用途说明。
+- **账号页与数据库锁定态灰区文案净化**: `user_profile.R` 与 `database_manager.R` 当前已继续清理“集中到同一张功能卡片 / 改为登录后自助完成 / 仅保留基础密码修改 / 不扩展其它账号管理能力 / 开放前”等灰区结构口径；文案统一改写为当前可直接执行的验证、换绑、改密与临时上传说明。
+- **核心文档灰区口径净化**: `README.md`、`PROJECT_GUIDE.md` 与 `DEPLOYMENT_GUIDE.md` 当前已继续清理认证与管理员说明中的进度口径；文档统一改写为稳定的入口、权限与模块职责说明，并由 `test_docs_grey_copy_guard.R` 约束。
+- **核心文档公共壳与样板推进口径净化**: `README.md`、`PROJECT_GUIDE.md` 与 `DEPLOYMENT_GUIDE.md` 当前已继续清理公共壳接入、样板覆盖和结果区统一说明中的推进口径；文档统一改写为稳定的公共壳使用范围、样板覆盖范围与结果区状态说明，并由 `test_docs_ui_progress_copy_guard.R` 约束。
+- **核心文档 helper 与守卫口径净化**: `PROJECT_GUIDE.md`、`README.md` 与 `DEPLOYMENT_GUIDE.md` 当前已继续清理共享 helper、共享 copy 源、smoke test 和布局/UI 守卫说明中的新增/补充口径；文档统一改写为稳定的 helper 用途、copy 覆盖范围与测试前提，并由 `test_docs_helper_guard_copy_guard.R` 约束。
+- **PROJECT_GUIDE 状态型过程口径净化**: `PROJECT_GUIDE.md` 当前已继续清理模块现状、能力矩阵与章节标题中的状态型过程口径；文档统一改写为稳定的结构、覆盖范围与能力说明，并由 `test_project_guide_status_terms_guard.R` 约束。
 - **箱线图外层公共壳**: `boxplot.R` 应将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块；本轮只统一外层壳与结果容器，不调整 X/Y 映射、箱线图绘制、固定 `10 x 8` 英寸导出或任务历史契约。
 - **生存分析外层公共壳**: `survival_analysis.R` 应将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块；本轮只统一外层壳与结果容器，不调整风险表、统计报告、提交态快照、任务历史或导出逻辑。
 - **蜘蛛图外层公共壳**: `spider_plot.R` 应将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块；本轮只统一外层壳与结果容器，不调整时间轴换算、点层/末次标签、RECIST 阈值、committed 参数快照或导出逻辑。
@@ -66,6 +86,7 @@ AutoTFL 旨在为医学和临床数据分析提供一套自动化、可复现的
 ## 3.1 研发工具链
 
 - 当前仓库已补充 `.pre-commit-config.yaml`，用于串联 `styler`、`lintr` 与 `testthat` 守卫测试。
+- `.pre-commit-config.yaml` 当前额外包含独立的前端文案守卫 hook，单独执行 `tests/root/test_frontend_copy_guard.R`，用于快速阻断开发阶段口径回流到用户可见文案。
 - `install_dependencies.R` 已将 `jsonlite`、`lintr`、`styler`、`shinytest2` 纳入开发依赖入口，便于本地和容器环境统一安装。
 
 ## 4. 权限模型
@@ -80,7 +101,7 @@ AutoTFL 旨在为医学和临床数据分析提供一套自动化、可复现的
 - 登录页底部应将“注册账号 / 忘记密码”呈现为更明显的按钮式次级操作；登录后的侧边栏应保留“用户和权限”这一概念入口，但账号入口相关的按钮标签、卡片摘要与快捷按钮文案统一以 `modules/common/auth/auth_copy.R` 中的 `ACCOUNT_ENTRY_COPY` 为唯一源，规范文档只描述结构职责，不重复维护按钮或摘要原句。结构上，侧边栏入口必须收口到个人信息卡中，`user_profile` 只保留基础用户信息与少量信息变更控件，如绑定邮箱、邮箱换绑和修改密码；`access_permissions` 按权限分支展示协作权限或“我的已授权空间”，且无可管理空间时必须展示非空态说明。
 - `用户信息` 与 `权限管理` 必须采用文件夹级模块拆分与独立渲染、独立兜底；任一侧的查询失败、组件异常或分支切换都不得导致另一侧卡片消失。
 - 侧边栏个人信息卡必须抽成独立模块，并在模块内写入隐藏内部页签的 CSS 防误改规则；`user_profile` 与 `access_permissions` 只允许作为内部跳转目标，不允许重新外露为侧边栏菜单。
-- 账号页前端布局应优先采用“概览优先 + 工作台聚合”模式：`user_profile` 首屏主卡必须直接展示页面说明与账号身份、邮箱、验证状态等概览统计，不得只保留标题说明卡；随后再用单一安全工作台聚合验证、换绑与改密。`access_permissions` 先用概览卡展示可管理/已授权空间摘要，再用单一协作工作台聚合成员协作、负责人迁移与成员/邀请预览，避免继续堆叠多张平行功能卡。
+- 账号页前端布局应优先采用“概览优先 + 功能集中”模式：`user_profile` 首屏主卡必须直接展示页面说明与账号身份、邮箱、验证状态等概览统计，不得只保留标题说明卡；随后再用单一安全区域承接验证、换绑与改密。`access_permissions` 先用概览卡展示可管理/已授权空间摘要，再用单一“协作管理”区域承接成员协作、负责人迁移与成员/邀请预览，避免继续堆叠多张平行功能卡。
 - 账号页聚合布局中的工作台标题、概览标题与标签页文案也必须继续复用 `modules/common/auth/auth_copy.R`，避免优化过程中重新引入多处平行文案源。
 - 账号页工作台表单中的动作按钮必须优先采用公共紧凑动作区样式，与上方输入框保持同一卡片节奏；桌面端不得默认使用满宽按钮撑满整块表单，移动端可按响应式规则退化为整行堆叠。
 - 认证页、账号设置区与系统管理页的新增 UI 默认必须复用 `modules/common/ui_shell.R` 的公共卡片壳、说明块与按钮语言；若确需偏离，必须先更新规范文档并同步守卫测试。

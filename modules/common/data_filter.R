@@ -95,14 +95,14 @@ data_filter_ui <- function(id) {
     app_card_box(
       width = 12,
       title = "数据筛选 (可选)",
-      subtitle = "作为全局公共筛选工作台复用；默认折叠，不干扰主流程",
+      subtitle = "按需设置筛选条件；默认折叠显示，避免占用主工作区",
       tone = "info",
       status = "info",
       solidHeader = FALSE,
       collapsible = TRUE,
       collapsed = TRUE,
       class = "data-filter-card",
-      app_card_note("当前统一可折叠工作台卡片、按钮区和筛选条件容器，不改变筛选语义、动态控件生成与应用时机。"),
+      app_card_note("按变量类型配置筛选条件，并在点击“应用筛选”后统一生效。"),
       app_card_panel(
         tags$div(
           class = "data-filter-toolbar",

@@ -95,7 +95,7 @@ data_preparation_ui <- function(id) {
       app_card_box(
         width = 12,
         title = "数据加载",
-        subtitle = "统一承接本地上传与数据库数据集加载，不改变原有加载能力",
+        subtitle = "在这里完成本地上传与数据空间数据集加载",
         tone = "primary",
         status = "primary",
         solidHeader = FALSE,
@@ -136,7 +136,7 @@ data_preparation_ui <- function(id) {
               column(6, actionButton(ns("db_refresh"), "刷新数据库列表", class = "btn-default", width = "100%")),
               column(6, actionButton(ns("db_load_dataset"), "加载所选数据集", class = "btn-primary", width = "100%"))
             ),
-            app_card_note("从已授权的数据空间、文件夹和数据集中继续分析现有数据，不改动数据库侧原有结构。")
+            app_card_note("从已授权的数据空间、文件夹和数据集中加载数据，供当前分析使用。")
           )
         )
       )

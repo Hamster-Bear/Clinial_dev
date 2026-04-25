@@ -39,7 +39,7 @@ expect_contains <- function(text, pattern, label, fixed = FALSE) {
 }
 
 read_utf8 <- function(path) {
-  paste(readLines(path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  paste(readLines(file.path(project_root, path), warn = FALSE, encoding = "UTF-8"), collapse = "\n")
 }
 
 app_text <- read_utf8("app.R")

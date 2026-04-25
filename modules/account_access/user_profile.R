@@ -95,7 +95,7 @@ user_profile_server <- function(id, pg_pool, current_user = NULL, on_user_update
             solidHeader = FALSE,
             div(
               class = "profile-workbench-note",
-              app_card_note("当前页将账号安全相关操作集中到同一张功能卡片中，减少纵向滚动和重复说明。")
+              app_card_note("可在这里完成邮箱验证、邮箱换绑和密码修改。")
             )
           ),
           tabBox(
@@ -108,7 +108,7 @@ user_profile_server <- function(id, pg_pool, current_user = NULL, on_user_update
                 class = "profile-panel-list",
                 app_card_panel(
                   tags$strong("邮箱验证"),
-                  div(class = "profile-security-hint", "当前邮箱验证改为登录后自助完成；未验证时可先发送验证码，再输入验证码确认。"),
+                  div(class = "profile-security-hint", "登录后可在这里完成邮箱验证；未验证时可先发送验证码，再输入验证码确认。"),
                   textInput(session$ns("current_email_verify_code"), "验证码", placeholder = "请输入 6 位验证码"),
                   div(
                     class = "app-action-row",
@@ -142,7 +142,7 @@ user_profile_server <- function(id, pg_pool, current_user = NULL, on_user_update
                 class = "profile-panel-list",
                 app_card_panel(
                   tags$strong("修改密码"),
-                  div(class = "profile-security-hint", "通过当前密码验证后，直接在这里修改账号密码。该区域仅保留基础密码修改，不扩展其它账号管理能力。"),
+                  div(class = "profile-security-hint", "通过当前密码验证后，可在这里修改账号密码。"),
                   passwordInput(session$ns("password_change_current_password"), "当前密码", placeholder = "请输入当前密码"),
                   passwordInput(session$ns("password_change_new_password"), "新密码", placeholder = "至少 8 位"),
                   passwordInput(session$ns("password_change_confirm_password"), "确认新密码", placeholder = "请再次输入新密码"),

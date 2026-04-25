@@ -14,7 +14,7 @@ task_history_ui <- function(
   save_label = "保存当前任务",
   load_label = "加载所选任务",
   refresh_label = "刷新历史",
-  help_text = "当前已支持将参数、界面状态与模块类型保存为任务历史。"
+  help_text = "保存当前参数设置、页面选择和任务备注。"
 ) {
   ns <- NS(id)
   tagList(
@@ -32,14 +32,14 @@ task_history_ui <- function(
     app_card_box(
       width = 12,
       title = title,
-      subtitle = "按用户与模块类型保存、加载、刷新和删除任务历史；默认折叠",
+      subtitle = "按用户保存、加载、刷新和删除任务历史；默认折叠显示",
       tone = "warning",
       status = "warning",
       solidHeader = FALSE,
       collapsible = TRUE,
       collapsed = TRUE,
       class = "task-history-card",
-      app_card_note("当前统一任务历史工作台卡片、操作按钮区和说明块，不改变任务历史持久化、加载回填与删除逻辑。"),
+      app_card_note("在当前模块中保存、加载、刷新和删除任务历史。"),
       app_card_panel(
         fluidRow(
           column(4, textInput(ns("task_name"), "任务名称", value = "", placeholder = "如：KM-默认模板", width = "100%")),

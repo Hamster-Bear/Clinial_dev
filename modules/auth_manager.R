@@ -79,11 +79,11 @@ auth_manager_tabs <- function(id) {
           app_card_box(
             width = 12,
             title = "欢迎进入 AutoTFL",
-            subtitle = "统一认证入口",
+            subtitle = "登录、注册与密码找回",
             tone = "primary",
             status = "primary",
             solidHeader = FALSE,
-            app_card_note("请先登录后进入工作台。当前支持用户名或邮箱登录，邮箱验证、换绑与协作能力会继续围绕邮箱身份扩展。")
+            app_card_note("请先登录后进入工作台。支持用户名或邮箱登录；邮箱验证、邮箱换绑和协作邀请均使用邮箱完成。")
           ),
           app_card_box(
             width = 12,

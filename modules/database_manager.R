@@ -69,13 +69,13 @@ database_manager_ui <- function(id) {
     fluidRow(
       app_card_box(
         width = 12,
-        title = "数据空间工作台",
-        subtitle = "围绕数据空间、目录、数据集和结构总览统一完成整理与导入",
+        title = "数据空间管理",
+        subtitle = "在这里整理数据空间、目录、数据集与结构总览",
         tone = "primary",
         status = "primary",
         solidHeader = FALSE,
         app_card_note(
-          "在这里完成数据空间、目录与数据集的组织管理。阶段二将资源整理、上传导入与结构总览拆成不同区域，减少单屏操作拥挤。"
+          "在这里完成数据空间、目录与数据集的组织管理。页面按资源整理、上传导入与结构总览分区展示。"
         ),
         uiOutput(ns("db_context_summary"))
       )
@@ -375,7 +375,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
             solidHeader = FALSE,
             app_card_panel(
               div("当前账号尚未开放数据库管理功能。请由系统管理员在“系统管理 > 账号状态管理”中为该账号开放数据库管理权限，开放后即可创建、整理和导入数据空间。"),
-              div("在权限开放前，你仍可前往“数据准备”页临时上传单个文件用于当前会话分析；该数据不会写入持久化数据空间。"),
+              div("在未开通该权限时，你仍可前往“数据准备”页临时上传单个文件用于当前会话分析；该数据不会写入持久化数据空间。"),
               div(
                 class = "db-lock-actions",
                 tags$button(

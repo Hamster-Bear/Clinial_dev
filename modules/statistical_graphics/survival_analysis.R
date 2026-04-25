@@ -17,6 +17,16 @@ if (!exists("app_card_box", mode = "function") ||
     source(file.path("..", "modules", "common", "ui_shell.R"))
   }
 }
+if (file.exists("modules/common/graphics_result_copy.R")) {
+  source("modules/common/graphics_result_copy.R")
+} else {
+  source(file.path("..", "modules", "common", "graphics_result_copy.R"))
+}
+if (file.exists("modules/common/graphics_export_copy.R")) {
+  source("modules/common/graphics_export_copy.R")
+} else {
+  source(file.path("..", "modules", "common", "graphics_export_copy.R"))
+}
 
 .resolve_survival_choice <- function(input_value, state_value, choices, default_value = NULL) {
   if (length(choices) == 0) return(default_value %||% NULL)
@@ -757,17 +767,18 @@ if (!exists("app_card_box", mode = "function") ||
 }
 
 .build_survival_output_box <- function(ns) {
+  copy <- GRAPHICS_RESULT_COPY$survival
   fluidRow(
     column(
       12,
       app_card_box(
         width = 12,
         title = "结果区",
-        subtitle = "继续保留动作条与 静态图 / 交互图 / 数据 结果结构",
+          subtitle = copy$result_card$subtitle,
         tone = "success",
         status = "success",
         solidHeader = FALSE,
-        app_card_note("当前统一结果卡片与说明块，不改变生成图形按钮、下载链路、结果页签或统计报告输出逻辑。"),
+          app_card_note(copy$result_card$note),
         graphics_output_action_bar_ui(ns, render_button_id = "render_km_plot", download_id = "download_plot"),
         tabsetPanel(
           id = ns("km_output_tabs"),
@@ -775,7 +786,7 @@ if (!exists("app_card_box", mode = "function") ||
             "静态图",
             app_result_panel(
               title = "静态图结果",
-              note = "展示当前提交态参数生成的静态生存曲线与风险表组合结果。",
+              note = copy$static_plot$note,
               tone = "success",
               uiOutput(ns("survPlotUI"))
             )
@@ -784,7 +795,7 @@ if (!exists("app_card_box", mode = "function") ||
             "交互图",
             app_result_panel(
               title = "交互图结果",
-              note = "展示当前提交态参数对应的 Plotly 交互式生存曲线结果。",
+              note = copy$interactive_plot$note,
               tone = "info",
               uiOutput(ns("interactiveSurvPlotUI"))
             )
@@ -793,7 +804,7 @@ if (!exists("app_card_box", mode = "function") ||
             "数据",
             app_result_panel(
               title = "结果数据与统计报告",
-              note = "继续保留数据表与统计报告双页签，不调整汇总数据或报告解释链路。",
+              note = copy$data_tab$note,
               tone = "warning",
               tabsetPanel(
                 tabPanel("数据表", DTOutput(ns("km_data_table"))),
@@ -831,6 +842,7 @@ if (!exists("app_card_box", mode = "function") ||
 
 survival_analysis_ui <- function(id) {
   ns <- NS(id)
+  export_copy <- GRAPHICS_EXPORT_COPY$survival
 
   tagList(
     fluidRow(
@@ -839,11 +851,11 @@ survival_analysis_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "数据与变量",
-          subtitle = "继续保留核心映射、分组分面与时间范围配置链路",
+          subtitle = "设置核心映射、分组分面与时间范围",
           tone = "primary",
           status = "primary",
           solidHeader = FALSE,
-          app_card_note("本轮只统一顶层参数卡视觉与说明块，不调整时间/状态变量选择、分层参考组、分面值和时间轴控制逻辑。"),
+          app_card_note("选择时间变量、状态变量、分层参考组、分面值和时间轴范围。"),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             .build_survival_mapping_tab(ns)
@@ -855,11 +867,11 @@ survival_analysis_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "图形与样式",
-          subtitle = "继续保留显示坐标、标题文字、图层样式与阈值设置",
+          subtitle = "设置坐标、标题、样式与阈值",
           tone = "warning",
           status = "warning",
           solidHeader = FALSE,
-          app_card_note("当前统一顶层功能卡与说明块，不改变中位生存辅助线、统计摘要、图例文字与风险表文字的原有业务语义。"),
+          app_card_note("配置中位生存辅助线、统计摘要、图例文字和风险表文字。"),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             do.call(
@@ -877,11 +889,11 @@ survival_analysis_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "输出与导出",
-          subtitle = "继续保留尺寸模式、导出格式与分层标签输出链路",
+          subtitle = export_copy$subtitle,
           tone = "info",
           status = "info",
           solidHeader = FALSE,
-          app_card_note("本轮只统一顶层导出卡与说明块，不调整画布尺寸同步、导出 DPI、格式选择或分层标签恢复逻辑。"),
+          app_card_note(export_copy$note),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             .build_survival_export_tab(ns)

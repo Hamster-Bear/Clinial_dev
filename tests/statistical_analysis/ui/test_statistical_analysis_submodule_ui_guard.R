@@ -72,11 +72,9 @@ expect_contains(cox_text, "uiOutput\\(ns\\(\"cox_reference_ui\"\\)\\)", "cox 模
 expect_contains(cox_text, "selectizeInput\\(ns\\(\"cox_covariates\"\\)", "cox 模块保留协变量输入")
 
 module_path <- function(p) file.path(project_root, p)
+assign("bsTooltip", function(...) NULL, envir = .GlobalEnv)
 source(module_path(file.path("modules", "statistical_analysis", "desc.R")))
 source(module_path(file.path("modules", "statistical_analysis", "cox.R")))
-if (!exists("bsTooltip", mode = "function")) {
-  bsTooltip <- function(...) NULL
-}
 
 demo_df <- data.frame(
   subject = 1:6,
@@ -93,6 +91,8 @@ desc_ui <- desc_params_ui(NS("desc"), demo_df)
 cox_ui <- cox_params_ui(NS("cox"), demo_df)
 if (!inherits(desc_ui, "shiny.tag.list")) stop("desc_params_ui 未返回 shiny.tag.list", call. = FALSE)
 if (!inherits(cox_ui, "shiny.tag.list")) stop("cox_params_ui 未返回 shiny.tag.list", call. = FALSE)
+
+rm("bsTooltip", envir = .GlobalEnv)
 
 cat("Statistical analysis submodule UI guard passed.\n")
 

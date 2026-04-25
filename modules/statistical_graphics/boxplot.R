@@ -26,11 +26,11 @@ boxplot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "数据与变量",
-          subtitle = "继续保留箱线图 X/Y 核心映射入口",
+          subtitle = "设置箱线图的 X/Y 映射",
           tone = "primary",
           status = "primary",
           solidHeader = FALSE,
-          app_card_note("本轮只统一箱线图外层参数卡和说明块，不调整 X/Y 映射、任务历史恢复或结果数据输出逻辑。"),
+          app_card_note("选择用于绘制箱线图的分组变量和数值变量。"),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
@@ -61,11 +61,11 @@ boxplot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "图形与样式",
-          subtitle = "继续保留标题标签、线条点样式与配色设置",
+          subtitle = "设置标题、样式和配色",
           tone = "warning",
           status = "warning",
           solidHeader = FALSE,
-          app_card_note("当前统一箱线图样式卡和说明块，不改变标题标签、线条点样式、配色主题或空壳说明页签语义。"),
+          app_card_note("配置标题文本、线条点样式和配色主题。"),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
@@ -128,11 +128,11 @@ boxplot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "输出与导出",
-          subtitle = "继续保留固定画布说明与导出参数链路",
+          subtitle = "设置画布尺寸与导出参数",
           tone = "info",
           status = "info",
           solidHeader = FALSE,
-          app_card_note("本轮只统一导出卡和说明块，不调整固定 10 x 8 英寸画布、导出格式与 DPI 逻辑。"),
+          app_card_note("箱线图导出默认使用固定 10 x 8 英寸画布，可选择导出格式和 DPI。"),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
@@ -168,11 +168,11 @@ boxplot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "结果区",
-          subtitle = "继续保留动作条与 静态图 / 交互图 / 数据 结果结构",
+          subtitle = "查看结果并导出输出",
           tone = "success",
           status = "success",
           solidHeader = FALSE,
-          app_card_note("当前统一箱线图结果卡和说明块，不改变生成图形按钮、下载链路、交互图输出或数据表逻辑。"),
+          app_card_note("结果区提供生成图形、下载、交互图和数据表。"),
           graphics_output_action_bar_ui(ns, render_button_id = "render_plot", download_id = "dl_plot"),
           tabsetPanel(
             id = ns("output_tabs"),
@@ -198,7 +198,7 @@ boxplot_ui <- function(id) {
               "数据",
               app_result_panel(
                 title = "箱线图结果数据",
-                note = "继续保留数据表输出，不调整结果数据来源与展示逻辑。",
+                note = "查看当前箱线图对应的结果数据表。",
                 tone = "warning",
                 DTOutput(ns("data_table"))
               )

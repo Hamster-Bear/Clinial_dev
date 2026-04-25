@@ -15,9 +15,21 @@ if (!exists("app_card_box", mode = "function") ||
     source(file.path("..", "modules", "common", "ui_shell.R"))
   }
 }
+if (file.exists("modules/common/graphics_result_copy.R")) {
+  source("modules/common/graphics_result_copy.R")
+} else {
+  source(file.path("..", "modules", "common", "graphics_result_copy.R"))
+}
+if (file.exists("modules/common/graphics_export_copy.R")) {
+  source("modules/common/graphics_export_copy.R")
+} else {
+  source(file.path("..", "modules", "common", "graphics_export_copy.R"))
+}
 
 swimmer_plot_ui <- function(id) {
   ns <- NS(id)
+  copy <- GRAPHICS_RESULT_COPY$swimmer
+  export_copy <- GRAPHICS_EXPORT_COPY$swimmer
 
   tagList(
     fluidRow(
@@ -26,11 +38,11 @@ swimmer_plot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "数据与变量",
-          subtitle = "继续保留核心映射、事件映射与轨道变量链路",
+          subtitle = "设置核心映射、事件映射与轨道变量",
           tone = "primary",
           status = "primary",
           solidHeader = FALSE,
-          app_card_note("本轮只统一泳道图外层参数卡和说明块，不调整时间模式选择、事件映射行恢复、轨道变量和排序逻辑。"),
+          app_card_note("选择时间模式、事件映射、轨道变量和排序方式。"),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
@@ -69,7 +81,7 @@ swimmer_plot_ui <- function(id) {
                       list(list(id = "lane_color_by", label = "泳道颜色分组", type = "selectize")),
                       list(list(id = "ongoing_var", label = "持续中标记变量", type = "selectize"))
                     ),
-                    help_text = "泳道图当前没有独立分面变量；事件映射和轨道变量统一收纳在本页签。"
+                    help_text = "泳道图当前没有独立分面变量；事件映射和轨道变量在本页签中设置。"
                   ),
                   graphics_dynamic_mapping_rows_panel_ui(
                     ns,
@@ -116,11 +128,11 @@ swimmer_plot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "图形与样式",
-          subtitle = "继续保留标题、坐标、事件图例与轨道区版式控制",
+          subtitle = "设置标题、坐标、图例与轨道区样式",
           tone = "warning",
           status = "warning",
           solidHeader = FALSE,
-          app_card_note("当前统一泳道图样式卡和说明块，不改变事件样式、主图颜色映射、缺失值文本、下方轨道区占比和参考页签占位语义。"),
+          app_card_note("配置事件样式、主图颜色映射、缺失值文本和下方轨道区比例。"),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
@@ -293,7 +305,7 @@ swimmer_plot_ui <- function(id) {
                     title = "参考线与阈值",
                     tagList(
                       helpText("泳道图当前没有独立的参考线或阈值控件。"),
-                      helpText("统一保留该页签位，后续如补充业务阈值线，可直接按同一结构接入。")
+                      helpText("当前页签未提供业务阈值线设置。")
                     )
                   )
                 )
@@ -306,11 +318,11 @@ swimmer_plot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "输出与导出",
-          subtitle = "继续保留尺寸模式、画布同步与导出参数链路",
+          subtitle = export_copy$subtitle,
           tone = "info",
           status = "info",
           solidHeader = FALSE,
-          app_card_note("本轮只统一导出卡和说明块，不调整前端尺寸同步、PX/英寸换算、导出格式与 committed 静态图尺寸逻辑。"),
+          app_card_note(export_copy$note),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
@@ -380,11 +392,11 @@ swimmer_plot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "结果区",
-          subtitle = "继续保留动作条与 静态图 / 交互图 / 数据 结果结构",
+          subtitle = copy$result_card$subtitle,
           tone = "success",
           status = "success",
           solidHeader = FALSE,
-          app_card_note("当前统一泳道图结果卡和说明块，不改变生成图形按钮、下载链路、事件数据/轨道数据输出或 committed 参数快照逻辑。"),
+          app_card_note(copy$result_card$note),
           graphics_output_action_bar_ui(ns, render_button_id = "render_plot", download_id = "dl_plot"),
           tabsetPanel(
             id = ns("output_tabs"),
@@ -392,7 +404,7 @@ swimmer_plot_ui <- function(id) {
               "静态图",
               app_result_panel(
                 title = "静态图结果",
-                note = "展示当前 committed 参数生成的主泳道图、事件层和下方轨道区结果。",
+                note = copy$static_plot$note,
                 tone = "success",
                 uiOutput(ns("static_plot_ui"))
               )
@@ -401,7 +413,7 @@ swimmer_plot_ui <- function(id) {
               "交互图",
               app_result_panel(
                 title = "交互图结果",
-                note = "展示当前参数生成的交互式泳道图结果。",
+                note = copy$interactive_plot$note,
                 tone = "info",
                 uiOutput(ns("interactive_plot_ui"))
               )
@@ -410,7 +422,7 @@ swimmer_plot_ui <- function(id) {
               "数据",
               app_result_panel(
                 title = "泳道数据、事件数据与分组轨道数据",
-                note = "继续保留泳道数据、事件数据和分组轨道数据三页签，不调整数据整理或导出链路。",
+                note = copy$data_tab$note,
                 tone = "warning",
                 tabsetPanel(
                   tabPanel("泳道数据", DTOutput(ns("lane_table"))),

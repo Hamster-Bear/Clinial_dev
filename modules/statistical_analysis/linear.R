@@ -6,6 +6,11 @@ if (file.exists("modules/common/analysis_shared.R")) {
 } else {
   source(file.path("..", "modules", "common", "analysis_shared.R"))
 }
+if (file.exists("modules/common/stat_analysis_submodule_copy.R")) {
+  source("modules/common/stat_analysis_submodule_copy.R")
+} else {
+  source(file.path("..", "modules", "common", "stat_analysis_submodule_copy.R"))
+}
 if (!exists("app_card_note", mode = "function") || !exists("app_card_panel", mode = "function")) {
   if (file.exists("modules/common/ui_shell.R")) {
     source("modules/common/ui_shell.R")
@@ -17,14 +22,15 @@ ensure_stat_analysis_dependencies()
 
 # 线性回归参数UI
 linear_params_ui <- function(ns, data) {
+  copy <- STAT_ANALYSIS_SUBMODULE_COPY$linear
   numeric_vars <- names(data)[sapply(data, is.numeric)]
   factor_vars <- names(data)[sapply(data, function(x) is.factor(x) || is.character(x))]
   
   tagList(
-    app_card_note("Linear 回归参数区已接入公共壳分组样式；本轮只统一参数分区与说明块，不改变建模、总计列或结果展示逻辑。"),
+    app_card_note(copy$intro),
     app_card_panel(
       tags$strong("响应与分层"),
-      app_card_note("先定义连续型响应变量，再按需设置亚组、分面与模型内分层因素。"),
+      app_card_note(copy$outcome),
       fluidRow(
         column(6,
                selectInput(ns("linear_response"), "响应变量 (Response)", choices = numeric_vars),
@@ -50,12 +56,12 @@ linear_params_ui <- function(ns, data) {
     ),
     app_card_panel(
       tags$strong("总计列配置"),
-      app_card_note("继续保留自定义总计列配置，用于控制线性回归结果中的列展示。"),
+      app_card_note(copy$total_cols),
       uiOutput(ns("linear_total_cols_ui"))
     ),
     app_card_panel(
       tags$strong("预测变量与参考组"),
-      app_card_note("预测变量选择、分类变量参考组与后续模型公式保持原有处理方式。"),
+      app_card_note(copy$covariates),
       selectizeInput(ns("linear_predictors"), "预测变量 (Predictors)", choices = names(data), multiple = TRUE),
       bsTooltip(ns("linear_predictors"), "纳入模型的自变量 (解释变量)", placement = "top", trigger = "hover"),
       uiOutput(ns("linear_reference_ui"))

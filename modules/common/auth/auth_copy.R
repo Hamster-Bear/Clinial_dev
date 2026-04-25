@@ -31,7 +31,7 @@ ACCOUNT_ENTRY_COPY <- list(
   ),
   copy = list(
     no_email = "未设置邮箱",
-    account_summary = "当前账号设置区遵循统一卡片壳风格；后续新增账号相关入口也应沿用同一视觉规范。",
+    account_summary = "在这里查看账号状态、常用入口和数据空间概况。",
     workspace_manageable_prefix = "我创建并可管理的数据空间: ",
     workspace_accessible_prefix = "当前可访问的数据空间: "
   ),
@@ -55,8 +55,8 @@ ACCOUNT_ENTRY_COPY <- list(
     accessible_subtitle = "集中查看当前被授予访问权限的数据空间与角色",
     empty_title = "权限管理",
     empty_subtitle = "当前暂无可管理空间或已授权空间",
-    workbench_title = "协作工作台",
-    workbench_subtitle = "将概览、成员协作、负责人迁移与预览集中到同一工作台",
+    workbench_title = "协作管理",
+    workbench_subtitle = "在这里处理成员协作、负责人迁移与预览",
     tabs = list(
       collaboration = "成员协作",
       ownership = "负责人迁移",

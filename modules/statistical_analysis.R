@@ -19,6 +19,7 @@ if (requireNamespace("gtsummary", quietly = TRUE)) {
 source("modules/common/table_export.R")
 source("modules/common/analysis_format.R")
 source("modules/common/analysis_shared.R")
+source("modules/common/entry_copy.R")
 source("modules/common/data_filter.R")
 source("modules/statistical_analysis/cox.R")
 source("modules/statistical_analysis/logistic.R")
@@ -30,6 +31,7 @@ source("modules/statistical_analysis/desc.R")
 # 统计方法选择UI
 statistical_analysis_ui <- function(id) {
   ns <- NS(id)
+  copy <- ENTRY_COPY$statistical_analysis
   
   tagList(
     app_card_dependencies(),
@@ -58,14 +60,14 @@ statistical_analysis_ui <- function(id) {
         width = 12,
         app_card_box(
           width = NULL,
-          title = "全局数据筛选",
-          subtitle = "先统一设置当前统计分析总入口使用的数据过滤条件",
+          title = copy$filter$title,
+          subtitle = copy$filter$subtitle,
           tone = "info",
           status = "info",
           solidHeader = FALSE,
           collapsible = TRUE,
           collapsed = TRUE, # 默认折叠
-          app_card_note("该筛选作用于当前统计分析总入口下的所有方法；本轮只统一入口卡片视觉，不改筛选逻辑。"),
+          app_card_note(copy$filter$note),
           # 调用筛选模块 UI
           data_filter_ui(ns("global_filter"))
         )
@@ -78,12 +80,12 @@ statistical_analysis_ui <- function(id) {
         width = 4,
         app_card_box(
           width = 12,
-          title = "统计方法选择",
-          subtitle = "在总入口内切换描述性统计、回归模型与组间比较方法",
+          title = copy$method$title,
+          subtitle = copy$method$subtitle,
           tone = "primary",
           status = "primary",
           solidHeader = FALSE,
-          app_card_note("当前总入口已接入公共卡片壳，但各统计子模块内部参数 UI 与分析逻辑保持原样。"),
+          app_card_note(copy$method$note),
           selectInput(
             ns("stat_method"),
             "选择统计方法",
@@ -110,12 +112,12 @@ statistical_analysis_ui <- function(id) {
         # 变量选择和参数设置面板
         app_card_box(
           width = 12,
-          title = "变量选择和参数设置",
-          subtitle = "按当前方法动态加载变量映射、模型参数与执行入口",
+          title = copy$params$title,
+          subtitle = copy$params$subtitle,
           tone = "info",
           status = "info",
           solidHeader = FALSE,
-          app_card_note("这里只统一卡片标题、说明块与边框留白，不调整各方法参数项的业务语义。"),
+          app_card_note(copy$params$note),
           # 动态参数UI
           uiOutput(ns("stat_params_ui")),
           
@@ -135,18 +137,18 @@ statistical_analysis_ui <- function(id) {
         width = 8,
         app_card_box(
           width = 12,
-          title = "分析结果",
-          subtitle = "统一结果容器、空状态与导出说明，但保留原有结果结构与业务链路",
+          title = copy$result$title,
+          subtitle = copy$result$subtitle,
           tone = "success",
           status = "success",
           solidHeader = FALSE,
-          app_card_note("结果区继续保留统计表格、统计报告与可复现代码三段结构；本轮进一步统一 tab 内结果容器、空状态与导出说明块。"),
+          app_card_note(copy$result$note),
           tabsetPanel(
             tabPanel(
               "统计表格",
               app_result_panel(
                 title = "统计表格结果",
-                note = "展示当前分析方法生成的主结果表；未运行分析时显示统一空状态提示。",
+                note = "展示当前分析方法生成的主结果表；未运行分析时显示等待执行提示。",
                 tone = "success",
                 class = "stat-analysis-result-panel",
                 div(class = "stat-analysis-result-wrap", gt::gt_output(ns("result_table")))
@@ -164,7 +166,7 @@ statistical_analysis_ui <- function(id) {
             tabPanel("可复现代码",
                      app_result_panel(
                        title = "可复现代码",
-                       note = "提供当前分析参数对应的 R 代码草稿，便于在本地或报告流程中复现。",
+                       note = "提供当前分析参数对应的 R 代码，便于在本地或报告流程中复现。",
                        tone = "primary",
                        class = "stat-analysis-result-panel",
                        verbatimTextOutput(ns("repro_code_out"))
@@ -173,7 +175,7 @@ statistical_analysis_ui <- function(id) {
           ),
           app_result_panel(
             title = "导出配置",
-            note = "继续沿用当前格式、报告开关、标题与脚注配置，不调整导出文件生成逻辑。",
+            note = copy$result$export_note,
             tone = "warning",
             class = "stat-analysis-result-panel",
             fluidRow(

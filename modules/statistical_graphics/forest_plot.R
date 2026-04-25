@@ -26,9 +26,21 @@ if (!exists("app_card_box", mode = "function") ||
     source(file.path("..", "modules", "common", "ui_shell.R"))
   }
 }
+if (file.exists("modules/common/graphics_result_copy.R")) {
+  source("modules/common/graphics_result_copy.R")
+} else {
+  source(file.path("..", "modules", "common", "graphics_result_copy.R"))
+}
+if (file.exists("modules/common/graphics_export_copy.R")) {
+  source("modules/common/graphics_export_copy.R")
+} else {
+  source(file.path("..", "modules", "common", "graphics_export_copy.R"))
+}
 
 forest_plot_ui <- function(id) {
   ns <- NS(id)
+  copy <- GRAPHICS_RESULT_COPY$forest
+  export_copy <- GRAPHICS_EXPORT_COPY$forest
 
   tagList(
     fluidRow(
@@ -37,11 +49,11 @@ forest_plot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "数据与变量",
-          subtitle = "继续保留双模式分析入口、列映射与表格列配置",
+          subtitle = "选择分析模式并配置列映射",
           tone = "primary",
           status = "primary",
           solidHeader = FALSE,
-          app_card_note("本轮只统一森林图外层参数卡和说明块，不调整 `precalculated/raw_data` 双模式、列映射恢复或表格列选择逻辑。"),
+          app_card_note("在预处理数据和原始数据两种模式之间切换，并配置列映射和表格列。"),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
@@ -125,7 +137,7 @@ forest_plot_ui <- function(id) {
                     selection_label = "表格列选择",
                     config_title = "列显示配置（点击展开后编辑）",
                     config_ui = uiOutput(ns("column_config_ui")),
-                    help_text = "森林图当前不单独提供分面或轨道变量；表格列选择与列显示配置统一收纳在此页签。"
+                    help_text = "森林图不单独提供分面或轨道变量；表格列选择与列显示配置在此页签中设置。"
                   )
                 )
               )
@@ -137,11 +149,11 @@ forest_plot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "图形与样式",
-          subtitle = "继续保留标题、坐标、图层配色与参考线配置",
+          subtitle = "设置标题、坐标、配色与参考线",
           tone = "warning",
           status = "warning",
           solidHeader = FALSE,
-          app_card_note("当前统一森林图外层样式卡和说明块，不改变标题脚注、配色模式、坐标范围、表格宽度比例和参考线语义。"),
+          app_card_note("配置标题脚注、配色模式、坐标范围、表格宽度比例和参考线。"),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
@@ -276,11 +288,11 @@ forest_plot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "输出与导出",
-          subtitle = "继续保留尺寸设置、画布比例与导出参数链路",
+          subtitle = export_copy$subtitle,
           tone = "info",
           status = "info",
           solidHeader = FALSE,
-          app_card_note("本轮只统一导出卡和说明块，不调整导出尺寸、宽高比例、DPI 与文件格式处理逻辑。"),
+          app_card_note(export_copy$note),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
@@ -295,7 +307,7 @@ forest_plot_ui <- function(id) {
                         column(6, numericInput(ns("plot_height"), "高度(英寸)", value = 10, min = 6, max = 16, step = 1, width = "100%"))
                       ),
                       sliderInput(ns("plot_ratio"), "表格/图形宽度比", min = 0.3, max = 0.7, value = 0.55, step = 0.05, width = "100%"),
-                      helpText("森林图当前仍使用模块内尺寸语义：宽高控制导出尺寸，表格/图形宽度比控制左右布局。")
+                      helpText("森林图导出中，宽高控制输出尺寸，表格/图形宽度比控制左右布局。")
                     )
                   )
                 ),
@@ -321,11 +333,11 @@ forest_plot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "结果区",
-          subtitle = "继续保留动作条与 静态图 / 交互图 / 数据 结果结构",
+          subtitle = copy$result_card$subtitle,
           tone = "success",
           status = "success",
           solidHeader = FALSE,
-          app_card_note("当前统一森林图结果卡和说明块，不改变生成图形按钮、导出链路、数据预览和统计报告输出逻辑。"),
+          app_card_note(copy$result_card$note),
           graphics_output_action_bar_ui(ns, render_button_id = "generate", download_id = "download_plot"),
           tabsetPanel(
             id = ns("output_tabs"),
@@ -333,7 +345,7 @@ forest_plot_ui <- function(id) {
               "静态图",
               app_result_panel(
                 title = "静态图结果",
-                note = "展示当前森林图配置生成的主图与表格组合结果。",
+                note = copy$static_plot$note,
                 tone = "success",
                 uiOutput(ns("plot_ui"))
               )
@@ -342,11 +354,11 @@ forest_plot_ui <- function(id) {
               "交互图",
               app_result_panel(
                 title = "交互图",
-                note = "当前森林图模块尚未提供独立交互图结果；本轮仅统一结果区结构，不改绘图实现。",
+                note = "森林图当前未提供独立交互图结果。",
                 tone = "info",
                 graphics_card_panel_ui(
                   "交互图",
-                  helpText("当前森林图模块尚未提供独立交互图结果；本轮仅统一结果区结构，不改绘图实现。")
+                  helpText("森林图当前未提供独立交互图结果。")
                 )
               )
             ),
@@ -354,7 +366,7 @@ forest_plot_ui <- function(id) {
               "数据",
               app_result_panel(
                 title = "数据预览与统计报告",
-                note = "继续保留数据预览和统计报告双页签，不调整结果 schema、分析解释或报告链路。",
+                note = copy$data_tab$note,
                 tone = "warning",
                 tabsetPanel(
                   tabPanel("数据预览", DTOutput(ns("data_preview"))),

@@ -155,7 +155,7 @@ test_that("普通用户可切换到聚合后的用户信息与权限管理页", 
   permission_html <- wait_until(function() {
     html <- app$get_html("#shiny-tab-access_permissions")
     if (nzchar(html) && (
-      grepl("协作工作台", html, fixed = TRUE) ||
+      grepl("协作管理", html, fixed = TRUE) ||
       grepl("我的已授权空间", html, fixed = TRUE) ||
       grepl("当前暂无可管理空间或已授权空间", html, fixed = TRUE)
     )) {
@@ -166,7 +166,7 @@ test_that("普通用户可切换到聚合后的用户信息与权限管理页", 
   }, timeout = 20)
   expect_true(nzchar(permission_html %||% ""))
   expect_true(
-    grepl("协作工作台", permission_html %||% "", fixed = TRUE) ||
+    grepl("协作管理", permission_html %||% "", fixed = TRUE) ||
       grepl("我的已授权空间", permission_html %||% "", fixed = TRUE) ||
       grepl("当前暂无可管理空间或已授权空间", permission_html %||% "", fixed = TRUE)
   )

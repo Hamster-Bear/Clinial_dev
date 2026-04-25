@@ -50,10 +50,12 @@ expect_not_contains <- function(text, pattern, label) {
 }
 
 expect_contains(exploratory_text, "source\\(\"modules/common/ui_shell.R\"\\)", "探索分析总入口加载公共 UI 壳")
+expect_contains(exploratory_text, "source\\(\"modules/common/entry_copy.R\"\\)", "探索分析总入口加载入口层共享文案")
+expect_contains(exploratory_text, "copy <- ENTRY_COPY\\$exploratory_analysis", "探索分析总入口读取共享文案")
 expect_contains(exploratory_text, "app_card_box\\(", "探索分析总入口使用公共卡片 helper")
-expect_contains(exploratory_text, "title = \"变量托盘\"", "探索分析总入口保留变量托盘卡")
-expect_contains(exploratory_text, "title = \"图形控制器\"", "探索分析总入口保留图形控制器卡")
-expect_contains(exploratory_text, "title = \"图形输出\"", "探索分析总入口保留图形输出卡")
+expect_contains(exploratory_text, "title = copy\\$tray\\$title", "探索分析总入口保留变量托盘卡")
+expect_contains(exploratory_text, "title = copy\\$controller\\$title", "探索分析总入口保留图形控制器卡")
+expect_contains(exploratory_text, "title = copy\\$result\\$title", "探索分析总入口保留图形输出卡")
 expect_contains(exploratory_text, "app_card_note\\(", "探索分析总入口使用公共说明块")
 expect_contains(exploratory_text, "app_card_panel\\(", "探索分析总入口使用公共分组面板")
 expect_contains(exploratory_text, "app_result_panel\\(", "探索分析总入口结果区使用结果 panel")

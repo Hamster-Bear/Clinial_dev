@@ -15,6 +15,16 @@ if (!exists("app_card_box", mode = "function") ||
     source(file.path("..", "modules", "common", "ui_shell.R"))
   }
 }
+if (file.exists("modules/common/graphics_result_copy.R")) {
+  source("modules/common/graphics_result_copy.R")
+} else {
+  source(file.path("..", "modules", "common", "graphics_result_copy.R"))
+}
+if (file.exists("modules/common/graphics_export_copy.R")) {
+  source("modules/common/graphics_export_copy.R")
+} else {
+  source(file.path("..", "modules", "common", "graphics_export_copy.R"))
+}
 
 .waterfall_symbol_choices <- function() {
   graphics_text_symbol_choices()
@@ -22,6 +32,8 @@ if (!exists("app_card_box", mode = "function") ||
 
 waterfall_plot_ui <- function(id) {
   ns <- NS(id)
+  copy <- GRAPHICS_RESULT_COPY$waterfall
+  export_copy <- GRAPHICS_EXPORT_COPY$waterfall
 
   tagList(
     fluidRow(
@@ -30,11 +42,11 @@ waterfall_plot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "数据与变量",
-          subtitle = "继续保留核心映射、分组轨道与排序链路",
+          subtitle = "设置核心映射、分组轨道与排序",
           tone = "primary",
           status = "primary",
           solidHeader = FALSE,
-          app_card_note("本轮只统一瀑布图外层参数卡和说明块，不调整受试者映射、变化值选择、排序方向、轨道变量或任务历史恢复逻辑。"),
+          app_card_note("选择受试者、变化值、排序方向和轨道变量。"),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
@@ -61,7 +73,7 @@ waterfall_plot_ui <- function(id) {
                       list(list(id = "symbol_by", label = "柱顶符号文本分组(可选)", type = "selectize")),
                       list(list(id = "tracks", label = "下方分组轨道(可多选)", type = "selectize", multiple = TRUE))
                     ),
-                    help_text = "当前瀑布图没有独立分面变量；轨道变量和附加符号映射统一收纳在此页签。"
+                    help_text = "瀑布图当前没有独立分面变量；轨道变量和附加符号映射在此页签中设置。"
                   ),
                   graphics_card_panel_ui(
                     "排序与轨道",
@@ -83,11 +95,11 @@ waterfall_plot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "图形与样式",
-          subtitle = "继续保留标题、坐标、图层样式与 RECIST 阈值控制",
+          subtitle = "设置标题、坐标、样式与 RECIST 阈值",
           tone = "warning",
           status = "warning",
           solidHeader = FALSE,
-          app_card_note("当前统一瀑布图样式卡和说明块，不改变百分比标签格式、符号文本映射、轨道区版式和 RECIST 参考线语义。"),
+          app_card_note("配置百分比标签格式、符号文本映射、轨道区版式和 RECIST 参考线。"),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
@@ -257,11 +269,11 @@ waterfall_plot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "输出与导出",
-          subtitle = "继续保留尺寸模式、画布同步与导出参数链路",
+          subtitle = export_copy$subtitle,
           tone = "info",
           status = "info",
           solidHeader = FALSE,
-          app_card_note("本轮只统一导出卡和说明块，不调整前端尺寸同步、PX/英寸换算、导出格式与 DPI 逻辑。"),
+          app_card_note(export_copy$note),
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
@@ -331,11 +343,11 @@ waterfall_plot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "结果区",
-          subtitle = "继续保留动作条与 静态图 / 交互图 / 数据 结果结构",
+          subtitle = copy$result_card$subtitle,
           tone = "success",
           status = "success",
           solidHeader = FALSE,
-          app_card_note("当前统一瀑布图结果卡和说明块，不改变生成图形按钮、下载链路、数据表输出或 committed 参数快照逻辑。"),
+          app_card_note(copy$result_card$note),
           graphics_output_action_bar_ui(ns, render_button_id = "render_plot", download_id = "dl_plot"),
           tabsetPanel(
             id = ns("output_tabs"),
@@ -343,7 +355,7 @@ waterfall_plot_ui <- function(id) {
               "静态图",
               app_result_panel(
                 title = "静态图结果",
-                note = "展示当前 committed 参数生成的瀑布图主图和下方轨道区结果。",
+                note = copy$static_plot$note,
                 tone = "success",
                 uiOutput(ns("static_plot_ui"))
               )
@@ -352,7 +364,7 @@ waterfall_plot_ui <- function(id) {
               "交互图",
               app_result_panel(
                 title = "交互图结果",
-                note = "展示当前参数生成的交互式瀑布图结果。",
+                note = copy$interactive_plot$note,
                 tone = "info",
                 uiOutput(ns("interactive_plot_ui"))
               )
@@ -361,7 +373,7 @@ waterfall_plot_ui <- function(id) {
               "数据",
               app_result_panel(
                 title = "瀑布数据与分组轨道数据",
-                note = "继续保留瀑布数据与分组轨道数据双页签，不调整数据整理或导出链路。",
+                note = copy$data_tab$note,
                 tone = "warning",
                 tabsetPanel(
                   tabPanel("瀑布数据", DTOutput(ns("data_table"))),

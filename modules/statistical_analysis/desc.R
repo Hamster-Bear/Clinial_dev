@@ -5,6 +5,11 @@ library(dplyr)
 library(tidyr)
 library(gt)
 library(stringr)
+if (file.exists("modules/common/stat_analysis_submodule_copy.R")) {
+  source("modules/common/stat_analysis_submodule_copy.R")
+} else {
+  source(file.path("..", "modules", "common", "stat_analysis_submodule_copy.R"))
+}
 
 if (!exists("app_card_note", mode = "function") || !exists("app_card_panel", mode = "function")) {
   if (file.exists("modules/common/ui_shell.R")) {
@@ -18,14 +23,15 @@ if (!exists("app_card_note", mode = "function") || !exists("app_card_panel", mod
 
 # 描述性统计参数UI
 desc_params_ui <- function(ns, data) {
+  copy <- STAT_ANALYSIS_SUBMODULE_COPY$desc
   var_names <- names(data)
   default_id_var <- if ("subject" %in% var_names) "subject" else if (length(var_names) > 0) var_names[1] else NULL
   
   tagList(
-    app_card_note("描述性统计参数区已接入公共壳分组样式；本轮只统一说明块与参数分区，不调整统计汇总逻辑。"),
+    app_card_note(copy$intro),
     app_card_panel(
       tags$strong("变量与分组"),
-      app_card_note("先选择分析变量，再按需指定列分组、行分组和受试者唯一标识变量。"),
+      app_card_note(copy$variables),
       selectizeInput(ns("desc_variables"), "选择分析变量", choices = var_names, multiple = TRUE),
       selectInput(ns("desc_col_group_var"), "列分组变量 (可选)", choices = c("无", var_names)),
       selectInput(ns("desc_row_group_var"), "行分组变量 (可选)", choices = c("无", var_names)),
@@ -33,7 +39,7 @@ desc_params_ui <- function(ns, data) {
     ),
     app_card_panel(
       tags$strong("展示与汇总"),
-      app_card_note("继续保留总计列配置、固定小数位数与自动小数位数策略。"),
+      app_card_note(copy$options),
       uiOutput(ns("desc_total_cols_ui")),
       numericInput(ns("desc_decimals"), "小数位数", value = 2, min = 0, max = 5),
       checkboxInput(ns("desc_auto_decimals"), "使用自动小数位数", value = TRUE)

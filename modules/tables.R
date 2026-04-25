@@ -6,6 +6,7 @@ library(shiny)
 library(dplyr)
 library(gt)
 library(shinyjs)
+source("modules/common/entry_copy.R")
 source("modules/common/ui_shell.R")
 
 # 加载子模块分析函数
@@ -20,6 +21,7 @@ source("modules/common/plot_export.R")
 # Tables模块UI
 tables_ui <- function(id) {
   ns <- NS(id)
+  copy <- ENTRY_COPY$tables
   
   tagList(
     useShinyjs(),
@@ -30,14 +32,14 @@ tables_ui <- function(id) {
         width = 3,
         app_card_box(
           width = NULL,
-          title = "预设图表参数设置",
-          subtitle = "继续保留表格类型切换与动态参数链路，只统一入口卡片视觉",
+          title = copy$params$title,
+          subtitle = copy$params$subtitle,
           tone = "primary",
           status = "primary",
           solidHeader = FALSE,
           collapsible = TRUE,
           collapsed = FALSE,
-          app_card_note("全局筛选卡已作为公共模块独立收口；这里统一参数入口卡、动态参数容器与生成按钮区。"),
+          app_card_note(copy$params$note),
           app_card_panel(
             selectizeInput(
               ns("table_type"),
@@ -53,12 +55,12 @@ tables_ui <- function(id) {
           ),
           app_card_panel(
             tags$strong("参数设置"),
-            app_card_note("根据当前表格类型动态渲染参数 UI，不改变已有参数计算、可用性控制和生成逻辑。"),
+            app_card_note("根据所选表格类型显示对应参数，便于完成当前表格设置。"),
             uiOutput(ns("dm_params_ui"))
           ),
           app_card_panel(
             tags$strong("执行"),
-            app_card_note("在当前参数可用时生成结果；按钮启停逻辑保持原有 server 校验。"),
+            app_card_note("参数设置完整后即可生成结果；未满足必填项时按钮会保持不可用。"),
             actionButton(
               ns("generate"),
               "生成表格",
@@ -74,20 +76,20 @@ tables_ui <- function(id) {
         width = 9,
         app_card_box(
           width = NULL,
-          title = "预设图表结果",
-          subtitle = "继续保留表格结果与 R 代码结构，只统一结果卡和导出说明块",
+          title = copy$result$title,
+          subtitle = copy$result$subtitle,
           tone = "success",
           status = "success",
           solidHeader = FALSE,
           collapsible = TRUE,
           collapsed = FALSE,
-          app_card_note("结果区继续保留“表格结果 / R代码”结构，不改变输出对象、渲染方式或导出逻辑。"),
+          app_card_note(copy$result$note),
           tabsetPanel(
             tabPanel(
               "表格结果",
               app_result_panel(
                 title = "表格结果",
-                note = "展示当前所选表格类型生成的结果对象；渲染方式继续由类型分支决定。",
+                note = "展示当前所选表格类型生成的表格结果。",
                 tone = "success",
                 uiOutput(ns("table_output"))
               )
@@ -96,7 +98,7 @@ tables_ui <- function(id) {
               "R代码",
               app_result_panel(
                 title = "R 代码",
-                note = "展示当前表格参数对应的代码草稿，便于复现或写入报告。",
+                note = "展示当前表格参数对应的 R 代码，便于复现或写入报告。",
                 tone = "info",
                 verbatimTextOutput(ns("code_output"), placeholder = TRUE)
               )
@@ -104,7 +106,7 @@ tables_ui <- function(id) {
           ),
           app_result_panel(
             title = "导出配置",
-            note = "继续沿用现有格式选择、文件名前缀和导出按钮，不调整底层导出实现。",
+            note = copy$result$export_note,
             tone = "warning",
             fluidRow(
               column(
