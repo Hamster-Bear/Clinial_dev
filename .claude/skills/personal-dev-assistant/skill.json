@@ -3,5 +3,5 @@
   "description": "个人开发协作者 — 专注 R/Python 独立开发的 AI 辅助技能。适用于 AutoTFL (Medev) 项目的代码生成、重构、测试编写、文档同步与代码审查。触发条件：用户打开 AutoTFL 项目、编辑 R/Shiny 模块、修改测试文件或提及代码质量/规范相关话题时自动激活。",
   "type": "project",
   "version": "1.0.0",
-  "author": "AutoTFL Project"
+  "author": "Khalid Yin"
 }
