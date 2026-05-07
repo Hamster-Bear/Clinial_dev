@@ -82,76 +82,36 @@ required_packages <- c(
   "shinytest2"
 )
 
-# 安装缺失的包
+# 安装缺失的包（pak 统一处理本地二进制 + 在线 PPM）
 install_missing_packages <- function(packages) {
-  # 1. 优先从本地 package 目录安装
-  if (dir.exists("package")) {
-    local_pkg_dir <- normalizePath("package")
-    message("正在扫描本地 package 目录: ", local_pkg_dir)
-    
-    # 检查本地是否有 PACKAGES 索引文件，如果有，直接作为仓库安装（自动处理依赖）
-    if (file.exists(file.path(local_pkg_dir, "PACKAGES"))) {
-      message("发现本地 PACKAGES 索引，使用仓库模式安装...")
-      
-      # 构造本地仓库 URL
-      # 注意：Windows 下 normalizePath 返回反斜杠，需要转换为正斜杠
-      # Linux 下 normalizePath 返回正斜杠，不需要转换
-      local_path_fixed <- gsub("\\\\", "/", local_pkg_dir)
-      repo_url <- paste0("file:///", local_path_fixed)
-      
-      # 获取当前已安装的包
-      installed <- installed.packages()[, "Package"]
-      missing <- setdiff(packages, installed)
-      
-      if (length(missing) > 0) {
-        message("尝试从本地仓库安装缺失包: ", paste(missing, collapse = ", "))
-        tryCatch({
-           # 使用 contriburl 指定本地源码目录，让 R 自动解决依赖顺序
-           # 在 Windows 下 file:///C:/... 是合法的
-           # 在 Linux 下 file:////app/package 是合法的 (3个斜杠后接绝对路径 /app/package)
-           # 所以 file:/// + /app/package = file:////app/package
-           install.packages(missing, contriburl = repo_url, type = "source", dependencies = TRUE)
-        }, error = function(e) {
-           message("本地仓库安装部分失败（可能缺依赖），将尝试在线补齐: ", e$message)
-        })
-      }
-    } else {
-      # 没有索引文件，回退到逐个文件尝试安装（不推荐，无法解决依赖顺序）
-      message("未找到 PACKAGES 索引，尝试生成并安装...")
-      tryCatch({
-        tools::write_PACKAGES(local_pkg_dir, type = "source")
-        local_path_fixed <- gsub("\\\\", "/", local_pkg_dir)
-        repo_url <- paste0("file:///", local_path_fixed)
-        
-        installed <- installed.packages()[, "Package"]
-        missing <- setdiff(packages, installed)
-        if (length(missing) > 0) {
-          install.packages(missing, contriburl = repo_url, type = "source", dependencies = TRUE)
-        }
-      }, error = function(e) {
-        message("生成索引或安装失败: ", e$message)
-      })
-    }
+  installed <- installed.packages()[, "Package"]
+  missing <- setdiff(packages, installed)
+
+  if (length(missing) == 0) {
+    message("所有必需的包都已安装。")
+    return()
   }
 
-  # 2. 再次检查缺失包，从在线源补齐
-  installed_packages <- installed.packages()[, "Package"]
-  missing_packages <- setdiff(packages, installed_packages)
-  
-  if (length(missing_packages) > 0) {
-    message("正在从在线源安装剩余缺失包: ", paste(missing_packages, collapse = ", "))
-    
-    # 使用清华源，提高国内下载速度
-    install.packages(
-      missing_packages,
-      repos = "https://mirrors.tuna.tsinghua.edu.cn/CRAN/",
-      dependencies = TRUE
-    )
-    
-    message("在线安装流程结束。")
-  } else {
-    message("所有必需的包都已安装。")
+  # 构建仓库列表：本地 package/ 优先（二进制包秒装），PPM 在线兜底
+  repos <- c()
+  if (dir.exists("package") && file.exists(file.path("package", "PACKAGES"))) {
+    local_path <- gsub("\\\\", "/", normalizePath("package"))
+    repos <- c(paste0("file:///", local_path))
+    message("发现本地 package 仓库: ", local_path)
   }
+  repos <- c(repos, "https://packagemanager.posit.co/cran/latest")
+
+  # 确保 pak 可用（Dockerfile 已预装，此处兜底）
+  if (!requireNamespace("pak", quietly = TRUE)) {
+    install.packages("pak", repos = "https://cloud.r-project.org")
+  }
+
+  message("使用 pak 安装 ", length(missing), " 个缺失包: ",
+          paste(missing, collapse = ", "))
+  cat("仓库:", paste(repos, collapse = ", "), "\n")
+
+  pak::pak(missing, repos = repos, ask = FALSE)
+  message("安装流程结束。")
 }
 
 # 检查包是否加载成功
