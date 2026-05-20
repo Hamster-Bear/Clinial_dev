@@ -36,7 +36,7 @@ module_path <- function(p) {
 source(module_path("modules/statistical_analysis/logistic.R"))
 source(module_path("modules/statistical_analysis/linear.R"))
 source(module_path("modules/statistical_analysis/cox.R"))
-source(module_path("modules/common/table_export.R"))
+source(module_path("modules/common/export/table_export.R"))
 
 align_compare_df <- function(df) {
   x <- as.data.frame(df, stringsAsFactors = FALSE)

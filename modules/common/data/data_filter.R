@@ -4,7 +4,7 @@
 library(shiny)
 library(dplyr)
 library(shinyWidgets)
-source("modules/common/data_metadata.R")
+source("modules/common/data/data_metadata.R")
 if (!exists("app_card_box", mode = "function") || !exists("app_card_note", mode = "function")) {
   if (file.exists("modules/common/ui_shell.R")) {
     source("modules/common/ui_shell.R")

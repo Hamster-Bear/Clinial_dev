@@ -31,7 +31,7 @@ AutoTFL 旨在为医学和临床数据分析提供一套自动化、可复现的
 - **分析状态管理**: 通过 PostgreSQL `analysis_states` 表持久化图形子模块参数快照；状态快照只保存业务参数，不保存 DT/Plotly 派生交互输入或导航态；workspace 为空时保存为个人任务；覆盖保存通过 service 层显式查询后 update/insert，不依赖 `ON CONFLICT`。
 - **图形参数抽象**: 首批共享参数卡片为列映射块、时间轴块、导出块三类；动态事件映射、复杂颜色映射等高动态区块留待后续抽象。
 - **图形子模块统一布局**: `数据与变量 / 图形与样式 / 输出与导出` 三张顶层功能卡片 + 结果区动作条 + `静态图 / 交互图 / 数据` 结果页签。
-- **common 目录归类**: `modules/common/` 按 `auth / data / analysis / graphics / export` 五类组织；新增共享逻辑优先进入对应子目录。
+- **common 目录归类**: `modules/common/` 按 `auth / data / analysis / graphics / export` 五类组织，全部已落地；新增共享逻辑优先进入对应子目录。
 - **认证事务**: 所有事务型写操作必须统一走 `auth_with_transaction()`：`pool` 模式走 `poolWithTransaction`，直连模式走 `dbWithTransaction`。
 - **用户管理事务**: workspace 创建、成员授权、Owner 迁移等写操作必须从 service 层进入，UI 层不得重新拼装事务细节。
 - **P 值格式**: AMA 风格 — `<0.001`、`>0.99`、无法计算时显示 `—`。HR/OR/Beta 及 95% CI 保留 2 位小数。

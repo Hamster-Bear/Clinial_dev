@@ -132,8 +132,8 @@
   - `tests/statistical_analysis/regression/test_regression_ratio_by_subgroup.R`
   - `tests/statistical_analysis/regression/test_sparse_regression.R`
   - `tests/statistical_analysis/regression/test_stats_facet.R`
-- 历史专项验证脚本:
-  - `tests/statistical_analysis/regression/legacy/test_indent_issue.R`
+- 缩进格式专项验证:
+  - `tests/statistical_analysis/regression/test_indent_issue.R`
 
 ### 3.6 统计图形共享层与公共契约
 
@@ -162,7 +162,7 @@
   - `tests/statistical_graphics/survival/test_survival_median_ci_baseline.R`
   - `tests/statistical_graphics/survival/test_survival_selection_resolution.R`
   - `tests/statistical_graphics/survival/test_survival_view_committed_state.R`
-  - `tests/statistical_graphics/survival/legacy/test_label_mapping.R`
+  - `tests/statistical_graphics/survival/test_label_mapping.R`
 - Combo:
   - `tests/statistical_graphics/combo/test_combo_layout_guard.R`
 - Boxplot:
@@ -177,6 +177,10 @@
 - Waterfall:
   - `tests/statistical_graphics/waterfall/test_waterfall_layout_guard.R`
   - `tests/statistical_graphics/waterfall/test_waterfall_symbol_choices.R`
+- Heatmap:
+  - `tests/statistical_graphics/heatmap/test_heatmap_layout_guard.R`
+- Correlation Matrix:
+  - `tests/statistical_graphics/correlation_matrix/test_correlation_matrix_layout_guard.R`
 
 ### 3.8 预设输出、导出与外部页面
 
@@ -192,9 +196,9 @@
 
 - 共享测试数据:
   - `tests/fixtures/medical_test_data.csv`
-- 当前仍属脚本式验证、后续建议继续标准化到 `testthat` 的文件:
-  - `tests/statistical_analysis/regression/legacy/test_indent_issue.R`
-  - `tests/statistical_graphics/survival/legacy/test_label_mapping.R`
+- 已迁移至 testthat 标准格式的遗留测试:
+  - `tests/statistical_analysis/regression/test_indent_issue.R`（原 legacy）
+  - `tests/statistical_graphics/survival/test_label_mapping.R`（原 legacy）
 
 ## 4. 当前回归入口
 
@@ -218,7 +222,5 @@
 
 ## 6. Legacy 说明
 
-当前 `tests/` 下保留 2 个历史脚本式验证文件，待迁移为标准 `testthat` 用例：
-- `tests/statistical_analysis/regression/legacy/test_indent_issue.R`
-- `tests/statistical_graphics/survival/legacy/test_label_mapping.R`
+2 个历史脚本式验证文件已在 Review 2 整改中迁移为标准 `testthat` 用例（详见 §3.5 和 §3.7），原 `legacy/` 目录已移除。
 

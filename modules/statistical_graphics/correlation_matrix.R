@@ -297,7 +297,21 @@ correlation_matrix_server <- function(input, output, session, data) {
   )
   
   apply_state <- function(state) {
+    if (!is.list(state)) return(invisible(FALSE))
     graphics_restore_task_input_state(session, state)
+    extra_state <- graphics_task_payload_extra_state(state)
+    if (!is.null(extra_state$selected_vars)) {
+      updateSelectizeInput(session, "correlation_vars", selected = extra_state$selected_vars)
+    }
+    if (!is.null(extra_state$method)) {
+      updateSelectInput(session, "correlation_method", selected = extra_state$method)
+    }
+    if (!is.null(extra_state$plot_title)) {
+      updateTextInput(session, "plot_title", value = extra_state$plot_title)
+    }
+    if (!is.null(extra_state$color_palette)) {
+      updateSelectInput(session, "color_palette", selected = extra_state$color_palette)
+    }
     invisible(TRUE)
   }
 
@@ -307,7 +321,16 @@ correlation_matrix_server <- function(input, output, session, data) {
         input,
         extra_state = list(
           selected_vars = input$correlation_vars,
-          method = input$correlation_method
+          method = input$correlation_method,
+          plot_title = input$plot_title,
+          plot_xlab = input$plot_xlab,
+          plot_ylab = input$plot_ylab,
+          color_palette = input$color_palette,
+          text_size = input$text_size,
+          tile_size = input$tile_size,
+          show_values = input$show_values,
+          export_format = input$export_format,
+          export_dpi = if (is.null(input$export_dpi)) 300 else input$export_dpi
         )
       )
     }),

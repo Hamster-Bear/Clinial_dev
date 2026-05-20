@@ -22,6 +22,7 @@ services:
     networks:
       - hamster-analysis-network
 
+  # 保留：待后续业务集成
   redis:
     image: redis:7-alpine
     container_name: hamster-analysis-redis

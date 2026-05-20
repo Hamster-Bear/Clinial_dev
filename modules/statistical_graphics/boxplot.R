@@ -212,107 +212,138 @@ boxplot_ui <- function(id) {
 
 boxplot_server <- function(input, output, session, data) {
   ns <- session$ns
-  
+
   # 存储图形参数状态
   graphics_state <- reactiveValues(
     boxplot_x = NULL,
     boxplot_y = NULL
   )
-  
+
+  # committed state — Generate 时快照，分析只读此对象
+  committed_params <- reactiveVal(NULL)
+
   # 更新变量选择
   observe({
     req(data())
-    
+
     # 获取分类变量和数值变量列表
     categorical_vars <- get_categorical_vars(data(), include_logical = FALSE)
     numeric_vars <- get_numeric_vars(data())
-    
+
     # 更新X轴变量选择（分类变量）
-    updateSelectizeInput(session, "boxplot_x", choices = categorical_vars, selected = graphics_state$boxplot_x)
-    
+    updateSelectizeInput(session, “boxplot_x”, choices = categorical_vars, selected = graphics_state$boxplot_x)
+
     # 更新Y轴变量选择（数值变量）
-    updateSelectizeInput(session, "boxplot_y", choices = numeric_vars, selected = graphics_state$boxplot_y)
+    updateSelectizeInput(session, “boxplot_y”, choices = numeric_vars, selected = graphics_state$boxplot_y)
   })
-  
+
   # 观察并保存图形参数
   observe({
     graphics_state$boxplot_x <- input$boxplot_x
     graphics_state$boxplot_y <- input$boxplot_y
   })
-  
-  # 创建箱线图
-  create_boxplot <- function() {
-    req(data(), input$boxplot_x, input$boxplot_y)
-    plot_family <- graphics_resolve_font_spec("sans")$unified
-    
-    p <- ggplot(data(), aes(x = .data[[input$boxplot_x]], y = .data[[input$boxplot_y]])) +
-      geom_boxplot(fill = "lightblue", alpha = 0.7) +
+
+  # 创建箱线图（从 committed params 读取参数，不直接从 input$ 读取）
+  create_boxplot <- function(params) {
+    req(data(), params$boxplot_x, params$boxplot_y)
+    plot_family <- graphics_resolve_font_spec(“sans”)$unified
+
+    p <- ggplot(data(), aes(x = .data[[params$boxplot_x]], y = .data[[params$boxplot_y]])) +
+      geom_boxplot(fill = “lightblue”, alpha = 0.7) +
       theme_minimal(base_family = plot_family) +
-      labs(title = ifelse(nchar(input$plot_title) > 0, input$plot_title, "箱线图"),
-           x = ifelse(nchar(input$plot_xlab) > 0, input$plot_xlab, input$boxplot_x),
-           y = ifelse(nchar(input$plot_ylab) > 0, input$plot_ylab, input$boxplot_y))
-    
+      labs(title = ifelse(nchar(params$plot_title %||% “”) > 0, params$plot_title, “箱线图”),
+           x = ifelse(nchar(params$plot_xlab %||% “”) > 0, params$plot_xlab, params$boxplot_x),
+           y = ifelse(nchar(params$plot_ylab %||% “”) > 0, params$plot_ylab, params$boxplot_y))
+
     # 应用颜色主题
-    if (!is.null(input$plot_palette)) {
-      p <- p + scale_fill_brewer(palette = input$plot_palette)
+    if (!is.null(params$plot_palette) && nzchar(params$plot_palette)) {
+      p <- p + scale_fill_brewer(palette = params$plot_palette)
     }
-    
+
     return(p)
   }
-  
+
   # 生成箱线图
   final_plot <- reactiveVal(NULL)
-  
+
   observeEvent(input$render_plot, {
     req(data(), input$boxplot_x, input$boxplot_y)
-    
+
+    params <- list(
+      boxplot_x   = input$boxplot_x,
+      boxplot_y   = input$boxplot_y,
+      plot_title  = input$plot_title,
+      plot_xlab   = input$plot_xlab,
+      plot_ylab   = input$plot_ylab,
+      plot_palette = input$plot_palette,
+      line_size   = input$line_size,
+      line_type   = input$line_type,
+      point_size  = input$point_size,
+      export_format = input$export_format,
+      export_dpi   = if (is.null(input$export_dpi)) 300 else input$export_dpi
+    )
+
     tryCatch({
-      p <- create_boxplot()
+      p <- create_boxplot(params)
       final_plot(p)
-      graphics_notify_success("箱线图")
+      committed_params(params)
+      graphics_notify_success(“箱线图”)
     }, error = function(e) {
-      graphics_notify_error("箱线图", e)
+      graphics_notify_error(“箱线图”, e)
       final_plot(NULL)
     })
   })
-  
+
   # 显示静态图
   output$static_plot <- renderPlot({
-    shiny::validate(shiny::need(!is.null(final_plot()), "请先选择变量并点击“生成图形”。"))
+    shiny::validate(shiny::need(!is.null(final_plot()), “请先选择变量并点击”生成图形”。”))
     final_plot()
   }, height = 600)
-  
+
   # 显示交互式图
   output$interactive_plot <- plotly::renderPlotly({
-    shiny::validate(shiny::need(!is.null(final_plot()), "请先生成箱线图，再查看交互式图。"))
+    shiny::validate(shiny::need(!is.null(final_plot()), “请先生成箱线图，再查看交互式图。”))
     ggplotly(final_plot(), height = 600)
   })
-  
+
   # 显示数据表
   output$data_table <- renderDT({
-    shiny::validate(shiny::need(!is.null(data()) && nrow(data()) > 0, "当前无可展示的数据。"))
+    shiny::validate(shiny::need(!is.null(data()) && nrow(data()) > 0, “当前无可展示的数据。”))
     datatable(data(), options = list(pageLength = 10, scrollX = TRUE))
   })
-  
-  # 图形导出
+
+  # 图形导出（从 committed_params 读取导出参数）
   output$dl_plot <- downloadHandler(
     filename = function() {
-      build_plot_export_filename("boxplot", input$export_format)
+      cp <- committed_params()
+      fmt <- if (!is.null(cp$export_format)) cp$export_format else input$export_format
+      build_plot_export_filename(“boxplot”, fmt)
     },
     content = function(file) {
+      cp <- committed_params()
       save_plot_export(
         file = file,
         plot_obj = final_plot(),
-        format = input$export_format,
+        format = if (!is.null(cp$export_format)) cp$export_format else (input$export_format %||% “png”),
         width = 10,
         height = 8,
-        dpi = if (is.null(input$export_dpi)) 300 else input$export_dpi
+        dpi = if (!is.null(cp$export_dpi)) cp$export_dpi else (if (is.null(input$export_dpi)) 300 else input$export_dpi)
       )
     }
   )
-  
+
   apply_state <- function(state) {
+    if (!is.list(state)) return(invisible(FALSE))
     graphics_restore_task_input_state(session, state)
+    extra_state <- graphics_task_payload_extra_state(state)
+    if (!is.null(extra_state$x_var)) {
+      graphics_state$boxplot_x <- extra_state$x_var
+      updateSelectizeInput(session, “boxplot_x”, selected = extra_state$x_var)
+    }
+    if (!is.null(extra_state$y_var)) {
+      graphics_state$boxplot_y <- extra_state$y_var
+      updateSelectizeInput(session, “boxplot_y”, selected = extra_state$y_var)
+    }
     invisible(TRUE)
   }
 

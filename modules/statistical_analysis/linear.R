@@ -1,10 +1,10 @@
 # 线性回归分析模块
 # 使用 gtsummary 生成 SCI 级表格并提供结果解读
 
-if (file.exists("modules/common/analysis_shared.R")) {
-  source("modules/common/analysis_shared.R")
+if (file.exists("modules/common/analysis/analysis_shared.R")) {
+  source("modules/common/analysis/analysis_shared.R")
 } else {
-  source(file.path("..", "modules", "common", "analysis_shared.R"))
+  source(file.path("..", "modules", "common", "analysis", "analysis_shared.R"))
 }
 if (file.exists("modules/common/stat_analysis_submodule_copy.R")) {
   source("modules/common/stat_analysis_submodule_copy.R")

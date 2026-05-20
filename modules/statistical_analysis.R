@@ -16,11 +16,11 @@ if (requireNamespace("gtsummary", quietly = TRUE)) {
 }
 
 # 先加载公共能力，再加载子模块，避免会话内旧函数残留影响结果
-source("modules/common/table_export.R")
-source("modules/common/analysis_format.R")
-source("modules/common/analysis_shared.R")
+source("modules/common/export/table_export.R")
+source("modules/common/analysis/analysis_format.R")
+source("modules/common/analysis/analysis_shared.R")
 source("modules/common/entry_copy.R")
-source("modules/common/data_filter.R")
+source("modules/common/data/data_filter.R")
 source("modules/statistical_analysis/cox.R")
 source("modules/statistical_analysis/logistic.R")
 source("modules/statistical_analysis/linear.R")
@@ -101,10 +101,10 @@ statistical_analysis_ui <- function(id) {
                 "卡方检验" = "chi-sq",
                 "CMH检验" = "cmh"
               ),
-              "高级方法" = list(
-                "MMRM" = "mmrm",
-                "多重填补" = "mi"
-              )
+              # "高级方法" = list(
+              #   "MMRM" = "mmrm",
+              #   "多重填补" = "mi"
+              # )
             )
           )
         ),
@@ -226,9 +226,9 @@ statistical_analysis_server <- function(id, data) {
   ns <- session$ns
 
   reload_regression_runtime <- function() {
-    source("modules/common/table_export.R")
-    source("modules/common/analysis_format.R")
-    source("modules/common/analysis_shared.R")
+    source("modules/common/export/table_export.R")
+    source("modules/common/analysis/analysis_format.R")
+    source("modules/common/analysis/analysis_shared.R")
     source("modules/statistical_analysis/logistic.R")
     source("modules/statistical_analysis/linear.R")
     source("modules/statistical_analysis/cox.R")

@@ -35,9 +35,9 @@ module_path <- function(p) {
   if (file.exists(p)) p else file.path("..", p)
 }
 
-source(module_path("modules/common/table_export.R"))
-source(module_path("modules/common/analysis_format.R"))
-source(module_path("modules/common/analysis_shared.R"))
+source(module_path("modules/common/export/table_export.R"))
+source(module_path("modules/common/analysis/analysis_format.R"))
+source(module_path("modules/common/analysis/analysis_shared.R"))
 source(module_path("modules/statistical_analysis/linear.R"))
 source(module_path("modules/statistical_analysis/logistic.R"))
 source(module_path("modules/statistical_analysis/cox.R"))

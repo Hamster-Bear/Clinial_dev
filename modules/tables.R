@@ -14,9 +14,9 @@ source("modules/tables/t_dm.R")
 source("modules/tables/t_ae_soc_pt.R")
 source("modules/tables/listing_general.R")
 source("modules/tables/ae_sidebyside.R") # 加载并列对比图模块
-source("modules/common/data_filter.R") # 加载通用筛选模块
-source("modules/common/table_export.R")
-source("modules/common/plot_export.R")
+source("modules/common/data/data_filter.R") # 加载通用筛选模块
+source("modules/common/export/table_export.R")
+source("modules/common/export/plot_export.R")
 
 # Tables模块UI
 tables_ui <- function(id) {

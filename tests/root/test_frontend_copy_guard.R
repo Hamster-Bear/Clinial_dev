@@ -60,20 +60,17 @@ frontend_copy_targets <- c(
   file.path("modules", "statistical_graphics", "waterfall_plot.R")
 )
 
-forbidden_patterns <- c(
-  "本轮只统一",
-  "继续保留",
-  "当前统一",
-  "继续沿用",
-  "后续如补充",
-  "开发阶段",
-  "内部使用",
-  "暂定",
-  "后续可",
-  "暂时"
-)
+copy_guard_json <- file.path(project_root, "inst", "copy_guard_patterns.json")
+if (!file.exists(copy_guard_json)) {
+  stop("copy_guard_patterns.json 不存在: ", copy_guard_json, call. = FALSE)
+}
+copy_guard_data <- jsonlite::fromJSON(copy_guard_json, simplifyVector = TRUE)
+forbidden_patterns <- copy_guard_data$categories$frontend_dev_jargon$patterns
 
-test_that("前端 copy 守卫应覆盖通用开发阶段词汇", {
+test_that("前端 copy 守卫 JSON 已加载且覆盖通用开发阶段词汇", {
+  expect_true(length(forbidden_patterns) >= 10,
+    info = sprintf("forbidden_patterns 数量异常: %d (预期 >= 10)", length(forbidden_patterns)))
+
   generic_patterns <- c("开发阶段", "内部使用", "暂定", "后续可", "暂时")
 
   for (pattern in generic_patterns) {

@@ -27,11 +27,13 @@ test_find_project_root <- function() {
 
 project_root <- test_find_project_root()
 setwd(file.path(project_root, "tests"))
-args <- commandArgs(trailingOnly = FALSE)
-file_arg <- "--file="
-script_path <- sub(file_arg, "", args[grep(file_arg, args)])
-script_dir <- dirname(normalizePath(script_path, winslash = "/", mustWork = FALSE))
-project_root <- test_find_project_root()
+
+copy_guard_json <- file.path(project_root, "inst", "copy_guard_patterns.json")
+if (!file.exists(copy_guard_json)) {
+  stop("copy_guard_patterns.json 不存在: ", copy_guard_json, call. = FALSE)
+}
+copy_guard_data <- jsonlite::fromJSON(copy_guard_json, simplifyVector = TRUE)
+landing_patterns <- copy_guard_data$categories$landing_integrity$patterns
 
 landing_path <- file.path(project_root, "nginx", "landing", "index.html")
 autotfl_path <- file.path(project_root, "nginx", "landing", "autotfl.html")
@@ -71,12 +73,6 @@ expect_contains(landing_text, "聚焦数据准备、统计分析、统计图形�
 expect_contains(landing_text, "从入口开始，直接进入需要的页面。", "主 Landing 引导使用入口")
 expect_contains(landing_text, "href=\"/landing/autotfl.html\"", "主 Landing 保留 AutoTFL 子页入口")
 expect_contains(landing_text, "href=\"/app/\"", "主 Landing 保留主应用入口")
-expect_not_contains(landing_text, "当前已上线应用", "主 Landing 不出现项目进度口径")
-expect_not_contains(landing_text, "© 2026", "主 Landing 不出现年份进度口径")
-expect_not_contains(landing_text, "Hamster Analysis", "主 Landing 不再使用旧品牌")
-expect_not_contains(landing_text, ">AutoTFL<", "主 Landing 不再直接展示旧产品名")
-expect_not_contains(landing_text, "最短决策路径", "不再暴露内部架构逻辑词汇")
-expect_not_contains(landing_text, "看介绍进子页", "不再暴露内部架构逻辑词汇")
 
 expect_contains(autotfl_text, "<title>Medev</title>", "产品页标题")
 expect_contains(autotfl_text, "用于医学数据分析的简洁工作台。", "产品页 Hero 主标题")
@@ -86,27 +82,52 @@ expect_contains(autotfl_text, "结果图片占位", "产品页图片占位区")
 expect_contains(autotfl_text, "Landing 主展示图占位", "产品页保留图片占位")
 expect_contains(autotfl_text, "href=\"/landing/index.html\"", "产品页保留返回主页入口")
 expect_contains(autotfl_text, "href=\"/app/\"", "产品页保留应用入口")
-expect_not_contains(autotfl_text, "当前已上线应用", "产品页不出现项目进度口径")
-expect_not_contains(autotfl_text, "© 2026", "产品页不出现年份进度口径")
-expect_not_contains(autotfl_text, "Hamster Analysis", "产品页不再使用旧品牌")
-expect_not_contains(autotfl_text, ">AutoTFL<", "产品页不再直接展示旧产品名")
-expect_not_contains(autotfl_text, "cdn.jsdelivr.net/npm/chart.js", "产品页不再引入虚构图表库")
-expect_not_contains(autotfl_text, "canvas id=\"demoChart\"", "产品页不再展示伪图表示意")
 
-expect_not_contains(landing_text, "商业智能分析", "未落地产品矩阵文案")
-expect_not_contains(landing_text, "基因组数据分析", "未落地产品矩阵文案")
-expect_not_contains(landing_text, "机器学习平台", "未落地产品矩阵文案")
-expect_not_contains(landing_text, "用户满意度", "虚构运营指标")
-expect_not_contains(landing_text, "系统可用性", "虚构运营指标")
-expect_not_contains(landing_text, "HIPAA", "无证据合规承诺")
-expect_not_contains(landing_text, "GDPR", "无证据合规承诺")
-expect_not_contains(landing_text, "浏览器兼容性提示", "兼容性提示")
-expect_not_contains(landing_text, "技术栈", "技术栈宣传")
-expect_not_contains(landing_text, "平台层", "抽象分层文案")
-expect_not_contains(landing_text, "应用层", "抽象分层文案")
-expect_not_contains(autotfl_text, "技术栈", "AutoTFL 子页技术栈宣传")
-expect_not_contains(autotfl_text, "平台层", "AutoTFL 子页抽象分层文案")
-expect_not_contains(autotfl_text, "应用层", "AutoTFL 子页抽象分层文案")
+test_that("Landing 页面不得包含 JSON 中定义的 integrity 禁词", {
+  for (pattern in landing_patterns) {
+    expect_false(
+      grepl(pattern, landing_text, fixed = TRUE),
+      info = sprintf("主 Landing 包含禁词: %s", pattern)
+    )
+    expect_false(
+      grepl(pattern, autotfl_text, fixed = TRUE),
+      info = sprintf("AutoTFL 子页包含禁词: %s", pattern)
+    )
+  }
+})
+
+test_that("Landing 页面特定语义禁词（含特殊上下文）", {
+  special_only_landing <- c(
+    "当前已上线应用",
+    "© 2026",
+    "Hamster Analysis",
+    ">AutoTFL<",
+    "最短决策路径",
+    "看介绍进子页",
+    "商业智能分析",
+    "基因组数据分析",
+    "机器学习平台",
+    "用户满意度",
+    "系统可用性",
+    "HIPAA",
+    "GDPR",
+    "浏览器兼容性提示"
+  )
+  for (pattern in special_only_landing) {
+    expect_false(
+      grepl(pattern, landing_text, fixed = TRUE),
+      info = sprintf("主 Landing 特殊禁词: %s", pattern)
+    )
+  }
+
+  special_autotfl_only <- c("cdn.jsdelivr.net/npm/chart.js", "canvas id=\"demoChart\"")
+  for (pattern in special_autotfl_only) {
+    expect_false(
+      grepl(pattern, autotfl_text, fixed = TRUE),
+      info = sprintf("AutoTFL 子页特殊禁词: %s", pattern)
+    )
+  }
+})
 
 expect_contains(guide_text, "Medev | Landing 对外名称", "PROJECT_GUIDE 名称约定同步")
 expect_contains(guide_text, "Landing 页当前统一使用 Medev 对外口径", "PROJECT_GUIDE 入口规则同步")
@@ -121,5 +142,9 @@ expect_contains(spec_text, "Landing 页面只展示真实已落地能力，并�
 expect_contains(deployment_text, "Medev 首页", "DEPLOYMENT_GUIDE Landing 文件职责同步")
 expect_contains(deployment_text, "Medev 产品介绍子页", "DEPLOYMENT_GUIDE 产品页职责同步")
 
-cat("Landing copy guard passed.\n")
+test_that("Landing 禁词 JSON 数据源完整性", {
+  expect_true(length(landing_patterns) >= 19,
+    info = sprintf("landing_integrity patterns 数量异常: %d (预期 >= 19)", length(landing_patterns)))
+})
 
+cat("Landing copy guard passed.\n")

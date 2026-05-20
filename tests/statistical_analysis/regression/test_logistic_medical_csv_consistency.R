@@ -34,7 +34,7 @@ module_path <- function(p) {
 }
 
 source(module_path("modules/statistical_analysis/logistic.R"))
-source(module_path("modules/common/table_export.R"))
+source(module_path("modules/common/export/table_export.R"))
 
 test_that("medical_test_data.csv: event=1, predictor=gender 前端与表格规范完全一致", {
   csv_path <- module_path("test/medical_test_data.csv")

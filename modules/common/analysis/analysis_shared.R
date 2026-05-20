@@ -9,10 +9,10 @@ ensure_stat_analysis_dependencies <- function() {
     assign("%>%", dplyr::`%>%`, envir = .GlobalEnv)
   }
   if (!exists("apply_sci_gt_style", mode = "function") || !exists("format_p_value_ama", mode = "function")) {
-    source(resolve_module_path("modules/common/table_export.R"))
+    source(resolve_module_path("modules/common/export/table_export.R"))
   }
   if (!exists("format_p_value_regression", mode = "function") || !exists("build_repro_code_template", mode = "function")) {
-    source(resolve_module_path("modules/common/analysis_format.R"))
+    source(resolve_module_path("modules/common/analysis/analysis_format.R"))
   }
   invisible(TRUE)
 }

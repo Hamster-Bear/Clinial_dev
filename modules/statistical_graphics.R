@@ -3,8 +3,8 @@
 
 library(shiny)
 `%||%` <- function(x, y) if (is.null(x)) y else x
-source("modules/common/plot_export.R")
-source("modules/common/analysis_format.R")
+source("modules/common/export/plot_export.R")
+source("modules/common/analysis/analysis_format.R")
 source("modules/common/graphics_repro.R")
 source("modules/common/graphics_common.R")
 source("modules/common/entry_copy.R")
@@ -25,7 +25,7 @@ source("modules/statistical_graphics/combo_plot.R")
 source("modules/statistical_graphics/waterfall_plot.R")
 source("modules/statistical_graphics/swimmer_plot.R")
 source("modules/statistical_graphics/spider_plot.R")
-source("modules/common/data_filter.R")
+source("modules/common/data/data_filter.R")
 
 statistical_graphics_ui <- function(id) {
   ns <- NS(id)
