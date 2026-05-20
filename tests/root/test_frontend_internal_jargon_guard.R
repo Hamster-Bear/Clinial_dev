@@ -40,7 +40,7 @@ read_utf8 <- function(relative_path) {
 
 target_files <- c(
   file.path("modules", "common", "entry_copy.R"),
-  file.path("modules", "common", "data_filter.R"),
+  file.path("modules", "common", "data", "data_filter.R"),
   file.path("modules", "task_history.R"),
   file.path("modules", "tables.R"),
   file.path("modules", "exploratory_analysis.R"),

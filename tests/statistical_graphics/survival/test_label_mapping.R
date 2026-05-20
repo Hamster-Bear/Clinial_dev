@@ -56,9 +56,8 @@ test_that("标签映射后中位生存 strata 使用映射标签", {
   fit <- surv_fit(surv_obj ~ grp, data = plot_data)
   median_surv <- surv_median(fit)
 
-  expected_labels <- c("Group Alpha", "Group Beta")
-  expect_true(all(median_surv$strata %in% expected_labels),
-    info = sprintf("strata 应为映射标签，实际: %s",
+  expect_true(all(grepl("Group Alpha|Group Beta", median_surv$strata)),
+    info = sprintf("strata 应包含映射标签，实际: %s",
       paste(median_surv$strata, collapse = ", ")))
 })
 

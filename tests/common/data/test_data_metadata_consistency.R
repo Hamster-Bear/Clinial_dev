@@ -29,7 +29,7 @@ project_root <- test_find_project_root()
 setwd(file.path(project_root, "tests"))
 library(testthat)
 
-source(file.path("..", "modules", "common", "data_metadata.R"))
+source(file.path("..", "modules", "common", "data", "data_metadata.R"))
 
 test_that("metadata_attach_to_data 同步有效标签与类型元数据", {
   df <- data.frame(

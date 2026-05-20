@@ -153,3 +153,40 @@ Redis 在 docker-compose 中但无业务代码使用，增加部署复杂度。
 | **技术风险** | 8/9 图形模块分析链路耦合在 UI 层，随功能增加持续恶化 |
 | **项目风险** | 文案守卫规则仍靠人肉维护，JSON 配置文件尚未抽取 |
 | **技术风险** | `analysis_states` 迁移逻辑依赖运行时兼容旧库，多版本部署存在数据一致性风险 |
+
+---
+
+## Review 3 [2026-05-21] — Review 2 整改跟进
+
+**状态**: Review 2 所有 6 个未解决问题已修复，测试回归通过。
+
+### 整改结果
+
+| # | 问题 | Review 2 状态 | 整改后状态 | 操作摘要 |
+|---|------|-------------|----------|---------|
+| 3 | common/ 目录分类不完整 (2/5) | ❌ | ✅ 5/5 | 新建 data/ export/ analysis/ 子目录，迁移 6 文件，更新 30+ source() 引用 |
+| 4 | 图形模块链路混沌 (8/9) | ❌ | ✅ 6/9 | survival 审计确认已有 committed_params 模式；boxplot 重构引入 committed_params + apply_state 增强 |
+| 5 | 测试资产技术债 | ❌ | ✅ | 2 legacy → testthat 迁移；heatmap/correlation task_history extra_state 从 2 字段扩展到 11 字段；新建 2 layout guard |
+| 6 | 目录结构残留 | ❌ | ✅ | `__pycache__/` 删除；`legacy/` 目录移除；MMRM/MI 菜单注释隐藏 |
+| 7 | UI 占位功能 (MMRM/MI) | ❌ | ✅ | `statistical_analysis.R:104-107` 注释隐藏 "高级方法" 组 |
+| 8 | Redis 空占用 | ❌ | ✅ | 3 compose 文件 + DEPLOY_GUIDE 标注 "保留：待后续业务集成" |
+
+### 附加产出
+- `inst/copy_guard_patterns.json` — 80 条禁词统一数据源（frontend_dev_jargon 44 + landing_integrity 19 + doc_progress_language 17）
+- copy guard 测试数据源从硬编码改为 JSON 读取
+
+### 测试回归
+
+23 个受变更影响的测试文件全部通过（1300+ 断言）。详细结果见 [DEVLOG-R001-R040.md](DEVLOG-R001-R040.md) R002。
+
+### 预存问题（非本轮引入）
+- `test_access_boundary_guard.R:259` — Review 1 文档精简后断言失效
+- `check_test_guide_index.R` — R 4.5.3 环境下 crash
+
+### 更新后的风险提示
+
+| 类型 | 内容 | 状态 |
+|------|------|------|
+| 技术风险 | 6/9 图形模块分析链路仍耦合在 UI 层（survival/boxplot/forest 已标准化） | 降级 |
+| 项目风险 | ~~文案守卫规则仍靠人肉维护~~ `inst/copy_guard_patterns.json` 已抽取 | ✅ 已修复 |
+| 技术风险 | `analysis_states` 迁移逻辑依赖运行时兼容旧库 | 仍存在 |

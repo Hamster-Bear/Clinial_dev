@@ -39,7 +39,7 @@ read_utf8 <- function(relative_path) {
 }
 
 frontend_copy_targets <- c(
-  file.path("modules", "common", "data_filter.R"),
+  file.path("modules", "common", "data", "data_filter.R"),
   file.path("modules", "task_history.R"),
   file.path("modules", "statistical_analysis.R"),
   file.path("modules", "statistical_graphics.R"),

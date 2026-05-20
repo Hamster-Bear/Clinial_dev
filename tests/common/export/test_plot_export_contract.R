@@ -29,7 +29,7 @@ project_root <- test_find_project_root()
 setwd(file.path(project_root, "tests"))
 library(testthat)
 
-source(file.path("..", "modules", "common", "plot_export.R"))
+source(file.path("..", "modules", "common", "export", "plot_export.R"))
 
 test_that("save_plot_export 允许超过 ggsave 默认 50 英寸限制的导出", {
   p <- ggplot2::ggplot(data.frame(x = 1:3, y = 1:3), ggplot2::aes(x, y)) +

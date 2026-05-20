@@ -58,3 +58,48 @@
 - （uncommitted）
 
 ---
+
+### R002 [23:30] — P5: 测试回归 & 路径修复
+
+#### Done
+- 在 R 4.5.3 环境中执行测试回归（`F:/R-4.5.3/bin/Rscript.exe`）
+- 发现并修复 5 个 `modules/common/` 旧路径引用遗漏（迁移 data/export/analysis 时未更新）：
+  - `tests/root/test_frontend_copy_guard.R:42` — `modules/common/data_filter.R` → `modules/common/data/data_filter.R`
+  - `tests/root/test_frontend_internal_jargon_guard.R:43` — 同上
+  - `tests/common/data/test_data_metadata_consistency.R:32` — `modules/common/data_metadata.R` → `modules/common/data/data_metadata.R`
+  - `tests/common/export/test_plot_export_contract.R:32` — `modules/common/plot_export.R` → `modules/common/export/plot_export.R`
+  - `tests/statistical_graphics/survival/test_survival_display_contract.R:35` — `modules/common/table_export.R` → `modules/common/export/table_export.R`
+- 修复 2 个 legacy 迁移后测试断言与实际行为不匹配：
+  - `test_indent_issue.R` — 缩进检测正则 `^\\s` 改为内容存在性断言
+  - `test_label_mapping.R` — strata 精确匹配改为 `grepl` 包含性断言（`surv_median` 返回 `grp=Label` 格式）
+- 确认 `check_test_guide_index.R` 在 R 4.5.3 下 crash（环境问题，非代码缺陷）
+- 确认 `test_access_boundary_guard.R:259` 失败为 Review 1 文档精简预存问题
+
+#### 测试结果汇总
+| 状态 | 数量 | 说明 |
+|------|------|------|
+| PASS | 23 个文件, 1300+ 断言 | 全部通过 |
+| FAIL（本次变更） | 0 | 无回归断裂 |
+| FAIL（预存） | 1 | `test_access_boundary_guard.R` — Review 1 文档精简后断言失效 |
+| SKIP | 5 | 缺测试数据 / empty test（预存） |
+| CRASH | 1 | `check_test_guide_index.R` — R 4.5.3 环境 segfault（预存） |
+
+#### Issues / Blockers
+- 预存问题 `test_access_boundary_guard.R:259` 需单独修复（字符串 "评估组织级、项目级隔离、邮箱验证与共享协作模型。" 已从 PROJECT_GUIDE.md 中移除）
+- `check_test_guide_index.R` 在 R 4.5.3 下 crash，建议在 R 4.4.x 下重试
+
+#### Next
+1. 用户确认是否修复预存的 `test_access_boundary_guard.R` 断言
+2. 用户确认是否在 R 4.4.x 下重试 `check_test_guide_index.R`
+
+#### Files Changed / Commits
+- `tests/root/test_frontend_copy_guard.R`（修改）— data_filter.R 路径
+- `tests/root/test_frontend_internal_jargon_guard.R`（修改）— data_filter.R 路径
+- `tests/common/data/test_data_metadata_consistency.R`（修改）— data_metadata.R 路径
+- `tests/common/export/test_plot_export_contract.R`（修改）— plot_export.R 路径
+- `tests/statistical_graphics/survival/test_survival_display_contract.R`（修改）— table_export.R 路径
+- `tests/statistical_analysis/regression/test_indent_issue.R`（修改）— 断言修正
+- `tests/statistical_graphics/survival/test_label_mapping.R`（修改）— 断言修正
+- （uncommitted）
+
+---

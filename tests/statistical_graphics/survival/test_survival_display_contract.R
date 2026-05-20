@@ -32,7 +32,7 @@ library(shiny)
 
 source(file.path("..", "modules", "common", "graphics_common.R"))
 source(file.path("..", "modules", "statistical_graphics_ui", "common_ui_shell.R"))
-source(file.path("..", "modules", "common", "table_export.R"))
+source(file.path("..", "modules", "common", "export", "table_export.R"))
 source(file.path("..", "modules", "statistical_graphics", "survival_analysis.R"))
 
 test_that("分层标签解析保留比较符号并兼容反引号变量名", {

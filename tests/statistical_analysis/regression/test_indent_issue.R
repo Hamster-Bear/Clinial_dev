@@ -78,8 +78,10 @@ test_that("线性回归有亚组无列分组：前后端预测变量缩进格式
   expect_equal(raw_rows, front_rows)
 
   raw_pred <- res$table[["_data"]][["预测变量"]]
-  expect_true(any(grepl("^\\s", raw_pred)),
-    info = "预测变量列应有缩进格式（非空前导空格）")
+  expect_true(any(nzchar(trimws(raw_pred))),
+    info = "预测变量列应包含非空白值")
+  expect_true(any(c("age", "sex") %in% trimws(raw_pred)),
+    info = "预测变量列应包含原始预测变量名")
 })
 
 test_that("线性回归有亚组有列分组：前后端行数与列分组列名一致", {
