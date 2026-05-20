@@ -69,14 +69,4 @@
 - **SQL 编写**: 参数化查询以防止 SQL 注入。
 - **存储访问**: 必须通过 `storage_backend.R` 提供的抽象接口读写数据，禁止直接拼接物理路径。
 
-## 5. 测试规范
-- **框架**: 使用 `testthat` 或配套工具。
-- **目录约定**: 所有测试文件统一置于 `tests/` 目录，文件名以 `test_` 开头；`tests/` 内部优先按项目架构分层，例如 `tests/common/auth/`、`tests/statistical_analysis/`、`tests/statistical_graphics/`、`tests/root/`。
-- **夹具约定**: 共享测试数据与夹具统一放在 `tests/fixtures/`。
-- **测试文档约定**: 整体性测试说明统一维护在项目根目录 `TEST_GUIDE.md`，按项目架构归类；`tests/` 目录仅放测试代码、测试数据和暂未标准化的专项验证脚本。
-- **执行要求**: 合并代码或发布前，确保测试套件运行通过。
-- **交互状态**: 新增任务历史、状态回填或复杂 UI 交互时，至少补一条 `tests/` 守卫测试；高风险输入交互优先纳入 `shinytest2` 规划范围。
-- **任务历史操作**: 新增 note、删除、覆盖保存等状态资产操作时，必须同时覆盖 service 层测试与 UI/契约守卫测试。
-- **数据库集成测试**: 涉及账号、权限、workspace 隔离或持久化行为时，优先补充 PostgreSQL 集成测试；测试应通过 `.env.test` 指向测试库，并在隔离 schema 中建表和清理，禁止污染现有业务数据。
-- **统一回归入口**: 账号/权限相关改动提交前，优先执行 `run_auth_regression.ps1`；脚本应通过 `tests/common/auth/auth_regression_manifest.json` 维护固定顺序，确保 helper、文档守卫与 PostgreSQL 集成测试按约定通过。
-- **索引校验**: 调整测试目录或新增测试后，至少执行一次 `check_test_guide_index.R` 或对应守卫测试，确保 `TEST_GUIDE.md` 与 `tests/` 实际文件一致；该校验应纳入 pre-commit 或发布前固定检查。
+- 测试框架、目录约定与执行要求详见 [TEST_GUIDE.md](TEST_GUIDE.md)。

@@ -40,8 +40,8 @@ read_utf8 <- function(relative_path) {
 
 target_files <- c(
   "README.md",
-  "PROJECT_GUIDE.md",
-  "DEPLOYMENT_GUIDE.md"
+  file.path("docs", "main", "PROJECT_GUIDE.md"),
+  file.path("docs", "deploy", "DEPLOY_GUIDE.md")
 )
 
 forbidden_patterns <- c(

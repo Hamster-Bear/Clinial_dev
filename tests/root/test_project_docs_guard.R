@@ -44,11 +44,11 @@ project_root <- test_find_project_root()
 
 test_that("核心规范文档与工具脚本必须存在于项目预期路径", {
   required_docs <- c(
-    "PROJECT_GUIDE.md",
-    "PROJECT_SPEC.md",
-    "CODE_STYLE.md",
-    "DEPLOYMENT_GUIDE.md",
-    "TEST_GUIDE.md",
+    file.path("docs", "main", "PROJECT_GUIDE.md"),
+    file.path("docs", "main", "PROJECT_SPEC.md"),
+    file.path("docs", "main", "CODE_STYLE.md"),
+    file.path("docs", "deploy", "DEPLOY_GUIDE.md"),
+    file.path("docs", "main", "TEST_GUIDE.md"),
     file.path("tests", "check_test_guide_index.R"),
     file.path("tests", "common", "auth", "auth_regression_manifest.json"),
     file.path("docs", "AI prompt.md")
@@ -63,7 +63,7 @@ test_that("核心规范文档与工具脚本必须存在于项目预期路径", 
 })
 
 test_that("CODE_STYLE.md 必须包含关键约定要求", {
-  code_style_path <- file.path(project_root, "CODE_STYLE.md")
+  code_style_path <- file.path(project_root, "docs", "main", "CODE_STYLE.md")
   if (file.exists(code_style_path)) {
     code_style_content <- paste(readLines(code_style_path, encoding = "UTF-8"), collapse = "\n")
     expect_match(code_style_content, "tests/")
@@ -74,7 +74,7 @@ test_that("CODE_STYLE.md 必须包含关键约定要求", {
 })
 
 test_that("TEST_GUIDE.md 必须包含测试索引关键约定", {
-  test_guide_path <- file.path(project_root, "TEST_GUIDE.md")
+  test_guide_path <- file.path(project_root, "docs", "main", "TEST_GUIDE.md")
   skip_if_not(file.exists(test_guide_path))
   
   content <- paste(readLines(test_guide_path, encoding = "UTF-8"), collapse = "\n")
@@ -88,7 +88,7 @@ test_that("TEST_GUIDE.md 必须包含测试索引关键约定", {
 })
 
 test_that("PROJECT_SPEC.md 必须包含架构声明", {
-  spec_path <- file.path(project_root, "PROJECT_SPEC.md")
+  spec_path <- file.path(project_root, "docs", "main", "PROJECT_SPEC.md")
   skip_if_not(file.exists(spec_path))
   
   content <- readLines(spec_path, encoding = "UTF-8")
@@ -100,7 +100,7 @@ test_that("PROJECT_SPEC.md 必须包含架构声明", {
 
 test_that("analysis_states 迁移脚本与部署文档必须存在关键约束", {
   migration_path <- file.path(project_root, "postgres", "migrations", "001_analysis_states_schema.sql")
-  deployment_path <- file.path(project_root, "DEPLOYMENT_GUIDE.md")
+  deployment_path <- file.path(project_root, "docs", "deploy", "DEPLOY_GUIDE.md")
 
   expect_true(file.exists(migration_path), info = "analysis_states 迁移脚本缺失")
   expect_true(file.exists(deployment_path), info = "DEPLOYMENT_GUIDE.md 缺失")

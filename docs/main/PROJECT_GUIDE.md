@@ -13,9 +13,7 @@
 9. [公共能力与共享层](#9-公共能力与共享层)
 10. [数据、存储与规范](#10-数据存储与规范)
 11. [测试与质量保障](#11-测试与质量保障)
-12. [当前未落地项与路线图](#12-当前未落地项与路线图)
-13. [研发治理约束](#13-研发治理约束)
-14. [交付与运营建议](#14-交付与运营建议)
+12. [研发治理约束](#12-研发治理约束)
 
 ## 1. 文档定位
 
@@ -100,14 +98,9 @@
 - Landing 页当前统一使用 Medev 对外口径；`/app/` 继续指向仓库内的实际 Shiny 应用入口。
 - `nginx/landing/index.html` 作为 Medev 首页，只保留简洁入口说明与跳转，不展开大段功能细节。
 - `nginx/landing/autotfl.html` 作为 Medev 产品介绍子页，承接真实功能范围、最短使用路径与结果图片占位；当前继续保留旧文件名以避免额外路由改动。
-- Landing 文案必须保持少字、真实、可验证：不插入虚构图表、不描述未落地能力、不出现“当前已上线”之类项目进度口径。
-- 前端用户可见说明文案统一按“能做什么 / 会看到什么 / 当前限制是什么”描述；`subtitle`、`app_card_note`、`helpText`、`help_text`、`note` 等位置禁止继续暴露“本轮只统一”“继续保留”“当前统一”“继续沿用”“统一收纳”“暂不额外暴露”“不改绘图/导出”以及“开发阶段”“内部使用”“暂定”“后续可”“暂时”等开发阶段口径，也避免使用“总入口内”“公共复用”“动态 UI”“类型分支”“代码草稿”“不改变已有计算和生成逻辑”“保持原有 server 校验”“统一空状态提示”“保持原有处理方式”“统一认证入口”“继续围绕邮箱身份扩展”“后续新增账号相关入口”“聚合展示”“协作工作台”“不改变原有加载能力”“不改动数据库侧原有结构”“系统管理入口”“集中处理”“统一筛查”“统一排查与筛查”“当前卡片统一处理”“数据空间工作台”“统一完成整理与导入”“阶段二将”“集中到同一张功能卡片”“改为登录后自助完成”“仅保留基础密码修改”“不扩展其它账号管理能力”“开放前”等内部实现、结构视角或实现保持型表述。
-- 源码中的 `#` inline 注释应说明当前约束、数据语义或调用前提；避免写“重构版”“暂时保留”“后续可”“优化”这类开发过程、实现阶段或重构历史口径。
-- README、`PROJECT_GUIDE.md` 与 `DEPLOYMENT_GUIDE.md` 中的产品与使用说明也应避免“显式提供/已改为/已抽成/已提供/继续看到”这类进度口径，改为稳定的事实表述。
-- README、`PROJECT_GUIDE.md` 与 `DEPLOYMENT_GUIDE.md` 中涉及公共壳接入、样板覆盖和结果区统一的说明，也应避免“接入推进/样板落到/继续统一”这类研发推进口径，改为稳定的模块状态说明。
-- README、`PROJECT_GUIDE.md` 与 `DEPLOYMENT_GUIDE.md` 中涉及共享 helper、共享 copy 源、smoke test 和布局/UI 守卫的说明，也应避免“新增/补充/收口式过程口径”，改为稳定的用途、覆盖范围与运行前提说明。
-- `PROJECT_GUIDE.md` 中的模块现状、能力矩阵与章节标题，也应避免使用完成态、落地态、增强态或接入起始态这类状态型过程口径，改为稳定的结构、覆盖范围与能力描述。
-- 本地联调 Landing 页的静态资源在 `local-test.conf` 中已设置 no-store/no-cache，减少浏览器缓存导致的“re-up 后页面看起来未更新”问题。
+- Landing 文案必须保持少字、真实、可验证：不插入虚构图表、不描述未落地能力、不出现项目进度口径。
+- 前端用户可见说明文案、源码注释、核心文档说明的编写规范，统一见 [CODE_STYLE.md](CODE_STYLE.md) §3（UI/UX 规范）。
+- 本地联调 Landing 页的静态资源在 `local-test.conf` 中已设置 no-store/no-cache，减少浏览器缓存导致的问题。
 
 ### 3.3 当前部署边界
 
@@ -149,14 +142,7 @@
 - `用户信息` 与 `权限管理` 必须采用文件夹级模块拆分并分别独立输出、独立兜底，禁止再用单个 `renderUI` 同时包裹两类职责内容；权限查询异常或组件渲染失败时，不得影响用户信息页继续显示。
 - 账号页前端当前统一采用“概览优先 + 功能集中”布局：`user_profile` 首屏主卡需直接展示页面说明与账号概览统计，避免进入后只看到空标题卡；随后再用单一“安全与验证”区域承接邮箱验证、邮箱换绑与修改密码。`access_permissions` 顶部先展示空间/权限概览，再用单一“协作管理”区域承接成员协作、负责人迁移与成员/邀请预览，降低纵向滚动与重复标题。
 - 账号页聚合布局的标题、工作台名称与标签页文案也应继续复用 `modules/common/auth/auth_copy.R`，避免新一轮前端优化后再次在 `user_profile.R`、`permission_manager.R` 与规范文档中平行维护相似文案。
-- `auth_manager.R`、`auth_copy.R`、`data_preparation.R`、`permission_manager.R` 与 `user_profile.R` 当前已继续清理账号入口与数据准备文案中的结构视角表述：登录页不再写“统一认证入口”，权限区不再写“聚合展示/协作工作台”，数据加载区不再写“不改变原有加载能力/不改动数据库侧原有结构”，统一改写为用户能直接理解的登录、协作、上传与加载说明。
-- `admin_manager.R` 与 `database_manager.R` 当前已继续清理管理员页和数据库管理页中的结构视角文案：管理员页不再写“系统管理入口”“统一筛查/统一处理”，数据库管理页不再写“数据空间工作台”“统一完成整理与导入”“阶段二将...”；统一改写为查看、筛选、管理与导入的直接用途说明。
-- `user_profile.R` 与 `database_manager.R` 锁定态当前已继续清理灰区结构文案：账号安全区不再写“集中到同一张功能卡片”“改为登录后自助完成”“仅保留基础密码修改”，数据库锁定态不再写“开放前”；统一改写为用户可直接执行的验证、换绑、改密与临时上传说明。
-- `README.md`、`PROJECT_GUIDE.md` 与 `DEPLOYMENT_GUIDE.md` 当前已继续清理认证与管理员说明中的进度口径：文档不再直接使用“显式提供/已改为/已抽成/已提供/继续看到”这类开发过程表述，统一改写为稳定的入口、权限与模块职责说明。
-- `README.md`、`PROJECT_GUIDE.md` 与 `DEPLOYMENT_GUIDE.md` 当前已继续清理公共壳接入与统计分析样板说明中的推进口径：文档不再直接使用“接入推进/样板落到/继续统一”这类研发过程表述，统一改写为稳定的公共壳使用范围、样板覆盖范围与结果区状态说明。
-- `PROJECT_GUIDE.md`、`README.md` 与 `DEPLOYMENT_GUIDE.md` 当前已继续清理共享 helper 与守卫说明中的新增/补充口径：文档不再直接使用“新增共享源/收口到/补充守卫/补充 smoke test”这类实施记录语气，统一改写为稳定的 helper 用途、copy 覆盖范围与测试前提说明。
-- `PROJECT_GUIDE.md` 当前已继续清理模块现状与架构说明中的状态型过程口径：统计分析清单、森林图实现备注、图形模块现状表与“下一步优先方向”中的状态标签，统一改写为稳定的结构、覆盖范围与能力说明。
-- 账号页工作台卡片中的动作按钮应与输入控件保持同一视觉节奏：默认使用公共紧凑动作区样式，优先横向紧凑排列并保留适度最小宽度，仅在窄屏下再自动切到整行堆叠，避免桌面端出现“按钮单独占满一个框”的割裂感。
+- 账号页工作台卡片中的动作按钮应与输入控件保持同一视觉节奏：默认使用公共紧凑动作区样式，优先横向紧凑排列并保留适度最小宽度，仅在窄屏下再自动切到整行堆叠，避免桌面端出现”按钮单独占满一个框”的割裂感。
 - 当前忘记密码已改为独立找回页：用户可申请 6 位重置验证码并完成重置；本地/测试环境同样通过 `EMAIL_DELIVERY_MODE=console` 输出验证码，过期时间由 `AUTH_PASSWORD_RESET_EXPIRE_MINUTES` 控制。
 - 当前已支持登录后邮箱换绑：用户需先输入当前密码，再向新邮箱发送 6 位换绑验证码，验证成功后才会正式切换主邮箱；换绑成功后应自动尝试认领该邮箱名下待领取的协作邀请。
 - 当前邮件投递已抽象为 `modules/common/auth/email_service.R`：默认保留 `console/disabled` 模式，并新增 `smtp` 模式；启用真实发信时需补齐 `EMAIL_FROM_ADDRESS`、`SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_USE_SSL`。
@@ -195,11 +181,7 @@
 - 统计分析子模块使用共享说明文案源 `modules/common/stat_analysis_submodule_copy.R`：先覆盖 `desc`、`cox`、`logistic`、`linear`、`anova`、`chisq` 内部的 `app_card_note()`，统一参数说明块口径；字段标签、`helpText()`、`bsTooltip()` 和结果解释仍保留在模块内。
 - 统计图形第一批结果区通用文案收口到 `modules/common/graphics_result_copy.R`：覆盖 `survival_analysis`、`forest_plot`、`combo_plot`、`waterfall_plot`、`swimmer_plot`、`spider_plot` 的结果卡 `subtitle`、结果卡 `app_card_note()` 与结果页 `note`。模块专属结果提示可继续保留在原模块内，不强行共享化。
 - 统计图形第一批导出卡通用文案收口到 `modules/common/graphics_export_copy.R`：覆盖 `survival_analysis`、`forest_plot`、`combo_plot`、`waterfall_plot`、`swimmer_plot`、`spider_plot` 的导出卡 `subtitle` 与 `app_card_note()`；导出区 `helpText()`、固定画布、宽高比和分层标签等模块专属语义继续保留在原模块中。
-- 核心统计图形模块当前已继续清理开发阶段帮助文案：`combo_plot`、`forest_plot`、`swimmer_plot`、`waterfall_plot`、`spider_plot` 中的 `helpText()`、`help_text` 与局部 `note` 现统一改写为稳定用户说明，只保留真实功能边界，不再暴露“统一收纳”“暂不额外暴露”“本轮不改绘图/导出”等研发过程语气。
-- 入口层与公共模块当前已继续清理内部实现视角文案：`entry_copy.R`、`data_filter.R`、`task_history.R`、`tables.R`、`exploratory_analysis.R`、`statistical_graphics.R`、`statistical_analysis.R` 中的说明文案，现统一改写为“这里做什么 / 会显示什么 / 如何使用”的用户口径，不再直接写“总入口内”“工作台复用”“动态 UI”“类型分支”或“代码草稿”。
-- `tables.R`、`statistical_analysis.R` 与 `stat_analysis_submodule_copy.R` 当前已继续清理实现保持型文案：参数区和结果区说明现统一改写为“何时可执行 / 未运行时会显示什么 / 会按当前设置生成什么”，不再直接写“保持原有逻辑”“server 校验”“统一空状态提示”或“保持原有处理方式”。
-- 数据库管理页使用公共卡片壳：统一主卡片、说明块、锁定提示、上下文摘要与结构总览摘要卡，但保持原有“空间与目录 / 上传与导入 / 结构总览”页签结构不变。
-- 数据库管理页使用公共卡片壳：统一主卡片、说明块、锁定提示、上下文摘要与结构总览摘要卡，但保持原有“空间与目录 / 上传与导入 / 结构总览”页签结构不变。
+- 数据库管理页使用公共卡片壳：统一主卡片、说明块、锁定提示、上下文摘要与结构总览摘要卡，但保持原有”空间与目录 / 上传与导入 / 结构总览”页签结构不变。
 - 统计分析总入口使用公共卡片壳：统一全局筛选卡、方法选择卡、参数设置卡、结果卡与导出说明面板，但保持原有“统计表格 / 统计报告 / 可复现代码”结果结构，以及各统计子模块参数 UI 与分析逻辑不变。
 - 统计分析子模块样板覆盖 `desc.R` 与 `cox.R`：统一参数区说明块与分组面板，但保留原有输入项、动态输出、tooltip、建模逻辑与结果链路不变。
 - 统计分析回归类子模块样板覆盖 `logistic.R` 与 `linear.R`：统一响应/分层、总计列或事件映射、预测变量与参考组分区，但保留原有输入项、动态输出、tooltip、建模逻辑与结果链路不变。
@@ -633,59 +615,16 @@ AutoTFL/
   - `已统一面板`：核心变量映射、显示与图例、文本与标签、配色与布局、坐标与比例、符号与样式、按组样式映射、参考线与阈值最小共享壳、普通排序与显示、普通轨道与缺失值、动态事件变量组逐行壳。
   - `暂保留面板`：依赖即时 levels 推断的动态控制块、与绘图算法强耦合的业务配置。
   - `下一轮优先级`：从“继续清 raw panel”转为“清理模块内仍可下沉的 spec/helper 与动态控制桥接层”，优先检查泳道图与瀑布图中的动态控制 helper 是否还能继续压薄。
-- 子模块逐个排查优化当前进度：
-  - `spider_plot.R` 第一轮：新增 committed 参数快照，将时间单位换算、Y 轴刻度/百分比标签、线条样式、点层、末次标签、RECIST 参考线、分面、标题图例以及静态图/交互图/导出尺寸统一改为只读取点击“生成图形”时捕获的参数；避免生成后继续修改时间单位、图例位置、点层、尺寸模式或导出尺寸导致已生成结果与当前面板值漂移。
-  - `spider_plot.R` 第二轮：继续做 UI 语义收口，将“Y轴显示百分比”明确为“Y轴标签按百分比格式显示”，并补充说明其只影响标签/tooltip 格式；将“补充基线点(time=0, chg=0)”明确为“为每条轨迹补充基线原点(time=0, value=0)”；将“显示末次标签”明确为“显示每条轨迹末次受试者标签”，避免用户把末次标签误解成末次数值或时间标签。
-  - `spider_plot.R` 第三轮：继续做 UI 归类收紧，将 `图形与样式` 顶层功能卡片内部整理为 `标题与说明 / 显示与坐标 / 图层样式 / 参考线与阈值` 子页签；其中“显示与坐标”统一承载图例、坐标轴样式、时间轴、Y轴格式与字号，“图层样式”承载点层开关、末次标签、补基线原点以及线型、调色板、线宽透明度和点大小，避免文本、坐标、图层样式继续混放。
-  - `spider_plot.R` 第四轮：按统一布局规范拆分参数区与结果区职责，保留 `输出与导出` 顶层功能卡片，并在其内部拆成 `尺寸与画布 / 导出参数` 子页签；结果区顶部统一使用 `graphics_output_action_bar_ui()` 承载 `生成图形 / 下载图形`，避免参数区继续承载执行动作。
-  - `spider_plot.R` 第五轮：按前端真实结构回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片，其中 `数据与变量` 内部收敛为 `核心映射 / 分组/分面/附加变量` 子页签；结果区固定为动作条 + `静态图 / 交互图 / 数据` 结果页签，作为当前首个正确遵守“顶层卡片 + 卡片内页签 + 独立结果区”规则的样板模块。
-  - `spider_plot.R` 当前剩余未知优先限定在统计/业务概念边界：日期型时间轴当前按每位受试者最早日期换算为相对天数，再按 `time_unit` 转成周/月/年；同一受试者在同一时间点若有多条记录，当前取 `value_var` 的均值；`add_baseline_zero` 当前为展示完整轨迹可选补原点，不代表原始观测存在基线记录；`show_recist` 当前只负责视觉参考线，不直接输出 RECIST 分层结论；`show_end_labels` 当前固定显示受试者ID，不显示末次数值或时间。若这些口径与业务预期不同，应视为概念决策而不是实现缺陷。
-  - `swimmer_plot.R` 第一轮：补齐动态样式任务历史重现，将泳道分别指定颜色、轨道展示方式、轨道颜色映射、事件组颜色/符号模式及其分别指定值纳入 `extra_state`，并在动态 UI 刷新后分阶段回填。
-  - `swimmer_plot.R` 第二轮：收紧 UI 分类与文案边界，明确“轨道默认展示方式”仅作用于新选轨道默认值，“事件总图例标题”作用于事件整体图例层，“轨道总图例标题”只作用于下方分组轨道区；同时补充缺失值/版式影响范围说明。
-  - `swimmer_plot.R` 第三轮：将主图、事件层、下方轨道区、自绘事件图例、底部脚注与静态图高度统一改为只读取点击“生成图形”时捕获的 committed 参数快照；生成后修改线宽、标题、图例位置、轨道占比、缺失值文本或事件样式，不再让已生成结果与当前面板值发生实现漂移。当前剩余未知优先限定为统计/业务概念边界，而不是 UI/状态链路问题。
-  - `swimmer_plot.R` 第四轮：继续收紧已确定的语义文案，将排序中的 `end_desc/end_asc` 明确为“泳道终点”而非原始结束日期，并将 `track_rel_height` 的 UI 文案改为“下方轨道区占比”，明确其影响的是主图与下方轨道区的相对高度，不是数据表页签高度。
-  - `swimmer_plot.R` 第五轮：修复事件映射控件恢复时序，在任务历史/动态 UI 回填期间临时优先读取 `event_ui_state`，等回填完成后再切回当前 `input`；避免事件时间、事件类型、事件标签和事件组样式面板因为残留输入抢占而出现“选择未正确载入”。
-  - `swimmer_plot.R` 第六轮：继续做 UI 归类收紧与恢复补强，将“轨道与排序”改成“轨道变量与排序”，把样式页签细化为“标题与说明 / 显示与坐标 / 事件图例与样式 / 泳道颜色 / 轨道区与版式”；同时取消 `tracks` 的默认推荐变量，避免未确认业务字段自动进入下方轨道区，并对关键动态 `uiOutput` 显式关闭 hidden suspend，修复“需手动展开配置后再次生成才生效”的恢复时序问题。
-  - `swimmer_plot.R` 第七轮：按前端真实结构回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；其中 `数据与变量` 内部整理为 `核心映射 / 分组/分面/轨道/附加变量`，`图形与样式` 内部对齐为 `标题与说明 / 显示与坐标 / 图层样式 / 参考线与阈值`，结果区固定为动作条 + `静态图 / 交互图 / 数据`，其中“数据”页签内再分 `泳道数据 / 事件数据 / 分组轨道数据`，只调整 UI 编排与职责边界，不改任务历史恢复和绘图算法。
-  - `waterfall_plot.R` 第一轮：对折叠配置盒中的高动态控件补 hidden suspend 保护，将柱颜色映射、符号分组映射、轨道展示方式和轨道颜色映射统一设为隐藏时继续恢复；同时取消 `tracks` 默认自动推荐变量，并把“排序和显示”收紧为“排序与轨道”，将 `track_rel_height` 文案改为“下方轨道区占比”，明确其影响的是主图与下方轨道区的相对高度，不是表格页签高度。
-  - `waterfall_plot.R` 第二轮：新增 committed 参数快照，将主图柱宽/边框/图例、符号文本映射、RECIST 线与标签、轨道区布局、缺失值文本和底部脚注统一改为只读取点击“生成图形”时捕获的参数；静态图高度也改为优先跟随 committed 轨道区设置，避免生成后继续修改相关控件导致前端静态图或导出高度与已生成结果漂移。
-  - `waterfall_plot.R` 第三轮：继续做 UI 语义收口，将“柱符号分组”明确为“柱顶符号文本分组”，将“Y轴默认显示百分比”明确为“Y轴标签按百分比格式显示”，并补充说明其只影响标签格式；同时把 `legend_title` 收紧为主图柱分组图例标题，把 `track_legend_title` 收紧为下方轨道区总图例标题，避免主图与轨道区图例语义混淆。
-  - `waterfall_plot.R` 第四轮：将左侧 `数据映射` 区内部原本并列的 `核心变量映射 / 排序与轨道 / 阈值与临床线` 三块同层功能卡改为并列子页签，继续落实“同层功能卡片优先合并为页签组”规则；本轮只调整页签容器与布局编排，不改变排序方向、轨道展示方式、RECIST 阈值或绘图算法。
-  - `waterfall_plot.R` 第五轮：按前端真实结构回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；其中 `数据与变量` 内部整理为 `核心映射 / 分组/分面/轨道/附加变量`，`图形与样式` 内部对齐为 `标题与说明 / 显示与坐标 / 图层样式 / 参考线与阈值`，结果区固定为动作条 + `静态图 / 交互图 / 数据`，其中“数据”页签内再分 `瀑布数据 / 分组轨道数据`，只调整 UI 编排与职责边界，不改 committed 参数、任务历史恢复和绘图算法。
-  - `waterfall_plot.R` 当前概念口径已确认：重复 `subject_id` 时保留第一条记录，并通过告警明确后续排序、轨道区和导出结果都基于保留后的记录；排序继续仅按最终保留的 `value_var` 从低到高/从高到低排列；`show_recist` 与阈值标签继续只负责视觉参考线，不直接输出 RECIST 分层结论；`missing_display_mode` 继续只影响轨道区与数据表展示，不改主图柱值；`use_percent_label` 继续只影响 Y 轴标签格式，不重新换算原始变化值。
-  - `survival_analysis.R` 第一轮：任务历史显式纳入 `strata_labels` 重现；`数据映射` 与 `标题/坐标轴` 先切换到 common 卡片；UI 文案中将“删失值定义”收紧为“状态变量编码含义”，明确其影响的是生存对象构造而非原始数据。
-  - `survival_analysis.R` 第二轮：将 `km_show_censor`、`plot_title`、`plot_caption`、`plot_xlab`、`plot_ylab` 纳入 `committed_params()`，消除“点击生成后又改控件但图局部漂移”的提交态不一致；同时把“曲线/删失点/风险表”和“统计标注与位置”重排为更清晰的参数分组。
-  - `survival_analysis.R` 第三轮：将 `survival_report` 从 `graphics_state` 语义切回 `committed_params()`，并让 `show_median`、`show_stats` 同时约束主图与报告摘要，消除“主图关闭但报告仍显示”的实现不一致。
-  - `survival_analysis.R` 第四轮：将“图例与文字”拆分为“图形与图例文字”和“风险表文字”，避免主图图例、统计标注、风险表字号混放；此轮属于 UI 分类收紧，不改变统计或绘图算法。
-- `survival_analysis.R` 第五轮：收紧统计语义文案，明确 `surv_median_line` 控制的是中位生存辅助线、`show_median` 控制的是中位生存文本标注、`show_stats` 控制的是 Log-rank 摘要且分层时附加 HR、`show_cox_p` 仅控制 Cox 摘要行内 P 值展示而不影响 HR/95%CI，`overall_group_label` 仅在未分层时生效。
-  - `survival_analysis.R` 第六轮：移除 `base_surv_plot()` 中对 `input$time_range` 的提交态回退；在统计报告的方法解释中明确 HR 参考组；交互图默认标题改为中文，保持主图、交互图与报告的实现说明一致。
-  - `survival_analysis.R` 第七轮：将 `数据映射 / 分析参数 / 样式主题` 三个主页签内部的同层普通功能卡进一步改为并列子页签，包括 `数据映射 / 处理与筛选`、`曲线、删失点与风险表 / 统计标注与位置`、`标题与坐标轴 / 图形与图例文字 / 风险表文字`；本轮只调整页签容器与参数编排，不改变生存对象构造、风险表算法、HR 计算或 committed 输出链路。
-- `survival_analysis.R` 第八轮：按前端真实结构回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；`数据与变量` 内部整理为 `核心映射 / 分组/分面/轨道/附加变量`，`图形与样式` 内部统一为 `标题与说明 / 显示与坐标 / 图层样式 / 参考线与阈值`，结果区固定为动作条 + `静态图 / 交互图 / 数据`，其中“数据”页签内再分 `数据表 / 统计报告`。后续已补一处导航容器修正：顶层 `图形与样式` 卡片不再直接把 helper 返回的 `tagList/list` 作为 `tabsetPanel()` 子项，而改为展开后的 `tabPanel` 集合，避免运行时出现 “Navigation containers expect ... tabPanel()” 报错；该修正只影响 UI 组合方式，不改 committed 输出链路与统计算法。
-  - `survival_analysis.R` 暂不下沉内容：KM/COX 模型切换、HR 参考组逻辑、风险表算法、参考线绘制语义、分层标签的计算来源。
-- `boxplot.R` 第一轮：将 `样式主题` 页签中的标题标签、线条点样式与配色设置改为并列子页签 `标题与标签 / 线条与点 / 配色`，作为轻量模块的页签化样板；本轮只调整参数编排，不改变箱线图映射、绘图逻辑、导出链路或任务历史契约。
-- `boxplot.R` 第二轮：按统一模板回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；结果区固定为动作条 + `静态图 / 交互图 / 数据`，对暂无实际控件的子页签保留空壳说明，只调整 UI 编排，不改箱线图绘制与导出逻辑。
-- `heatmap.R` 第一轮：将 `样式主题` 页签中的标题标签、色板和格子文本显示设置改为并列子页签 `标题与标签 / 色板 / 格子与文本`，作为轻量模块页签模板的第二个样板；本轮只调整参数编排，不改变热图计算、聚类开关、导出链路或任务历史契约。
-- `heatmap.R` 第二轮：按统一模板回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；结果区固定为动作条 + `静态图 / 交互图 / 数据`，并把原 `标题与标签 / 色板 / 格子与文本` 归并到 `标题与说明 / 图层样式` 等统一子页签，不改热图计算、聚类与导出逻辑。
-- `correlation_matrix.R` 第一轮：将 `样式主题` 页签中的标题标签、色板和格子文本显示设置改为并列子页签 `标题与标签 / 色板 / 格子与文本`，与 `heatmap.R` 对齐为同一轻量模块页签模板；本轮只调整参数编排，不改变相关系数计算方法、导出链路或任务历史契约。
-- `correlation_matrix.R` 第二轮：按统一模板回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片；结果区固定为动作条 + `静态图 / 交互图 / 数据`，并把原 `标题与标签 / 色板 / 格子与文本` 归并到 `标题与说明 / 图层样式` 等统一子页签，不改相关矩阵计算与导出逻辑。
-- `combo_plot.R` 第一轮：按统一模板回正为 `数据与变量 / 图形与样式 / 输出与导出` 3 个独立顶层功能卡片，结果区统一改为 `graphics_output_action_bar_ui()` + `静态图 / 交互图 / 数据` 页签；其中高动态图层参数仍暂保留为模块内动态页签 UI，任务历史恢复改为“基础输入先回填、动态图层参数后回填”的两阶段策略，避免先恢复动态控件值时对应输入尚未创建。本轮只收口 UI 编排与状态恢复，不改组合图绘图算法、自动标题生成与固定 `12 x 8` 英寸导出逻辑。
-- `forest_plot.R` 第一轮：外层按统一模板组织为 `数据与变量 / 图形与样式 / 输出与导出` 3 个顶层功能卡片，结果区统一切到 `graphics_output_action_bar_ui()` + `静态图 / 交互图 / 数据`；其中“数据”页签内继续保留 `数据预览 / 统计报告` 子页签。当前 `precalculated/raw_data` 双模式、表格列配置与森林图绘图算法仍保留模块内实现，本轮仅收口 UI 编排和结果区入口，不等同于深层 common 化或模型服务拆分。
-- `forest_plot.R` 第二轮：在不改双模式分析语义和绘图算法的前提下，继续把稳定普通参数块下沉到 common helper：预处理列映射切到 `graphics_column_mapping_panel_ui()`，标题脚注切到 `graphics_text_label_panel_ui()`，坐标显示与参考线线条切到 `graphics_axis_proportion_panel_ui()` + `graphics_axis_range_controls_ui()` / `graphics_axis_tick_format_controls_ui()`，表格与配色切到 `graphics_palette_layout_panel_ui()`，导出参数切到 `graphics_export_panel_ui()`。当前仍暂保留 raw-data 分析配置、表格列配置与结果 schema 相关逻辑在模块内。
-- `forest_plot.R` 第三轮：继续压薄本地 helper 与任务历史桥接层。列显示名称/对齐方式的动态输入不再直接依赖任务快照中的 `name_*` / `align_*` 输入项恢复，而是统一排除出 `input_state`，改由 `selected_table_cols + display_names + alignments` 这组 `extra_state` 桥接恢复；列配置的“保存当前输入值”和“收集当前列状态”也统一收口到单一 helper，减少重复循环与恢复顺序分叉。
-- `forest_plot.R` 第四轮：开始进入更核心的结果解耦。新增 `normalize_forest_result_schema()` 与 `forest_result_data()`，把 `precalculated` 原始输入和 `raw_data` 回归结果统一归一到同一 forest result schema（如 `forest_subgroup / forest_label / forest_estimate / forest_lower / forest_upper / forest_source_mode`），供数据预览、绘图准备和后续 service/schema 拆分复用；同时把“表格列选择 + 列配置壳层”抽成 common 的 `graphics_table_panel_ui()`，森林图不再维护专属表格面板容器。
-- `forest_plot.R` 第五至第八轮的 helper 下沉对应真实文件迁移如下：原过渡文件 `forest_plot_helpers.R` 不再使用，按职责正式拆到 `modules/common/graphics/forest_table_state_helpers.R`、`forest_result_schema_helpers.R`、`forest_model_helpers.R`、`forest_analysis_pipeline.R`，并由 `statistical_graphics.R` 显式 `source()`；当前 `forest_plot.R` 只保留模块编排、通知与结果消费。
-- `forest_plot.R` 第八轮：将 `analysis_results()` 的循环调度与结果汇总触发进一步收口到 `forest_run_analysis_pipeline()`。当前主模块仅负责收集输入、调用单一 pipeline helper、处理空结果通知；而 helper 层统一负责“预处理 -> 公式构造 -> 模型拟合 -> 结果提取 -> 汇总格式化”的完整分析流水线。后续若继续 service 化，优先以该 pipeline 为边界继续拆分。
-- `forest_plot.R` 当前按“1 个模块主文件 + 4 个 common helper 文件”组织：为保持 `modules/statistical_graphics/` 目录干净，不再在 `modules/statistical_graphics/` 下继续新增辅助文件。当前结构为：
-  - `modules/statistical_graphics/forest_plot.R`：仅保留 UI、模块编排、通知与结果消费。
-  - `modules/common/graphics/forest_table_state_helpers.R`：列选择、显示名、对齐方式及任务历史桥接。
-  - `modules/common/graphics/forest_result_schema_helpers.R`：结果 schema 标准化、结果格式化与预览/绘图消费口径。
-  - `modules/common/graphics/forest_model_helpers.R`：输入预处理、公式构造、模型拟合与结果提取。
-  - `modules/common/graphics/forest_analysis_pipeline.R`：单变量/多变量分析流水线调度与最终汇总入口。
-  - 当前不直接改动图形模块内部 `server` 实现；若后续需要独立后端服务域，应优先进入 `modules/common/auth/` 等服务域目录，而不是新增图形 server 子目录。
-- 任务历史保存/恢复要区分“业务输入”与“派生交互输入”：DT 行选择、列过滤、Plotly relayout/hover，以及 `config_tabs` 这类配置页签导航态都不得写入快照；恢复旧任务时若 payload 中仍含这些字段，common 层也必须跳过，避免回填时把表格/交互组件带入异常状态。
-- 森林图表格列选择当前新增一条稳定性约束：`selected_table_cols` 在进入 `sort()`、`intersect()` 或 observer 比较前，必须先通过 `forest_normalize_selected_columns()` 归一化为原子字符向量；任务历史恢复、`selectizeInput` 回填或复杂 list 形态都不得直接参与排序比较，否则会触发 `sort.int: 'x' 必需为基元`。
-- 森林图任务历史恢复当前再补一条约束：列映射类选择器（如 `subgroup_col / study_col / estimate_col / lower_col / upper_col / time_col / status_col / outcome_col / covariates`）不得在 choices 尚未就绪时跟随第一阶段 `input_state` 直接回填，而应在数据列 choices 更新后再统一恢复，避免预处理数据模式下出现列映射错位。当前实现采用 pending restore：先缓存历史映射快照，待当前数据列可解析保存列名后再消费恢复。
-- 森林图参考线当前再补一条语义约束：`参考线` 页签必须使用公共参考线控件承载参考线位置、颜色、线型和线宽；误差线宽与端帽长度属于图层样式，不得继续混用为”参考线线条”参数。绘图层必须真实读取参考线 spec，而不能再硬编码黑色实线。
+- 各模块当前状态摘要（详见 §7.7 现状表）：
+  - `spider_plot.R`：普通面板已全部切换到 common，committed 参数快照已落地，三卡外层已回正。
+  - `swimmer_plot.R`：committed 参数快照已落地，事件映射恢复链路已修复，三卡外层已回正。
+  - `waterfall_plot.R`：committed 参数快照已落地，普通面板已全部切换到 common，三卡外层已回正。
+  - `survival_analysis.R`：committed 参数边界已收紧，统计语义文案已明确，三卡外层已回正。
+  - `boxplot.R`：三卡外层已回正，固定 10×8 英寸导出。
+  - `heatmap.R`：三卡外层已回正，task_history 待接入。
+  - `correlation_matrix.R`：三卡外层已回正，task_history 待接入。
+  - `combo_plot.R`：三卡外层已回正，双阶段任务历史恢复，固定 12×8 英寸导出。
+  - `forest_plot.R`：分析流水线完整下沉到 4 个 common helper，统一 result schema 已落地，`extra_state` 桥接 + pending restore 已建立。
 
 ### 7.7 UI 改进与职责边界现状
 
@@ -799,93 +738,25 @@ AutoTFL/
 
 ## 11. 测试与质量保障
 
-### 11.1 当前测试范围
-
-当前测试已按项目架构整理到根目录 `TEST_GUIDE.md`，`PROJECT_GUIDE.md` 仅保留范围摘要：
-
-- 全局与跨架构：文档守卫、访问边界、Landing 文案、运行脚本与部署脚本契约。
-- 认证与权限：注册登录 helper、邮箱投递、workspace 权限、管理员入口、`analysis_states` 契约与 PostgreSQL 集成测试。
-- 数据接入：数据元数据一致性、数据准备卡片、数据集路径回退与数据库管理布局守卫。
-- 统计分析：总入口布局、结果区、描述性统计、回归公式校验、稀疏数据、前后端一致性与纯函数解耦回归。
-- 统计图形：common UI、导出、字体、任务历史恢复、Survival / Forest / Waterfall 子模块契约。
-- 预设输出：Listing/导出契约，以及共享测试数据与少量历史专项验证脚本。
-
-### 11.2 当前测试契约
+测试资产按项目架构归类，完整索引、归类规则、回归入口与测试契约统一维护在 [TEST_GUIDE.md](TEST_GUIDE.md)。此处仅保留策略摘要：
 
 - 新增功能或修改现有逻辑时，测试文件统一放在 `tests/`，并按项目架构落到对应子目录。
-- 整体性测试文档统一维护在项目根目录 `TEST_GUIDE.md`；`tests/` 目录只放测试代码、测试数据和暂未标准化的专项验证脚本。
-- 共享层改动至少要补一条可回归的最小测试。
-- 图形或统计口径改动优先补“同口径断言”，避免只测 UI 是否渲染成功。
-- `run_app_test.ps1` 依赖 `.env.test`；仓库当前提供 `.env.test.example` 作为测试环境变量模板。`docker-compose.local.yml` 也直接读取 `.env.test` 作为 PostgreSQL 与管理员参数来源；本地若使用 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起 PostgreSQL，测试端口统一使用 `5432`。
-- `docker-compose1.yml` 当前定位为轻量测试基础设施栈：只启动 PostgreSQL 与 Redis，复用宿主机 `5432/6379`，供本机 `run_app.R` / `run_app_test.ps1` 直接连接，避免项目更新时因重建整套应用镜像影响业务测试节奏。
-- `run_app_test.ps1` 启动前会读取 `SHINY_PORT`（未设置时默认为 `8109`）；若该端口已被占用，脚本会强制关闭占用进程后再拉起应用（且会妥善处理进程在检测后已自行退出的并发情况）。
-- 账号/权限的 PostgreSQL 集成测试优先复用 `.env.test` 中的连接信息，并在隔离 schema 中建表、验证和清理，避免污染现有测试库数据。
-- 认证链路涉及事务时，除连接级集成测试外，还应至少保留一条 `pool` 模式回归测试，确认注册、验证码与密码相关写操作不会因 `dbWithTransaction()` / `poolWithTransaction()` 入口不匹配而产生假失败提示。
-- 管理员页交互回归提供按需启用的 `shinytest2` smoke test `tests/admin_manager/test_admin_manager_smoke_shinytest2.R`；仅在显式设置 `RUN_ADMIN_SMOKE=1` 且本地具备 `.env.test`、管理员账号与 `shinytest2` 依赖时执行。
-- 管理员页另补充了静态布局守卫 `tests/admin_manager/test_admin_manager_layout_guard.R`，用于约束“数据空间管理”卡片收口、紧凑统计卡样式与统一空间选择器不回退。
-- 账号页交互回归提供按需启用的 `shinytest2` smoke test `tests/account_access/test_account_access_smoke_shinytest2.R`；仅在显式设置 `RUN_ACCOUNT_ACCESS_SMOKE=1` 且本地提供普通用户 smoke 账号环境变量时执行，用于验证登录后切换 `用户信息` / `权限管理` 以及聚合工作台可见性。
-- 统计分析总入口提供布局守卫 `tests/statistical_analysis/ui/test_statistical_analysis_layout_guard.R`，用于约束公共卡片壳接入后继续保留结果区页签结构、导出入口与动态参数输出链路。
-- 统计分析子模块提供 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_submodule_ui_guard.R`，用于约束 `desc.R` 与 `cox.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
-- 统计分析回归类子模块提供 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_regression_submodule_ui_guard.R`，用于约束 `logistic.R` 与 `linear.R` 持续保留参数分区、动态输出与公共壳 helper 接入。
-- 统计分析基础检验子模块提供 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_basic_submodule_ui_guard.R`，用于约束 `anova.R` 与 `chisq.R` 持续保留最小参数分区与公共壳 helper 接入。
-- 统计分析结果区提供 UI 守卫 `tests/statistical_analysis/ui/test_statistical_analysis_result_ui_guard.R`，用于约束结果 tab、空状态与导出说明块继续复用统一 helper。
-- 公共扩散源提供 UI 守卫 `tests/common/ui/test_data_filter_card_ui_guard.R` 与 `tests/common/ui/test_task_history_card_ui_guard.R`，用于约束 `data_filter.R`、`task_history.R` 持续保留公共壳、默认折叠行为与主要交互入口。
-- 入口层提供 UI 守卫 `tests/statistical_graphics/ui/test_statistical_graphics_layout_guard.R` 与 `tests/tables/test_tables_layout_guard.R`，用于约束 `statistical_graphics.R` 与 `tables.R` 持续保留公共壳入口结构、复用公共筛选/任务历史模块，并避免回退为入口层裸 `box()`。
-- 生存分析外层提供 UI 守卫 `tests/statistical_graphics/survival/test_survival_layout_guard.R`，用于约束 `survival_analysis.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
-- 组合图外层提供 UI 守卫 `tests/statistical_graphics/combo/test_combo_layout_guard.R`，用于约束 `combo_plot.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
-- 箱线图外层提供 UI 守卫 `tests/statistical_graphics/boxplot/test_boxplot_layout_guard.R`，用于约束 `boxplot.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
-- 森林图外层提供 UI 守卫 `tests/statistical_graphics/forest/test_forest_layout_guard.R`，用于约束 `forest_plot.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
-- 蜘蛛图外层提供 UI 守卫 `tests/statistical_graphics/spider/test_spider_layout_guard.R`，用于约束 `spider_plot.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
-- 泳道图外层提供 UI 守卫 `tests/statistical_graphics/swimmer/test_swimmer_layout_guard.R`，用于约束 `swimmer_plot.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
-- 瀑布图外层提供 UI 守卫 `tests/statistical_graphics/waterfall/test_waterfall_layout_guard.R`，用于约束 `waterfall_plot.R` 持续保留三张顶层功能卡、结果区动作条与 `静态图 / 交互图 / 数据` 结构，并避免回退为外层裸 `box()` / `wellPanel()`。
-- 探索分析入口提供 UI 守卫 `tests/exploratory_analysis/test_exploratory_analysis_layout_guard.R`，用于约束 `exploratory_analysis.R` 持续保留三块入口卡、变量托盘输出、图形类型选择与 Plotly 输出链路，并避免回退为入口层裸 `box()`。
-- `run_auth_regression.ps1` 是当前账号模块的统一回归入口；脚本会先校验 `.env.test` 中的 PostgreSQL 与管理员变量，再根据 `tests/common/auth/auth_regression_manifest.json` 顺序执行账号 helper、文档守卫与 PostgreSQL 集成测试。
-- `check_test_guide_index.R` 是当前测试索引一致性校验入口，用于比对 `tests/` 实际文件与 `TEST_GUIDE.md` 是否一致；调整测试目录或新增测试后应至少执行一次。
-- 当前仓库已补充 `.pre-commit-config.yaml` 与 `.lintr`，用于在提交前串联 `styler`、`lintr`、`check_test_guide_index.R` 与 `tests/` 守卫；`install_dependencies.R` 也已纳入 `jsonlite`、`lintr`、`styler`、`shinytest2` 开发依赖入口。
-- `.pre-commit-config.yaml` 当前额外单列 `r-frontend-copy-guard`，独立执行 `tests/root/test_frontend_copy_guard.R` 作为快速文案质量闸门；即使全量 `testthat` 守卫因其他历史测试波动，前端开发阶段口径回流也应被优先拦截。
-- 核心统计图形模块当前另补 `tests/statistical_graphics/ui/test_graphics_dev_copy_guard.R`，用于按模块白名单拦截 `helpText/help_text/note` 中的高风险开发口径，避免图形帮助说明再次回流研发过程表述。
-- 根目录当前另补 `tests/root/test_frontend_internal_jargon_guard.R`，用于拦截入口层与公共模块文案中的内部实现视角词，避免页面说明重新回到“工作台复用 / 总入口 / 动态 UI / 代码草稿”口径。
+- 共享层改动至少要补一条可回归的最小测试；图形或统计口径改动优先补同口径断言。
+- 统一回归入口：`run_auth_regression.ps1`（账号链路）、`run_app_test.ps1`（集成回归）。
+- 索引校验：调整测试目录后执行 `check_test_guide_index.R`。
+- pre-commit 串联 `styler`、`lintr` 与守卫测试，前端文案守卫作为独立 hook 优先拦截。
+- 当前缺口：`MMRM`/`MI` 占位菜单无对应测试（尚未落地）；2 个 legacy 脚本式验证待迁移为标准 testthat 用例。
 
-### 11.3 当前缺口
+## 12. 研发治理约束
 
-- 尚未形成完整的部署文档自动校验。
-- 文档与实现一致性巡检目前仍以轻量守卫脚本为主；账号模块已形成 `run_auth_regression.ps1` 统一测试入口，其它模块后续可按同样方式收口。
-- `tests/` 目录中仍有少量历史脚本式验证文件（当前主要位于 `tests/statistical_analysis/regression/legacy/` 与 `tests/statistical_graphics/survival/legacy/`）未完全收口为标准 `testthat` 套件，后续应继续标准化。
-- `MMRM`、`MI` 等占位菜单没有对应测试，因为尚未落地。
-
-## 12. 当前未落地项与路线图
-
-### 12.1 已确认但未落地
-
-| 项目            | 当前状态 | 说明           |
-| ------------- | ---- | ------------ |
-| MMRM          | 占位   | 菜单可见，分析链路未实现 |
-| 多重填补（MI）      | 占位   | 菜单可见，分析链路未实现 |
-| Kubernetes 部署 | 未提供  | 仓库中暂无相关编排或清单 |
-
-### 12.2 下一步优先方向
-
-1. 继续增强共享层，减少图形子模块与回归子模块的重复逻辑。
-2. 把高复杂图例、符号和样式配置进一步抽象成可复用组件，并继续把森林图、组合图及轻量图形模块切到统一画布/尺寸容器。
-3. 为部署文档、运行入口和关键环境变量增加自动检查。
-4. 在现有个人隔离与 workspace 权限基础上，评估组织级、项目级隔离、邮箱验证与共享协作模型。
-5. 在高级方法真正落地后，再补充对应章节与测试。
-6. **UI 状态隔离与响应式重构**：优化图形模块（如森林图）动态渲染配置项时的循环依赖问题，大规模采用 `isolate()` 技巧防止输入过程中的焦点丢失和异常跳出。
-7. **通用 UI 组件 (Common UI Components)**：以 `common_ui_shell.R` 作为真实承载文件，提供 `graphics_axis_range_controls_ui()`、`graphics_axis_tick_format_controls_ui()`、`graphics_time_axis_settings_ui()` 及配套收集函数；森林图、蜘蛛图、泳道图逐步复用这套高阶组件，持续减少模块私有 UI 冗余。
-8. **测试工具链**：使用 `.pre-commit-config.yaml`、`.lintr`、`styler`、`lintr`、`shinytest2` 依赖入口，并通过 pre-commit 串联格式化、静态检查与 `tests/` 守卫；复杂浏览器级交互测试仍保留给后续 `shinytest2` 场景补齐。
-9. **分析参数与 UI 状态持久化**：使用 PostgreSQL `analysis_states` 表，并在 `auth_ensure_schema()` 与 `postgres/init.sql` 双处同步建表；任务历史 UI 使用共享 `task_history` 模块，并嵌入统计图形页，支持按用户保存/加载图形子模块完整参数、UI 状态、模块类型与用户 note，底层将状态序列化为 JSON 存储，并展示最近任务列表与删除操作。当前保存的是状态快照而非结果对象；载入时由各图形模块按 `state/apply_state` 契约恢复字段。当前 workspace 为空时保存为个人任务；service 层需通过 `service_normalize_analysis_state_workspace_id()` 将空 workspace 以及带 `id` 字段的 list/data.frame 输入统一归一为数据库 `NULL` 或单一 workspace id，避免任务历史在“个人任务/工作空间任务”边界上出现运行时缺函数或 SQL 过滤漂移。`analysis_states` 当前约束为“同一用户 + 同一 scope + 同一 module\_type + 同一 state\_name”在个人任务内唯一、在同一 workspace 内唯一；但 `service_save_analysis_state()` 的覆盖保存实现不能把数据库唯一索引当作前置条件，而应先显式查询同名任务，再执行 update 或 insert，从而兼容旧库尚未迁移完成时的保存链路，并继续保证用户侧“同名任务即覆盖”。对既有部署实例，需通过 `postgres/migrations/001_analysis_states_schema.sql` 与运行时迁移函数同步收敛旧表约束、重复数据和索引。在统计图形与统计分析形成统一契约前，暂不升为左侧一级菜单，统计分析模块接入留待下一轮扩展。
-10. **精细化图形样式控制**：将经典坐标轴线段抽到 `graphics_add_classic_axis_segments()`，并把时间轴单位换算/步长配置继续收敛到 common UI；泳道图与蜘蛛图逐步复用统一时间轴控件，森林图也已收敛坐标范围与刻度格式。其余时间序列图形继续按同一公共契约扩展。
-
-## 13. 研发治理约束
-
-### 13.1 架构红线
+### 12.1 架构红线
 
 - 路由层保持轻量，不在 `statistical_analysis.R` 与 `statistical_graphics.R` 内堆叠复杂计算。
 - 公共统计口径优先沉淀到 common 层，不允许多个子模块各自维护变体。
 - 导出结果与页面结果保持同一语义、同一字段、同一排序逻辑。
 - 新需求落地前先检索 common 抽象；若 common 已覆盖，不允许在子模块重写同义逻辑。
 
-### 13.2 文档与测试红线
+### 12.2 文档与测试红线
 
 - 改实现必须同步改文档；改统计口径必须同步补测试。
 - 新增测试文件统一进入 `tests/`，不新建 `test/` 目录。
@@ -893,41 +764,9 @@ AutoTFL/
 - 共享层新增或扩展函数时，必须同步更新 `PROJECT_GUIDE.md` 中的共享函数清单与使用约束。
 - 图形模块如涉及尺寸、导出比例、页面距、画布边框或用户可配置辅助线，必须优先扩展 `graphics_common.R` / `common_ui_shell.R`，禁止在子模块单独维护另一套换算、容器样式或 `geom_hline/geom_vline` 拼装逻辑。
 
-### 13.3 共享层优先级
+### 12.3 共享层优先级
 
 1. `data_metadata.R` / `data_filter.R`：保证变量标签、类型、筛选逻辑一致。
 2. `analysis_shared.R` / `analysis_format.R`：保证统计表口径与显示一致。
 3. `graphics_common.R` / `common_ui_shell.R`：保证图形模块体验一致。
 4. `storage_backend.R`：保证数据读写介质切换时业务模块无感。
-
-## 14. 交付与运营建议
-
-### 14.1 交付形态建议
-
-- 单机研究环境优先使用 `run_app.R`。
-- 团队联调优先使用 `docker-compose.local.yml`。
-- 生产或演示环境优先使用 `docker-compose.server.yml`，并通过 Landing 页承接 `/app/`。
-
-### 14.2 运维关注点
-
-- 先确认 PostgreSQL 可用，再排查应用加载问题。
-- 证书路径、数据根目录和镜像可用性是生产部署的前三个前置条件。
-- 若采用离线部署，必须提前准备应用镜像及基础环境镜像。
-
-### 14.3 当前文档维护建议
-
-- `PROJECT_GUIDE.md` 负责“全局开发事实”。
-- `TEST_GUIDE.md` 负责“测试资产按架构归类后的总索引”，新增测试或调整归属时需同步维护。
-- 部署细节文档应与 `deploy/alicloud/README.md` 同步清理，避免路径和流程分叉。
-- 后续可新增轻量文档巡检脚本，校验关键文件、compose 文件和入口 URL 是否与本文档一致。
-- 图形模块后续新增输出样式时，应优先检查是否已接入统一画布配置；尚未切换到公共画布层的模块，需在下一轮收敛中补齐页面距、导出高度同步与居中容器。
-- Landing 页文案与视觉改版时，应同步核对平台名与应用名层级、入口 URL、未落地项说明和功能边界，避免再次出现实现与对外叙事脱节。
-- 主 Landing 改版时优先检查是否仍然足够精简，避免把 AutoTFL 详细内容重新堆回 `index.html`。
-- Landing 页如强调 AutoTFL，应优先说明“能产出什么”“如何开始使用”和“从哪里进入”，避免引入技术栈宣传、兼容性提示或抽象分层说明；应用页头与浏览器标题应统一为 `Hamster Analysis · AutoTFL`。
-
-***
-
-文档校验基线：2026-04-14\
-校验范围：仓库结构、核心模块、部署编排、共享层、测试目录\
-状态说明：本文仅记录当前仓库已实现或已明确暴露的能力
-

@@ -626,7 +626,7 @@ test_that("生存图删失点样式开始复用共享点形状枚举", {
 })
 
 test_that("阶段性收口清单与代表模块 raw panel 基线被锁定", {
-  guide_path <- file.path(project_root, "PROJECT_GUIDE.md")
+  guide_path <- file.path(project_root, "docs", "main", "PROJECT_GUIDE.md")
   guide_text <- paste(readLines(guide_path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_match(guide_text, "阶段性收口清单（代表模块）")
   expect_match(guide_text, "`spider_plot\\.R`：普通设置型面板已全部切换到 common；剩余 raw panel `0`。")
@@ -713,7 +713,7 @@ test_that("阶段性收口清单与代表模块 raw panel 基线被锁定", {
 })
 
 test_that("森林图目录拆分目标在 PROJECT_SPEC 中被锁定", {
-  spec_path <- file.path(project_root, "PROJECT_SPEC.md")
+  spec_path <- file.path(project_root, "docs", "main", "PROJECT_SPEC.md")
   spec_text <- paste(readLines(spec_path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
 
   expect_match(spec_text, "森林图目标目录收口")

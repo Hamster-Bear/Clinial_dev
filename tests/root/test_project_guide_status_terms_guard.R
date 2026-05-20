@@ -31,7 +31,7 @@ setwd(file.path(project_root, "tests"))
 library(testthat)
 
 guide_text <- paste(
-  readLines(file.path(project_root, "PROJECT_GUIDE.md"), encoding = "UTF-8", warn = FALSE),
+  readLines(file.path(project_root, "docs", "main", "PROJECT_GUIDE.md"), encoding = "UTF-8", warn = FALSE),
   collapse = "\n"
 )
 

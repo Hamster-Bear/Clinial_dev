@@ -54,7 +54,7 @@ collect_actual_test_assets <- function(root) {
 }
 
 extract_test_guide_paths <- function(root) {
-  guide_path <- file.path(root, "TEST_GUIDE.md")
+  guide_path <- file.path(root, "docs", "main", "TEST_GUIDE.md")
   content <- paste(readLines(guide_path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   matches <- gregexpr("tests/[A-Za-z0-9_./-]+\\.(R|csv)", content, perl = TRUE)
   paths <- regmatches(content, matches)[[1]]

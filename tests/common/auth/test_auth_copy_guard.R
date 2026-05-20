@@ -35,8 +35,8 @@ read_utf8 <- function(...) {
 }
 
 copy_text <- read_utf8("modules", "common", "auth", "auth_copy.R")
-guide_text <- read_utf8("PROJECT_GUIDE.md")
-spec_text <- read_utf8("PROJECT_SPEC.md")
+guide_text <- read_utf8("docs", "main", "PROJECT_GUIDE.md")
+spec_text <- read_utf8("docs", "main", "PROJECT_SPEC.md")
 if (!nzchar(copy_text)) return(invisible(NULL))
 
 expect_contains <- function(text, pattern, label) {

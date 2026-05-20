@@ -35,9 +35,9 @@ project_root <- test_find_project_root()
 
 landing_path <- file.path(project_root, "nginx", "landing", "index.html")
 autotfl_path <- file.path(project_root, "nginx", "landing", "autotfl.html")
-guide_path <- file.path(project_root, "PROJECT_GUIDE.md")
-spec_path <- file.path(project_root, "PROJECT_SPEC.md")
-deployment_path <- file.path(project_root, "DEPLOYMENT_GUIDE.md")
+guide_path <- file.path(project_root, "docs", "main", "PROJECT_GUIDE.md")
+spec_path <- file.path(project_root, "docs", "main", "PROJECT_SPEC.md")
+deployment_path <- file.path(project_root, "docs", "deploy", "DEPLOY_GUIDE.md")
 
 if (length(landing_path) == 0 || !file.exists(landing_path)) return("")
 

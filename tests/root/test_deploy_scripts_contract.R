@@ -71,7 +71,7 @@ test_that("publish_release.sh 串联构建、导出、上传和远端部署", {
 })
 
 test_that("部署文档与快速入口文档引用 apps 路径和发布脚本", {
-  deployment_path <- file.path(root_dir, "DEPLOYMENT_GUIDE.md")
+  deployment_path <- file.path(root_dir, "docs", "deploy", "DEPLOY_GUIDE.md")
   quick_path <- file.path(root_dir, "deploy", "alicloud", "README.md")
 
   deployment_txt <- read_text(deployment_path)

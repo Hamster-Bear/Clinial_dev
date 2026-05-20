@@ -4,51 +4,6 @@
 
 ---
 
-## 四条铁律
-
-### 1. 文档驱动
-- 每次生成或修改代码，**必须同步更新**以下规范文档（视影响范围选择）：
-  - `PROJECT_GUIDE.md` — 项目架构、模块职责、数据流、研发约束
-  - `PROJECT_SPEC.md` — 技术规格、架构决策、功能边界
-  - `CODE_STYLE.md` — 编码规范、命名约定、格式化规则
-  - `TEST_GUIDE.md` — 测试索引、归类、回归入口
-- 若上述文档缺失或章节不完整，**先提议生成草案**，获用户确认后再执行代码变更。
-- 文档描述以"当前已实现"为准，不把占位菜单、计划能力或外部设想写成既成事实。
-
-### 2. 测试契约
-- 所有新功能、新模块或 Bug 修复必须配套单元测试。
-- 测试文件统一置于 `tests/`，按项目架构自动结构化创建对应的子文件夹：
-  - `tests/common/auth/` — 认证与权限
-  - `tests/common/data/` — 数据元数据
-  - `tests/common/graphics/` — 图形共享层
-  - `tests/common/ui/` — 公共 UI 组件
-  - `tests/statistical_analysis/` — 统计分析
-  - `tests/statistical_graphics/` — 统计图形
-  - `tests/tables/` — 预设输出
-  - `tests/root/` — 全局与文档守卫
-  - `tests/nginx/landing/` — Landing 页
-- `tests/` 目录不存在时，主动建议初始化并创建 `tests/fixtures/` 存放测试数据。
-- 共享层变更优先补回归测试，再做模块级功能扩展。
-- 新增测试文件后，同步更新 `TEST_GUIDE.md` 索引，并执行 `check_test_guide_index.R` 校验一致性。
-- 涉及账号/权限/PostgreSQL 操作的改动，优先在隔离 schema 中补充集成测试，并确保通过 `run_auth_regression.ps1` 回归。
-
-### 3. 规范继承
-- 每次任务开始前，优先读取以下已有规范文档：
-  - `PROJECT_GUIDE.md` — 了解架构全貌、模块职责与共享层依赖
-  - `CODE_STYLE.md` — 遵循命名、格式化、UI/UX、数据库规范
-  - `PROJECT_SPEC.md` — 确认功能边界与技术规格
-  - `TEST_GUIDE.md` — 确认测试归类与回归入口
-- 发现规范冲突或缺失时，**不自行决定**，而是明确指出冲突位置并请求用户确认。
-- 所有文档使用 **Markdown**，结构清晰，中英文皆可。
-
-### 4. 风险前置
-- 每次输出前（无论代码、文档还是建议），必须包含：
-  - **风险提示**（标注类型：技术风险 / 维护风险 / 项目风险）
-  - **优化建议**（按优先级分为：立即可做 / 中长期 / 工具链）
-- 禁止仅提供代码而无上下文判断。
-
----
-
 ## 项目领域知识（核心摘要）
 
 ### 技术栈
@@ -158,14 +113,16 @@ AutoTFL/
 
 ```bash
 # 项目规范速查
-cat PROJECT_GUIDE.md    # 架构全貌、模块职责、共享层
-cat PROJECT_SPEC.md     # 技术规格、边界决策
-cat CODE_STYLE.md       # 编码规范、命名约定
-cat TEST_GUIDE.md       # 测试索引、归类、回归入口
+cat docs/main/PROJECT_GUIDE.md    # 架构全貌、模块职责、共享层
+cat docs/main/PROJECT_SPEC.md     # 技术规格、边界决策
+cat docs/main/CODE_STYLE.md       # 编码规范、命名约定
+cat docs/main/TEST_GUIDE.md       # 测试索引、归类、回归入口
+cat docs/deploy/DEPLOY_GUIDE.md   # 部署方案、环境变量
+cat USAGE.md                      # 快速入门、常用命令
 
 # 测试执行
 Rscript -e "testthat::test_file('tests/path/to/test_file.R', reporter='summary')"
-Rscript check_test_guide_index.R  # 测试索引一致性校验
+Rscript tests/check_test_guide_index.R  # 测试索引一致性校验
 
 # 格式化
 styler::style_dir()
