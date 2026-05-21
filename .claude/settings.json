@@ -7,7 +7,8 @@
       "Bash(Rscript -e ' *)",
       "Bash(docker compose *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/app/)",
-      "Bash(browser-use --headed open http://localhost:8080/app/)"
+      "Bash(browser-use --headed open http://localhost:8080/app/)",
+      "Bash(Rscript -e \"if \\(requireNamespace\\('testthat', quietly = TRUE\\)\\) { testthat::test_dir\\('tests/common/auth/', reporter = 'summary'\\) } else { cat\\('testthat not installed'\\) }\")"
     ]
   }
 }

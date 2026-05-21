@@ -79,7 +79,8 @@ required_packages <- c(
   "testthat",
   "lintr",
   "styler",
-  "shinytest2"
+  "shinytest2",
+  "shinyFiles"
 )
 
 # 安装缺失的包（pak 统一处理本地二进制 + 在线 PPM）
