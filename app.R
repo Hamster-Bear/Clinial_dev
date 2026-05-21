@@ -401,7 +401,7 @@ server <- function(input, output, session) {
   exploratory_analysis_server("explore", data = filtered_data)
   statistical_analysis_server("stats", data = filtered_data)
   statistical_graphics_server("plots", data = filtered_data, pg_pool = pg_pool, current_user = current_user)
-  tables_server("tables", data = filtered_data)
+  tables_server("tables", data = filtered_data, pg_pool = pg_pool, current_user = current_user)
 
   observe({
     if (is.null(current_user())) {

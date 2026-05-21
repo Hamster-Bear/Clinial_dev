@@ -189,6 +189,10 @@
 - Listing / 表格导出:
   - `tests/tables/test_tables_layout_guard.R`
   - `tests/tables/test_listing_general_contract.R`
+  - `tests/tables/test_t_dm_contract.R`
+  - `tests/tables/test_t_ae_soc_pt_contract.R`
+  - `tests/tables/test_ae_sidebyside_contract.R`
+  - `tests/tables/test_tables_committed_state.R`
 - Landing 与外部入口:
   - `tests/nginx/landing/test_landing_copy_guard.R`
 

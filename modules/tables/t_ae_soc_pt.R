@@ -245,6 +245,54 @@ generate_t_ae_soc_pt_code <- function(trt_var,
                                       pt_var,
                                       id_var = "USUBJID",
                                       pop_var = NULL,
-                                      pop_val = "Y") {
-  return("# 分级汇总表格代码生成功能待完善")
+                                      pop_val = "Y",
+                                      data_name = "data") {
+  code <- c(
+    "# 分级汇总表 (t_ae_soc_pt) 复现代码",
+    "library(rtables)",
+    "library(tern)",
+    "library(dplyr)",
+    "",
+    paste0("data <- ", data_name),
+    "",
+    paste0("trt_var <- \"", trt_var, "\""),
+    paste0("soc_var <- \"", soc_var, "\""),
+    paste0("pt_var <- \"", pt_var, "\""),
+    paste0("id_var <- \"", id_var, "\""),
+    paste0("pop_var <- ", if (is.null(pop_var)) "NULL" else paste0("\"", pop_var, "\"")),
+    paste0("pop_val <- \"", pop_val, "\""),
+    "",
+    "result <- perform_t_ae_soc_pt_analysis(",
+    "  data = data,",
+    "  trt_var = trt_var,",
+    "  soc_var = soc_var,",
+    "  pt_var = pt_var,",
+    "  id_var = id_var,",
+    "  pop_var = pop_var,",
+    "  pop_val = pop_val",
+    ")",
+    "",
+    "print(result)"
+  )
+
+  paste(code, collapse = "\n")
+}
+
+apply_t_ae_soc_pt_state <- function(session, state) {
+  extra <- if (is.list(state$extra_state)) state$extra_state else state
+  if (!is.null(extra$ae_trt_var))
+    updateSelectizeInput(session, "ae_trt_var", selected = extra$ae_trt_var)
+  if (!is.null(extra$ae_soc_var))
+    updateSelectizeInput(session, "ae_soc_var", selected = extra$ae_soc_var)
+  if (!is.null(extra$ae_pt_var))
+    updateSelectizeInput(session, "ae_pt_var", selected = extra$ae_pt_var)
+  if (!is.null(extra$subject_id_var))
+    updateSelectizeInput(session, "subject_id_var", selected = extra$subject_id_var)
+  if (!is.null(extra$ae_enable_pop))
+    updateCheckboxInput(session, "ae_enable_pop", value = extra$ae_enable_pop)
+  if (!is.null(extra$ae_pop_var))
+    updateSelectizeInput(session, "ae_pop_var", selected = extra$ae_pop_var)
+  if (!is.null(extra$ae_pop_val))
+    updateTextInput(session, "ae_pop_val", value = extra$ae_pop_val)
+  invisible(TRUE)
 }

@@ -8,6 +8,7 @@ library(gt)
 library(shinyjs)
 source("modules/common/entry_copy.R")
 source("modules/common/ui_shell.R")
+source("modules/common/graphics_common.R")
 
 # 加载子模块分析函数
 source("modules/tables/t_dm.R")
@@ -69,6 +70,10 @@ tables_ui <- function(id) {
               width = "100%"
             )
           )
+        ),
+        task_history_ui(
+          ns("tables_task_history"),
+          help_text = "保存当前表格参数、页面选择和任务备注；workspace 为空时保存为个人任务。"
         )
       ),
       # 右侧：结果展示
@@ -136,7 +141,7 @@ tables_ui <- function(id) {
 }
 
 # Tables模块服务器逻辑
-tables_server <- function(id, data) {
+tables_server <- function(id, data, pg_pool = NULL, current_user = NULL) {
   moduleServer(id, function(input, output, session) {
   ns <- session$ns
   
@@ -144,6 +149,8 @@ tables_server <- function(id, data) {
   table_result <- reactiveVal(NULL)
   # 存储生成的代码
   code_result <- reactiveVal("# 请先上传数据并选择变量，然后点击'生成表格'")
+  # 提交的参数快照（Generate 时冻结，导出与下游读取）
+  committed_params <- reactiveVal(NULL)
   
   # 调用筛选模块，获取筛选后的数据
   filtered_data <- data_filter_server("global_filter", data)
@@ -263,6 +270,7 @@ tables_server <- function(id, data) {
   # 切换表格类型时清空之前的结果
   observeEvent(input$table_type, {
     table_result(NULL)
+    committed_params(NULL)
     code_result("# 请先上传数据并选择变量，然后点击'生成表格'")
   })
 
@@ -322,7 +330,20 @@ tables_server <- function(id, data) {
             table_title = input$dm_table_title,
             table_footnote = input$dm_table_footnote
          )
-         
+
+         params <- list(
+           table_type = "t_dm",
+           dm_variables = vars,
+           dm_by_var = input$dm_by_var,
+           dm_enable_total_cols = input$dm_enable_total_cols,
+           dm_total_cols_count = input$dm_total_cols_count,
+           dm_total_cols_settings = total_settings,
+           dm_table_title = input$dm_table_title,
+           dm_table_footnote = input$dm_table_footnote,
+           table_export_name = input$table_export_name,
+           table_export_format = input$table_export_format
+         )
+
          # 生成代码
          code <- generate_t_dm_code(
             variables = vars,
@@ -346,7 +367,20 @@ tables_server <- function(id, data) {
           pop_var = pop_var,
           pop_val = pop_val
         )
-        
+
+        params <- list(
+          table_type = "t_ae_soc_pt",
+          ae_trt_var = input$ae_trt_var,
+          ae_soc_var = input$ae_soc_var,
+          ae_pt_var = input$ae_pt_var,
+          subject_id_var = input$subject_id_var,
+          ae_enable_pop = input$ae_enable_pop,
+          ae_pop_var = pop_var,
+          ae_pop_val = pop_val,
+          table_export_name = input$table_export_name,
+          table_export_format = input$table_export_format
+        )
+
         # 生成代码
         code <- generate_t_ae_soc_pt_code(
           trt_var = input$ae_trt_var,
@@ -374,7 +408,17 @@ tables_server <- function(id, data) {
           key_cols = normalized_listing$key_cols,
           disp_cols = normalized_listing$disp_cols
         )
-        
+
+        params <- list(
+          table_type = "listing_general",
+          listing_key_cols = input$listing_key_cols,
+          listing_disp_cols = input$listing_disp_cols,
+          listing_landscape = input$listing_landscape,
+          listing_font_size = input$listing_font_size,
+          table_export_name = input$table_export_name,
+          table_export_format = input$table_export_format
+        )
+
         code <- generate_listing_general_code(
           key_cols = normalized_listing$key_cols,
           disp_cols = normalized_listing$disp_cols,
@@ -399,7 +443,34 @@ tables_server <- function(id, data) {
           min_pct = input[[paste0(prefix, "ae_min_pct")]]
         )
         
-        code <- generate_ae_sidebyside_code()
+        params <- list(
+          table_type = "ae_sidebyside",
+          ae_term_col = input[[paste0(prefix, "ae_term_col")]],
+          ae_sev_col  = input[[paste0(prefix, "ae_sev_col")]],
+          ae_subj_col = input[[paste0(prefix, "ae_subj_col")]],
+          ae_group_col = input[[paste0(prefix, "ae_group_col")]],
+          ae_flag_col = input[[paste0(prefix, "ae_flag_col")]],
+          ae_flag_val = input[[paste0(prefix, "ae_flag_val")]],
+          ae_rel_col   = input[[paste0(prefix, "ae_rel_col")]],
+          ae_rel_val   = input[[paste0(prefix, "ae_rel_val")]],
+          ae_count_mode = input[[paste0(prefix, "ae_count_mode")]],
+          ae_min_pct   = input[[paste0(prefix, "ae_min_pct")]],
+          table_export_name = input$table_export_name,
+          table_export_format = input$table_export_format
+        )
+
+        code <- generate_ae_sidebyside_code(
+          term_col  = input[[paste0(prefix, "ae_term_col")]],
+          sev_col   = input[[paste0(prefix, "ae_sev_col")]],
+          subj_col  = input[[paste0(prefix, "ae_subj_col")]],
+          group_col = input[[paste0(prefix, "ae_group_col")]],
+          flag_col  = input[[paste0(prefix, "ae_flag_col")]],
+          flag_val  = input[[paste0(prefix, "ae_flag_val")]],
+          rel_col   = input[[paste0(prefix, "ae_rel_col")]],
+          rel_val   = input[[paste0(prefix, "ae_rel_val")]],
+          count_mode = input[[paste0(prefix, "ae_count_mode")]],
+          min_pct   = input[[paste0(prefix, "ae_min_pct")]]
+        )
       } else {
         showNotification(paste("未知的表格类型:", input$table_type), type = "error")
         result <- NULL
@@ -409,6 +480,7 @@ tables_server <- function(id, data) {
       if (!is.null(result)) {
         table_result(result)
         code_result(code)
+        committed_params(params)
         showNotification("表格生成成功", type = "default")
       } else {
         showNotification("未生成表格，请检查参数设置", type = "warning")
@@ -505,41 +577,52 @@ tables_server <- function(id, data) {
   output$table_download <- downloadHandler(
     filename = function() {
       req(table_result())
-      prefix <- ifelse(nzchar(input$table_export_name), input$table_export_name, "table_result")
-      if (identical(input$table_type, "ae_sidebyside")) {
-        build_plot_export_filename(prefix = prefix, format = input$table_export_format)
+      cp <- committed_params()
+      prefix <- if (!is.null(cp$table_export_name) && nzchar(cp$table_export_name))
+        cp$table_export_name
+      else if (nzchar(input$table_export_name))
+        input$table_export_name
+      else
+        "table_result"
+      fmt <- cp$table_export_format %||% input$table_export_format
+      ttype <- cp$table_type %||% input$table_type
+      if (identical(ttype, "ae_sidebyside")) {
+        build_plot_export_filename(prefix = prefix, format = fmt)
       } else {
-        build_table_export_filename(prefix = prefix, format = input$table_export_format)
+        build_table_export_filename(prefix = prefix, format = fmt)
       }
     },
     content = function(file) {
       req(table_result())
+      cp <- committed_params()
       obj <- table_result()
-      if (identical(input$table_type, "ae_sidebyside")) {
+      fmt <- cp$table_export_format %||% input$table_export_format
+      ttype <- cp$table_type %||% input$table_type
+      if (identical(ttype, "ae_sidebyside")) {
         save_plot_export(
           file = file,
           plot_obj = obj,
-          format = input$table_export_format,
+          format = fmt,
           width = 12,
           height = 8,
           dpi = 300
         )
       } else {
         export_title <- switch(
-          input$table_type,
+          ttype,
           "t_dm" = "人口统计表格 (t_dm)",
           "t_ae_soc_pt" = "分级统计表 (t_ae_soc_pt)",
           "listing_general" = "一般列表 (listing_general)",
           "ae_sidebyside" = "不良事件并列对比图 (ae_sidebyside)",
           "导出结果"
         )
-        if (identical(input$table_export_format, "png")) {
+        if (identical(fmt, "png")) {
           save_table_png(file = file, table_obj = obj, width = 12, height = 8, dpi = 300)
         } else {
           save_table_export(
             file = file,
             result_obj = list(table = obj),
-            format = input$table_export_format,
+            format = fmt,
             title = export_title,
             include_report = FALSE
           )
@@ -553,7 +636,68 @@ tables_server <- function(id, data) {
     code_result()
   })
   
-  # 返回表格结果
-  return(table_result)
+  # ---- task_history 集成 ----
+  resolve_user_id <- if (is.function(current_user)) {
+    function() { u <- current_user(); if (is.list(u)) u$id else NULL }
+  } else {
+    function() NULL
+  }
+
+  task_history_server(
+    "tables_task_history",
+    pg_pool = pg_pool,
+    current_user = resolve_user_id,
+    workspace_id = NULL,
+    scope = "tables",
+    module_type = reactive({
+      cp <- committed_params()
+      cp$table_type %||% input$table_type %||% ""
+    }),
+    get_state = function() {
+      cp <- committed_params()
+      if (is.null(cp)) return(list())
+      list(task_schema_version = 1, extra_state = cp)
+    },
+    apply_state = function(payload) {
+      if (!is.list(payload)) return(invisible(FALSE))
+      extra <- payload$extra_state
+      if (is.null(extra) || is.null(extra$table_type)) return(invisible(FALSE))
+      updateSelectizeInput(session, "table_type", selected = extra$table_type)
+      switch(extra$table_type,
+        "t_dm"            = apply_t_dm_state(session, payload),
+        "t_ae_soc_pt"     = apply_t_ae_soc_pt_state(session, payload),
+        "listing_general" = apply_listing_general_state(session, payload),
+        "ae_sidebyside"   = apply_ae_sidebyside_state(session, payload),
+        FALSE
+      )
+    },
+    apply_failure_message = "Tables 模块暂未接入任务历史回填"
+  )
+
+  # 返回表格结果 + task_history 契约
+  return(list(
+    table_result = table_result,
+    state = reactive({
+      cp <- committed_params()
+      if (is.null(cp)) return(list())
+      list(
+        task_schema_version = 1,
+        extra_state = cp
+      )
+    }),
+    apply_state = function(payload) {
+      if (!is.list(payload)) return(invisible(FALSE))
+      extra <- payload$extra_state
+      if (is.null(extra) || is.null(extra$table_type)) return(invisible(FALSE))
+      updateSelectizeInput(session, "table_type", selected = extra$table_type)
+      switch(extra$table_type,
+        "t_dm"            = apply_t_dm_state(session, payload),
+        "t_ae_soc_pt"     = apply_t_ae_soc_pt_state(session, payload),
+        "listing_general" = apply_listing_general_state(session, payload),
+        "ae_sidebyside"   = apply_ae_sidebyside_state(session, payload),
+        FALSE
+      )
+    }
+  ))
   })
 }

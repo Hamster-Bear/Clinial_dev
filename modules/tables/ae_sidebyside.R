@@ -235,11 +235,7 @@ perform_ae_sidebyside_analysis <- function(data, term_col, sev_col, subj_col, gr
   # 计算 X 轴动态上限
   max_val <- max(c(plot_prep$total_teae_pct, plot_prep$total_trae_pct), na.rm = TRUE) * 1.25
   if (!is.finite(max_val) || max_val == 0) max_val <- 10 # 默认值
-  plot_family <- if (exists("graphics_resolve_device_safe_family", mode = "function")) {
-    graphics_resolve_font_spec("sans")$unified
-  } else {
-    "sans"
-  }
+  plot_family <- graphics_resolve_font_spec("sans")$unified
   
   # 3. 绘图
   p <- ggplot(plot_prep) +
@@ -292,6 +288,71 @@ perform_ae_sidebyside_analysis <- function(data, term_col, sev_col, subj_col, gr
 
 #' 生成代码 (占位)
 #' @export
-generate_ae_sidebyside_code <- function(...) {
-  "# 生成 AE Side-by-Side Plot 代码示例\n# 逻辑较复杂，建议参考 perform_ae_sidebyside_analysis 源码"
+generate_ae_sidebyside_code <- function(term_col, sev_col, subj_col, group_col,
+                                        flag_col, flag_val, rel_col, rel_val,
+                                        count_mode = "worst_subject_term",
+                                        min_pct = 0, data_name = "data") {
+  code <- c(
+    "# AE 并列对比图 复现代码",
+    "library(ggplot2)",
+    "library(dplyr)",
+    "library(tidyr)",
+    "",
+    paste0("data <- ", data_name),
+    "",
+    paste0("term_col <- \"", term_col, "\""),
+    paste0("sev_col <- \"", sev_col, "\""),
+    paste0("subj_col <- \"", subj_col, "\""),
+    paste0("group_col <- \"", group_col, "\""),
+    paste0("flag_col <- \"", flag_col, "\""),
+    paste0("flag_val <- \"", flag_val, "\""),
+    paste0("rel_col <- \"", rel_col, "\""),
+    paste0("rel_val <- \"", rel_val, "\""),
+    paste0("count_mode <- \"", count_mode, "\""),
+    paste0("min_pct <- ", min_pct),
+    "",
+    "result <- perform_ae_sidebyside_analysis(",
+    "  data = data,",
+    "  term_col = term_col,",
+    "  sev_col = sev_col,",
+    "  subj_col = subj_col,",
+    "  group_col = group_col,",
+    "  flag_col = flag_col,",
+    "  flag_val = flag_val,",
+    "  rel_col = rel_col,",
+    "  rel_val = rel_val,",
+    "  count_mode = count_mode,",
+    "  min_pct = min_pct",
+    ")",
+    "",
+    "print(result)"
+  )
+
+  paste(code, collapse = "\n")
+}
+
+apply_ae_sidebyside_state <- function(session, state) {
+  extra <- if (is.list(state$extra_state)) state$extra_state else state
+  prefix <- "ae_sidebyside_params-"
+  if (!is.null(extra$ae_term_col))
+    updateSelectizeInput(session, paste0(prefix, "ae_term_col"), selected = extra$ae_term_col)
+  if (!is.null(extra$ae_sev_col))
+    updateSelectizeInput(session, paste0(prefix, "ae_sev_col"), selected = extra$ae_sev_col)
+  if (!is.null(extra$ae_subj_col))
+    updateSelectizeInput(session, paste0(prefix, "ae_subj_col"), selected = extra$ae_subj_col)
+  if (!is.null(extra$ae_group_col))
+    updateSelectizeInput(session, paste0(prefix, "ae_group_col"), selected = extra$ae_group_col)
+  if (!is.null(extra$ae_flag_col))
+    updateSelectizeInput(session, paste0(prefix, "ae_flag_col"), selected = extra$ae_flag_col)
+  if (!is.null(extra$ae_flag_val))
+    updateSelectizeInput(session, paste0(prefix, "ae_flag_val"), selected = extra$ae_flag_val)
+  if (!is.null(extra$ae_rel_col))
+    updateSelectizeInput(session, paste0(prefix, "ae_rel_col"), selected = extra$ae_rel_col)
+  if (!is.null(extra$ae_rel_val))
+    updateSelectizeInput(session, paste0(prefix, "ae_rel_val"), selected = extra$ae_rel_val)
+  if (!is.null(extra$ae_count_mode))
+    updateSelectizeInput(session, paste0(prefix, "ae_count_mode"), selected = extra$ae_count_mode)
+  if (!is.null(extra$ae_min_pct))
+    updateNumericInput(session, paste0(prefix, "ae_min_pct"), value = extra$ae_min_pct)
+  invisible(TRUE)
 }

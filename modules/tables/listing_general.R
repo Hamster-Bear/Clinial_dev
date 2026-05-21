@@ -204,13 +204,57 @@ export_listing_general_rtf <- function(data, key_cols, disp_cols, file, landscap
 
 #' 生成代码 (占位)
 #' @export
-generate_listing_general_code <- function(key_cols, disp_cols, landscape, font_size) {
-  paste0(
-    "# 生成 Listing 代码示例\n",
-    "library(rlistings)\n",
-    "library(r2rtf)\n",
-    "# 请参考 export_listing_general_rtf 函数逻辑\n",
-    "# Key Cols: ", paste(key_cols, collapse = ", "), "\n",
-    "# Disp Cols: ", paste(disp_cols, collapse = ", "), "\n"
+generate_listing_general_code <- function(key_cols, disp_cols, landscape, font_size,
+                                         data_name = "data") {
+  key_str <- if (length(key_cols) > 0)
+    paste(sprintf('"%s"', key_cols), collapse = ", ") else "character(0)"
+  disp_str <- paste(sprintf('"%s"', disp_cols), collapse = ", ")
+
+  code <- c(
+    "# Listing 复现代码",
+    "library(rlistings)",
+    "library(dplyr)",
+    "",
+    paste0("data <- ", data_name),
+    "",
+    paste0("key_cols <- c(", key_str, ")"),
+    paste0("disp_cols <- c(", disp_str, ")"),
+    "",
+    "# 归一化列名（过滤失效字段）",
+    "normalized <- normalize_listing_columns(data, key_cols, disp_cols)",
+    "",
+    "# 生成预览",
+    "result <- perform_listing_general_analysis(",
+    "  data = data,",
+    "  key_cols = normalized$key_cols,",
+    "  disp_cols = normalized$disp_cols",
+    ")",
+    "print(result)"
   )
+
+  if (length(disp_cols) > 0) {
+    code <- c(code, "",
+      "# RTF 导出（需 r2rtf 包）",
+      "# library(r2rtf)",
+      paste0("# export_listing_general_rtf(data, normalized$key_cols, normalized$disp_cols,"),
+      paste0("#   file = \"listing_output.rtf\", landscape = ",
+             if (isTRUE(landscape)) "TRUE" else "FALSE", ","),
+      paste0("#   font_size = ", font_size, ")")
+    )
+  }
+
+  paste(code, collapse = "\n")
+}
+
+apply_listing_general_state <- function(session, state) {
+  extra <- if (is.list(state$extra_state)) state$extra_state else state
+  if (!is.null(extra$listing_key_cols))
+    updateSelectizeInput(session, "listing_key_cols", selected = extra$listing_key_cols)
+  if (!is.null(extra$listing_disp_cols))
+    updateSelectizeInput(session, "listing_disp_cols", selected = extra$listing_disp_cols)
+  if (!is.null(extra$listing_landscape))
+    updateCheckboxInput(session, "listing_landscape", value = extra$listing_landscape)
+  if (!is.null(extra$listing_font_size))
+    updateNumericInput(session, "listing_font_size", value = extra$listing_font_size)
+  invisible(TRUE)
 }

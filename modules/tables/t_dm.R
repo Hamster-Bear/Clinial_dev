@@ -315,6 +315,70 @@ generate_t_dm_code <- function(variables,
                                by_var = NULL,
                                total_cols_settings = NULL,
                                table_title = "人口统计表格",
-                               table_footnote = "") {
-  return("# 代码生成功能待完善")
+                               table_footnote = "",
+                               data_name = "data") {
+  code <- c(
+    "# 人口统计表格 (t_dm) 复现代码",
+    "library(gtsummary)",
+    "library(gt)",
+    "library(dplyr)",
+    "",
+    paste0("data <- ", data_name),
+    "",
+    paste0("variables <- c(", paste(sprintf('"%s"', variables), collapse = ", "), ")")
+  )
+
+  if (!is.null(by_var) && nzchar(by_var)) {
+    code <- c(code, paste0("by_var <- \"", by_var, "\""))
+  } else {
+    code <- c(code, "by_var <- NULL")
+  }
+
+  if (!is.null(total_cols_settings) && length(total_cols_settings) > 0) {
+    code <- c(code, "", "# 总计列设置")
+    for (i in seq_along(total_cols_settings)) {
+      s <- total_cols_settings[[i]]
+      grp_str <- paste(sprintf('"%s"', s$groups), collapse = ", ")
+      code <- c(code, paste0("total_col_", i, "_name <- \"", s$name, "\""))
+      code <- c(code, paste0("total_col_", i, "_groups <- c(", grp_str, ")"))
+    }
+    item_str <- paste(sapply(seq_along(total_cols_settings), function(i) {
+      paste0("list(name = total_col_", i, "_name, groups = total_col_", i, "_groups)")
+    }), collapse = ", ")
+    code <- c(code, paste0("total_cols_settings <- list(", item_str, ")"))
+  } else {
+    code <- c(code, "total_cols_settings <- NULL")
+  }
+
+  code <- c(code, "",
+    "result <- perform_t_dm_analysis(",
+    "  data = data,",
+    "  variables = variables,",
+    "  by_var = by_var,",
+    "  total_cols_settings = total_cols_settings,",
+    paste0("  table_title = \"", table_title, "\","),
+    paste0("  table_footnote = \"", table_footnote, "\""),
+    ")",
+    "",
+    "print(result)"
+  )
+
+  paste(code, collapse = "\n")
+}
+
+apply_t_dm_state <- function(session, state) {
+  extra <- if (is.list(state$extra_state)) state$extra_state else state
+  if (!is.null(extra$dm_variables))
+    updateSelectizeInput(session, "dm_variables", selected = extra$dm_variables)
+  if (!is.null(extra$dm_by_var))
+    updateSelectizeInput(session, "dm_by_var", selected = extra$dm_by_var)
+  if (!is.null(extra$dm_enable_total_cols))
+    updateCheckboxInput(session, "dm_enable_total_cols", value = extra$dm_enable_total_cols)
+  if (!is.null(extra$dm_total_cols_count))
+    updateNumericInput(session, "dm_total_cols_count", value = extra$dm_total_cols_count)
+  if (!is.null(extra$dm_table_title))
+    updateTextInput(session, "dm_table_title", value = extra$dm_table_title)
+  if (!is.null(extra$dm_table_footnote))
+    updateTextInput(session, "dm_table_footnote", value = extra$dm_table_footnote)
+  invisible(TRUE)
 }
