@@ -110,7 +110,8 @@ install_missing_packages <- function(packages) {
           paste(missing, collapse = ", "))
   cat("仓库:", paste(repos, collapse = ", "), "\n")
 
-  pak::pak(missing, repos = repos, ask = FALSE)
+  options(repos = repos, pkg.sysreqs = FALSE)
+  pak::pak(missing, ask = FALSE)
   message("安装流程结束。")
 }
 

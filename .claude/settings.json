@@ -4,7 +4,10 @@
       "Read(//tmp/claude/g--Project-R-Rshiny-AutoTFL/a481b4a0-5a8b-4bef-be99-a3fa946eea61/tasks/**)",
       "Bash(\"F:/R-4.5.3/bin/Rscript.exe\" -e \"testthat::test_file\\('tests/statistical_analysis/desc/test_desc_regression.R'\\)\")",
       "Bash(\"F:/R-4.5.3/bin/Rscript.exe\" -e \"testthat::test_file\\('tests/statistical_graphics/ui/test_statistical_graphics_layout_guard.R'\\)\")",
-      "Bash(Rscript -e ' *)"
+      "Bash(Rscript -e ' *)",
+      "Bash(docker compose *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/app/)",
+      "Bash(browser-use --headed open http://localhost:8080/app/)"
     ]
   }
 }

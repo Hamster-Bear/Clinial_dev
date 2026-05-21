@@ -100,11 +100,7 @@ statistical_analysis_ui <- function(id) {
                 "方差分析(ANOVA)" = "anova",
                 "卡方检验" = "chi-sq",
                 "CMH检验" = "cmh"
-              ),
-              # "高级方法" = list(
-              #   "MMRM" = "mmrm",
-              #   "多重填补" = "mi"
-              # )
+              )
             )
           )
         ),
