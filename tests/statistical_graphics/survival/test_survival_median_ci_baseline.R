@@ -29,7 +29,7 @@ project_root <- test_find_project_root()
 setwd(file.path(project_root, "tests"))
 library(testthat)
 
-source(file.path("..", "modules", "common", "analysis_format.R"))
+source(file.path("..", "modules", "common", "analysis", "analysis_format.R"))
 source(file.path("..", "modules", "common", "graphics_repro.R"))
 
 test_that("固定样例的 median/LCL/UCL 与基准一致", {

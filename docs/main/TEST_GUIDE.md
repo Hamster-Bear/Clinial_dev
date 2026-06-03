@@ -98,6 +98,8 @@
 
 - 数据元数据与标签一致性:
   - `tests/common/data/test_data_metadata_consistency.R`
+- 存储后端契约:
+  - `tests/common/storage/test_storage_backend.R`
 - 公共筛选与任务历史 UI 守卫:
   - `tests/common/ui/test_data_filter_card_ui_guard.R`
   - `tests/common/ui/test_task_history_card_ui_guard.R`
@@ -110,6 +112,9 @@
 
 ### 3.4 统计分析总入口与分析共享层
 
+- 分析格式化与共享逻辑:
+  - `tests/common/analysis/test_analysis_format.R`
+  - `tests/common/analysis/test_analysis_shared.R`
 - 总入口与结果区 UI 守卫:
   - `tests/statistical_analysis/ui/test_statistical_analysis_layout_guard.R`
   - `tests/statistical_analysis/ui/test_statistical_analysis_result_ui_guard.R`
@@ -140,6 +145,7 @@
 - common UI、导出与命名空间:
   - `tests/common/graphics/test_graphics_common_ui.R`
   - `tests/common/export/test_plot_export_contract.R`
+  - `tests/common/export/test_table_export_contract.R`
   - `tests/common/graphics/test_graphics_module_ns_guard.R`
   - `tests/common/graphics/test_graphics_validate_namespace_guard.R`
 - 图形公共行为与错误提示:
