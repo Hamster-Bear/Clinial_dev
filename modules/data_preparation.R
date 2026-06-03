@@ -866,25 +866,6 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
     paste(condition_text, collapse = "；")
   }
   
-  read_data_by_ext <- function(file_path) {
-    ext <- tolower(tools::file_ext(file_path))
-    if (ext %in% c("xlsx", "xls")) {
-      data <- readxl::read_excel(file_path, guess_max = 1000)
-    } else if (ext == "csv") {
-      data <- vroom::vroom(file_path, progress = FALSE)
-    } else if (ext == "sas7bdat") {
-      data <- haven::read_sas(file_path, encoding = "UTF-8")
-    } else if (ext %in% c("sav", "por")) {
-      data <- haven::read_spss(file_path, encoding = "UTF-8")
-    } else if (ext == "dta") {
-      data <- haven::read_dta(file_path, encoding = "UTF-8")
-    } else {
-      stop("不支持的文件格式")
-    }
-    data %>%
-      mutate(across(where(haven::is.labelled), ~ haven::as_factor(.x, levels = "labels")))
-  }
-  
   # 文件上传处理
   observeEvent(input$file, {
     req(input$file)
@@ -896,7 +877,7 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
     start_time <- Sys.time()
     
     tryCatch({
-      data <- read_data_by_ext(input$file$datapath)
+      data <- data_read_file(input$file$datapath)
       
       # 强制垃圾回收以释放内存
       gc()

@@ -530,6 +530,8 @@ AutoTFL/
 
 | 文件                             | 当前职责                         |
 | ------------------------------ | ---------------------------- |
+| `data/data_io.R`               | 统一文件读取（CSV/Excel/SAS/SPSS），含 GBK 编码支持 |
+| `data/data_registry.R`         | 统一数据空间注册表、池初始化和选择器刷新逻辑      |
 | `data/data_metadata.R`         | 统一变量标签、类型推断、元数据回写            |
 | `data/data_filter.R`           | 统一筛选 UI / server 与变量过滤行为     |
 | `analysis/analysis_shared.R`   | 统一回归校验和结果组装                  |

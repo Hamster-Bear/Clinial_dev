@@ -87,13 +87,7 @@ database_manager_ui <- function(id) {
 database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   moduleServer(id, function(input, output, session) {
   `%||%` <- function(x, y) if (is.null(x)) y else x
-  pool <- if (is.null(pg_pool)) auth_create_pool() else pg_pool
-  if (is.null(pg_pool)) {
-    onStop(function() {
-      poolClose(pool)
-    })
-  }
-  auth_ensure_schema(pool)
+  pool <- registry_init_pool(pg_pool)
 
   storage_root <- normalizePath(
     Sys.getenv("STORAGE_ROOT", "data_storage"),
@@ -101,10 +95,44 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     mustWork = FALSE
   )
   dir.create(storage_root, recursive = TRUE, showWarnings = FALSE)
-  
+
+  server_selected_path <- reactiveVal("")
+  if (requireNamespace("shinyFiles", quietly = TRUE)) {
+    if (.Platform$OS.type == "windows") {
+      volumes <- c(Home = normalizePath("~", winslash = "/", mustWork = FALSE))
+      windows_drives <- tryCatch(shinyFiles::getVolumes()(), error = function(e) c("C:" = "C:", "D:" = "D:"))
+      volumes <- c(volumes, windows_drives)
+    } else {
+      volumes <- c(Home = path.expand("~"), Root = "/")
+    }
+    shinyFiles::shinyDirChoose(input, "server_dir_choose", roots = volumes, session = session)
+    observe({
+      path <- shinyFiles::parseDirPath(volumes, input$server_dir_choose)
+      if (length(path) > 0 && nzchar(path)) {
+        server_selected_path(path)
+        output$selected_server_path <- renderText(path)
+      }
+    })
+  }
+
   registry_version <- reactiveVal(as.numeric(Sys.time()))
   root_folder_token <- "__ROOT__"
-  supported_ext <- c("csv", "xlsx", "xls", "sas7bdat", "sav", "dta", "por")
+  supported_ext <- data_io_get_supported_extensions()
+
+  db_access_state <- reactiveVal("no_user")
+  observe({
+    user <- if (is.null(current_user)) NULL else current_user()
+    if (is.null(user)) {
+      new_state <- "no_user"
+    } else if (has_database_access()) {
+      new_state <- "access"
+    } else {
+      new_state <- "locked"
+    }
+    if (!identical(isolate(db_access_state()), new_state)) {
+      db_access_state(new_state)
+    }
+  })
   
   normalize_store_folder_id <- function(folder_id) {
     if (is.null(folder_id) || folder_id == "" || folder_id == root_folder_token) {
@@ -230,40 +258,25 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     }
   }
   
-  read_data_by_ext <- function(file_path) {
-    ext <- tolower(tools::file_ext(file_path))
-    if (ext %in% c("xlsx", "xls")) {
-      data <- readxl::read_excel(file_path, guess_max = 1000)
-    } else if (ext == "csv") {
-      data <- vroom::vroom(file_path, progress = FALSE)
-    } else if (ext == "sas7bdat") {
-      data <- haven::read_sas(file_path, encoding = "UTF-8")
-    } else if (ext %in% c("sav", "por")) {
-      data <- haven::read_spss(file_path, encoding = "UTF-8")
-    } else if (ext == "dta") {
-      data <- haven::read_dta(file_path, encoding = "UTF-8")
-    } else {
-      stop("不支持的文件格式")
-    }
-    data %>%
-      mutate(across(where(haven::is.labelled), ~ haven::as_factor(.x, levels = "labels")))
-  }
-  
-  save_dataset_to_db <- function(workspace_id, folder_id, dataset_name, source_file_name, source_file_path) {
+  save_dataset_to_db <- function(workspace_id, folder_id, dataset_name, source_file_name, source_file_path, csv_encoding = "UTF-8") {
     folder_id_store <- normalize_store_folder_id(folder_id)
-    
+
     # 检查重名
-    # SQL parameterized query to prevent injection
     check_sql <- "SELECT id FROM datasets WHERE workspace_id = $1 AND (folder_id = $2 OR ($2 = '' AND folder_id IS NULL) OR ($2 = '' AND folder_id = '')) AND name = $3"
     existing <- dbGetQuery(pool, check_sql, params = list(workspace_id, folder_id_store, dataset_name))
-    
+
     if (nrow(existing) > 0) {
       return(list(success = FALSE, message = "同一目录下数据集名称已存在", dataset_id = NULL))
     }
-    
-    data <- tryCatch(read_data_by_ext(source_file_path), error = function(e) NULL)
+
+    read_error <- NULL
+    data <- tryCatch(data_read_file(source_file_path, csv_encoding = csv_encoding), error = function(e) {
+      read_error <<- conditionMessage(e)
+      NULL
+    })
     if (is.null(data) || !is.data.frame(data)) {
-      return(list(success = FALSE, message = paste0("读取失败: ", source_file_name), dataset_id = NULL))
+      reason <- if (!is.null(read_error)) paste0(" - ", read_error) else ""
+      return(list(success = FALSE, message = paste0("读取失败: ", source_file_name, reason), dataset_id = NULL))
     }
     
     dataset_id <- paste0("ds_", as.integer(as.numeric(Sys.time())), "_", sample(1000:9999, 1))
@@ -285,18 +298,20 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     insert_sql <- "INSERT INTO datasets (id, workspace_id, folder_id, name, file_name, data_path, nrow, ncol, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())"
     tryCatch({
       dbExecute(pool, insert_sql, params = list(
-        dataset_id, 
-        workspace_id, 
-        if(folder_id_store == "") NA else folder_id_store, 
-        dataset_name, 
-        source_file_name, 
-        data_file, 
-        nrow(data), 
+        dataset_id,
+        workspace_id,
+        if(folder_id_store == "") NA else folder_id_store,
+        dataset_name,
+        source_file_name,
+        data_file,
+        nrow(data),
         ncol(data)
       ))
       list(success = TRUE, message = "ok", dataset_id = dataset_id)
     }, error = function(e) {
-      list(success = FALSE, message = paste("DB Insert Error:", e$message), dataset_id = NULL)
+      tryCatch(storage_delete_dataset(data_file), error = function(e2) NULL)
+      warning("数据库写入失败，已清理 RDS 文件: ", data_file, " 错误: ", conditionMessage(e))
+      list(success = FALSE, message = "数据集保存失败，请稍后重试", dataset_id = NULL)
     })
   }
   
@@ -357,19 +372,17 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   }
 
   output$db_gate_content <- renderUI({
-    if (!is.null(current_user)) {
-      current_user()
-    }
-    if (!require_logged_in()) {
+    state <- db_access_state()
+    if (state == "no_user") {
       return(NULL)
     }
-    if (!has_database_access()) {
+    if (state == "locked") {
       return(
         fluidRow(
           app_card_box(
             width = 12,
             title = "数据库管理已锁定",
-            subtitle = "当前账号尚未开放数据空间管理能力",
+            subtitle = "当前账号尚未开通数据库管理功能，请联系管理员开通",
             tone = "warning",
             status = "warning",
             solidHeader = FALSE,
@@ -524,7 +537,9 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
                   placeholder = "请选择一个文件进行上传",
                   multiple = FALSE
                 ),
-                app_card_note("适合逐个整理数据集名称与目录归属。"),
+                selectInput(session$ns("csv_encoding"), "CSV 文件编码",
+                  choices = c("UTF-8" = "UTF-8", "GBK" = "GBK"), selected = "UTF-8", width = "100%"),
+                app_card_note("适合逐个整理数据集名称与目录归属。如上传含中文的 CSV 出现乱码，可选择 GBK 编码。"),
                 actionButton(session$ns("save_dataset"), "上传并保存到当前目录", class = "btn-success", width = "100%")
               )
             ),
@@ -545,7 +560,9 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
                   placeholder = "请选择多个文件进行批量上传",
                   multiple = TRUE
                 ),
-                app_card_note("适合初始化当前目录下的一批数据集。服务器目录导入仅对系统管理员开放。"),
+                selectInput(session$ns("csv_encoding_batch"), "CSV 文件编码",
+                  choices = c("UTF-8" = "UTF-8", "GBK" = "GBK"), selected = "UTF-8", width = "100%"),
+                app_card_note("适合初始化当前目录下的一批数据集。服务器目录导入仅对系统管理员开放。如上传含中文的 CSV 出现乱码，可选择 GBK 编码。"),
                 actionButton(session$ns("save_batch_datasets"), "批量保存到当前目录", class = "btn-primary", width = "100%"),
                 br(),
                 br(),
@@ -572,12 +589,25 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     if (!isTRUE(user$is_admin)) {
       return(tags$small("服务器目录导入仅系统管理员可用。"))
     }
-    tagList(
-      textInput(session$ns("workspace_path"), "从服务器目录导入数据空间", placeholder = "请输入服务器或容器可见的绝对路径"),
-      tags$small("当前仅支持导入部署机器可见目录，不支持直接读取浏览器所在电脑的本地文件夹。"),
-      tags$small("该入口当前仅面向系统管理员开放；多用户能力落地前不面向普通用户开放。"),
-      actionButton(session$ns("import_workspace_path"), "导入文件夹为数据空间", class = "btn-info", width = "100%")
-    )
+    if (requireNamespace("shinyFiles", quietly = TRUE)) {
+      tagList(
+        shinyFiles::shinyDirButton(session$ns("server_dir_choose"),
+          label = "浏览服务器目录",
+          title = "选择要导入的服务器文件夹",
+          buttonType = "default", class = "btn-default", width = "100%"),
+        verbatimTextOutput(session$ns("selected_server_path")),
+        textInput(session$ns("workspace_name_import"), "数据空间名称（可选）", placeholder = "留空则自动使用文件夹名", width = "100%"),
+        tags$small("浏览选择部署机器上的文件夹，系统将自动创建数据空间并导入所有支持的数据文件。仅对系统管理员开放。"),
+        actionButton(session$ns("import_workspace_path"), "导入文件夹为数据空间", class = "btn-info", width = "100%")
+      )
+    } else {
+      tagList(
+        textInput(session$ns("workspace_path"), "从服务器目录导入数据空间", placeholder = "请输入服务器或容器可见的绝对路径"),
+        tags$small("当前仅支持导入部署机器可见目录，不支持直接读取浏览器所在电脑的本地文件夹。"),
+        tags$small("该入口当前仅面向系统管理员开放。"),
+        actionButton(session$ns("import_workspace_path"), "导入文件夹为数据空间", class = "btn-info", width = "100%")
+      )
+    }
   })
 
   refresh_workspace_choices("")
@@ -585,11 +615,9 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   refresh_dataset_choices("", root_folder_token, "")
 
   observe({
-    if (!is.null(current_user)) {
-      current_user()
-    }
+    state <- db_access_state()
     registry_version()
-    if (is.null(get_current_user()) || !has_database_access()) {
+    if (state != "access") {
       updateSelectInput(session, "workspace_select", choices = character(0), selected = "")
       refresh_folder_choices("", root_folder_token)
       refresh_dataset_choices("", root_folder_token, "")
@@ -796,7 +824,8 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       updateTextInput(session, "workspace_name", value = "")
       showNotification("数据空间创建成功", type = "message")
     }, error = function(e) {
-      showNotification(paste("创建失败:", e$message), type = "error")
+      warning("创建数据空间失败: ", conditionMessage(e))
+      showNotification("创建失败，请稍后重试", type = "error")
     })
   })
   
@@ -815,17 +844,30 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     if (!require_workspace_manage(workspace_id)) {
       return()
     }
+    showModal(modalDialog(
+      title = "确认删除数据空间",
+      "确定要删除该数据空间及其所有目录和数据集吗？此操作不可撤销。",
+      footer = tagList(
+        modalButton("取消"),
+        actionButton(session$ns("confirm_delete_workspace"), "确认删除", class = "btn-danger")
+      )
+    ))
+  })
+
+  observeEvent(input$confirm_delete_workspace, {
+    removeModal()
+    workspace_id <- isolate(input$workspace_select)
     ds_to_remove <- dbGetQuery(pool, "SELECT data_path FROM datasets WHERE workspace_id = $1", params = list(workspace_id))
     remove_dataset_files(ds_to_remove)
-    
+
     tryCatch({
       service_delete_workspace(pool, workspace_id, acting_user = get_current_user())
-      
+
       ws_dir <- file.path(storage_root, workspace_id)
       if (dir.exists(ws_dir)) {
         unlink(ws_dir, recursive = TRUE, force = TRUE)
       }
-      
+
       registry_version(as.numeric(Sys.time()))
       updateSelectInput(session, "workspace_select", selected = "")
       refresh_workspace_choices()
@@ -833,7 +875,8 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       refresh_dataset_choices("", root_folder_token)
       showNotification("数据空间已删除（含文件夹与数据集）", type = "message")
     }, error = function(e) {
-      showNotification(paste("删除失败:", e$message), type = "error")
+      warning("删除数据空间失败: ", conditionMessage(e))
+      showNotification("删除失败，请稍后重试", type = "error")
     })
   })
   
@@ -872,7 +915,8 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       updateTextInput(session, "folder_name", value = "")
       showNotification("文件夹创建成功", type = "message")
     }, error = function(e) {
-      showNotification(paste("创建失败:", e$message), type = "error")
+      warning("创建文件夹失败: ", conditionMessage(e))
+      showNotification("创建失败，请稍后重试", type = "error")
     })
   })
   
@@ -903,25 +947,39 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     if (!require_workspace_access(workspace_id)) {
       return()
     }
-    
+    showModal(modalDialog(
+      title = "确认删除文件夹",
+      "确定要删除该文件夹及其所有数据集吗？此操作不可撤销。",
+      footer = tagList(
+        modalButton("取消"),
+        actionButton(session$ns("confirm_delete_folder"), "确认删除", class = "btn-danger")
+      )
+    ))
+  })
+
+  observeEvent(input$confirm_delete_folder, {
+    removeModal()
+    workspace_id <- isolate(input$workspace_select)
+    folder_id <- isolate(input$folder_select)
     ds_to_remove <- dbGetQuery(pool, "SELECT data_path FROM datasets WHERE workspace_id = $1 AND folder_id = $2", params = list(workspace_id, folder_id))
     remove_dataset_files(ds_to_remove)
-    
+
     tryCatch({
       dbExecute(pool, "DELETE FROM folders WHERE id = $1 AND workspace_id = $2", params = list(folder_id, workspace_id))
-      
+
       fd_dir <- file.path(storage_root, workspace_id, folder_id)
       if (dir.exists(fd_dir)) {
         unlink(fd_dir, recursive = TRUE, force = TRUE)
       }
-      
+
       registry_version(as.numeric(Sys.time()))
       updateSelectInput(session, "folder_select", selected = root_folder_token)
       refresh_folder_choices(workspace_id)
       refresh_dataset_choices(workspace_id, root_folder_token)
       showNotification("文件夹已删除（含该文件夹下数据集）", type = "message")
     }, error = function(e) {
-      showNotification(paste("删除失败:", e$message), type = "error")
+      warning("删除文件夹失败: ", conditionMessage(e))
+      showNotification("删除失败，请稍后重试", type = "error")
     })
   })
   
@@ -933,6 +991,10 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   
   observeEvent(input$save_dataset, {
     if (!require_database_access()) {
+      return()
+    }
+    if (is.null(input$file)) {
+      showNotification("请先选择要上传的文件", type = "warning")
       return()
     }
     workspace_id <- input$workspace_select
@@ -954,7 +1016,8 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       folder_id = folder_id,
       dataset_name = ds_name,
       source_file_name = input$file$name,
-      source_file_path = input$file$datapath
+      source_file_path = input$file$datapath,
+      csv_encoding = input$csv_encoding %||% "UTF-8"
     )
     
     if (!isTRUE(result$success)) {
@@ -965,7 +1028,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     registry_version(as.numeric(Sys.time()))
     refresh_dataset_choices(workspace_id, folder_id)
     updateSelectInput(session, "dataset_select", selected = result$dataset_id)
-    showNotification("数据集已保存到PostgreSQL元数据库", type = "message")
+    showNotification("数据集已保存成功", type = "message")
   })
   
   observeEvent(input$save_batch_datasets, {
@@ -990,8 +1053,10 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     
     success_count <- 0
     fail_count <- 0
+    fail_details <- list()
     last_dataset_id <- NULL
-    
+    seen_names <- list()
+
     withProgress(message = "正在批量上传数据集...", value = 0, {
       step <- 1 / max(1, total_count)
       for (i in seq_len(total_count)) {
@@ -1000,51 +1065,71 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
         ext <- tolower(tools::file_ext(src_name))
         if (!(ext %in% supported_ext)) {
           fail_count <- fail_count + 1
+          fail_details[[length(fail_details) + 1]] <- paste0(src_name, ": 不支持的文件格式")
           incProgress(step, detail = paste0("跳过不支持格式: ", src_name))
           next
         }
-        ds_name <- tools::file_path_sans_ext(src_name)
-        
+        base_name <- tools::file_path_sans_ext(src_name)
+        if (!is.null(seen_names[[base_name]])) {
+          seen_names[[base_name]] <- seen_names[[base_name]] + 1
+          ds_name <- paste0(base_name, "_", seen_names[[base_name]])
+        } else {
+          seen_names[[base_name]] <- 1
+          ds_name <- base_name
+        }
+
         result <- save_dataset_to_db(
           workspace_id = workspace_id,
           folder_id = folder_id,
           dataset_name = ds_name,
           source_file_name = src_name,
-          source_file_path = src_path
+          source_file_path = src_path,
+          csv_encoding = input$csv_encoding_batch %||% "UTF-8"
         )
-        
+
         if (isTRUE(result$success)) {
           success_count <- success_count + 1
           last_dataset_id <- result$dataset_id
         } else {
           fail_count <- fail_count + 1
+          fail_details[[length(fail_details) + 1]] <- paste0(src_name, ": ", result$message)
         }
         incProgress(step, detail = paste0("处理: ", src_name))
       }
     })
-    
+
     registry_version(as.numeric(Sys.time()))
-    refresh_dataset_choices(workspace_id, folder_id)
     if (!is.null(last_dataset_id)) {
       updateSelectInput(session, "dataset_select", selected = last_dataset_id)
     }
-    showNotification(paste0("批量上传完成：成功 ", success_count, "，失败 ", fail_count), type = "message")
+    if (fail_count > 0) {
+      showNotification(
+        paste0("批量上传完成：成功 ", success_count, "，失败 ", fail_count, "\n",
+               paste(utils::head(fail_details, 5), collapse = "\n"),
+               if (length(fail_details) > 5) paste0("\n...及其他 ", length(fail_details) - 5, " 项") else ""),
+        type = "warning", duration = 15
+      )
+    } else {
+      showNotification(paste0("批量上传完成：全部 ", success_count, " 个文件成功"), type = "message")
+    }
   })
   
   observeEvent(input$import_workspace_path, {
     if (!require_admin()) {
       return()
     }
-    path_input <- trimws(input$workspace_path)
-    if (!nzchar(path_input)) {
-      showNotification("请输入文件夹路径", type = "warning")
+    shiny_path <- server_selected_path()
+    fallback_path <- trimws(input$workspace_path %||% "")
+    path_input <- if (nzchar(shiny_path)) shiny_path else fallback_path
+    if (length(path_input) == 0L || !nzchar(path_input)) {
+      showNotification("请选择或输入文件夹路径", type = "warning")
       return()
     }
     if (!dir.exists(path_input)) {
       showNotification("文件夹路径不存在", type = "error")
       return()
     }
-    workspace_name <- trimws(input$workspace_name)
+    workspace_name <- trimws(input$workspace_name_import %||% input$workspace_name)
     if (!nzchar(workspace_name)) {
       workspace_name <- basename(normalizePath(path_input, winslash = "/", mustWork = TRUE))
     }
@@ -1053,7 +1138,8 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     workspace_result <- tryCatch(
       service_create_workspace(pool, workspace_name, user$id),
       error = function(e) {
-        showNotification(paste("导入失败:", e$message), type = "error")
+        warning("导入失败: ", conditionMessage(e))
+        showNotification("导入失败，请稍后重试", type = "error")
         NULL
       }
     )
@@ -1144,9 +1230,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       showNotification("请先选择数据集", type = "warning")
       return()
     }
-    
-    ds <- dbGetQuery(pool, "SELECT id, workspace_id, data_path FROM datasets WHERE id = $1", params = list(dataset_id))
-    
+    ds <- dbGetQuery(pool, "SELECT id, workspace_id, data_path, file_name FROM datasets WHERE id = $1", params = list(dataset_id))
     if (nrow(ds) == 0) {
       showNotification("数据集不存在", type = "warning")
       return()
@@ -1154,15 +1238,28 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     if (!require_workspace_access(ds$workspace_id[[1]])) {
       return()
     }
-    
-    data_path <- ds$data_path[[1]]
-    tryCatch(storage_delete_dataset(data_path), error = function(e) NULL)
-    
+    showModal(modalDialog(
+      title = "确认删除数据集",
+      paste0("确定要删除数据集 \"", ds$file_name[[1]], "\" 吗？此操作不可撤销。"),
+      footer = tagList(
+        modalButton("取消"),
+        actionButton(session$ns("confirm_delete_dataset"), "确认删除", class = "btn-danger")
+      )
+    ))
+  })
+
+  observeEvent(input$confirm_delete_dataset, {
+    removeModal()
+    dataset_id <- isolate(input$dataset_select)
+    ds <- dbGetQuery(pool, "SELECT data_path FROM datasets WHERE id = $1", params = list(dataset_id))
+    if (nrow(ds) > 0) {
+      tryCatch(storage_delete_dataset(ds$data_path[[1]]), error = function(e) NULL)
+    }
     dbExecute(pool, "DELETE FROM datasets WHERE id = $1", params = list(dataset_id))
-    
+
     registry_version(as.numeric(Sys.time()))
-    workspace_id <- input$workspace_select
-    folder_id <- input$folder_select
+    workspace_id <- isolate(input$workspace_select)
+    folder_id <- isolate(input$folder_select)
     refresh_dataset_choices(ifelse(is.null(workspace_id), "", workspace_id),
                             ifelse(is.null(folder_id), root_folder_token, folder_id))
     updateSelectInput(session, "dataset_select", selected = "")

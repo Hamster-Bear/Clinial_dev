@@ -201,7 +201,19 @@ task_history_server <- function(
         return(invisible(FALSE))
       }
       user <- resolve_user()
-      if (is.null(user) || !nzchar(user$id %||% "")) {
+      if (is.null(user)) {
+        task_cache(data.frame())
+        output$task_choice_ui <- renderUI(task_history_build_select_ui(session$ns, data.frame(), selected = ""))
+        return(invisible(FALSE))
+      }
+      if (!is.list(user)) {
+        message(sprintf("[TaskHistoryDebug] resolve_user returned non-list: class=%s, typeof=%s",
+          paste(class(user), collapse = "/"), typeof(user)))
+        task_cache(data.frame())
+        output$task_choice_ui <- renderUI(task_history_build_select_ui(session$ns, data.frame(), selected = ""))
+        return(invisible(FALSE))
+      }
+      if (!nzchar(user$id %||% "")) {
         task_cache(data.frame())
         output$task_choice_ui <- renderUI(task_history_build_select_ui(session$ns, data.frame(), selected = ""))
         return(invisible(FALSE))
@@ -286,7 +298,7 @@ task_history_server <- function(
         return(invisible(NULL))
       }
       user <- resolve_user()
-      if (is.null(user) || !nzchar(user$id %||% "")) {
+      if (is.null(user) || !is.list(user) || !nzchar(user$id %||% "")) {
         showNotification("请先登录后再保存任务历史", type = "warning")
         return(invisible(NULL))
       }
@@ -326,7 +338,7 @@ task_history_server <- function(
         return(invisible(NULL))
       }
       user <- resolve_user()
-      if (is.null(user) || !nzchar(user$id %||% "")) {
+      if (is.null(user) || !is.list(user) || !nzchar(user$id %||% "")) {
         showNotification("请先登录后再加载任务历史", type = "warning")
         return(invisible(NULL))
       }
@@ -380,7 +392,7 @@ task_history_server <- function(
         return(invisible(NULL))
       }
       user <- resolve_user()
-      if (is.null(user) || !nzchar(user$id %||% "")) {
+      if (is.null(user) || !is.list(user) || !nzchar(user$id %||% "")) {
         showNotification("请先登录后再删除任务历史", type = "warning")
         return(invisible(NULL))
       }
