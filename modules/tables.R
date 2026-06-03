@@ -638,7 +638,7 @@ tables_server <- function(id, data, pg_pool = NULL, current_user = NULL) {
   
   # ---- task_history 集成 ----
   resolve_user_id <- if (is.function(current_user)) {
-    function() { u <- current_user(); if (is.list(u)) u$id else NULL }
+    function() { u <- current_user(); if (is.list(u)) list(id = u$id) else NULL }
   } else {
     function() NULL
   }
