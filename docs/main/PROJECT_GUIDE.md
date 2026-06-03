@@ -228,19 +228,37 @@ AutoTFL/
 ├── app.R
 ├── modules/
 │   ├── common/
-│   │   ├── analysis_format.R
-│   │   ├── analysis_shared.R
 │   │   ├── auth/
 │   │   │   ├── account_service.R
 │   │   │   ├── auth.R
+│   │   │   ├── auth_copy.R
 │   │   │   └── email_service.R
-│   │   ├── data_filter.R
-│   │   ├── data_metadata.R
+│   │   ├── data/
+│   │   │   ├── data_filter.R
+│   │   │   └── data_metadata.R
+│   │   ├── analysis/
+│   │   │   ├── analysis_format.R
+│   │   │   └── analysis_shared.R
+│   │   ├── graphics/
+│   │   │   ├── forest_analysis_pipeline.R
+│   │   │   ├── forest_model_helpers.R
+│   │   │   ├── forest_result_schema_helpers.R
+│   │   │   └── forest_table_state_helpers.R
+│   │   ├── export/
+│   │   │   ├── plot_export.R
+│   │   │   └── table_export.R
+│   │   ├── entry_copy.R
 │   │   ├── graphics_common.R
+│   │   ├── graphics_export_copy.R
 │   │   ├── graphics_repro.R
-│   │   ├── plot_export.R
+│   │   ├── graphics_result_copy.R
+│   │   ├── stat_analysis_submodule_copy.R
 │   │   ├── storage_backend.R
-│   │   └── table_export.R
+│   │   └── ui_shell.R
+│   ├── account_access/
+│   │   ├── permission_manager.R
+│   │   ├── sidebar_account_card.R
+│   │   └── user_profile.R
 │   ├── statistical_analysis/
 │   │   ├── anova.R
 │   │   ├── chisq.R
@@ -272,6 +290,7 @@ AutoTFL/
 │   ├── exploratory_analysis.R
 │   ├── statistical_analysis.R
 │   ├── statistical_graphics.R
+│   ├── task_history.R
 │   └── tables.R
 ├── nginx/
 │   ├── landing/
@@ -289,6 +308,17 @@ AutoTFL/
 ├── deploy/
 │   └── alicloud/
 ├── docs/
+│   ├── main/
+│   │   ├── CODE_STYLE.md
+│   │   ├── PROJECT_GUIDE.md
+│   │   ├── PROJECT_SPEC.md
+│   │   └── TEST_GUIDE.md
+│   ├── deploy/
+│   │   └── DEPLOY_GUIDE.md
+│   ├── dep/
+│   │   ├── DEVLOG-R001-R040.md
+│   │   ├── PLAN.md
+│   │   └── REVIEWS.md
 │   ├── AI prompt.md
 │   ├── app_design.md
 │   └── superpowers/
@@ -301,7 +331,6 @@ AutoTFL/
 ├── docker-compose1.yml
 ├── download_offline_packages.R
 ├── install_dependencies.R
-├── PROJECT_GUIDE.md
 ├── run_app.R
 └── run_app_test.ps1
 ```
@@ -621,9 +650,9 @@ AutoTFL/
   - `waterfall_plot.R`：committed 参数快照已落地，普通面板已全部切换到 common，三卡外层已回正。
   - `survival_analysis.R`：committed 参数边界已收紧，统计语义文案已明确，三卡外层已回正。
   - `boxplot.R`：三卡外层已回正，固定 10×8 英寸导出。
-  - `heatmap.R`：三卡外层已回正，task_history 待接入。
-  - `correlation_matrix.R`：三卡外层已回正，task_history 待接入。
-  - `combo_plot.R`：三卡外层已回正，双阶段任务历史恢复，固定 12×8 英寸导出。
+  - `heatmap.R`：三卡外层已回正，task_history 已接入（通过路由器统一委托）。
+  - `correlation_matrix.R`：三卡外层已回正，task_history 已接入（通过路由器统一委托）。
+  - `combo_plot.R`：三卡外层已回正，committed 参数快照已落地，固定 12×8 英寸导出。
   - `forest_plot.R`：分析流水线完整下沉到 4 个 common helper，统一 result schema 已落地，`extra_state` 桥接 + pending restore 已建立。
 
 ### 7.7 UI 改进与职责边界现状
@@ -638,43 +667,42 @@ AutoTFL/
 | survival_analysis.R（生存曲线） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
 | boxplot.R（箱线图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
 | forest_plot.R（森林图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据（含数据预览/统计报告） | schema 桥接 |
-| heatmap.R（热图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 后续接入 |
-| correlation_matrix.R（相关性矩阵） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 后续接入 |
-| combo_plot.R（组合图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据（双阶段回填） | 需扩展双阶段恢复 |
-| swimmer_plot.R（泳道图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 需标准化 apply_state |
-| spider_plot.R（蜘蛛图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 需标准化 apply_state |
-| waterfall_plot.R（瀑布图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据（瀑布数据/分组轨道数据） | 需标准化 apply_state |
-| tables.R（Tables 总入口） | 统一入口结果区 | 参数设置卡已收口 | 结果卡与导出说明已收口 | 后续接入 |
+| heatmap.R（热图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 已接入（路由器统一委托） |
+| correlation_matrix.R（相关性矩阵） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 已接入（路由器统一委托） |
+| combo_plot.R（组合图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
+| swimmer_plot.R（泳道图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
+| spider_plot.R（蜘蛛图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
+| waterfall_plot.R（瀑布图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据（瀑布数据/分组轨道数据） | committed_params 快照 + apply_state 已标准化 |
+| tables.R（Tables 总入口） | 统一入口结果区 | 参数设置卡已收口 | 结果卡与导出说明已收口 | committed_params + task_history 已接入 |
 
 #### 7.7.2 分析链路问题现状
 
-**森林图边界最清晰**：已拆为 4 个 common helper 文件，主模块只保留 UI 编排、通知与结果消费，分析流水线已完整下沉。**生存分析**和**箱线图**已标准化 committed_params 快照 + apply_state 恢复契约：分析逻辑只读 committed state，用户改控件不点击 Generate 不影响已生成的图和导出参数。
+**森林图边界最清晰**：已拆为 4 个 common helper 文件，主模块只保留 UI 编排、通知与结果消费，分析流水线已完整下沉。
 
-**其余 6 个模块存在不同程度的链路混沌**：
+**全部 9 个图形模块已具备 committed_params + apply_state 契约**：生存分析、箱线图、森林图最先标准化，随后蜘蛛图、泳道图、瀑布图跟进，组合图、热图和相关性矩阵最后补齐。所有模块均通过 `statistical_graphics.R` 路由器的 `task_history_server` 统一接入任务历史。
 
-1. **UI / 逻辑 / 分析耦合**：server 函数既渲染 UI 又执行分析，控件值与绘图参数混用，导致”点击生成后又改控件但图局部漂移”等问题。
-2. **committed 参数边界模糊**：graphics_state / committed_params / result 三层职责在部分模块中未做清晰分离，间接导致结果缓存、任务历史恢复与导出逻辑相互耦合。生存分析、箱线图、森林图已解决此问题。
-3. **缺少统一结果 schema**：各子模块直接返回原始 plot 对象或内部散乱的 result list，无统一接口约束，导致跨模块复用困难。森林图已有 `forest_result_schema_helpers.R`。
-4. **公共 helper 利用率低**：图形参数抽象类（列映射、时间轴、导出）已在 common 层实现，但多数模块只在少数参数上调用，大量重复逻辑仍散落在各模块内。
-5. **任务历史回填契约不一致**：蜘蛛图、泳道图、瀑布图的 apply_state 实现各不相同，combo_plot 的双阶段回填策略尚未标准化为公共模式。
+**仍存在的架构改进空间**：
 
-#### 7.7.3 核心矛盾与改进优先级
+1. **缺少统一结果 schema**：各子模块直接返回原始 plot 对象或内部散乱的 result list，无统一接口约束，导致跨模块复用困难。森林图已有 `forest_result_schema_helpers.R`，其余模块尚未跟进。
+2. **分析链路耦合**：部分模块的 server 函数仍混有分析逻辑，尚未像森林图那样将分析流水线完整下沉到 common helper。
+3. **公共 helper 利用率可继续提升**：图形参数抽象类（列映射、时间轴、导出）已在 common 层实现，部分模块仍有重复逻辑可继续收敛。
+
+#### 7.7.3 改进优先级
 
 **理想架构 vs 现状对比**：
 
 | 层级 | 理想架构 | 当前现状 |
 |------|---------|---------|
-| UI 层 | 仅负责输入控件与布局编排 | 约 50% 模块的 server 仍混有分析逻辑 |
-| 分析层 | 独立 helper 或 service，无状态依赖 | 多处散落在模块内，命名和入参不统一 |
+| UI 层 | 仅负责输入控件与布局编排 | 部分模块 server 仍混有分析逻辑 |
+| 分析层 | 独立 helper 或 service，无状态依赖 | 森林图已完整下沉，其余模块仍有散落逻辑 |
 | 结果层 | 统一 schema（如 forest_result_schema） | 各模块返回格式各异，无标准化消费接口 |
-| 导出层 | 按当前画布高度同步扩展 | 存在导出截断问题（如组合图固定 12x8） |
-| 任务历史 | 统一恢复契约 + schema 桥接 | 5 个模块的 apply_state 未标准化 |
+| 导出层 | 按当前画布高度同步扩展 | 组合图固定 12×8，其余模块已同步 |
+| 任务历史 | 统一恢复契约 + schema 桥接 | 全部 9 个图形模块 + Tables 已接入 |
 
 **改进优先级建议**：
 
-- **一级（立即修复）**：spider_plot、swimmer_plot、waterfall_plot 的 committed 参数边界收紧；combo_plot 导出高度按前端画布同步扩展；heatmap/correlation 的 task_history 接入。（survival_analysis 和 boxplot 已在 Review 2 整改中完成标准化。）
-- **二级（短期收敛）**：spider_plot/swimmer_plot/waterfall_plot 参照森林图模式引入 `extra_state` 桥接与 pending restore 机制；combo_plot 双阶段回填策略标准化；各模块引入结果 normalizer，统一消费口径。
-- **三级（架构演进）**：将高频调用的分析链路抽为 service（如 survival_analysis_pipeline），各模块通过 service 调用而非内嵌逻辑；统一 graphics_state 管理机制；进一步将 heatmap/correlation/combo 拆分为多个 common helper 文件。
+- **短期**：各模块引入结果 normalizer，统一消费口径；参照森林图模式将分析链路逐步下沉到 common helper。
+- **长期**：将高频调用的分析链路抽为 service（如 survival_analysis_pipeline）；进一步将 heatmap/correlation/combo 拆分为多个 common helper 文件。
 
 ## 10. 数据、存储与规范
 

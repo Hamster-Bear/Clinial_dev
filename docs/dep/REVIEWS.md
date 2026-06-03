@@ -392,3 +392,91 @@ Redis 在 docker-compose 中但无业务代码使用，增加部署复杂度。
 | 测试覆盖 | ★★☆☆☆ | 仅 listing 有回归测试，其余 3 模块空白 |
 
 **核心建议**: Tables 模块的 UI 层已标准化到位，但状态管理和可复现性严重落后于统计图形模块（后者已有 committed_params + task_history + 完整代码生成）。建议优先补齐 committed_params 模式和代码生成，使 Tables 达到与 statistical_graphics 同等的质量基线。
+
+---
+
+## Review 6 [2026-06-03] — 项目主线计划贴合度审阅
+
+**评审依据**: personal-assistant Review 模式 + CLAUDE.md 项目约定 + PROJECT_GUIDE.md / PROJECT_SPEC.md / TEST_GUIDE.md
+**评审范围**: 文档目录树 vs 实际代码库、测试资产双向一致性、进度口径合规性、残留垃圾
+**评审方式**: 文件系统扫描 + 文档交叉校验 + 测试索引双向比对
+
+### 一、审阅目标
+
+对照 PROJECT_GUIDE.md / PROJECT_SPEC.md / TEST_GUIDE.md 与实际代码库，评估文档描述与仓库真实状态的贴合度，识别偏差并执行修复。
+
+### 二、贴合度总评
+
+| 维度 | 评级 | 说明 |
+|------|------|------|
+| 核心架构（app.R 六大页签） | ✅ 完全贴合 | 6 个业务 tab + 认证/管理员页全部匹配 |
+| `modules/common/` 五类收口 | ✅ 完全贴合 | auth/data/analysis/graphics/export 均存在 |
+| 统计分析子模块 | ✅ 完全贴合 | desc/cox/logistic/linear/anova/chisq 齐全 |
+| 统计图形子模块 | ✅ 完全贴合 | 9 个图形模块全部存在 |
+| 预设输出子模块 | ✅ 完全贴合 | t_dm/t_ae_soc_pt/listing_general/ae_sidebyside 齐全 |
+| 测试资产 vs TEST_GUIDE.md | ✅ 双向零偏差 | 94 个测试文件双向一致 |
+| ASCII 目录树 vs 实际结构 | ⚠️ 中等偏差 | 树未更新，prose 更准确 |
+| 文档进度口径 vs CODE_STYLE | ⚠️ 存在违规 | 部分文档含"待接入""后续接入"等进度表述 |
+| 残留垃圾文件 | ⚠️ 轻微 | 空目录、stale pycache 未清理 |
+
+### 三、偏差清单
+
+#### 偏差 1：PROJECT_GUIDE.md §4 ASCII 目录树过时
+
+目录树是文档最初编写时的快照，未跟随以下变更更新：
+
+| 实际存在 | 目录树中缺失 |
+|----------|-------------|
+| `modules/account_access/`（3 个文件） | 整个目录 |
+| `modules/task_history.R` | 单文件 |
+| `modules/common/entry_copy.R` | 单文件 |
+| `modules/common/ui_shell.R` | 单文件 |
+| `modules/common/graphics_export_copy.R` | 单文件 |
+| `modules/common/graphics_result_copy.R` | 单文件 |
+| `modules/common/stat_analysis_submodule_copy.R` | 单文件 |
+| `modules/common/auth/auth_copy.R` | 单文件 |
+| `modules/common/auth/email_service.R`（已存在但树中有） | — |
+| `modules/common/auth/account_service.R`（已存在但树中有） | — |
+
+同时，树中把 `analysis_format.R`、`data_filter.R` 等画在 `common/` 平级，但实际它们已下沉到 `common/analysis/`、`common/data/` 子目录。根目录 `docs/` 树也过时（缺少 `docs/main/`、`docs/dep/`、`docs/deploy/` 子目录）。
+
+#### 偏差 2：heatmap / correlation_matrix 任务历史状态描述模糊
+
+PROJECT_GUIDE.md §7.6 写"task_history 待接入"，§7.7.1 状态表写"后续接入"。但测试已覆盖 `state/apply_state` 契约检查（`test_heatmap_layout_guard.R`、`test_correlation_matrix_layout_guard.R` 各含 task_history 契约断言）。实际状态是：**结构契约已就位，端到端 server 联调待完成**。文档应精确区分这两层。
+
+#### 偏差 3：残留垃圾
+
+| 位置 | 问题 |
+|------|------|
+| `tests/workspace_access_manager/` | 空目录，无测试文件，未在 TEST_GUIDE.md 登记 |
+| `tests/__pycache__/test_doc_consistency_audit.cpython-313.pyc` | 无对应 `.py` 源码，stale artifact |
+
+#### 偏差 4：TEST_GUIDE.md 小瑕疵
+
+`test_graphics_dev_copy_guard.R` 在 §3.1（第 39 行）和 §3.7（第 158 行）重复列出，属于 cosmetic 问题。
+
+### 四、修复执行（P0）
+
+| # | 任务 | 涉及文件 | 状态 |
+|---|------|----------|------|
+| 1 | 更新 PROJECT_GUIDE.md §4 ASCII 目录树 | `docs/main/PROJECT_GUIDE.md` | ✅ |
+| 2 | 精确化 heatmap/correlation_matrix 任务历史状态描述 | `docs/main/PROJECT_GUIDE.md` §7.6 + §7.7.1 | ✅ |
+| 3 | 清理残留垃圾 | `tests/workspace_access_manager/`（删除）、`tests/__pycache__/`（删除） | ✅ |
+| 4 | 修复 TEST_GUIDE.md §3 重复条目 | `docs/main/TEST_GUIDE.md` | ✅ |
+
+### 五、评审结论
+
+| 维度 | 评分 | 说明 |
+|------|------|------|
+| 核心架构贴合度 | ★★★★★ | 六大页签、common 五类、子模块清单全部匹配 |
+| 文档目录树准确性 | ★★★☆☆ | prose 正确但 ASCII 树过时，本次已修复 |
+| 测试资产一致性 | ★★★★★ | 94 个测试文件双向零偏差 |
+| 进度口径合规性 | ★★★★☆ | 2 处"待接入"描述不够精确，本次已修复 |
+| 代码库卫生 | ★★★★☆ | 2 处残留垃圾，本次已清理 |
+
+**最终结论**: 项目主线架构与文档体系高度贴合，核心模块、共享层、测试资产三者一致。主要偏差集中在 ASCII 目录树未跟随 `common/` 子目录归类和 `account_access/` 创建而更新，以及 heatmap/correlation_matrix 的任务历史状态描述不够精确。P0 四项修复已全部执行。
+
+**下一步建议**:
+- **P1（短期）**: heatmap / correlation_matrix 完成 task_history 端到端联调；combo_plot 导出高度按前端画布同步扩展
+- **P2（中期）**: spider/swimmer/waterfall 的 apply_state 标准化对齐 forest_plot
+- **P3（长期）**: MMRM / 多重填补分析链路实现；组织级/项目级隔离

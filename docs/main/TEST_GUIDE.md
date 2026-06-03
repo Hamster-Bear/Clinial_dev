@@ -155,7 +155,6 @@
 
 - 入口层 UI 守卫:
   - `tests/statistical_graphics/ui/test_statistical_graphics_layout_guard.R`
-  - `tests/statistical_graphics/ui/test_graphics_dev_copy_guard.R`
 - Survival:
   - `tests/statistical_graphics/survival/test_survival_layout_guard.R`
   - `tests/statistical_graphics/survival/test_survival_display_contract.R`

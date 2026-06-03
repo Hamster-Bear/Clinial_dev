@@ -271,6 +271,9 @@ combo_plot_server <- function(input, output, session, data) {
   graphics_state <- reactiveValues(
     plot_types = c("scatter", "line")
   )
+
+  # committed state — Generate 时快照，导出和结果只读此对象
+  committed_params <- reactiveVal(NULL)
   
   # 更新变量选择
   observe({
@@ -523,6 +526,43 @@ combo_plot_server <- function(input, output, session, data) {
       incProgress(0.6, detail = "构建图形对象")
       obj <- create_combo_plot_obj(df, method, types)
       incProgress(0.1, detail = "完成")
+
+      # 快照当前参数到 committed state
+      params <- list(
+        main_x_var    = input$main_x_var,
+        main_y_var    = input$main_y_var,
+        group_var     = input$group_var,
+        facet_var     = input$facet_var,
+        combo_method  = input$combo_method,
+        plot_types    = input$plot_types,
+        export_format = input$export_format,
+        export_dpi    = if (is.null(input$export_dpi)) 300 else input$export_dpi,
+        scatter_size  = input$scatter_size,
+        scatter_alpha = input$scatter_alpha,
+        scatter_jitter = input$scatter_jitter,
+        line_width    = input$line_width,
+        line_type     = input$line_type,
+        line_smooth   = input$line_smooth,
+        bar_position  = input$bar_position,
+        bar_width     = input$bar_width,
+        bar_alpha     = input$bar_alpha,
+        boxplot_width = input$boxplot_width,
+        boxplot_outliers = input$boxplot_outliers,
+        boxplot_notch = input$boxplot_notch,
+        density_alpha = input$density_alpha,
+        density_position = input$density_position,
+        density_adjust = input$density_adjust,
+        hist_bins     = input$hist_bins,
+        hist_position = input$hist_position,
+        hist_alpha    = input$hist_alpha,
+        area_position = input$area_position,
+        area_alpha    = input$area_alpha,
+        violin_trim   = input$violin_trim,
+        violin_draw_quantiles = input$violin_draw_quantiles,
+        violin_alpha  = input$violin_alpha
+      )
+      committed_params(params)
+
       list(
         method = method,
         obj = obj
@@ -568,20 +608,23 @@ combo_plot_server <- function(input, output, session, data) {
     datatable(data(), options = list(pageLength = 10, scrollX = TRUE), rownames = FALSE)
   })
 
-  # 下载处理
+  # 下载处理（从 committed_params 读取导出参数）
   output$download_plot <- downloadHandler(
     filename = function() {
-      build_plot_export_filename("combo_plot", input$export_format)
+      cp <- committed_params()
+      fmt <- if (!is.null(cp$export_format)) cp$export_format else input$export_format
+      build_plot_export_filename("combo_plot", fmt)
     },
     content = function(file) {
       req(final_static_plot())
+      cp <- committed_params()
       save_plot_export(
         file = file,
         plot_obj = final_static_plot(),
-        format = input$export_format,
+        format = if (!is.null(cp$export_format)) cp$export_format else input$export_format,
         width = 12,
         height = 8,
-        dpi = if (is.null(input$export_dpi)) 300 else input$export_dpi
+        dpi = if (!is.null(cp$export_dpi)) cp$export_dpi else 300
       )
     }
   )
@@ -625,11 +668,12 @@ combo_plot_server <- function(input, output, session, data) {
 
   list(
     state = reactive({
+      cp <- committed_params()
       graphics_build_task_state(
         input,
         extra_state = list(
-          plot_types = input$plot_types,
-          method = input$combo_method
+          plot_types = if (!is.null(cp$plot_types)) cp$plot_types else input$plot_types,
+          method = if (!is.null(cp$combo_method)) cp$combo_method else input$combo_method
         )
       )
     }),

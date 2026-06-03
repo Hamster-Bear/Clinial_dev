@@ -42,4 +42,10 @@ expect_contains(combo_text, "uiOutput\\(ns\\(\"dynamic_plot_settings\"\\)\\)", "
 expect_not_contains(combo_text, "(?<!app_card_)box\\([\\s\\S]*title = \"组合图形参数配置\"", "组合图外层不再用裸 box 包裹参数配置")
 expect_not_contains(combo_text, "\\bwellPanel\\(", "组合图外层不再使用裸 wellPanel")
 
+# ---- committed_params 契约 ----
+expect_contains(combo_text, "committed_params\\s*<-\\s*reactiveVal\\(NULL\\)", "组合图声明 committed_params")
+expect_contains(combo_text, "committed_params\\(params\\)", "组合图 Generate 时快照参数到 committed_params")
+expect_contains(combo_text, "apply_state\\s*<-\\s*function", "组合图声明 apply_state 函数")
+expect_contains(combo_text, "graphics_build_task_state\\(", "组合图使用 graphics_build_task_state 构建状态快照")
+
 cat("Combo layout guard passed.\n")
