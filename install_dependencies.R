@@ -100,11 +100,11 @@ install_missing_packages <- function(packages) {
     repos <- c(paste0("file:///", local_path))
     message("发现本地 package 仓库: ", local_path)
   }
-  repos <- c(repos, "https://packagemanager.posit.co/cran/latest")
+  repos <- c(repos, "https://mirrors.tuna.tsinghua.edu.cn/CRAN/")
 
   # 确保 pak 可用（Dockerfile 已预装，此处兜底）
   if (!requireNamespace("pak", quietly = TRUE)) {
-    install.packages("pak", repos = "https://cloud.r-project.org")
+    install.packages("pak", repos = "https://mirrors.tuna.tsinghua.edu.cn/CRAN/")
   }
 
   message("使用 pak 安装 ", length(missing), " 个缺失包: ",

@@ -14,7 +14,7 @@ ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
 # 预装 pak 包管理器（install_dependencies.R 使用它调用 PPM 二进制仓库）
-RUN R -e 'install.packages("pak", repos = "https://cloud.r-project.org")'
+RUN R -e 'install.packages("pak", repos = "https://mirrors.tuna.tsinghua.edu.cn/CRAN/")'
 
 # 切换 Ubuntu 清华镜像源（国内网络环境加速）
 RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/ubuntu.sources && \
@@ -80,6 +80,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libv8-dev \
         fonts-noto-cjk \
         fonts-wqy-zenhei \
+        fonts-liberation \
+    && fc-cache -fv \
     && ldconfig \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

@@ -56,44 +56,58 @@ if (requireNamespace("showtext", quietly = TRUE) && requireNamespace("sysfonts",
       if (!is.null(bold_path)) font_args$bold <- bold_path
       if (!is.null(italic_path)) font_args$italic <- italic_path
       if (!is.null(bolditalic_path)) font_args$bolditalic <- bolditalic_path
-      ok <- tryCatch({
+      ok <- suppressWarnings(tryCatch({
         do.call(sysfonts::font_add, font_args)
         TRUE
-      }, error = function(e) FALSE)
+      }, error = function(e) FALSE))
       if (ok) return(invisible(TRUE))
     }
 
     if (!is.null(google_name) && nzchar(google_name)) {
-      try(sysfonts::font_add_google(google_name, alias), silent = TRUE)
+      # 仅在确认网络可达时才尝试 Google Fonts；离线容器中跳过避免日志噪音
+      google_reachable <- suppressWarnings(tryCatch({
+        nzchar(system2("curl", c("-s", "--connect-timeout", "3", "https://fonts.googleapis.com"),
+                       stdout = TRUE, stderr = FALSE))
+      }, error = function(e) FALSE))
+      if (isTRUE(google_reachable)) {
+        suppressWarnings(try(sysfonts::font_add_google(google_name, alias), silent = TRUE))
+      }
     }
 
     invisible(.font_family_registered(alias))
   }
 
   # 注册西文字体别名，便于旧配置继续工作
+  # 候选顺序按环境确定性排列：Docker 保证路径 → Windows 本地 → 兜底
+  # Liberation Sans 与 Arial 度量兼容 (fonts-liberation)，无需 msttcorefonts 的 EULA 依赖
   .register_font_family(
     alias = "Arial",
     regular_candidates = c(
-      "arial.ttf",
+      # Docker: fonts-liberation (已由 Dockerfile 保证安装)
+      "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+      "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+      # Windows 本地开发
       "C:/Windows/Fonts/arial.ttf",
-      "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf"
+      "arial.ttf"
     ),
     bold_candidates = c(
-      "arialbd.ttf",
+      "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+      "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
       "C:/Windows/Fonts/arialbd.ttf",
-      "/usr/share/fonts/truetype/msttcorefonts/Arial_Bold.ttf"
+      "arialbd.ttf"
     ),
     italic_candidates = c(
-      "ariali.ttf",
+      "/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf",
+      "/usr/share/fonts/truetype/liberation2/LiberationSans-Italic.ttf",
       "C:/Windows/Fonts/ariali.ttf",
-      "/usr/share/fonts/truetype/msttcorefonts/Arial_Italic.ttf"
+      "ariali.ttf"
     ),
     bolditalic_candidates = c(
-      "arialbi.ttf",
+      "/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf",
+      "/usr/share/fonts/truetype/liberation2/LiberationSans-BoldItalic.ttf",
       "C:/Windows/Fonts/arialbi.ttf",
-      "/usr/share/fonts/truetype/msttcorefonts/Arial_Bold_Italic.ttf"
-    ),
-    google_name = "Arimo"
+      "arialbi.ttf"
+    )
   )
 
   # 优先使用本地 CJK 字体，离线容器下也能稳定显示中文
@@ -136,7 +150,7 @@ if (requireNamespace("showtext", quietly = TRUE) && requireNamespace("sysfonts",
   )
 
   showtext::showtext_auto()
-  showtext::showtext_opts(dpi = 96) # 匹配 Shiny 默认 DPI
+  showtext::showtext_opts(dpi = 96, regular.warn = FALSE) # 匹配 Shiny 默认 DPI，抑制逐 glyph 字体警告
 }
 
 # 加载所有模块

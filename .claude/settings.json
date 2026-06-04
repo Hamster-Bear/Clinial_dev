@@ -13,7 +13,8 @@
       "Bash(curl -s -o /dev/null -w \"HTTP Status: %{http_code}\\\\nResponse Time: %{time_total}s\\\\n\" http://localhost:8080/landing/)",
       "PowerShell(docker exec hamster-analysis-postgres pg_isready -U autotfl_user -d autotfl 2>&1)",
       "PowerShell($env:POSTGRES_HOST = \"localhost\"; $env:POSTGRES_PORT = \"5432\"; $env:POSTGRES_DB = \"autotfl\"; $env:POSTGRES_USER = \"autotfl_user\"; $env:POSTGRES_PASSWORD = \"ChangeMe123!\"; & \"F:\\\\R-4.5.3\\\\bin\\\\Rscript.exe\" \"run_app.R\")",
-      "PowerShell(agent-browser snapshot -i 2>&1)"
+      "PowerShell(agent-browser snapshot -i 2>&1)",
+      "PowerShell(docker compose -f docker-compose.local.yml up -d --force-recreate app 2>&1)"
     ]
   }
 }

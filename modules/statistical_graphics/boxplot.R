@@ -296,7 +296,7 @@ boxplot_server <- function(input, output, session, data) {
 
   # 显示静态图
   output$static_plot <- renderPlot({
-    shiny::validate(shiny::need(!is.null(final_plot()), “请先选择变量并点击\”生成图形\”。”))
+    shiny::validate(shiny::need(!is.null(final_plot()), "请先选择变量并点击\"生成图形\"。"))
     final_plot()
   }, height = 600)
 
