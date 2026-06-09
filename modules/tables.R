@@ -524,9 +524,12 @@ tables_server <- function(id, data, pg_pool = NULL, current_user = NULL) {
   })
   
   # 文本表格渲染（用于 rtables）
-  output$table_text <- renderPrint({
+  # showtext_auto() 启用后拦截所有字体解析，rtables/formatters 内部的 Courier
+  # 字体查找会失败并回退到非等宽字体，触发 "non-monospace font" 错误。
+  # 使用 graphics_with_showtext_paused() 临时关闭 showtext 避免此冲突。
+  output$table_text <- renderText({
     req(table_result(), input$table_type == "t_ae_soc_pt")
-    print(table_result())
+    graphics_with_showtext_paused(toString(table_result(), ttype_ok = TRUE))
   })
   
   # Listing 渲染

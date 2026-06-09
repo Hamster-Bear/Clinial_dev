@@ -149,6 +149,30 @@ if (requireNamespace("showtext", quietly = TRUE) && requireNamespace("sysfonts",
     )
   )
 
+  # 注册等宽字体，供 rtables/formatters 的 font_spec(font_family = "Courier") 使用
+  # showtext_auto() 启用后所有字体解析经过 sysfonts，未注册的 "Courier" 会触发大量警告
+  .register_font_family(
+    alias = "Courier",
+    regular_candidates = c(
+      "C:/Windows/Fonts/cour.ttf",
+      "C:/Windows/Fonts/consola.ttf",
+      "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+      "/usr/share/fonts/truetype/liberation2/LiberationMono-Regular.ttf"
+    ),
+    bold_candidates = c(
+      "C:/Windows/Fonts/courbd.ttf",
+      "C:/Windows/Fonts/consolab.ttf",
+      "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
+      "/usr/share/fonts/truetype/liberation2/LiberationMono-Bold.ttf"
+    ),
+    italic_candidates = c(
+      "C:/Windows/Fonts/couri.ttf",
+      "C:/Windows/Fonts/consolai.ttf",
+      "/usr/share/fonts/truetype/liberation/LiberationMono-Italic.ttf",
+      "/usr/share/fonts/truetype/liberation2/LiberationMono-Italic.ttf"
+    )
+  )
+
   showtext::showtext_auto()
   showtext::showtext_opts(dpi = 96, regular.warn = FALSE) # 匹配 Shiny 默认 DPI，抑制逐 glyph 字体警告
 }

@@ -85,7 +85,7 @@ extract_table_dataframe <- function(table_obj) {
       return(gt_data)
     }
   }
-  txt <- paste(capture.output(print(table_obj)), collapse = "\n")
+  txt <- graphics_with_showtext_paused(paste(capture.output(print(table_obj)), collapse = "\n"))
   data.frame(Result = strsplit(txt, "\n", fixed = TRUE)[[1]], stringsAsFactors = FALSE)
 }
 
@@ -215,7 +215,7 @@ save_table_png <- function(file, table_obj, width = 10, height = 8, dpi = 300, t
     grid::grid.draw(gridExtra::tableGrob(table_obj))
     return(invisible(TRUE))
   }
-  text_content <- paste(capture.output(print(table_obj)), collapse = "\n")
+  text_content <- graphics_with_showtext_paused(paste(capture.output(print(table_obj)), collapse = "\n"))
   data_frame <- data.frame(Result = strsplit(text_content, "\n", fixed = TRUE)[[1]], stringsAsFactors = FALSE)
   grDevices::png(filename = file, width = width, height = height, units = "in", res = dpi, bg = "white")
   on.exit(grDevices::dev.off(), add = TRUE)
@@ -492,7 +492,7 @@ save_table_export <- function(file, result_obj, format = "word", title = "导出
   } else if (is.data.frame(table_obj)) {
     apply_sci_gt_style(gt::gt(table_obj), title = title, footnotes = footnotes)
   } else {
-    txt <- paste(capture.output(print(table_obj)), collapse = "\n")
+    txt <- graphics_with_showtext_paused(paste(capture.output(print(table_obj)), collapse = "\n"))
     data.frame(Result = strsplit(txt, "\n", fixed = TRUE)[[1]], stringsAsFactors = FALSE)
   }
   payload <- list(

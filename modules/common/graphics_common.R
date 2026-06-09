@@ -789,6 +789,23 @@ graphics_aux_legend_compact_defaults <- list(
   secondary_rel_height = 0.68
 )
 
+#' 临时暂停 showtext 并执行表达式
+#'
+#' showtext_auto() 启用后拦截所有字体解析，导致 rtables/formatters 内部的
+#' Courier 等宽字体查找失败并回退到非等宽字体，触发 "non-monospace font" 错误。
+#' 在渲染 rtables 文本输出或调用 print() 前临时关闭 showtext 即可避免此冲突。
+#'
+#' @param expr 要执行的表达式
+#' @return expr 的返回值
+graphics_with_showtext_paused <- function(expr) {
+  showtext_active <- tryCatch({
+    showtext::showtext_end()
+    TRUE
+  }, error = function(e) FALSE)
+  on.exit(if (isTRUE(showtext_active)) showtext::showtext_auto(), add = TRUE)
+  force(expr)
+}
+
 graphics_registered_font_families <- function() {
   if (!requireNamespace("sysfonts", quietly = TRUE)) return(character(0))
   tryCatch(sysfonts::font_families(), error = function(e) character(0))
