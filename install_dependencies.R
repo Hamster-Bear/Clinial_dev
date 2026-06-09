@@ -85,8 +85,11 @@ required_packages <- c(
 
 # 安装缺失的包（pak 统一处理本地二进制 + 在线 PPM）
 install_missing_packages <- function(packages) {
-  installed <- installed.packages()[, "Package"]
-  missing <- setdiff(packages, installed)
+  # find.package() 只检查磁盘上的安装路径，不加载命名空间，比 installed.packages() 快一个数量级
+  installed <- vapply(packages, function(pkg) {
+    nzchar(tryCatch(find.package(pkg, quiet = TRUE), error = function(e) ""))
+  }, logical(1))
+  missing <- packages[!installed]
 
   if (length(missing) == 0) {
     message("所有必需的包都已安装。")
@@ -116,70 +119,44 @@ install_missing_packages <- function(packages) {
   message("安装流程结束。")
 }
 
-# 检查包是否加载成功
+# 检查包是否可用（仅验证安装路径，不加载命名空间，不 attach）
+# 命名空间加载和 attach 由 app.R 的 library() 统一处理
 check_packages_loaded <- function(packages) {
-  success <- TRUE
+  missing <- character(0)
   for (pkg in packages) {
-    if (!requireNamespace(pkg, quietly = TRUE)) {
-      message("错误: 无法加载包 '", pkg, "'")
-      success <- FALSE
-    } else {
-      # 尝试加载包到搜索路径
-      if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
-        message("错误: 无法加载包 '", pkg, "'到搜索路径")
-        success <- FALSE
-      } else {
-        message("成功加载包: ", pkg)
-      }
-    }
+    path <- tryCatch(find.package(pkg, quiet = TRUE), error = function(e) "")
+    if (!nzchar(path)) missing <- c(missing, pkg)
   }
-  return(success)
+  if (length(missing) > 0) {
+    message("错误: 以下包未安装: ", paste(missing, collapse = ", "))
+    return(FALSE)
+  }
+  message("所有 ", length(packages), " 个依赖包均已安装。")
+  return(TRUE)
 }
 
 # 主函数
 main <- function() {
-  message("=== R Shiny医学数据分析应用 - 依赖检查 ===")
-  message("开始时间: ", Sys.time())
-  
-  # 优先加载本地 package 目录
-  # 在Docker构建时，/app/package 是临时目录，不应该作为运行时的库目录
-  # 除非我们打算在运行时也使用它。
-  # 但是，install.packages 需要写入权限。
-  # 更好的做法是：不把 package 加入 libPaths，而是安装到系统库目录。
-  
-  # if (dir.exists("package")) {
-  #   local_pkg <- normalizePath("package")
-  #   message("使用本地库目录: ", local_pkg)
-  #   .libPaths(c(local_pkg, .libPaths()))
-  # }
-  
-  message("")
-  
+  message("=== 依赖检查 ===")
+
   # 安装缺失的包
   install_missing_packages(required_packages)
-  
-  message("")
-  message("=== 检查包加载状态 ===")
-  
-  # 检查包加载
+
+  # 检查包是否均已安装
   loading_status <- check_packages_loaded(required_packages)
-  
-  message("")
-  if (loading_status) {
-    message("✅ 所有包都已成功安装和加载!")
-    message("应用可以正常运行。")
-  } else {
-    message("❌ 有些包无法加载，请检查错误信息。")
+
+  if (!loading_status) {
+    stop("部分依赖包未安装，请检查错误信息。")
   }
-  
-  message("")
-  message("完成时间: ", Sys.time())
+
+  message("✅ 依赖检查完成")
 }
 
-# 执行主函数
+# 执行主函数（防止 run_app.R 中 source() + 显式 main() 导致重复执行）
 if (interactive()) {
   message("请在R控制台中运行: source('install_dependencies.R')")
-} else {
+} else if (!exists(".__install_deps_main_called", envir = .GlobalEnv)) {
+  assign(".__install_deps_main_called", TRUE, envir = .GlobalEnv)
   main()
 }
 

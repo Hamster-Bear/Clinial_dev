@@ -15,52 +15,219 @@ database_manager_ui <- function(id) {
     app_card_dependencies(),
     tags$head(
       tags$style(HTML("
-        .db-tree {
-          background: #fafafa;
-          border: 1px solid #e5e5e5;
-          border-radius: 6px;
-          padding: 10px 14px;
-          max-height: 420px;
-          overflow-y: auto;
+        .db-main-row {
+          display: flex;
+          gap: 14px;
+          align-items: stretch;
         }
-        .db-tree ul {
+        .db-main-row > .col-sm-3,
+        .db-main-row > .col-sm-9 {
+          display: flex;
+          flex-direction: column;
+        }
+        .db-panel {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          background: #fff;
+          border: 1px solid #e7edf4;
+          border-radius: 10px;
+          overflow: hidden;
+        }
+        .db-panel-header {
+          padding: 12px 16px 10px;
+          border-bottom: 1px solid #edf2f7;
+          background: #fafbfc;
+        }
+        .db-panel-header h4 {
+          margin: 0 0 2px;
+          font-size: 15px;
+          font-weight: 600;
+          color: #243447;
+        }
+        .db-panel-header .subtitle {
+          font-size: 12px;
+          color: #7b8794;
+        }
+        .db-panel-body {
+          flex: 1;
+          overflow-y: auto;
+          padding: 12px 16px;
+        }
+        /* 顶部工具栏：扁平 inline */
+        .db-toolbar {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          margin-bottom: 10px;
+        }
+        .db-toolbar .form-group {
+          margin-bottom: 0;
+        }
+        .db-toolbar .form-control {
+          height: 32px;
+          font-size: 13px;
+          padding: 4px 10px;
+        }
+        .db-toolbar .btn {
+          height: 32px;
+          font-size: 12px;
+          padding: 4px 12px;
+          white-space: nowrap;
+        }
+        .db-toolbar .selectize-control {
+          min-width: 160px;
+        }
+        /* 新建空间表单（可折叠） */
+        .db-create-ws {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-bottom: 10px;
+          padding: 8px 10px;
+          background: #f0f6ff;
+          border-radius: 6px;
+        }
+        .db-create-ws .form-group {
+          margin-bottom: 0;
+          flex: 1;
+        }
+        .db-create-ws .form-control {
+          height: 30px;
+          font-size: 13px;
+        }
+        /* 导航树 */
+        .db-nav-tree {
+          flex: 1;
+          overflow-y: auto;
+          margin: 6px 0;
+          min-height: 0;
+        }
+        .db-nav-tree ul {
           list-style: none;
           margin: 0;
           padding-left: 18px;
         }
-        .db-tree li {
-          margin: 6px 0;
+        .db-nav-tree li {
+          margin: 3px 0;
         }
-        .db-tree .node-label {
-          font-size: 13px;
-        }
-        .db-tree details > summary {
+        .db-nav-tree details > summary {
           cursor: pointer;
           outline: none;
         }
+        .db-nav-item {
+          display: inline-block;
+          padding: 3px 8px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 13px;
+          color: #1f2d3d;
+          text-decoration: none;
+          transition: background 0.15s;
+          border-left: 3px solid transparent;
+        }
+        .db-nav-item:hover {
+          background: #e8f0fe;
+        }
+        .db-nav-item.active {
+          background: #e8f0fe;
+          border-left-color: #4285f4;
+          font-weight: 600;
+        }
+        .db-nav-item .fa {
+          margin-right: 4px;
+          color: #7b8794;
+        }
+        /* 底部资源管理栏 */
+        .db-resource-bar {
+          border-top: 1px solid #edf2f7;
+          padding: 10px 16px;
+          background: #fafbfc;
+        }
+        .db-resource-bar .form-group {
+          margin-bottom: 6px;
+        }
+        .db-resource-bar .form-control {
+          height: 30px;
+          font-size: 13px;
+        }
+        .db-resource-row {
+          display: flex;
+          gap: 6px;
+          align-items: center;
+        }
+        .db-resource-row .form-group {
+          flex: 1;
+          margin-bottom: 0;
+        }
+        .db-resource-row .btn {
+          height: 30px;
+          font-size: 12px;
+          padding: 4px 10px;
+          white-space: nowrap;
+        }
+        /* 上下文摘要 */
         .db-context-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-          gap: 10px;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 8px;
+          margin-bottom: 10px;
         }
         .db-context-item {
-          padding: 10px 12px;
-          border-radius: 8px;
-          background: #ffffff;
+          padding: 8px 10px;
+          border-radius: 6px;
+          background: #f7f9fc;
           border: 1px solid #e5eef5;
         }
         .db-context-label {
           display: block;
-          font-size: 12px;
+          font-size: 11px;
           color: #7b8794;
-          margin-bottom: 4px;
+          margin-bottom: 2px;
         }
         .db-context-value {
           display: block;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 600;
           color: #1f2d3d;
         }
+        /* 统计条 */
+        .db-stat-bar {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 10px;
+          margin-bottom: 10px;
+        }
+        /* 上传行：编码 | 文件选择器铺满 | 按钮 */
+        .db-upload-row {
+          display: flex;
+          align-items: flex-end;
+          gap: 10px;
+          padding: 10px 0;
+        }
+        .db-upload-encoding {
+          width: 120px;
+          flex-shrink: 0;
+        }
+        .db-upload-encoding .form-group {
+          margin-bottom: 0;
+        }
+        .db-upload-file {
+          flex: 1;
+          min-width: 0;
+        }
+        .db-upload-file .form-group {
+          margin-bottom: 0;
+        }
+        .db-upload-file .input-group {
+          width: 100%;
+        }
+        .db-upload-btn {
+          width: 110px;
+          flex-shrink: 0;
+        }
+        /* 锁定态 */
         .db-lock-actions {
           margin-top: 14px;
         }
@@ -70,13 +237,10 @@ database_manager_ui <- function(id) {
       app_card_box(
         width = 12,
         title = "数据空间管理",
-        subtitle = "在这里整理数据空间、目录、数据集与结构总览",
+        subtitle = "浏览结构、管理目录与上传数据",
         tone = "primary",
         status = "primary",
         solidHeader = FALSE,
-        app_card_note(
-          "在这里完成数据空间、目录与数据集的组织管理。页面按资源整理、上传导入与结构总览分区展示。"
-        ),
         uiOutput(ns("db_context_summary"))
       )
     ),
@@ -439,143 +603,97 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     if (!nzchar(selected_dataset) || !(selected_dataset %in% unname(dataset_choices))) {
       selected_dataset <- if (length(dataset_choices) > 0) unname(dataset_choices)[[1]] else ""
     }
-    fluidRow(
-      tabBox(
-        width = 12,
-        id = session$ns("db_workspace_tabs"),
-        title = "数据库管理区块",
-        tabPanel(
-          "空间与目录",
-          fluidRow(
-            column(
-              width = 4,
-              box(
-                width = 12,
-                title = "数据空间",
-                subtitle = "选择、创建或删除当前数据空间",
-                status = "primary",
-                solidHeader = FALSE,
-                class = "app-card app-card--primary",
-                selectInput(
-                  session$ns("workspace_select"),
-                  "当前数据空间",
-                  choices = workspace_choices,
-                  selected = selected_workspace
-                ),
-                textInput(session$ns("workspace_name"), "新建数据空间名称", placeholder = "请输入数据空间名称"),
-                app_card_note("创建后会自动把当前登录用户设为负责人；删除数据空间仅允许负责人或管理员执行。"),
-                fluidRow(
-                  column(6, actionButton(session$ns("create_workspace"), "创建空间", class = "btn-primary", width = "100%")),
-                  column(6, actionButton(session$ns("delete_workspace"), "删除空间", class = "btn-danger", width = "100%"))
-                )
-              )
+    div(
+      class = "db-main-row",
+      column(
+        width = 3,
+        div(
+          class = "db-panel",
+          div(
+            class = "db-panel-header",
+            h4(icon("database"), "数据空间"),
+            div(class = "subtitle", "浏览结构、管理目录与数据集")
+          ),
+          div(
+            class = "db-panel-body",
+            div(
+              class = "db-toolbar",
+              div(style = "flex: 1;", selectInput(session$ns("workspace_select"), NULL, choices = workspace_choices, selected = selected_workspace)),
+              textInput(session$ns("workspace_name"), NULL, placeholder = "新空间名称"),
+              actionButton(session$ns("create_workspace"), NULL, icon = icon("plus"), class = "btn-primary btn-sm", title = "新建空间"),
+              actionButton(session$ns("delete_workspace"), NULL, icon = icon("trash"), class = "btn-danger btn-sm", title = "删除空间")
             ),
-            column(
-              width = 4,
-              box(
-                width = 12,
-                title = "目录管理",
-                subtitle = "围绕当前数据空间维护目录结构",
-                status = "info",
-                solidHeader = FALSE,
-                class = "app-card app-card--info",
-                selectInput(
-                  session$ns("folder_select"),
-                  "当前目录",
-                  choices = folder_choices,
-                  selected = selected_folder
-                ),
-                textInput(session$ns("folder_name"), "新建目录名称", placeholder = "请输入目录名称"),
-                app_card_note("目录只在当前数据空间下生效；根目录下的数据集会直接展示在空间级结构中。"),
-                fluidRow(
-                  column(6, actionButton(session$ns("create_folder"), "创建目录", class = "btn-info", width = "100%")),
-                  column(6, actionButton(session$ns("delete_folder"), "删除目录", class = "btn-warning", width = "100%"))
-                )
-              )
+            div(
+              class = "db-toolbar",
+              textInput(session$ns("folder_name"), NULL, placeholder = "新目录名称"),
+              actionButton(session$ns("create_folder"), NULL, icon = icon("folder-plus"), class = "btn-info btn-sm", title = "创建目录"),
+              actionButton(session$ns("delete_folder"), NULL, icon = icon("folder-minus"), class = "btn-warning btn-sm", title = "删除目录"),
+              actionButton(session$ns("delete_dataset"), NULL, icon = icon("trash-alt"), class = "btn-danger btn-sm", title = "删除数据集")
             ),
-            column(
-              width = 4,
-              box(
-                width = 12,
-                title = "数据集管理",
-                subtitle = "管理当前目录下的数据集选择与删除",
-                status = "warning",
-                solidHeader = FALSE,
-                class = "app-card app-card--warning",
-                selectInput(
-                  session$ns("dataset_select"),
-                  "当前数据集",
-                  choices = dataset_choices,
-                  selected = selected_dataset
-                ),
-                textInput(session$ns("dataset_name"), "保存时显示名称", placeholder = "为空则默认使用上传文件名"),
-                app_card_note("上传时可以覆盖显示名称；删除仅影响当前数据空间内选中的数据集。"),
-                fluidRow(
-                  column(12, actionButton(session$ns("delete_dataset"), "删除数据集", class = "btn-danger", width = "100%"))
-                )
-              )
-            )
+            div(
+              style = "display: none;",
+              selectInput(session$ns("folder_select"), NULL, choices = folder_choices, selected = selected_folder),
+              selectInput(session$ns("dataset_select"), NULL, choices = dataset_choices, selected = selected_dataset)
+            ),
+            div(class = "db-nav-tree", uiOutput(session$ns("nav_tree")))
           )
-        ),
-        tabPanel(
-          "上传与导入",
-          fluidRow(
-            column(
-              width = 6,
-              box(
-                width = 12,
-                title = "单文件上传",
-                subtitle = "适合逐个整理数据集名称与目录归属",
-                status = "success",
-                solidHeader = FALSE,
-                class = "app-card app-card--success",
-                fileInput(
-                  session$ns("file"),
-                  "上传数据文件 (CSV/Excel/SAS/SPSS)",
-                  accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
-                  buttonLabel = "浏览文件",
-                  placeholder = "请选择一个文件进行上传",
-                  multiple = FALSE
-                ),
-                selectInput(session$ns("csv_encoding"), "CSV 文件编码",
-                  choices = c("UTF-8" = "UTF-8", "GBK" = "GBK"), selected = "UTF-8", width = "100%"),
-                app_card_note("适合逐个整理数据集名称与目录归属。如上传含中文的 CSV 出现乱码，可选择 GBK 编码。"),
-                actionButton(session$ns("save_dataset"), "上传并保存到当前目录", class = "btn-success", width = "100%")
-              )
-            ),
-            column(
-              width = 6,
-              box(
-                width = 12,
-                title = "批量导入",
-                subtitle = "适合初始化当前目录下的一批数据集与服务器目录导入",
-                status = "primary",
-                solidHeader = FALSE,
-                class = "app-card app-card--primary",
-                fileInput(
-                  session$ns("batch_files"),
-                  "批量上传数据文件",
-                  accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
-                  buttonLabel = "选择多个文件",
-                  placeholder = "请选择多个文件进行批量上传",
-                  multiple = TRUE
-                ),
-                selectInput(session$ns("csv_encoding_batch"), "CSV 文件编码",
-                  choices = c("UTF-8" = "UTF-8", "GBK" = "GBK"), selected = "UTF-8", width = "100%"),
-                app_card_note("适合初始化当前目录下的一批数据集。服务器目录导入仅对系统管理员开放。如上传含中文的 CSV 出现乱码，可选择 GBK 编码。"),
-                actionButton(session$ns("save_batch_datasets"), "批量保存到当前目录", class = "btn-primary", width = "100%"),
-                br(),
-                br(),
+        )
+      ),
+      column(
+        width = 9,
+        div(
+          class = "db-panel",
+          div(
+            class = "db-panel-header",
+            h4(icon("cloud-upload"), "上传与导入"),
+            div(class = "subtitle", "选择文件上传到当前目录")
+          ),
+          div(
+            class = "db-panel-body",
+            tabBox(
+              width = 12,
+              id = session$ns("upload_tabs"),
+              title = NULL,
+              tabPanel(
+                "单文件上传",
+                div(class = "db-upload-row",
+                  div(class = "db-upload-encoding",
+                    selectInput(session$ns("csv_encoding"), "CSV 编码",
+                      choices = c("UTF-8" = "UTF-8", "GBK" = "GBK"), selected = "UTF-8", width = "100%")
+                  ),
+                  div(class = "db-upload-file",
+                    fileInput(session$ns("file"), NULL,
+                      accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
+                      buttonLabel = "浏览文件", placeholder = "选择数据文件", multiple = FALSE)
+                  ),
+                  div(class = "db-upload-btn",
+                    actionButton(session$ns("save_dataset"), "上传保存", class = "btn-success", width = "100%")
+                  )
+                )
+              ),
+              tabPanel(
+                "批量导入",
+                div(class = "db-upload-row",
+                  div(class = "db-upload-encoding",
+                    selectInput(session$ns("csv_encoding_batch"), "CSV 编码",
+                      choices = c("UTF-8" = "UTF-8", "GBK" = "GBK"), selected = "UTF-8", width = "100%")
+                  ),
+                  div(class = "db-upload-file",
+                    fileInput(session$ns("batch_files"), NULL,
+                      accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
+                      buttonLabel = "选择文件", placeholder = "支持多选", multiple = TRUE)
+                  ),
+                  div(class = "db-upload-btn",
+                    actionButton(session$ns("save_batch_datasets"), "批量保存", class = "btn-primary", width = "100%")
+                  )
+                )
+              ),
+              tabPanel(
+                "服务器导入",
                 uiOutput(session$ns("server_import_section"))
               )
             )
           )
-        ),
-        tabPanel(
-          "结构总览",
-          uiOutput(session$ns("db_overview_cards")),
-          br(),
-          uiOutput(session$ns("db_structure_tree"))
         )
       )
     )
@@ -723,7 +841,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     )
   })
   
-  output$db_structure_tree <- renderUI({
+  output$nav_tree <- renderUI({
     registry_version()
     req(has_database_access())
     reg <- load_registry()
@@ -731,55 +849,74 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     fd <- reg$folders
     ds <- reg$datasets
     if (nrow(ws) == 0) {
-      return(div(class = "db-tree", span("暂无结构数据，请先创建数据空间与数据集。")))
+      return(div(span(style = "color: #7b8794; font-size: 13px;", "暂无数据空间")))
     }
-    safe_get <- function(x, default = "") if(is.na(x) || is.null(x)) default else x
-    
+    selected_folder <- isolate(input$folder_select %||% root_folder_token)
+    selected_dataset <- isolate(input$dataset_select %||% "")
+
+    ns <- session$ns
+    click_js <- function(type, id) {
+      paste0("Shiny.setInputValue('", ns("nav_click"), "', {type: '", type, "', id: '", id, "'}, {priority: 'event'})")
+    }
+
     workspace_nodes <- lapply(seq_len(nrow(ws)), function(i) {
       ws_row <- ws[i, , drop = FALSE]
       ws_id <- ws_row$id
       ws_name <- ws_row$name
-      
+
       fd_current <- fd[fd$workspace_id == ws_id, , drop = FALSE]
       ds_current <- ds[ds$workspace_id == ws_id, , drop = FALSE]
       root_ds <- ds_current[is.na(ds_current$folder_id) | ds_current$folder_id == "", , drop = FALSE]
-      
+
       folder_nodes <- lapply(seq_len(nrow(fd_current)), function(j) {
         fd_row <- fd_current[j, , drop = FALSE]
         fd_id <- fd_row$id
         fd_name <- fd_row$name
-        ds_folder <- ds_current[safe_get(ds_current$folder_id) == fd_id, , drop = FALSE]
-        
+        ds_folder <- ds_current[!is.na(ds_current$folder_id) & ds_current$folder_id == fd_id, , drop = FALSE]
+        is_active_folder <- identical(selected_folder, fd_id)
+
         ds_nodes <- lapply(seq_len(nrow(ds_folder)), function(k) {
           ds_row <- ds_folder[k, , drop = FALSE]
+          is_active_ds <- identical(selected_dataset, ds_row$id)
           tags$li(
-            span(class = "node-label",
-                 icon("table"), " ",
-                 ds_row$name, " (", ds_row$nrow, "x", ds_row$ncol, ")")
+            tags$a(
+              class = paste0("db-nav-item", if (is_active_ds) " active" else ""),
+              onclick = click_js("dataset", ds_row$id),
+              icon("table"), " ",
+              ds_row$name, " (", ds_row$nrow, "x", ds_row$ncol, ")"
+            )
           )
         })
         tags$li(
           tags$details(
             open = "open",
             tags$summary(
-              span(class = "node-label",
-                   icon("folder-open"), " ",
-                   fd_name, " [", nrow(ds_folder), "]")
+              tags$a(
+                class = paste0("db-nav-item", if (is_active_folder) " active" else ""),
+                onclick = click_js("folder", fd_id),
+                icon("folder-open"), " ",
+                fd_name, " [", nrow(ds_folder), "]"
+              )
             ),
             tags$ul(ds_nodes)
           )
         )
       })
-      
+
+      is_root_active <- identical(selected_folder, root_folder_token) && ws_id == isolate(input$workspace_select %||% "")
       root_nodes <- lapply(seq_len(nrow(root_ds)), function(k) {
         ds_row <- root_ds[k, , drop = FALSE]
+        is_active_ds <- identical(selected_dataset, ds_row$id)
         tags$li(
-          span(class = "node-label",
-               icon("table"), " ",
-               ds_row$name, " (", ds_row$nrow, "x", ds_row$ncol, ")")
+          tags$a(
+            class = paste0("db-nav-item", if (is_active_ds) " active" else ""),
+            onclick = click_js("dataset", ds_row$id),
+            icon("table"), " ",
+            ds_row$name, " (", ds_row$nrow, "x", ds_row$ncol, ")"
+          )
         )
       })
-      
+
       tags$li(
         tags$details(
           open = "open",
@@ -793,7 +930,11 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
               tags$details(
                 open = "open",
                 tags$summary(
-                  span(class = "node-label", icon("folder"), " 根目录 [", nrow(root_ds), "]")
+                  tags$a(
+                    class = paste0("db-nav-item", if (is_root_active) " active" else ""),
+                    onclick = click_js("folder", root_folder_token),
+                    icon("folder"), " 根目录 [", nrow(root_ds), "]"
+                  )
                 ),
                 tags$ul(root_nodes)
               )
@@ -803,10 +944,31 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
         )
       )
     })
-    div(
-      class = "db-tree",
-      tags$ul(workspace_nodes)
-    )
+    tags$ul(workspace_nodes)
+  })
+
+  observeEvent(input$nav_click, {
+    req(has_database_access())
+    click_type <- input$nav_click$type
+    click_id <- input$nav_click$id
+    if (is.null(click_type) || is.null(click_id)) return()
+
+    workspace_id <- isolate(input$workspace_select %||% "")
+    if (!nzchar(workspace_id)) return()
+
+    if (click_type == "folder") {
+      updateSelectInput(session, "folder_select", selected = click_id)
+      refresh_dataset_choices(workspace_id, click_id, "")
+    } else if (click_type == "dataset") {
+      reg <- load_registry()
+      ds_match <- reg$datasets[reg$datasets$id == click_id, , drop = FALSE]
+      if (nrow(ds_match) > 0) {
+        folder_id <- ds_match$folder_id[[1]]
+        folder_id <- if (is.na(folder_id) || folder_id == "") root_folder_token else folder_id
+        updateSelectInput(session, "folder_select", selected = folder_id)
+        refresh_dataset_choices(workspace_id, folder_id, click_id)
+      }
+    }
   })
   
   observeEvent(input$create_workspace, {
@@ -815,7 +977,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     }
     workspace_name <- input$workspace_name
     user <- get_current_user()
-    
+
     tryCatch({
       workspace_result <- service_create_workspace(pool, workspace_name, user$id)
       registry_version(as.numeric(Sys.time()))
@@ -828,12 +990,6 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       showNotification("创建失败，请稍后重试", type = "error")
     })
   })
-  
-  observeEvent(input$workspace_select, {
-    workspace_id <- input$workspace_select
-    refresh_folder_choices(workspace_id)
-    refresh_dataset_choices(workspace_id, root_folder_token)
-  }, ignoreNULL = FALSE)
   
   observeEvent(input$delete_workspace, {
     workspace_id <- input$workspace_select

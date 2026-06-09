@@ -276,7 +276,8 @@ auth_create_pool <- function() {
     host = Sys.getenv("POSTGRES_HOST", "localhost"),
     port = as.integer(Sys.getenv("POSTGRES_PORT", "5432")),
     user = Sys.getenv("POSTGRES_USER", "autotfl_user"),
-    password = Sys.getenv("POSTGRES_PASSWORD", "ChangeMe123!")
+    password = Sys.getenv("POSTGRES_PASSWORD", "ChangeMe123!"),
+    options = "-c client_min_messages=WARNING"
   )
 }
 
@@ -422,7 +423,13 @@ auth_migrate_analysis_states_schema <- function(pool) {
   )
 }
 
+# 防止同一连接池重复执行 schema 迁移（app.R + data_registry + data_preparation 均会调用）
+.__schema_ensured_pools <- new.env(parent = emptyenv())
+
 auth_ensure_schema <- function(pool) {
+  pool_id <- tryCatch(as.character(pool), error = function(e) "default")
+  if (isTRUE(.__schema_ensured_pools[[pool_id]])) return(invisible(NULL))
+  .__schema_ensured_pools[[pool_id]] <- TRUE
   email_verified_exists <- nrow(DBI::dbGetQuery(
     pool,
     paste(

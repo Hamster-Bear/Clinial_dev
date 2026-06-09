@@ -22,9 +22,11 @@ if (length(missing_packages) > 0) {
   )
 }
 
-invisible(lapply(required_packages, function(pkg) {
-  library(pkg, character.only = TRUE, quietly = TRUE, warn.conflicts = FALSE)
-}))
+suppressPackageStartupMessages({
+  invisible(lapply(required_packages, function(pkg) {
+    library(pkg, character.only = TRUE, quietly = TRUE, warn.conflicts = FALSE)
+  }))
+})
 
 # 启用 showtext 以增强跨平台字体渲染稳定性
 if (requireNamespace("showtext", quietly = TRUE) && requireNamespace("sysfonts", quietly = TRUE)) {
@@ -178,26 +180,29 @@ if (requireNamespace("showtext", quietly = TRUE) && requireNamespace("sysfonts",
 }
 
 # 加载所有模块
-source("modules/common/storage_backend.R")
-source("modules/common/data/data_metadata.R")
-source("modules/common/data/data_io.R")
-source("modules/common/data/data_registry.R")
-source("modules/common/auth/email_service.R")
-source("modules/common/auth/auth_copy.R")
-source("modules/common/auth/auth.R")
-source("modules/common/auth/account_service.R")
-source("modules/common/ui_shell.R")
-source("modules/account_access/sidebar_account_card.R")
-source("modules/auth_manager.R")
-source("modules/data_preparation.R")
-source("modules/database_manager.R")
-source("modules/admin_manager.R")
-source("modules/account_access/user_profile.R")
-source("modules/account_access/permission_manager.R")
-source("modules/exploratory_analysis.R")
-source("modules/statistical_analysis.R")
-source("modules/statistical_graphics.R")
-source("modules/tables.R")
+# 模块内部有 library() 调用，使用 suppressPackageStartupMessages() 抑制重复的包加载通知
+suppressPackageStartupMessages({
+  source("modules/common/storage_backend.R")
+  source("modules/common/data/data_metadata.R")
+  source("modules/common/data/data_io.R")
+  source("modules/common/data/data_registry.R")
+  source("modules/common/auth/email_service.R")
+  source("modules/common/auth/auth_copy.R")
+  source("modules/common/auth/auth.R")
+  source("modules/common/auth/account_service.R")
+  source("modules/common/ui_shell.R")
+  source("modules/account_access/sidebar_account_card.R")
+  source("modules/auth_manager.R")
+  source("modules/data_preparation.R")
+  source("modules/database_manager.R")
+  source("modules/admin_manager.R")
+  source("modules/account_access/user_profile.R")
+  source("modules/account_access/permission_manager.R")
+  source("modules/exploratory_analysis.R")
+  source("modules/statistical_analysis.R")
+  source("modules/statistical_graphics.R")
+  source("modules/tables.R")
+})
 
 ui <- dashboardPage(
   skin = "black",

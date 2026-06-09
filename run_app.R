@@ -29,13 +29,9 @@ if (!file.exists("install_dependencies.R")) {
 }
 
 # 使用 tryCatch 来处理源文件加载错误
+# source() 会触发 install_dependencies.R 脚本底部的 main()，无需重复调用
 tryCatch({
   source("install_dependencies.R", local = TRUE)
-  if (exists("main", mode = "function")) {
-    main()
-  } else {
-    stop("install_dependencies.R 中未找到 main 函数")
-  }
   cat("✅ 依赖检查完成\n\n")
 }, error = function(e) {
   cat("错误: 无法加载 install_dependencies.R\n")
