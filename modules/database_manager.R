@@ -199,33 +199,36 @@ database_manager_ui <- function(id) {
           gap: 10px;
           margin-bottom: 10px;
         }
-        /* 上传行：编码 | 文件选择器铺满 | 按钮 */
-        .db-upload-row {
-          display: flex;
-          align-items: flex-end;
-          gap: 10px;
-          padding: 10px 0;
+        /* 工具栏内 selectInput 紧凑化 */
+        .db-toolbar .selectize-control {
+          min-width: 0;
         }
-        .db-upload-encoding {
-          width: 120px;
+        .db-toolbar .form-group {
+          margin-bottom: 4px;
+        }
+        /* 上传区：编码 + 文件选择器同一行，按钮在下方 */
+        .db-upload-row {
+          margin-bottom: 12px;
+        }
+        .db-upload-top {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          margin-bottom: 8px;
+        }
+        .db-upload-top .db-upload-encoding {
+          width: 130px;
           flex-shrink: 0;
         }
-        .db-upload-encoding .form-group {
+        .db-upload-top .db-upload-encoding .form-group {
           margin-bottom: 0;
         }
-        .db-upload-file {
+        .db-upload-top .db-upload-file {
           flex: 1;
           min-width: 0;
         }
-        .db-upload-file .form-group {
+        .db-upload-top .db-upload-file .form-group {
           margin-bottom: 0;
-        }
-        .db-upload-file .input-group {
-          width: 100%;
-        }
-        .db-upload-btn {
-          width: 110px;
-          flex-shrink: 0;
         }
         /* 锁定态 */
         .db-lock-actions {
@@ -625,15 +628,15 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
             ),
             div(
               class = "db-toolbar",
+              div(style = "flex: 1;", selectInput(session$ns("folder_select"), "目录", choices = folder_choices, selected = selected_folder)),
+              div(style = "flex: 1;", selectInput(session$ns("dataset_select"), "数据集", choices = dataset_choices, selected = selected_dataset))
+            ),
+            div(
+              class = "db-toolbar",
               textInput(session$ns("folder_name"), NULL, placeholder = "新目录名称"),
               actionButton(session$ns("create_folder"), NULL, icon = icon("folder-plus"), class = "btn-info btn-sm", title = "创建目录"),
               actionButton(session$ns("delete_folder"), NULL, icon = icon("folder-minus"), class = "btn-warning btn-sm", title = "删除目录"),
               actionButton(session$ns("delete_dataset"), NULL, icon = icon("trash-alt"), class = "btn-danger btn-sm", title = "删除数据集")
-            ),
-            div(
-              style = "display: none;",
-              selectInput(session$ns("folder_select"), NULL, choices = folder_choices, selected = selected_folder),
-              selectInput(session$ns("dataset_select"), NULL, choices = dataset_choices, selected = selected_dataset)
             ),
             div(class = "db-nav-tree", uiOutput(session$ns("nav_tree")))
           )
@@ -657,35 +660,35 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
               tabPanel(
                 "单文件上传",
                 div(class = "db-upload-row",
-                  div(class = "db-upload-encoding",
-                    selectInput(session$ns("csv_encoding"), "CSV 编码",
-                      choices = c("UTF-8" = "UTF-8", "GBK" = "GBK"), selected = "UTF-8", width = "100%")
+                  div(class = "db-upload-top",
+                    div(class = "db-upload-encoding",
+                      selectInput(session$ns("csv_encoding"), "CSV 编码",
+                        choices = c("UTF-8" = "UTF-8", "GBK" = "GBK"), selected = "UTF-8", width = "100%")
+                    ),
+                    div(class = "db-upload-file",
+                      fileInput(session$ns("file"), "选择数据文件",
+                        accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
+                        buttonLabel = "浏览", placeholder = "CSV/Excel/SAS/SPSS", multiple = FALSE)
+                    )
                   ),
-                  div(class = "db-upload-file",
-                    fileInput(session$ns("file"), NULL,
-                      accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
-                      buttonLabel = "浏览文件", placeholder = "选择数据文件", multiple = FALSE)
-                  ),
-                  div(class = "db-upload-btn",
-                    actionButton(session$ns("save_dataset"), "上传保存", class = "btn-success", width = "100%")
-                  )
+                  actionButton(session$ns("save_dataset"), "上传并保存到当前目录", class = "btn-success", width = "100%")
                 )
               ),
               tabPanel(
                 "批量导入",
                 div(class = "db-upload-row",
-                  div(class = "db-upload-encoding",
-                    selectInput(session$ns("csv_encoding_batch"), "CSV 编码",
-                      choices = c("UTF-8" = "UTF-8", "GBK" = "GBK"), selected = "UTF-8", width = "100%")
+                  div(class = "db-upload-top",
+                    div(class = "db-upload-encoding",
+                      selectInput(session$ns("csv_encoding_batch"), "CSV 编码",
+                        choices = c("UTF-8" = "UTF-8", "GBK" = "GBK"), selected = "UTF-8", width = "100%")
+                    ),
+                    div(class = "db-upload-file",
+                      fileInput(session$ns("batch_files"), "选择多个数据文件",
+                        accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
+                        buttonLabel = "浏览", placeholder = "支持多选", multiple = TRUE)
+                    )
                   ),
-                  div(class = "db-upload-file",
-                    fileInput(session$ns("batch_files"), NULL,
-                      accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
-                      buttonLabel = "选择文件", placeholder = "支持多选", multiple = TRUE)
-                  ),
-                  div(class = "db-upload-btn",
-                    actionButton(session$ns("save_batch_datasets"), "批量保存", class = "btn-primary", width = "100%")
-                  )
+                  actionButton(session$ns("save_batch_datasets"), "批量保存到当前目录", class = "btn-primary", width = "100%")
                 )
               ),
               tabPanel(

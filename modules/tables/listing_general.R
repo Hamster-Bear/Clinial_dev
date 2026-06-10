@@ -3,8 +3,6 @@
 # 支持自定义分组、显示变量、RTF 导出等
 
 library(dplyr)
-library(rlistings)
-library(r2rtf)
 `%||%` <- function(x, y) if (is.null(x)) y else x
 
 normalize_listing_columns <- function(data, key_cols = NULL, disp_cols = NULL) {
@@ -66,6 +64,11 @@ listing_general_params_ui <- function(ns, data) {
 #' @return rlistings listing 对象 (用于打印预览)
 #' @export
 perform_listing_general_analysis <- function(data, key_cols, disp_cols) {
+  # 按需加载 rlistings（启动时延迟加载以加速启动）
+  suppressPackageStartupMessages({
+    library(rlistings, quietly = TRUE, warn.conflicts = FALSE)
+  })
+
   shiny::req(data, disp_cols)
   normalized <- normalize_listing_columns(data, key_cols, disp_cols)
   key_cols <- normalized$key_cols

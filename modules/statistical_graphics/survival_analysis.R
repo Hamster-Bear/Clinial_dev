@@ -2,8 +2,7 @@
 # 负责生成生存曲线（Kaplan-Meier曲线）
 
 # 加载必要的包
-library(survival)
-library(survminer)
+# survival/survminer 仅在用户使用生存分析时按需加载，避免拖慢启动
 library(plotly)
 library(DT)
 library(cowplot)
@@ -908,7 +907,13 @@ survival_analysis_ui <- function(id) {
 
 survival_analysis_server <- function(input, output, session, data) {
   ns <- session$ns
-  
+
+  # 按需加载生存分析包（启动时延迟加载以加速启动）
+  suppressPackageStartupMessages({
+    library(survival, quietly = TRUE, warn.conflicts = FALSE)
+    library(survminer, quietly = TRUE, warn.conflicts = FALSE)
+  })
+
   # 存储图形参数状态
   graphics_state <- reactiveValues(
     km_time = NULL,

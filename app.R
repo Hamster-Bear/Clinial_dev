@@ -1,9 +1,11 @@
 # 检查并加载必要的包
+# survival/broom/survminer/corrplot 仅在特定分析模块中使用，且已通过 pkg::fun() 显式调用
+# 从启动列表移除可节省 ~8s 加载时间，按需通过 requireNamespace() 保证可用即可
 required_packages <- c(
   "shiny", "shinydashboard", "shinyjs", "shinyBS", "bslib",
   "dplyr", "readr", "readxl", "haven", "ggplot2", "plotly",
-  "DT", "gt", "purrr", "stringr", "survival", "broom", "survminer",
-  "corrplot", "ggsci", "patchwork", "digest", "colourpicker", "reactable",
+  "DT", "gt", "purrr", "stringr",
+  "ggsci", "patchwork", "digest", "colourpicker", "reactable",
   "waiter", "shinyalert", "scales", "gridExtra", "cowplot", "RColorBrewer",
   "tidyr", "vroom", "memoise", "shinyWidgets", "gtsummary",
   "DBI", "RPostgres", "pool", "rmarkdown", "knitr", "flextable", "officer",

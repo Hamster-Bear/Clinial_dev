@@ -15,7 +15,6 @@ library(scales)
 library(colourpicker)
 library(RColorBrewer)
 library(stringr)
-library(survival)
 
 if (!exists("app_card_box", mode = "function") ||
     !exists("app_card_note", mode = "function") ||

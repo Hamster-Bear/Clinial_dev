@@ -3,8 +3,6 @@
 
 library(shiny)
 library(dplyr)
-library(rtables)
-library(tern)
 
 #' AE SOC/PT 汇总表格参数 UI
 #'
@@ -133,6 +131,12 @@ perform_t_ae_soc_pt_analysis <- function(data,
                                          id_var = "USUBJID",
                                          pop_var = NULL,
                                          pop_val = "Y") {
+  # 按需加载 rtables/tern（启动时延迟加载以加速启动）
+  suppressPackageStartupMessages({
+    library(rtables, quietly = TRUE, warn.conflicts = FALSE)
+    library(tern, quietly = TRUE, warn.conflicts = FALSE)
+  })
+
   # 输入验证
   if (missing(data) || missing(trt_var) || missing(soc_var) || missing(pt_var) || missing(id_var)) {
     stop("`data`, `trt_var`, `soc_var`, `pt_var`, `id_var` 参数不能缺失")

@@ -4,8 +4,6 @@
 # 加载必要的包
 library(shiny)
 library(dplyr)
-library(broom)
-library(survival)
 library(gt)
 library(shinyWidgets)
 library(DT)
