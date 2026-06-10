@@ -35,10 +35,15 @@ ENTRY_COPY <- list(
     )
   ),
   tables = list(
-    params = list(
-      title = "预设图表参数设置",
-      subtitle = "选择表格类型并配置对应参数",
+    method = list(
+      title = "表格类型选择",
+      subtitle = "选择预设表格类型",
       note = "选择表格类型后，按当前类型配置参数并执行生成。"
+    ),
+    params = list(
+      title = "参数设置",
+      subtitle = "配置当前表格类型的参数",
+      note = "按当前表格类型配置参数，然后点击生成。"
     ),
     result = list(
       title = "预设图表结果",

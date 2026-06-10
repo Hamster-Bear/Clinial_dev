@@ -23,71 +23,59 @@ source("modules/common/export/plot_export.R")
 tables_ui <- function(id) {
   ns <- NS(id)
   copy <- ENTRY_COPY$tables
-  
+
   tagList(
     useShinyjs(),
     data_filter_ui(ns("global_filter")),
+    task_history_ui(
+      ns("tables_task_history"),
+      help_text = "保存当前表格参数、页面选择和任务备注；workspace 为空时保存为个人任务。"
+    ),
     fluidRow(
-      # 左侧：参数设置
       column(
-        width = 3,
+        width = 4,
         app_card_box(
-          width = NULL,
-          title = copy$params$title,
-          subtitle = copy$params$subtitle,
+          width = 12,
+          title = copy$method$title,
+          subtitle = copy$method$subtitle,
           tone = "primary",
           status = "primary",
           solidHeader = FALSE,
-          collapsible = TRUE,
-          collapsed = FALSE,
-          app_card_note(copy$params$note),
-          app_card_panel(
-            selectizeInput(
-              ns("table_type"),
-              "选择图表类型",
-              choices = c(
-                "人口统计表格 (t_dm)" = "t_dm",
-                "分级统计表 (t_ae_soc_pt)" = "t_ae_soc_pt",
-                "一般列表 (listing_general)" = "listing_general",
-                "不良事件并列对比图 (ae_sidebyside)" = "ae_sidebyside"
-              ),
-              selected = "t_dm"
-            )
-          ),
-          app_card_panel(
-            tags$strong("参数设置"),
-            app_card_note("根据所选表格类型显示对应参数，便于完成当前表格设置。"),
-            uiOutput(ns("dm_params_ui"))
-          ),
-          app_card_panel(
-            tags$strong("执行"),
-            app_card_note("参数设置完整后即可生成结果；未满足必填项时按钮会保持不可用。"),
-            actionButton(
-              ns("generate"),
-              "生成表格",
-              icon = icon("table"),
-              class = "btn-success",
-              width = "100%"
-            )
+          app_card_note(copy$method$note),
+          selectizeInput(
+            ns("table_type"),
+            "选择表格类型",
+            choices = c(
+              "人口统计表格 (t_dm)" = "t_dm",
+              "分级统计表 (t_ae_soc_pt)" = "t_ae_soc_pt",
+              "一般列表 (listing_general)" = "listing_general",
+              "不良事件并列对比图 (ae_sidebyside)" = "ae_sidebyside"
+            ),
+            selected = "t_dm",
+            width = "100%"
           )
         ),
-        task_history_ui(
-          ns("tables_task_history"),
-          help_text = "保存当前表格参数、页面选择和任务备注；workspace 为空时保存为个人任务。"
+        app_card_box(
+          width = 12,
+          title = copy$params$title,
+          subtitle = copy$params$subtitle,
+          tone = "info",
+          status = "info",
+          solidHeader = FALSE,
+          app_card_note(copy$params$note),
+          uiOutput(ns("dm_params_ui")),
+          actionButton(ns("generate"), "生成表格", icon = icon("table"), class = "btn-success", width = "100%")
         )
       ),
-      # 右侧：结果展示
       column(
-        width = 9,
+        width = 8,
         app_card_box(
-          width = NULL,
+          width = 12,
           title = copy$result$title,
           subtitle = copy$result$subtitle,
           tone = "success",
           status = "success",
           solidHeader = FALSE,
-          collapsible = TRUE,
-          collapsed = FALSE,
           app_card_note(copy$result$note),
           tabsetPanel(
             tabPanel(
@@ -114,24 +102,9 @@ tables_ui <- function(id) {
             note = copy$result$export_note,
             tone = "warning",
             fluidRow(
-              column(
-                width = 4,
-                selectInput(
-                  ns("table_export_format"),
-                  "导出格式",
-                  choices = c("Word (.docx)" = "docx", "PNG (.png)" = "png"),
-                  selected = "docx"
-                )
-              ),
-              column(
-                width = 4,
-                textInput(ns("table_export_name"), "文件名前缀", value = "table_result")
-              ),
-              column(
-                width = 4,
-                br(),
-                downloadButton(ns("table_download"), "导出结果", class = "btn-primary")
-              )
+              column(4, selectInput(ns("table_export_format"), "导出格式", choices = c("Word (.docx)" = "docx", "PNG (.png)" = "png"), selected = "docx")),
+              column(4, textInput(ns("table_export_name"), "文件名前缀", value = "table_result")),
+              column(4, div(style = "padding-top: 25px;", downloadButton(ns("table_download"), "导出结果", class = "btn-primary")))
             )
           )
         )
@@ -160,19 +133,24 @@ tables_server <- function(id, data, pg_pool = NULL, current_user = NULL) {
   
   # 渲染动态参数UI（根据表格类型）
   output$dm_params_ui <- renderUI({
-    req(filtered_data(), input$table_type)
-    df <- filtered_data()
-    if (input$table_type == "t_dm") {
-      t_dm_params_ui(ns, df)
-    } else if (input$table_type == "t_ae_soc_pt") {
-      t_ae_soc_pt_params_ui(ns, df)
-    } else if (input$table_type == "listing_general") {
-      listing_general_params_ui(ns, df)
-    } else if (input$table_type == "ae_sidebyside") {
-      ae_sidebyside_params_ui(ns("ae_sidebyside_params"), df)
-    } else {
-      NULL
+    req(input$table_type)
+
+    if (is.null(filtered_data())) {
+      return(div(style = "padding: 20px; text-align: center; color: #7b8794;",
+        icon("database", style = "font-size: 24px; margin-bottom: 8px;"),
+        br(),
+        "请先上传数据并完成筛选，再设置分析参数。"
+      ))
     }
+
+    df <- filtered_data()
+    switch(input$table_type,
+      "t_dm"            = t_dm_params_ui(ns, df),
+      "t_ae_soc_pt"     = t_ae_soc_pt_params_ui(ns, df),
+      "listing_general" = listing_general_params_ui(ns, df),
+      "ae_sidebyside"   = ae_sidebyside_params_ui(ns("ae_sidebyside_params"), df),
+      NULL
+    )
   })
   
   # 获取分组变量的水平（用于总计列设置）

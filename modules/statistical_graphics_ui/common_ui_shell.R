@@ -232,9 +232,9 @@ graphics_font_family_pair_ui <- function(ns, latin_id = "base_family", cjk_id = 
 
 graphics_card_panel_ui <- function(title, body, status_class = "default") {
   tags$div(
-    class = paste("panel", paste0("panel-", status_class)),
-    tags$div(class = "panel-heading", title),
-    tags$div(class = "panel-body", body)
+    class = "app-card__panel",
+    tags$strong(title),
+    tags$div(style = "margin-top: 6px;", body)
   )
 }
 
@@ -717,9 +717,9 @@ graphics_export_panel_ui <- function(
 
 graphics_dynamic_mapping_row_ui <- function(title, body, status_class = "default") {
   tags$div(
-    class = paste("panel", paste0("panel-", status_class)),
-    tags$div(class = "panel-heading", title),
-    tags$div(class = "panel-body", body)
+    class = "app-card__panel",
+    tags$strong(title),
+    tags$div(style = "margin-top: 6px;", body)
   )
 }
 

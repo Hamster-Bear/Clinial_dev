@@ -14,30 +14,31 @@ tables_text <- read_utf8("modules", "tables.R")
 if (!nzchar(tables_text)) return(invisible(NULL))
 
 expect_contains <- function(text, pattern, label) {
-  if (!grepl(pattern, text, perl = TRUE)) {
-    stop(sprintf("缺少预期内容: %s", label), call. = FALSE)
-  }
+  if (!grepl(pattern, text, perl = TRUE)) stop(sprintf("缺少预期内容: %s", label), call. = FALSE)
 }
 
 expect_not_contains <- function(text, pattern, label) {
-  if (grepl(pattern, text, perl = TRUE)) {
-    stop(sprintf("发现应移除内容: %s", label), call. = FALSE)
-  }
+  if (grepl(pattern, text, perl = TRUE)) stop(sprintf("发现应移除内容: %s", label), call. = FALSE)
 }
 
-expect_contains(tables_text, "source\\(\"modules/common/ui_shell.R\"\\)", "Tables 总入口加载公共 UI 壳")
-expect_contains(tables_text, "source\\(\"modules/common/entry_copy.R\"\\)", "Tables 总入口加载入口层共享文案")
-expect_contains(tables_text, "copy <- ENTRY_COPY\\$tables", "Tables 总入口读取共享文案")
-expect_contains(tables_text, "data_filter_ui\\(ns\\(\"global_filter\"\\)\\)", "Tables 总入口直接复用全局筛选卡")
-expect_contains(tables_text, "app_card_box\\(", "Tables 总入口使用公共卡片 helper")
-expect_contains(tables_text, "title = copy\\$params\\$title", "Tables 总入口保留参数设置卡")
-expect_contains(tables_text, "title = copy\\$result\\$title", "Tables 总入口保留结果卡")
-expect_contains(tables_text, "app_result_panel\\(", "Tables 总入口使用结果 panel")
-expect_contains(tables_text, "tabPanel\\(\\s*\"表格结果\"", "Tables 总入口保留表格结果页签")
-expect_contains(tables_text, "tabPanel\\(\\s*\"R代码\"", "Tables 总入口保留代码页签")
-expect_contains(tables_text, "downloadButton\\(ns\\(\"table_download\"\\)", "Tables 总入口保留导出按钮")
-expect_contains(tables_text, "uiOutput\\(ns\\(\"dm_params_ui\"\\)\\)", "Tables 总入口保留动态参数输出")
-expect_not_contains(tables_text, "(?<!app_card_)box\\([\\s\\S]*title = \"预设图表参数设置\"", "Tables 总入口不再用裸 box 包裹参数卡")
-expect_not_contains(tables_text, "(?<!app_card_)box\\([\\s\\S]*title = \"预设图表结果\"", "Tables 总入口不再用裸 box 包裹结果卡")
+# 基础结构
+expect_contains(tables_text, "source\\(\"modules/common/ui_shell.R\"\\)", "加载公共 UI 壳")
+expect_contains(tables_text, "source\\(\"modules/common/entry_copy.R\"\\)", "加载入口层共享文案")
+expect_contains(tables_text, "copy <- ENTRY_COPY\\$tables", "读取共享文案")
+expect_contains(tables_text, "data_filter_ui\\(ns\\(\"global_filter\"\\)\\)", "保留全局筛选卡")
+# 卡片布局
+expect_contains(tables_text, "app_card_box\\(", "使用公共卡片 helper")
+expect_contains(tables_text, "title = copy\\$method\\$title", "方法选择卡片")
+expect_contains(tables_text, "title = copy\\$params\\$title", "参数卡片")
+expect_contains(tables_text, "app_card_note\\(", "使用公共说明 helper")
+# 结果区
+expect_contains(tables_text, "title = copy\\$result\\$title", "保留结果卡")
+expect_contains(tables_text, "app_result_panel\\(", "使用结果 panel")
+expect_contains(tables_text, "tabPanel\\(\\s*\"表格结果\"", "保留表格结果页签")
+expect_contains(tables_text, "tabPanel\\(\\s*\"R代码\"", "保留代码页签")
+expect_contains(tables_text, "downloadButton\\(ns\\(\"table_download\"\\)", "保留导出按钮")
+expect_contains(tables_text, "uiOutput\\(ns\\(\"dm_params_ui\"\\)\\)", "保留动态参数输出")
+# 任务历史
+expect_contains(tables_text, "task_history_ui", "保留任务历史 UI")
 
 cat("Tables layout guard passed.\n")

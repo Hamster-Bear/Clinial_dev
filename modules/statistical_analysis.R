@@ -19,6 +19,7 @@ source("modules/common/analysis/analysis_format.R")
 source("modules/common/analysis/analysis_shared.R")
 source("modules/common/entry_copy.R")
 source("modules/common/data/data_filter.R")
+source("modules/task_history.R")
 source("modules/statistical_analysis/cox.R")
 source("modules/statistical_analysis/logistic.R")
 source("modules/statistical_analysis/linear.R")
@@ -33,47 +34,12 @@ statistical_analysis_ui <- function(id) {
   
   tagList(
     app_card_dependencies(),
-    tags$head(
-      tags$style(HTML("
-        .stat-analysis-shell .app-card .tab-content {
-          padding-top: 14px;
-        }
-        .stat-analysis-result-wrap {
-          width: 90%;
-          margin: 18px auto 24px auto;
-          padding: 8px 0 12px 0;
-          overflow-x: auto;
-        }
-        .stat-analysis-result-panel {
-          margin-top: 6px;
-        }
-        .stat-analysis-export-row {
-          margin-top: 8px;
-        }
-      "))
+    data_filter_ui(ns("global_filter")),
+    task_history_ui(
+      ns("analysis_task_history"),
+      help_text = "保存当前分析参数、页面选择和任务备注；workspace 为空时保存为个人任务。"
     ),
     fluidRow(
-      # 顶部：数据筛选（新增）
-      column(
-        width = 12,
-        app_card_box(
-          width = NULL,
-          title = copy$filter$title,
-          subtitle = copy$filter$subtitle,
-          tone = "info",
-          status = "info",
-          solidHeader = FALSE,
-          collapsible = TRUE,
-          collapsed = TRUE, # 默认折叠
-          app_card_note(copy$filter$note),
-          # 调用筛选模块 UI
-          data_filter_ui(ns("global_filter"))
-        )
-      )
-    ),
-    fluidRow(
-      class = "stat-analysis-shell",
-      # 左侧：方法选择和变量选择
       column(
         width = 4,
         app_card_box(
@@ -89,21 +55,11 @@ statistical_analysis_ui <- function(id) {
             "选择统计方法",
             choices = list(
               "描述性统计" = "desc",
-              "回归模型" = list(
-                "Cox回归" = "cox",
-                "逻辑回归" = "logistic",
-                "线性回归" = "linear"
-              ),
-              "组间比较" = list(
-                "方差分析(ANOVA)" = "anova",
-                "卡方检验" = "chi-sq",
-                "CMH检验" = "cmh"
-              )
+              "回归模型" = list("Cox回归" = "cox", "逻辑回归" = "logistic", "线性回归" = "linear"),
+              "组间比较" = list("方差分析(ANOVA)" = "anova", "卡方检验" = "chi-sq", "CMH检验" = "cmh")
             )
           )
         ),
-        
-        # 变量选择和参数设置面板
         app_card_box(
           width = 12,
           title = copy$params$title,
@@ -112,21 +68,10 @@ statistical_analysis_ui <- function(id) {
           status = "info",
           solidHeader = FALSE,
           app_card_note(copy$params$note),
-          # 动态参数UI
           uiOutput(ns("stat_params_ui")),
-          
-          # 执行按钮
-          actionButton(
-            ns("run_analysis"),
-            "运行分析",
-            icon = icon("play"),
-            class = "btn-success",
-            width = "100%"
-          )
+          actionButton(ns("run_analysis"), "运行分析", icon = icon("play"), class = "btn-success", width = "100%")
         )
       ),
-      
-      # 右侧：结果展示
       column(
         width = 8,
         app_card_box(
@@ -144,68 +89,42 @@ statistical_analysis_ui <- function(id) {
                 title = "统计表格结果",
                 note = "展示当前分析方法生成的主结果表；未运行分析时显示等待执行提示。",
                 tone = "success",
-                class = "stat-analysis-result-panel",
-                div(class = "stat-analysis-result-wrap", gt::gt_output(ns("result_table")))
+                div(style = "width: 90%; margin: 18px auto 24px auto; overflow-x: auto;", gt::gt_output(ns("result_table")))
               )
             ),
-            tabPanel("统计报告",
-                     app_result_panel(
-                       title = "统计报告说明",
-                       note = "汇总当前分析方法的关键解释、结果阅读提示与上下文说明。",
-                       tone = "info",
-                       class = "stat-analysis-result-panel",
-                       uiOutput(ns("analysis_interpretation"))
-                     )
+            tabPanel(
+              "统计报告",
+              app_result_panel(
+                title = "统计报告说明",
+                note = "汇总当前分析方法的关键解释、结果阅读提示与上下文说明。",
+                tone = "info",
+                uiOutput(ns("analysis_interpretation"))
+              )
             ),
-            tabPanel("可复现代码",
-                     app_result_panel(
-                       title = "可复现代码",
-                       note = "提供当前分析参数对应的 R 代码，便于在本地或报告流程中复现。",
-                       tone = "primary",
-                       class = "stat-analysis-result-panel",
-                       verbatimTextOutput(ns("repro_code_out"))
-                     )
+            tabPanel(
+              "可复现代码",
+              app_result_panel(
+                title = "可复现代码",
+                note = "提供当前分析参数对应的 R 代码，便于在本地或报告流程中复现。",
+                tone = "primary",
+                verbatimTextOutput(ns("repro_code_out"))
+              )
             )
           ),
           app_result_panel(
             title = "导出配置",
             note = copy$result$export_note,
             tone = "warning",
-            class = "stat-analysis-result-panel",
             fluidRow(
-              class = "stat-analysis-export-row",
-              column(
-                width = 3,
-                selectInput(
-                  ns("dl_format"),
-                  "导出格式",
-                  choices = c("Word" = "word", "HTML" = "html", "RTF" = "rtf", "PDF" = "pdf"),
-                  selected = "word"
-                )
-              ),
-              column(
-                width = 3,
-                div(style = "padding-top: 25px;", checkboxInput(ns("dl_include_report"), "导出包含报告", value = FALSE))
-              ),
-              column(
-                width = 3,
-                textInput(ns("export_title"), "导出标题", value = "Table 1. Statistical Analysis Results")
-              ),
-              column(
-                width = 3,
-                div(style = "padding-top: 25px;", downloadButton(ns("dl_table"), "导出报告", class = "btn-primary"))
-              )
+              column(3, selectInput(ns("dl_format"), "导出格式", choices = c("Word" = "word", "HTML" = "html", "RTF" = "rtf", "PDF" = "pdf"), selected = "word")),
+              column(3, div(style = "padding-top: 25px;", checkboxInput(ns("dl_include_report"), "导出包含报告", value = FALSE))),
+              column(3, textInput(ns("export_title"), "导出标题", value = "Table 1. Statistical Analysis Results")),
+              column(3, div(style = "padding-top: 25px;", downloadButton(ns("dl_table"), "导出报告", class = "btn-primary")))
             ),
             fluidRow(
-              column(
-                width = 12,
-                textAreaInput(
-                  ns("export_footnotes"),
-                  "导出脚注（每行一条）",
-                  value = "Data are presented as n (%) for categorical variables and summary statistics for continuous variables.\nP values were calculated using method-specific tests.\nMissing values were retained and reported as available in source data.",
-                  rows = 4
-                )
-              )
+              column(12, textAreaInput(ns("export_footnotes"), "导出脚注（每行一条）",
+                value = "Data are presented as n (%) for categorical variables and summary statistics for continuous variables.\nP values were calculated using method-specific tests.\nMissing values were retained and reported as available in source data.",
+                rows = 3))
             )
           )
         )
@@ -215,9 +134,10 @@ statistical_analysis_ui <- function(id) {
 }
 
 # 统计分析服务器逻辑
-statistical_analysis_server <- function(id, data) {
+statistical_analysis_server <- function(id, data, pg_pool = NULL, current_user = NULL) {
   moduleServer(id, function(input, output, session) {
   ns <- session$ns
+  copy <- ENTRY_COPY$statistical_analysis
 
   reload_regression_runtime <- function() {
     source("modules/common/export/table_export.R")
@@ -277,16 +197,24 @@ statistical_analysis_server <- function(id, data) {
   
   # 动态参数UI
   output$stat_params_ui <- renderUI({
-    req(input$stat_method, filtered_data())
-    
+    req(input$stat_method)
+
+    if (is.null(filtered_data())) {
+      return(div(style = "padding: 20px; text-align: center; color: #7b8794;",
+        icon("database", style = "font-size: 24px; margin-bottom: 8px;"),
+        br(),
+        "请先上传数据并完成筛选，再设置分析参数。"
+      ))
+    }
+
     switch(input$stat_method,
-           "cox" = cox_params_ui(ns, filtered_data()),
-           "logistic" = logistic_params_ui(ns, filtered_data()),
-           "linear" = linear_params_ui(ns, filtered_data()),
-           "anova" = anova_params_ui(ns, filtered_data()),
-           "chi-sq" = chisq_params_ui(ns, filtered_data()),
-           "desc" = desc_params_ui(ns, filtered_data()),
-           NULL
+      "cox" = cox_params_ui(ns, filtered_data()),
+      "logistic" = logistic_params_ui(ns, filtered_data()),
+      "linear" = linear_params_ui(ns, filtered_data()),
+      "anova" = anova_params_ui(ns, filtered_data()),
+      "chi-sq" = chisq_params_ui(ns, filtered_data()),
+      "desc" = desc_params_ui(ns, filtered_data()),
+      NULL
     )
   })
   
@@ -1060,6 +988,34 @@ statistical_analysis_server <- function(id, data) {
     }
   )
   
+  # ---- task_history 集成 ----
+  resolve_user_id <- if (is.function(current_user)) {
+    function() { u <- current_user(); if (is.list(u)) list(id = u$id) else NULL }
+  } else {
+    function() NULL
+  }
+
+  task_history_server(
+    "analysis_task_history",
+    pg_pool = pg_pool,
+    current_user = resolve_user_id,
+    workspace_id = NULL,
+    scope = "analysis",
+    module_type = reactive(input$stat_method %||% ""),
+    get_state = function() {
+      method <- input$stat_method %||% ""
+      list(task_schema_version = 1, extra_state = list(stat_method = method))
+    },
+    apply_state = function(payload) {
+      if (!is.list(payload)) return(invisible(FALSE))
+      extra <- payload$extra_state
+      if (is.null(extra) || is.null(extra$stat_method)) return(invisible(FALSE))
+      updateSelectInput(session, "stat_method", selected = extra$stat_method)
+      TRUE
+    },
+    apply_failure_message = "当前模块暂未接入完整任务历史回填"
+  )
+
   # 返回分析结果
   return(analysis_results)
   })
