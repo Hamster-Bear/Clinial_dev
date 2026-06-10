@@ -155,6 +155,7 @@
   - `tests/common/graphics/test_graphics_override_colors.R`
 - 字体、任务历史与状态恢复:
   - `tests/common/graphics/test_graphics_font_support_guard.R`
+  - `tests/common/graphics/test_font_warning_suppression.R`（PostScript 字体警告防回归 + 生存分析默认参数守卫）
   - `tests/common/graphics/test_graphics_task_state_helpers.R`
 
 ### 3.7 统计图形子模块

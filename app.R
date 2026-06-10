@@ -179,6 +179,44 @@ if (requireNamespace("showtext", quietly = TRUE) && requireNamespace("sysfonts",
 
   showtext::showtext_auto()
   showtext::showtext_opts(dpi = 96, regular.warn = FALSE) # 匹配 Shiny 默认 DPI，抑制逐 glyph 字体警告
+
+  # 将 showtext 注册的 CJK 字体同步到 R 内置字体数据库
+  # grid::C_stringMetric() / C_textBounds() 使用 PostScript/设备字体数据库做度量查询，
+  # 不经过 showtext 拦截层；若数据库中找不到字体则会抛出警告。
+  # 正确方法：复制已有 Type1Font 模板（如 sans），仅替换 family 名，
+  # 让 grid 度量引擎能找到对应字体条目（仅影响度量，不影响 showtext 实际渲染）。
+  .sync_font_to_builtin_databases <- function(family, builtin = "Helvetica") {
+    # PostScript: 复制 sans 的 Type1Font 模板，替换 family 名
+    tryCatch({
+      pf <- grDevices::postscriptFonts()
+      template <- pf[["sans"]]  # Type1Font 对象
+      if (!is.null(template)) {
+        template$family <- builtin
+        do.call(grDevices::postscriptFonts, stats::setNames(list(template), family))
+      }
+    }, error = function(e) NULL)
+    # PDF: 同样复制模板
+    tryCatch({
+      pdf_f <- grDevices::pdfFonts()
+      template <- pdf_f[["sans"]]
+      if (!is.null(template)) {
+        template$family <- builtin
+        do.call(grDevices::pdfFonts, stats::setNames(list(template), family))
+      }
+    }, error = function(e) NULL)
+    # Windows: 映射到系统内置字体
+    if (.Platform$OS.type == "windows") {
+      win_builtin <- if (identical(builtin, "Helvetica")) "Arial" else builtin
+      tryCatch(
+        do.call(grDevices::windowsFonts, stats::setNames(list(grDevices::windowsFont(win_builtin)), family)),
+        error = function(e) NULL
+      )
+    }
+    invisible(NULL)
+  }
+  .sync_font_to_builtin_databases("Noto Sans SC", "Helvetica")
+  .sync_font_to_builtin_databases("Arial", "Helvetica")
+  .sync_font_to_builtin_databases("Courier", "Courier")
 }
 
 # 加载所有模块

@@ -135,4 +135,4 @@ RUN chown -R shiny:shiny /app && chmod -R 755 /app
 EXPOSE 3838
 
 # 使用run_app.R启动应用，这是项目推荐的方式
-CMD ["R", "-e", "options(shiny.port=3838, shiny.host='0.0.0.0'); shiny::runApp('app.R', port=3838, host='0.0.0.0')"]
+CMD ["R", "-e", "options(shiny.port=3838, shiny.host='0.0.0.0', shiny.maxRequestSize=100*1024^2); shiny::runApp('app.R', port=3838, host='0.0.0.0')"]

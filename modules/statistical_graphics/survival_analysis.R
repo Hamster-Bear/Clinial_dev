@@ -550,8 +550,8 @@ if (file.exists("modules/common/graphics_export_copy.R")) {
               numericInput(ns("risk_table_group_gap"), "风险表组别间隙", value = 1.2, min = 0, max = 2.0, step = 0.1, width = "100%")
             )
           ),
-          checkboxInput(ns("show_grid"), "显示网格线", value = FALSE),
-          selectInput(ns("surv_median_line"), "中位生存辅助线", choices = c("无" = "none", "水平和垂直" = "hv", "仅水平" = "h", "仅垂直" = "v"), selected = "none", width = "100%"),
+          checkboxInput(ns("show_grid"), "显示网格线", value = TRUE),
+          selectInput(ns("surv_median_line"), "中位生存辅助线", choices = c("无" = "none", "水平和垂直" = "hv", "仅水平" = "h", "仅垂直" = "v"), selected = "hv", width = "100%"),
           helpText("该设置控制主图中的中位生存辅助线；与“显示中位生存时间标注”相互独立。")
         )
       ),
@@ -560,10 +560,10 @@ if (file.exists("modules/common/graphics_export_copy.R")) {
         tagList(
           fluidRow(
             column(4, numericInput(ns("y_break_step"), "Y轴步长", value = 0.25, min = 0.05, max = 1, step = 0.05, width = "100%")),
-            column(4, checkboxInput(ns("y_as_percent"), "Y轴显示百分比", value = FALSE, width = "100%")),
-            column(4, numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 2, min = 0, max = 5, step = 1, width = "100%"))
+            column(4, checkboxInput(ns("y_as_percent"), "Y轴显示百分比", value = TRUE, width = "100%")),
+            column(4, numericInput(ns("y_decimals"), "Y轴保留小数位数", value = 0, min = 0, max = 5, step = 1, width = "100%"))
           ),
-          selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "default", width = "100%"),
+          selectInput(ns("axis_style"), "坐标轴样式", choices = c("默认" = "default", "经典坐标轴(不带箭头)" = "classic", "经典XY轴(箭头)" = "classic_arrow"), selected = "classic", width = "100%"),
           conditionalPanel(
             condition = paste0("input['", ns("y_as_percent"), "'] == true"),
             checkboxInput(ns("y_show_percent_sign"), "带百分号(%)", value = TRUE)
@@ -663,7 +663,7 @@ if (file.exists("modules/common/graphics_export_copy.R")) {
           ),
           numericInput(ns("legend_row_gap"), "图例行间距(row_gap)", value = 1.0, min = 0.1, max = 3.0, step = 0.1, width = "100%"),
           graphics_font_family_pair_ui(ns, latin_id = "base_family", cjk_id = "cjk_family"),
-          graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "corners_aux_none", default_position = "top-right"),
+          graphics_legend_controls_ui(ns, title_id = "legend_title", position_id = "legend_position", position_kind = "corners_aux_none", default_position = "inside_custom"),
           graphics_aux_legend_anchor_controls_ui(
             ns,
             position_id = "legend_position",
@@ -928,7 +928,7 @@ survival_analysis_server <- function(input, output, session, data) {
     risk_table_height_ratio = 0.15,
     risk_table_plot_gap = 0,
     risk_table_group_gap = 1.2,
-    surv_median_line = "none",
+    surv_median_line = "hv",
     km_line_size = 0.6,
     km_line_type = "solid",
     km_censor_size = 3,
@@ -941,19 +941,19 @@ survival_analysis_server <- function(input, output, session, data) {
     xlab_size = 12,
     ylab_size = 12,
     y_break_step = 0.25,
-    y_decimals = 2,
-    y_as_percent = FALSE,
+    y_decimals = 0,
+    y_as_percent = TRUE,
     y_show_percent_sign = TRUE,
     axis_text_size = 10,
     legend_text_size = 10,
     stats_text_size = 10,
-    axis_style = "default",
-    show_grid = FALSE,
+    axis_style = "classic",
+    show_grid = TRUE,
     time_step = NULL,
     show_median = TRUE,
     show_stats = TRUE,
     show_cox_p = TRUE,
-    legend_position = "top-right",
+    legend_position = "inside_custom",
     legend_title = "",
     legend_row_gap = 1.0,
     legend_inside_anchor = graphics_resolve_inside_anchor(
@@ -1878,23 +1878,33 @@ survival_analysis_server <- function(input, output, session, data) {
     
     y_step <- suppressWarnings(as.numeric(params$y_break_step %||% 0.25))
     if (is.na(y_step) || y_step <= 0) y_step <- 0.25
+    y_breaks <- seq(0, 1, by = y_step)
     if (isTRUE(params$y_as_percent)) {
+      y_label_fn <- graphics_format_percent_labels(show_percent_sign = isTRUE(params$y_show_percent_sign), scale_factor = 100, decimals = params$y_decimals %||% 2)
       p$plot <- suppressWarnings(p$plot + scale_y_continuous(
-        breaks = seq(0, 1, by = y_step), 
-        labels = graphics_format_percent_labels(show_percent_sign = isTRUE(params$y_show_percent_sign), scale_factor = 100, decimals = params$y_decimals %||% 2)
+        breaks = y_breaks,
+        labels = y_label_fn
       ))
     } else {
+      y_label_fn <- graphics_format_number_labels(decimals = params$y_decimals %||% 2)
       p$plot <- suppressWarnings(p$plot + scale_y_continuous(
-        breaks = seq(0, 1, by = y_step),
-        labels = graphics_format_number_labels(decimals = params$y_decimals %||% 2)
+        breaks = y_breaks,
+        labels = y_label_fn
       ))
     }
-    
+
+    # 动态计算 Y 轴标题右侧间距：最宽刻度标签字符数 × 单字符宽度 + 3px
+    y_tick_labels <- as.character(y_label_fn(y_breaks))
+    max_label_chars <- max(nchar(y_tick_labels), 1)
+    axis_font_size_pt <- params$axis_text_size %||% 10
+    y_title_margin_r <- max_label_chars * axis_font_size_pt * 0.6 + 3
+
     p$plot <- p$plot +
       theme(
         text = element_text(family = plot_family),
         panel.border = element_blank(),
-        axis.text = element_text(size = params$axis_text_size),
+        axis.text = element_text(size = axis_font_size_pt),
+        axis.title.y.left = element_text(margin = margin(r = y_title_margin_r, unit = "pt")),
         legend.text = element_text(size = params$legend_text_size)
       )
     p$plot <- graphics_apply_axis_style(p$plot, params$axis_style %||% "default", arrow_size = 0.15)

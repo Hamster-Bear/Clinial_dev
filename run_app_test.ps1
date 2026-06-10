@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$EnvFile = ".env.test",
   [string]$RScriptPath = "F:\R-4.5.3\bin\Rscript.exe"
 )

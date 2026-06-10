@@ -34,6 +34,13 @@ database_manager_ui <- function(id) {
           border-radius: 10px;
           overflow: hidden;
         }
+        /* 修正 tabBox 在 flex 容器内宽度塌缩 */
+        .db-panel-body .tab-content {
+          width: 100%;
+        }
+        .db-panel-body .shiny-input-container {
+          width: 100%;
+        }
         .db-panel-header {
           padding: 12px 16px 10px;
           border-bottom: 1px solid #edf2f7;
@@ -206,29 +213,9 @@ database_manager_ui <- function(id) {
         .db-toolbar .form-group {
           margin-bottom: 4px;
         }
-        /* 上传区：编码 + 文件选择器同一行，按钮在下方 */
+        /* 上传区布局 */
         .db-upload-row {
           margin-bottom: 12px;
-        }
-        .db-upload-top {
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          margin-bottom: 8px;
-        }
-        .db-upload-top .db-upload-encoding {
-          width: 130px;
-          flex-shrink: 0;
-        }
-        .db-upload-top .db-upload-encoding .form-group {
-          margin-bottom: 0;
-        }
-        .db-upload-top .db-upload-file {
-          flex: 1;
-          min-width: 0;
-        }
-        .db-upload-top .db-upload-file .form-group {
-          margin-bottom: 0;
         }
         /* 锁定态 */
         .db-lock-actions {
@@ -660,12 +647,12 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
               tabPanel(
                 "单文件上传",
                 div(class = "db-upload-row",
-                  div(class = "db-upload-top",
-                    div(class = "db-upload-encoding",
+                  fluidRow(
+                    column(3,
                       selectInput(session$ns("csv_encoding"), "CSV 编码",
                         choices = c("UTF-8" = "UTF-8", "GBK" = "GBK"), selected = "UTF-8", width = "100%")
                     ),
-                    div(class = "db-upload-file",
+                    column(9,
                       fileInput(session$ns("file"), "选择数据文件",
                         accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
                         buttonLabel = "浏览", placeholder = "CSV/Excel/SAS/SPSS", multiple = FALSE)
@@ -677,15 +664,15 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
               tabPanel(
                 "批量导入",
                 div(class = "db-upload-row",
-                  div(class = "db-upload-top",
-                    div(class = "db-upload-encoding",
+                  fluidRow(
+                    column(3,
                       selectInput(session$ns("csv_encoding_batch"), "CSV 编码",
                         choices = c("UTF-8" = "UTF-8", "GBK" = "GBK"), selected = "UTF-8", width = "100%")
                     ),
-                    div(class = "db-upload-file",
+                    column(9,
                       fileInput(session$ns("batch_files"), "选择多个数据文件",
                         accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
-                        buttonLabel = "浏览", placeholder = "支持多选", multiple = TRUE)
+                        buttonLabel = "浏览", placeholder = "支持多选，单文件 ≤100MB，总计 ≤2GB", multiple = TRUE)
                     )
                   ),
                   actionButton(session$ns("save_batch_datasets"), "批量保存到当前目录", class = "btn-primary", width = "100%")
@@ -1156,6 +1143,16 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       showNotification("请先选择要上传的文件", type = "warning")
       return()
     }
+    # 单文件上传大小限制：100MB
+    single_max_bytes <- 100 * 1024^2
+    if (isTRUE(input$file$size > single_max_bytes)) {
+      file_mb <- round(input$file$size / 1024^2, 1)
+      showNotification(
+        paste0("文件大小 ", format(file_mb, big.mark = ","), " MB 超过 100 MB 上限"),
+        type = "error", duration = 6
+      )
+      return()
+    }
     workspace_id <- input$workspace_select
     if (is.null(workspace_id) || workspace_id == "") {
       showNotification("请先创建并选择数据空间", type = "warning")
@@ -1209,7 +1206,18 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       showNotification("未检测到可上传文件", type = "warning")
       return()
     }
-    
+    # 批量上传总大小限制：2GB
+    batch_total_bytes <- sum(files_df$size, na.rm = TRUE)
+    batch_max_bytes <- 2 * 1024^3
+    if (batch_total_bytes > batch_max_bytes) {
+      total_mb <- round(batch_total_bytes / 1024^2, 1)
+      showNotification(
+        paste0("批量文件总大小 ", format(total_mb, big.mark = ","), " MB 超过 2 GB 上限，请分批上传"),
+        type = "error", duration = 6
+      )
+      return()
+    }
+
     success_count <- 0
     fail_count <- 0
     fail_details <- list()

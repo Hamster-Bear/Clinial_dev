@@ -131,6 +131,7 @@ data_preparation_ui <- function(id) {
         tone = "primary",
         status = "primary",
         solidHeader = FALSE,
+        class = "data-load-card",
         tabsetPanel(
           id = ns("data_load_tabs"),
           type = "tabs",
@@ -138,14 +139,14 @@ data_preparation_ui <- function(id) {
             "本地上传",
             fileInput(
               ns("file"),
-              "上传数据文件 (CSV/Excel/SAS/SPSS)",
+              "选择数据文件",
               accept = c(".csv", ".xlsx", ".xls", ".sas7bdat", ".sav", ".dta", ".por"),
-              buttonLabel = "浏览文件",
-              placeholder = "请选择一个文件进行上传",
+              buttonLabel = "浏览",
+              placeholder = "CSV/Excel/SAS/SPSS，最大 100MB",
               multiple = FALSE
             ),
             app_card_note(
-              "未开通数据空间功能时，可在此临时上传单个文件用于当前会话分析；该数据不会写入持久化数据空间。"
+              "支持 CSV、Excel、SAS、SPSS、Stata 格式，单文件上限 100MB。临时上传仅当前会话有效，不写入持久化数据空间。"
             )
           ),
           tabPanel(
@@ -869,7 +870,18 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
   # 文件上传处理
   observeEvent(input$file, {
     req(input$file)
-    
+
+    # 单文件上传大小限制：100MB
+    single_max_bytes <- 100 * 1024^2
+    if (isTRUE(input$file$size > single_max_bytes)) {
+      file_mb <- round(input$file$size / 1024^2, 1)
+      showNotification(
+        paste0("文件大小 ", format(file_mb, big.mark = ","), " MB 超过 100 MB 上限"),
+        type = "error", duration = 6
+      )
+      return()
+    }
+
     # 显示加载提示
     notification_id <- showNotification("正在加载数据文件，请稍候...", type = "message", duration = NULL)
     

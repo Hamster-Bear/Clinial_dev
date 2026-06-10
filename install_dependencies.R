@@ -87,7 +87,8 @@ required_packages <- c(
 install_missing_packages <- function(packages) {
   # find.package() 只检查磁盘上的安装路径，不加载命名空间，比 installed.packages() 快一个数量级
   installed <- vapply(packages, function(pkg) {
-    nzchar(tryCatch(find.package(pkg, quiet = TRUE), error = function(e) ""))
+    path <- tryCatch(find.package(pkg, quiet = TRUE), error = function(e) character(0))
+    isTRUE(nzchar(path[1]))
   }, logical(1))
   missing <- packages[!installed]
 
@@ -124,8 +125,8 @@ install_missing_packages <- function(packages) {
 check_packages_loaded <- function(packages) {
   missing <- character(0)
   for (pkg in packages) {
-    path <- tryCatch(find.package(pkg, quiet = TRUE), error = function(e) "")
-    if (!nzchar(path)) missing <- c(missing, pkg)
+    path <- tryCatch(find.package(pkg, quiet = TRUE), error = function(e) character(0))
+    if (!isTRUE(nzchar(path[1]))) missing <- c(missing, pkg)
   }
   if (length(missing) > 0) {
     message("错误: 以下包未安装: ", paste(missing, collapse = ", "))
