@@ -121,15 +121,49 @@ task_history_display_df <- function(tasks) {
       任务名称 = character(0),
       模块类型 = character(0),
       工作空间 = character(0),
+      来源数据 = character(0),
       最近更新 = character(0),
       备注 = character(0),
       stringsAsFactors = FALSE
     ))
   }
+
+  source_label <- function(row) {
+    raw <- if ("source_info" %in% names(tasks)) tasks$source_info[[row]] else NULL
+    # PostgreSQL JSONB 返回字符串，需显式解析
+    si <- if (is.character(raw) && nzchar(raw)) {
+      tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE), error = function(e) NULL)
+    } else if (is.list(raw)) {
+      raw
+    } else {
+      NULL
+    }
+    if (is.null(si) || !is.list(si) || length(si) == 0) return("未记录")
+    parts <- character(0)
+    if (!is.null(si$dataset_name) && nzchar(si$dataset_name)) {
+      parts <- c(parts, si$dataset_name)
+    }
+    if (!is.null(si$workspace_name) && nzchar(si$workspace_name)) {
+      parts <- c(parts, paste0("[", si$workspace_name, "]"))
+    }
+    if (!is.null(si$nrow) && !is.null(si$ncol)) {
+      parts <- c(parts, paste0(si$nrow, "x", si$ncol))
+    }
+    if (length(parts) == 0) return("未记录")
+    paste(parts, collapse = " ")
+  }
+
+  source_col <- if ("source_info" %in% names(tasks) && nrow(tasks) > 0) {
+    vapply(seq_len(nrow(tasks)), source_label, character(1))
+  } else {
+    rep("未记录", max(nrow(tasks), 0))
+  }
+
   data.frame(
     任务名称 = tasks$state_name %||% character(0),
     模块类型 = tasks$module_type %||% character(0),
     工作空间 = ifelse(is.na(tasks$workspace_id) | !nzchar(tasks$workspace_id %||% ""), "个人任务", tasks$workspace_id),
+    来源数据 = source_col,
     最近更新 = as.character(tasks$updated_at %||% tasks$created_at %||% character(0)),
     备注 = tasks$state_note %||% character(0),
     stringsAsFactors = FALSE
@@ -145,7 +179,8 @@ task_history_server <- function(
   module_type = NULL,
   get_state = NULL,
   apply_state = NULL,
-  apply_failure_message = "当前模块暂未接入任务历史回填"
+  apply_failure_message = "当前模块暂未接入任务历史回填",
+  source_info = NULL
 ) {
   moduleServer(id, function(input, output, session) {
     resolve_user <- function() {
@@ -177,6 +212,14 @@ task_history_server <- function(
       }
       if (length(raw_module_type) == 0 || is.null(raw_module_type)) return("")
       trimws(as.character(raw_module_type[[1]]))
+    }
+
+    resolve_source_info <- function() {
+      if (is.null(source_info)) return(NULL)
+      if (is.reactive(source_info)) return(source_info())
+      if (is.function(source_info)) return(source_info())
+      if (is.list(source_info)) return(source_info)
+      NULL
     }
 
     collect_state <- function() {
@@ -317,7 +360,8 @@ task_history_server <- function(
           payload = payload,
           scope = scope,
           workspace_id = resolve_workspace(),
-          state_note = input$task_note
+          state_note = input$task_note,
+          source_info = resolve_source_info()
         )
         showNotification("任务历史已保存", type = "message")
         refresh_task_cache(selected = state_id %||% "")

@@ -406,6 +406,8 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
   
   # 数据存储
   data_store <- reactiveVal()
+  # 当前数据集的来源元信息（供任务历史记录）
+  dataset_meta <- reactiveVal(NULL)
   var_type_overrides <- reactiveVal(setNames(character(0), character(0)))
   var_label_overrides <- reactiveVal(setNames(character(0), character(0)))
   
@@ -895,11 +897,21 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
       gc()
       
       apply_loaded_data(data)
-      
+
+      # 记录来源数据集元信息（临时上传）
+      dataset_meta(list(
+        dataset_name   = input$file$name %||% "未命名文件",
+        workspace_name = NULL,
+        folder_name    = NULL,
+        nrow           = nrow(data),
+        ncol           = ncol(data),
+        source         = "upload"
+      ))
+
       # 记录加载时间
       load_time <- Sys.time() - start_time
       performance_metrics$load_time <- load_time
-      
+
       # 显示成功提示
       showNotification(paste("数据加载完成！耗时:", round(load_time, 2), "秒，共", nrow(data), "行 x", ncol(data), "列"),
                      type = "message")
@@ -975,6 +987,21 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
       return()
     }
     apply_loaded_data(data)
+    # 记录来源数据集元信息
+    ws_name <- if (!is.null(ds$workspace_id) && nzchar(ds$workspace_id[[1]] %||% "")) {
+      reg$workspaces$name[reg$workspaces$id == ds$workspace_id[[1]]][1] %||% ds$workspace_id[[1]]
+    } else { NULL }
+    fn <- if (!is.null(ds$folder_id) && nzchar(ds$folder_id[[1]] %||% "")) {
+      reg$folders$name[reg$folders$id == ds$folder_id[[1]]][1] %||% NULL
+    } else { NULL }
+    dataset_meta(list(
+      dataset_name    = ds$name[[1]] %||% "未知",
+      workspace_name  = ws_name,
+      folder_name     = fn,
+      nrow            = nrow(data),
+      ncol            = ncol(data),
+      source          = "database"
+    ))
     showNotification(paste0("已加载数据库数据集：", ds$name[[1]]), type = "message")
   })
   
@@ -1686,7 +1713,10 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
                          server = TRUE)
   })
   
-  # 返回供分析模块使用的数据（已去除行号）
-  return(analysis_data)
+  # 返回供分析模块使用的数据（已去除行号）及来源元信息
+  return(list(
+    data = analysis_data,
+    meta = dataset_meta
+  ))
   })
 }

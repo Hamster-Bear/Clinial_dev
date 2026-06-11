@@ -480,3 +480,114 @@ PROJECT_GUIDE.md §7.6 写"task_history 待接入"，§7.7.1 状态表写"后续
 - **P1（短期）**: heatmap / correlation_matrix 完成 task_history 端到端联调；combo_plot 导出高度按前端画布同步扩展
 - **P2（中期）**: spider/swimmer/waterfall 的 apply_state 标准化对齐 forest_plot
 - **P3（长期）**: MMRM / 多重填补分析链路实现；组织级/项目级隔离
+
+---
+
+## Review 7 [2026-06-11] — 任务历史缺陷专项审计
+
+**评审依据**: personal-assistant Review 模式 + CODE_STYLE.md §3.1.2 接入准则 + PROJECT_GUIDE.md §7.6/§9.4 任务历史契约
+**评审范围**: `analysis_states` DB schema、`task_history.R`、`account_service.R`（service 层）、`statistical_analysis.R` 及 6 子模块、`tables.R` 及 4 子模块
+**评审方式**: 代码审计 + 数据模型审查 + 跨模块契约对照
+
+### 一、审计发现
+
+#### 发现 1：`analysis_states` 缺少来源数据集字段（数据模型缺陷）
+
+[`postgres/init.sql:84-95`](postgres/init.sql#L84-L95) 当前的 `analysis_states` 表：
+
+```sql
+CREATE TABLE IF NOT EXISTS analysis_states (
+    id VARCHAR(50) PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL REFERENCES users(id),
+    workspace_id VARCHAR(50) REFERENCES workspaces(id),
+    scope VARCHAR(50) NOT NULL,
+    module_type VARCHAR(100) NOT NULL,
+    state_name VARCHAR(255) NOT NULL,
+    state_payload TEXT NOT NULL,
+    state_note TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**缺失**: 没有任何字段记录任务创建时所使用的来源数据集信息（数据空间、目录、数据集名称、创建日期）。`workspace_id` 仅表示"任务保存在哪个工作空间"，不表示"任务分析的是哪个数据集"。用户在历史列表中无法区分同模板在不同数据集上的执行结果。
+
+**影响**: 任务历史无法回答"这个结果是用哪份数据跑的"这一基本溯源问题。
+
+#### 发现 2：统计分析模块 `get_state`/`apply_state` 未实现（阻塞级 bug）
+
+[`statistical_analysis.R:1005-1016`](modules/statistical_analysis.R#L1005-L1016) 的 `get_state` 仅保存 `stat_method`：
+
+```r
+get_state = function() {
+    method <- input$stat_method %||% ""
+    list(task_schema_version = 1, extra_state = list(stat_method = method))
+}
+```
+
+以下参数**全部未保存**：Cox 的 time/status/covariates/strata/facet/event_value/model_strata；Logistic 的 response/predictors/strata/facet/event_value；Linear 的 response/predictors/strata/facet；ANOVA 的 response/factors；Chi-sq 的 var1/var2；Desc 的 variables/col_group/row_group/id_var；所有分类变量的参考组设置；所有总计列设置；导出参数。
+
+**Grep 验证**: `modules/statistical_analysis/` 下 **6 个子模块（desc.R、cox.R、logistic.R、linear.R、anova.R、chisq.R）全部没有导出 `apply_state` 函数**。
+
+**对比**: 统计图形模块的 9 个子模块全部具备 `state`/`apply_state` 契约（PROJECT_GUIDE.md §7.7.1），统计分析模块的任务历史**形同虚设**——保存只能记住方法类型，加载全部参数归零。
+
+#### 发现 3：Tables 模块 `get_state` 依赖生成后才有的 `committed_params`
+
+[`tables.R:637-640`](modules/tables.R#L637-L640) 的 `get_state` 从 `committed_params()` 读取参数，但 `committed_params()` 仅在点击"生成表格"后才被赋值（第 461 行）。用户配置完参数但未生成时保存，`get_state` 返回空列表 → 保存的是空任务 → 加载时无参数可恢复。
+
+**另外** `module_type` 解析（第 633-635 行）优先从 `committed_params()$table_type` 取值，切换表格类型后若未重新生成，历史列表过滤会使用旧的类型名。
+
+#### 发现 4：两模块 `workspace_id = NULL` —— 任务丢失 workspace 上下文
+
+`statistical_analysis.R:999-1001` 和 `tables.R:628-630` 在调用 `task_history_server` 时均硬编码 `workspace_id = NULL`。对比 `statistical_graphics.R:231-241` 正确传入了 `resolve_workspace_id`。导致统计分析和 Tables 的所有任务始终标记为"个人任务"，无法按 workspace 隔离。
+
+### 二、发现汇总
+
+| # | 严重度 | 模块/文件 | 描述 | 影响 |
+|---|--------|----------|------|------|
+| 1 | **P0** | `modules/statistical_analysis.R:1005-1016` | `get_state` 仅保存 `stat_method` | 保存/加载完全不可用 |
+| 2 | **P0** | `modules/statistical_analysis/*.R` (6 个) | 子模块全部无 `apply_state` 函数 | 加载后参数无法回填 |
+| 3 | **P1** | `postgres/init.sql:84-95` | `analysis_states` 缺少来源数据集字段 | 无法溯源任务数据来源 |
+| 4 | **P1** | `modules/statistical_analysis.R:999` | `workspace_id = NULL` | 任务无法关联 workspace |
+| 5 | **P1** | `modules/tables.R:628` | `workspace_id = NULL` | 同上 |
+| 6 | **P2** | `modules/tables.R:637-640` | `get_state` 依赖 `committed_params()` | 未生成即保存丢失参数 |
+| 7 | **P2** | `modules/tables.R:633-635` | `module_type` 解析不稳定 | 切换类型后列表过滤异常 |
+
+### 三、与规范文档对照
+
+| 规范要求 | 来源 | 统计分析 | Tables |
+|---------|------|:------:|:-----:|
+| "接入任务历史的业务模块必须显式维护 `state` / `apply_state` 契约" | CODE_STYLE.md §3.1.2 | ❌ 缺 | ⚠️ 部分 |
+| "任务历史载入的本质是状态快照恢复，由 `task_history.R` 解析 `state_payload`，再调用各业务模块的 `apply_state()` 回填控件" | PROJECT_GUIDE.md §9.4 | ❌ 未实现 | ⚠️ 部分 |
+| "凡写入 `state_payload` 的图形子模块参数，应尽量提供对称的回填逻辑" | CODE_STYLE.md §3.1.2 | ❌ 无 | ✅ 有 |
+| "workspace 为空时保存为个人任务" | PROJECT_SPEC.md §3.4 | ⚠️ 始终为空 | ⚠️ 始终为空 |
+
+### 四、修复计划
+
+| 优先级 | 任务 | 涉及文件 |
+|--------|------|---------|
+| **P0** | 统计分析 `get_state` 补全所有参数收集 | `statistical_analysis.R` |
+| **P0** | 为 6 个统计分析子模块创建 `apply_*_state` 函数 | `desc.R`, `cox.R`, `logistic.R`, `linear.R`, `anova.R`, `chisq.R` |
+| **P1** | `analysis_states` 表新增 `source_info` JSONB 字段 + 迁移脚本 | `postgres/init.sql` |
+| **P1** | 扩展 service 层支持 `source_info` 读写 | `account_service.R` |
+| **P1** | `task_history_server` 接受并透传 `source_info` | `task_history.R` |
+| **P1** | `task_history_display_df` 展示来源数据信息 | `task_history.R` |
+| **P1** | 修复两模块 `workspace_id = NULL` | `statistical_analysis.R`, `tables.R` |
+| **P2** | Tables `get_state` 改为实时读取 `input$` 值 | `tables.R` |
+| **P2** | Tables `module_type` 从 `input$table_type` 直接读取 | `tables.R` |
+| **P3** | 各调用模块传入 `source_info` | `statistical_analysis.R`, `tables.R`, `statistical_graphics.R` |
+
+### 五、评审结论
+
+| 维度 | 评分 | 说明 |
+|------|------|------|
+| 任务历史数据模型 | ★★★☆☆ | 缺来源数据集溯源字段 |
+| 统计分析 task_history | ★☆☆☆☆ | get_state/apply_state 完全未实现 |
+| Tables task_history | ★★★☆☆ | 结构有但存在时序缺陷 |
+| 统计图形 task_history | ★★★★★ | 9/9 模块已标准化（参考基线） |
+
+**核心结论**: 任务历史在统计图形模块已达到生产级质量，但在统计分析模块完全未实现（阻塞级 bug），在 Tables 模块存在"生成前不可保存"的时序缺陷。同时数据模型缺少来源数据集字段，影响任务溯源能力。
+
+**状态**: resolved（2026-06-11 R003 全部修复完成，测试回归通过）
+
+---

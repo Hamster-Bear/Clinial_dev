@@ -114,7 +114,7 @@ tables_ui <- function(id) {
 }
 
 # Tables模块服务器逻辑
-tables_server <- function(id, data, pg_pool = NULL, current_user = NULL) {
+tables_server <- function(id, data, pg_pool = NULL, current_user = NULL, dataset_meta = NULL) {
   moduleServer(id, function(input, output, session) {
   ns <- session$ns
   
@@ -624,46 +624,120 @@ tables_server <- function(id, data, pg_pool = NULL, current_user = NULL) {
     function() NULL
   }
 
+  resolve_workspace_id <- if (is.function(current_user) && exists("service_registry_load")) {
+    function() {
+      u <- current_user()
+      if (!is.list(u) || !nzchar(u$id %||% "")) return(NULL)
+      tryCatch({
+        reg <- service_registry_load(pg_pool, u)
+        if (length(reg$workspace_ids) > 0) reg$workspace_ids[[1]] else NULL
+      }, error = function(e) NULL)
+    }
+  } else {
+    function() NULL
+  }
+
+  # 收集当前表格类型的所有可见输入参数
+  collect_tables_input_state <- function() {
+    ttype <- input$table_type %||% ""
+    params <- list(table_type = ttype)
+
+    if (ttype == "t_dm") {
+      params$dm_variables         <- input$dm_variables %||% character(0)
+      params$dm_by_var            <- input$dm_by_var
+      params$dm_enable_total_cols <- input$dm_enable_total_cols
+      params$dm_total_cols_count  <- input$dm_total_cols_count
+      params$dm_table_title       <- input$dm_table_title
+      params$dm_table_footnote    <- input$dm_table_footnote
+    } else if (ttype == "t_ae_soc_pt") {
+      params$ae_trt_var       <- input$ae_trt_var
+      params$ae_soc_var       <- input$ae_soc_var
+      params$ae_pt_var        <- input$ae_pt_var
+      params$subject_id_var   <- input$subject_id_var
+      params$ae_enable_pop    <- input$ae_enable_pop
+      params$ae_pop_var       <- input$ae_pop_var
+      params$ae_pop_val       <- input$ae_pop_val
+    } else if (ttype == "listing_general") {
+      params$listing_key_cols    <- input$listing_key_cols %||% character(0)
+      params$listing_disp_cols   <- input$listing_disp_cols %||% character(0)
+      params$listing_landscape   <- input$listing_landscape
+      params$listing_font_size   <- input$listing_font_size
+    } else if (ttype == "ae_sidebyside") {
+      prefix <- "ae_sidebyside_params-"
+      params$ae_term_col   <- input[[paste0(prefix, "ae_term_col")]]
+      params$ae_sev_col    <- input[[paste0(prefix, "ae_sev_col")]]
+      params$ae_subj_col   <- input[[paste0(prefix, "ae_subj_col")]]
+      params$ae_group_col  <- input[[paste0(prefix, "ae_group_col")]]
+      params$ae_flag_col   <- input[[paste0(prefix, "ae_flag_col")]]
+      params$ae_flag_val   <- input[[paste0(prefix, "ae_flag_val")]]
+      params$ae_rel_col    <- input[[paste0(prefix, "ae_rel_col")]]
+      params$ae_rel_val    <- input[[paste0(prefix, "ae_rel_val")]]
+      params$ae_count_mode <- input[[paste0(prefix, "ae_count_mode")]]
+      params$ae_min_pct    <- input[[paste0(prefix, "ae_min_pct")]]
+    }
+
+    # 导出参数
+    params$table_export_name   <- input$table_export_name
+    params$table_export_format <- input$table_export_format
+
+    params
+  }
+
+  # 两阶段恢复
+  pending_tables_restore <- reactiveVal(NULL)
+
   task_history_server(
     "tables_task_history",
     pg_pool = pg_pool,
     current_user = resolve_user_id,
-    workspace_id = NULL,
+    workspace_id = resolve_workspace_id,
     scope = "tables",
-    module_type = reactive({
-      cp <- committed_params()
-      cp$table_type %||% input$table_type %||% ""
-    }),
+    module_type = reactive(input$table_type %||% ""),
     get_state = function() {
-      cp <- committed_params()
-      if (is.null(cp)) return(list())
-      list(task_schema_version = 1, extra_state = cp)
+      list(task_schema_version = 1, extra_state = collect_tables_input_state())
     },
     apply_state = function(payload) {
       if (!is.list(payload)) return(invisible(FALSE))
       extra <- payload$extra_state
       if (is.null(extra) || is.null(extra$table_type)) return(invisible(FALSE))
       updateSelectizeInput(session, "table_type", selected = extra$table_type)
-      switch(extra$table_type,
-        "t_dm"            = apply_t_dm_state(session, payload),
-        "t_ae_soc_pt"     = apply_t_ae_soc_pt_state(session, payload),
-        "listing_general" = apply_listing_general_state(session, payload),
-        "ae_sidebyside"   = apply_ae_sidebyside_state(session, payload),
-        FALSE
-      )
+      # 导出参数立即恢复
+      if (!is.null(extra$table_export_name))
+        updateTextInput(session, "table_export_name", value = extra$table_export_name)
+      if (!is.null(extra$table_export_format))
+        updateSelectInput(session, "table_export_format", selected = extra$table_export_format)
+      # 子模块参数等 UI 渲染后恢复
+      pending_tables_restore(extra)
+      TRUE
     },
-    apply_failure_message = "Tables 模块暂未接入任务历史回填"
+    apply_failure_message = "Tables 模块暂未接入完整任务历史回填",
+    source_info = dataset_meta
   )
+
+  observe({
+    extra <- pending_tables_restore()
+    if (is.null(extra)) return()
+    session$onFlushed(function() {
+      shiny::isolate({
+        pending_tables_restore(NULL)
+        ttype <- extra$table_type
+        switch(ttype,
+          "t_dm"            = apply_t_dm_state(session, list(extra_state = extra)),
+          "t_ae_soc_pt"     = apply_t_ae_soc_pt_state(session, list(extra_state = extra)),
+          "listing_general" = apply_listing_general_state(session, list(extra_state = extra)),
+          "ae_sidebyside"   = apply_ae_sidebyside_state(session, list(extra_state = extra))
+        )
+      })
+    })
+  })
 
   # 返回表格结果 + task_history 契约
   return(list(
     table_result = table_result,
     state = reactive({
-      cp <- committed_params()
-      if (is.null(cp)) return(list())
       list(
         task_schema_version = 1,
-        extra_state = cp
+        extra_state = collect_tables_input_state()
       )
     }),
     apply_state = function(payload) {
@@ -671,13 +745,15 @@ tables_server <- function(id, data, pg_pool = NULL, current_user = NULL) {
       extra <- payload$extra_state
       if (is.null(extra) || is.null(extra$table_type)) return(invisible(FALSE))
       updateSelectizeInput(session, "table_type", selected = extra$table_type)
-      switch(extra$table_type,
-        "t_dm"            = apply_t_dm_state(session, payload),
-        "t_ae_soc_pt"     = apply_t_ae_soc_pt_state(session, payload),
-        "listing_general" = apply_listing_general_state(session, payload),
-        "ae_sidebyside"   = apply_ae_sidebyside_state(session, payload),
-        FALSE
-      )
+      session$onFlushed(function() {
+        ttype <- extra$table_type
+        switch(ttype,
+          "t_dm"            = apply_t_dm_state(session, list(extra_state = extra)),
+          "t_ae_soc_pt"     = apply_t_ae_soc_pt_state(session, list(extra_state = extra)),
+          "listing_general" = apply_listing_general_state(session, list(extra_state = extra)),
+          "ae_sidebyside"   = apply_ae_sidebyside_state(session, list(extra_state = extra))
+        )
+      })
     }
   ))
   })

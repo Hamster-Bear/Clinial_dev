@@ -499,3 +499,23 @@ generate_cox_code <- function(data_name = "data", cox_time, cox_status, cox_cova
     )
   ))
 }
+
+# 任务历史回填
+apply_cox_state <- function(session, extra) {
+  if (!is.list(extra)) return(invisible(FALSE))
+  if (!is.null(extra$cox_time) && nzchar(extra$cox_time))
+    updateSelectInput(session, "cox_time", selected = extra$cox_time)
+  if (!is.null(extra$cox_status) && nzchar(extra$cox_status))
+    updateSelectInput(session, "cox_status", selected = extra$cox_status)
+  if (!is.null(extra$cox_strata) && nzchar(extra$cox_strata))
+    updateSelectInput(session, "cox_strata", selected = extra$cox_strata)
+  if (!is.null(extra$cox_facet) && nzchar(extra$cox_facet))
+    updateSelectInput(session, "cox_facet", selected = extra$cox_facet)
+  if (!is.null(extra$cox_model_strata) && nzchar(extra$cox_model_strata))
+    updateSelectInput(session, "cox_model_strata", selected = extra$cox_model_strata)
+  if (!is.null(extra$cox_event_value) && nzchar(extra$cox_event_value))
+    updateSelectInput(session, "cox_event_value", selected = extra$cox_event_value)
+  if (!is.null(extra$cox_covariates))
+    updateSelectizeInput(session, "cox_covariates", selected = extra$cox_covariates)
+  invisible(TRUE)
+}

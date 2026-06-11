@@ -43,8 +43,8 @@ cat("应用将在浏览器中打开，请稍候...\n")
 cat("按 Ctrl+C 停止应用\n\n")
 
 # 设置启动选项
-shiny_port <- suppressWarnings(as.integer(Sys.getenv("SHINY_PORT", "8109")))
-if (is.na(shiny_port) || shiny_port <= 0) shiny_port <- 8109
+shiny_port <- suppressWarnings(as.integer(Sys.getenv("SHINY_PORT", "8190")))
+if (is.na(shiny_port) || shiny_port <= 0) shiny_port <- 8190
 shiny_host <- Sys.getenv("SHINY_HOST", "127.0.0.1")
 options(shiny.port = shiny_port)
 options(shiny.host = shiny_host)

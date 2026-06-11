@@ -463,3 +463,21 @@ perform_desc_analysis <- function(data, variables, col_group_var, row_group_var,
     code = "perform_desc_analysis(data, variables, col_group_var, row_group_var, total_cols_count, total_cols_settings, decimals, auto_decimals, id_var)"
   )
 }
+
+# 任务历史回填
+apply_desc_state <- function(session, extra) {
+  if (!is.list(extra)) return(invisible(FALSE))
+  if (!is.null(extra$desc_variables) && length(extra$desc_variables) > 0)
+    updateSelectizeInput(session, "desc_variables", selected = extra$desc_variables)
+  if (!is.null(extra$desc_col_group_var) && nzchar(extra$desc_col_group_var))
+    updateSelectInput(session, "desc_col_group_var", selected = extra$desc_col_group_var)
+  if (!is.null(extra$desc_row_group_var) && nzchar(extra$desc_row_group_var))
+    updateSelectInput(session, "desc_row_group_var", selected = extra$desc_row_group_var)
+  if (!is.null(extra$desc_id_var) && nzchar(extra$desc_id_var))
+    updateSelectInput(session, "desc_id_var", selected = extra$desc_id_var)
+  if (!is.null(extra$desc_decimals))
+    updateNumericInput(session, "desc_decimals", value = extra$desc_decimals)
+  if (!is.null(extra$desc_auto_decimals))
+    updateCheckboxInput(session, "desc_auto_decimals", value = extra$desc_auto_decimals)
+  invisible(TRUE)
+}

@@ -103,3 +103,59 @@
 - （uncommitted）
 
 ---
+
+## 2026-06-11
+
+### R003 [21:30] — Review 7: 任务历史缺陷系统性修复 (P0-P2)
+
+#### Done
+- P0: `statistical_analysis.R` — `get_state` 从仅保存 `stat_method` 扩展为保存全部 30+ 分析参数（Cox/Logistic/Linear/ANOVA/Chi-sq/Desc 各方法的输入变量、参考组、事件值、总计列 + 导出参数）
+- P0: `statistical_analysis.R` — `apply_state` 改为两阶段恢复：先设 `stat_method` 触发 UI 渲染，`pending_analysis_restore` + `session$onFlushed()` 等 UI 就绪后再回填子模块参数
+- P0: 6 个统计分析子模块全部补全 `apply_*_state()` 函数：
+  - `desc.R` → `apply_desc_state`（6 个输入）
+  - `cox.R` → `apply_cox_state`（7 个输入）
+  - `logistic.R` → `apply_logistic_state`（6 个输入）
+  - `linear.R` → `apply_linear_state`（5 个输入）
+  - `anova.R` → `apply_anova_state`（2 个输入）
+  - `chisq.R` → `apply_chisq_state`（2 个输入）
+- P1: `postgres/init.sql` — `analysis_states` 表新增 `source_info JSONB` 字段 + 兼容升级 DO 块
+- P1: `account_service.R` — `service_build_analysis_state_insert_spec`/`update_spec`/`service_save_analysis_state` 支持 `source_info`
+- P1: `task_history.R` — `task_history_display_df` 新增"来源数据"列（解析 source_info 显示数据集名/空间/行列数）
+- P1: `task_history.R` — `task_history_server` 新增 `source_info` 参数，保存时透传到 service 层
+- P1: `statistical_analysis.R` — `workspace_id` 从 `NULL` 改为 `resolve_workspace_id`（自动解析当前数据空间）
+- P1: `tables.R` — `workspace_id` 从 `NULL` 改为 `resolve_workspace_id`
+- P2: `tables.R` — `get_state` 从依赖 `committed_params()`（仅生成后有值）改为 `collect_tables_input_state()`（实时读取 input）
+- P2: `tables.R` — `module_type` 从优先 `committed_params()$table_type` 改为直接 `input$table_type`
+- P2: `tables.R` — `apply_state` 改为两阶段恢复，与 statistical_analysis 一致
+- 测试：`test_account_service_analysis_states.R` 更新预期以匹配新增的 `source_info` 参数（2 处断言修正）
+- 测试回归：`test_task_history_card_ui_guard.R`（通过）、`test_statistical_analysis_layout_guard.R`（通过）、`test_tables_committed_state.R`（18 断言通过）、`test_account_service_analysis_states.R`（27 断言通过）、`test_tables_layout_guard.R`（通过）
+- 文档：PROJECT_GUIDE.md §7.3 任务历史描述更新（source_info + 二阶段恢复）、§9.4 任务历史现状更新、§10.2 新增 analysis_states 行
+- 文档：REVIEWS.md 新增 Review 7 专项审计报告（7 项发现 + 修复计划 + 评审结论）
+
+#### Issues / Blockers
+- 两阶段恢复依赖 `session$onFlushed()` 确保子模块参数 UI 已渲染；若数据尚未加载（`filtered_data()` 为 NULL），`stat_params_ui` 会返回空状态提示而不渲染子模块输入，此时参数回填的 `update*Input` 会静默失败。建议后续补充重试或等待数据就绪的机制。
+
+#### Next
+1. 用户端到端验证：登录 → 数据上传 → 统计分析（配置参数 → 保存 → 加载 → 验证参数回填）→ Tables（同上）
+2. 用户端到端验证：切换到不同 workspace 后任务历史的 workspace 隔离是否正确
+3. 后续可选：各调用模块在 `get_state` 中填充 `source_info`（需要从数据准备模块获取当前数据集元信息）
+
+#### Files Changed
+- `modules/statistical_analysis.R`（修改）— `get_state`/`apply_state`/workspace_id
+- `modules/statistical_analysis/desc.R`（修改）— 新增 `apply_desc_state`
+- `modules/statistical_analysis/cox.R`（修改）— 新增 `apply_cox_state`
+- `modules/statistical_analysis/logistic.R`（修改）— 新增 `apply_logistic_state`
+- `modules/statistical_analysis/linear.R`（修改）— 新增 `apply_linear_state`
+- `modules/statistical_analysis/anova.R`（修改）— 新增 `apply_anova_state`
+- `modules/statistical_analysis/chisq.R`（修改）— 新增 `apply_chisq_state`
+- `modules/tables.R`（修改）— `collect_tables_input_state`/`module_type`/workspace_id/两阶段恢复
+- `modules/task_history.R`（修改）— `source_info` 参数/`task_history_display_df` 来源数据列
+- `modules/common/auth/account_service.R`（修改）— `source_info` 支持
+- `postgres/init.sql`（修改）— `source_info JSONB` 列 + 兼容升级
+- `tests/common/auth/test_account_service_analysis_states.R`（修改）— 断言更新
+- `docs/main/PROJECT_GUIDE.md`（修改）— 任务历史/存储描述更新
+- `docs/dep/REVIEWS.md`（修改）— Review 7 专项审计报告
+- `docs/dep/TASK_STATE.md`（新建，将删除）
+- （uncommitted）
+
+---

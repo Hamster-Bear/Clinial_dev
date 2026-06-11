@@ -43,3 +43,13 @@ perform_chisq_analysis <- function(data, chisq_var1, chisq_var2) {
   
   return(result)
 }
+
+# 任务历史回填
+apply_chisq_state <- function(session, extra) {
+  if (!is.list(extra)) return(invisible(FALSE))
+  if (!is.null(extra$chisq_var1) && nzchar(extra$chisq_var1))
+    updateSelectInput(session, "chisq_var1", selected = extra$chisq_var1)
+  if (!is.null(extra$chisq_var2) && nzchar(extra$chisq_var2))
+    updateSelectInput(session, "chisq_var2", selected = extra$chisq_var2)
+  invisible(TRUE)
+}

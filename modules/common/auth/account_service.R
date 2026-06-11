@@ -600,7 +600,8 @@ service_build_analysis_state_insert_spec <- function(
   module_type,
   state_name,
   state_payload,
-  state_note = NULL
+  state_note = NULL,
+  source_info = NULL
 ) {
   normalized_workspace_id <- service_normalize_analysis_state_workspace_id(workspace_id)
   if (!nzchar(user_id %||% "")) {
@@ -619,7 +620,19 @@ service_build_analysis_state_insert_spec <- function(
     stop("缺少任务内容")
   }
 
+  has_source <- !is.null(source_info) && nzchar(source_info %||% "")
+
   if (is.null(normalized_workspace_id)) {
+    if (has_source) {
+      return(list(
+        sql = paste(
+          "INSERT INTO analysis_states",
+          "(id, user_id, workspace_id, scope, module_type, state_name, state_payload, state_note, source_info, created_at, updated_at)",
+          "VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8::jsonb, NOW(), NOW())"
+        ),
+        params = list(state_id, user_id, scope, module_type, state_name, state_payload, state_note %||% "", source_info)
+      ))
+    }
     return(list(
       sql = paste(
         "INSERT INTO analysis_states",
@@ -627,6 +640,17 @@ service_build_analysis_state_insert_spec <- function(
         "VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, NOW(), NOW())"
       ),
       params = list(state_id, user_id, scope, module_type, state_name, state_payload, state_note %||% "")
+    ))
+  }
+
+  if (has_source) {
+    return(list(
+      sql = paste(
+        "INSERT INTO analysis_states",
+        "(id, user_id, workspace_id, scope, module_type, state_name, state_payload, state_note, source_info, created_at, updated_at)",
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, NOW(), NOW())"
+      ),
+      params = list(state_id, user_id, normalized_workspace_id, scope, module_type, state_name, state_payload, state_note %||% "", source_info)
     ))
   }
 
@@ -640,7 +664,7 @@ service_build_analysis_state_insert_spec <- function(
   )
 }
 
-service_build_analysis_state_update_spec <- function(state_id, state_payload, state_note = NULL) {
+service_build_analysis_state_update_spec <- function(state_id, state_payload, state_note = NULL, source_info = NULL) {
   if (!nzchar(state_id %||% "")) {
     stop("缺少任务标识")
   }
@@ -648,14 +672,27 @@ service_build_analysis_state_update_spec <- function(state_id, state_payload, st
     stop("缺少任务内容")
   }
 
-  list(
-    sql = paste(
-      "UPDATE analysis_states",
-      "SET state_payload = $2, state_note = $3, updated_at = NOW()",
-      "WHERE id = $1"
-    ),
-    params = list(state_id, state_payload, state_note %||% "")
-  )
+  has_source <- !is.null(source_info) && nzchar(source_info %||% "")
+
+  if (has_source) {
+    list(
+      sql = paste(
+        "UPDATE analysis_states",
+        "SET state_payload = $2, state_note = $3, source_info = $4::jsonb, updated_at = NOW()",
+        "WHERE id = $1"
+      ),
+      params = list(state_id, state_payload, state_note %||% "", source_info)
+    )
+  } else {
+    list(
+      sql = paste(
+        "UPDATE analysis_states",
+        "SET state_payload = $2, state_note = $3, updated_at = NOW()",
+        "WHERE id = $1"
+      ),
+      params = list(state_id, state_payload, state_note %||% "")
+    )
+  }
 }
 
 service_parse_analysis_state_payload <- function(payload) {
@@ -732,7 +769,8 @@ service_save_analysis_state <- function(
   payload,
   scope = "graphics",
   workspace_id = NULL,
-  state_note = NULL
+  state_note = NULL,
+  source_info = NULL
 ) {
   if (!nzchar(user_id %||% "")) {
     stop("缺少用户信息")
@@ -742,6 +780,11 @@ service_save_analysis_state <- function(
   normalized_module_type <- trimws(module_type %||% "")
   normalized_state_name <- trimws(state_name %||% "")
   normalized_state_note <- trimws(state_note %||% "")
+  source_info_json <- if (is.null(source_info) || !is.list(source_info) || length(source_info) == 0) {
+    NULL
+  } else {
+    jsonlite::toJSON(source_info, auto_unbox = TRUE, null = "null")
+  }
   state_id <- auth_generate_id("analysis_state")
   payload_json <- jsonlite::toJSON(payload %||% list(), auto_unbox = TRUE, null = "null")
   service_with_transaction(pool, {
@@ -758,7 +801,8 @@ service_save_analysis_state <- function(
       update_spec <- service_build_analysis_state_update_spec(
         state_id = existing_state$id[[1]],
         state_payload = payload_json,
-        state_note = normalized_state_note
+        state_note = normalized_state_note,
+        source_info = source_info_json
       )
       DBI::dbExecute(conn, update_spec$sql, params = update_spec$params)
       return(existing_state$id[[1]])
@@ -772,7 +816,8 @@ service_save_analysis_state <- function(
       module_type = normalized_module_type,
       state_name = normalized_state_name,
       state_payload = payload_json,
-      state_note = normalized_state_note
+      state_note = normalized_state_note,
+      source_info = source_info_json
     )
     DBI::dbExecute(conn, insert_spec$sql, params = insert_spec$params)
     state_id

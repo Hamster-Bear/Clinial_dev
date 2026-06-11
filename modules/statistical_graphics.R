@@ -67,7 +67,7 @@ statistical_graphics_ui <- function(id) {
   )
 }
 
-statistical_graphics_server <- function(id, data, pg_pool = NULL, current_user = NULL, workspace_id = NULL) {
+statistical_graphics_server <- function(id, data, pg_pool = NULL, current_user = NULL, workspace_id = NULL, dataset_meta = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     copy <- ENTRY_COPY$statistical_graphics
@@ -237,7 +237,8 @@ statistical_graphics_server <- function(id, data, pg_pool = NULL, current_user =
       module_type = reactive(input$fig_type),
       get_state = function() module_handler_state(active_module_handler()),
       apply_state = function(state) module_handler_apply_state(active_module_handler(), state),
-      apply_failure_message = "当前模块暂未接入任务历史回填"
+      apply_failure_message = "当前模块暂未接入任务历史回填",
+      source_info = dataset_meta
     )
 
     output$graphic_repro_code_out <- renderText({

@@ -90,9 +90,23 @@ CREATE TABLE IF NOT EXISTS analysis_states (
     state_name VARCHAR(255) NOT NULL,
     state_payload TEXT NOT NULL,
     state_note TEXT,
+    source_info JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 兼容升级：若表已存在但缺少 source_info 列则补充
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'analysis_states' AND column_name = 'source_info'
+  ) THEN
+    -- 列已存在，无需操作
+  ELSE
+    ALTER TABLE analysis_states ADD COLUMN source_info JSONB;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_workspaces_owner_user ON workspaces(owner_user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email);

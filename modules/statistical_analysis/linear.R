@@ -435,3 +435,19 @@ generate_linear_code <- function(data_name = "data", linear_response, linear_pre
     )
   ))
 }
+
+# 任务历史回填
+apply_linear_state <- function(session, extra) {
+  if (!is.list(extra)) return(invisible(FALSE))
+  if (!is.null(extra$linear_response) && nzchar(extra$linear_response))
+    updateSelectInput(session, "linear_response", selected = extra$linear_response)
+  if (!is.null(extra$linear_strata) && nzchar(extra$linear_strata))
+    updateSelectInput(session, "linear_strata", selected = extra$linear_strata)
+  if (!is.null(extra$linear_facet) && nzchar(extra$linear_facet))
+    updateSelectInput(session, "linear_facet", selected = extra$linear_facet)
+  if (!is.null(extra$linear_model_strata) && nzchar(extra$linear_model_strata))
+    updateSelectInput(session, "linear_model_strata", selected = extra$linear_model_strata)
+  if (!is.null(extra$linear_predictors))
+    updateSelectizeInput(session, "linear_predictors", selected = extra$linear_predictors)
+  invisible(TRUE)
+}

@@ -475,18 +475,22 @@ server <- function(input, output, session) {
   database_manager_server("db_manage", pg_pool = pg_pool, current_user = current_user)
   user_profile_server("user_profile", pg_pool = pg_pool, current_user = current_user, on_user_updated = current_user)
   permission_manager_server("access_permissions", pg_pool = pg_pool, current_user = current_user)
-  data_prep_module <- data_preparation_server("data_prep", pg_pool = pg_pool, current_user = current_user)
+  data_prep_result <- data_preparation_server("data_prep", pg_pool = pg_pool, current_user = current_user)
   admin_manager_server("admin", pg_pool = pg_pool, current_user = current_user)
 
+  # 数据集来源元信息（供任务历史记录使用）
+  # data_prep_result$meta 是 data_preparation 模块暴露的 reactiveVal 函数
+  dataset_meta <- data_prep_result$meta
+
   observe({
-    data <- data_prep_module()
+    data <- data_prep_result$data()
     filtered_data(data)
   })
 
   exploratory_analysis_server("explore", data = filtered_data)
-  statistical_analysis_server("stats", data = filtered_data, pg_pool = pg_pool, current_user = current_user)
-  statistical_graphics_server("plots", data = filtered_data, pg_pool = pg_pool, current_user = current_user)
-  tables_server("tables", data = filtered_data, pg_pool = pg_pool, current_user = current_user)
+  statistical_analysis_server("stats", data = filtered_data, pg_pool = pg_pool, current_user = current_user, dataset_meta = dataset_meta)
+  statistical_graphics_server("plots", data = filtered_data, pg_pool = pg_pool, current_user = current_user, dataset_meta = dataset_meta)
+  tables_server("tables", data = filtered_data, pg_pool = pg_pool, current_user = current_user, dataset_meta = dataset_meta)
 
   observe({
     if (is.null(current_user())) {

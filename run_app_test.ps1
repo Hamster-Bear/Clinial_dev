@@ -9,13 +9,13 @@ function Resolve-ShinyPort {
   )
 
   if ([string]::IsNullOrWhiteSpace($RawPort)) {
-    return 8109
+    return 8190
   }
 
   $parsedPort = 0
   if (-not [int]::TryParse($RawPort, [ref]$parsedPort) -or $parsedPort -le 0 -or $parsedPort -gt 65535) {
-    Write-Host "SHINY_PORT 无效: $RawPort，回退为 8109" -ForegroundColor Yellow
-    return 8109
+    Write-Host "SHINY_PORT 无效: $RawPort，回退为 8190" -ForegroundColor Yellow
+    return 8190
   }
 
   return $parsedPort

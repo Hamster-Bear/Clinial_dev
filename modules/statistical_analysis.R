@@ -134,7 +134,7 @@ statistical_analysis_ui <- function(id) {
 }
 
 # 统计分析服务器逻辑
-statistical_analysis_server <- function(id, data, pg_pool = NULL, current_user = NULL) {
+statistical_analysis_server <- function(id, data, pg_pool = NULL, current_user = NULL, dataset_meta = NULL) {
   moduleServer(id, function(input, output, session) {
   ns <- session$ns
   copy <- ENTRY_COPY$statistical_analysis
@@ -995,26 +995,117 @@ statistical_analysis_server <- function(id, data, pg_pool = NULL, current_user =
     function() NULL
   }
 
+  resolve_workspace_id <- if (is.function(current_user) && exists("service_registry_load")) {
+    function() {
+      u <- current_user()
+      if (!is.list(u) || !nzchar(u$id %||% "")) return(NULL)
+      tryCatch({
+        reg <- service_registry_load(pg_pool, u)
+        if (length(reg$workspace_ids) > 0) reg$workspace_ids[[1]] else NULL
+      }, error = function(e) NULL)
+    }
+  } else {
+    function() NULL
+  }
+
+  # 两阶段恢复：先设置 stat_method，等 UI 渲染后再回填子模块参数
+  pending_analysis_restore <- reactiveVal(NULL)
+
   task_history_server(
     "analysis_task_history",
     pg_pool = pg_pool,
     current_user = resolve_user_id,
-    workspace_id = NULL,
+    workspace_id = resolve_workspace_id,
     scope = "analysis",
     module_type = reactive(input$stat_method %||% ""),
     get_state = function() {
       method <- input$stat_method %||% ""
-      list(task_schema_version = 1, extra_state = list(stat_method = method))
+      extra <- list(stat_method = method)
+
+      # 收集所有方法的参数
+      extra$cox_time          <- input$cox_time
+      extra$cox_status        <- input$cox_status
+      extra$cox_covariates    <- input$cox_covariates %||% character(0)
+      extra$cox_strata        <- input$cox_strata
+      extra$cox_facet         <- input$cox_facet
+      extra$cox_model_strata  <- input$cox_model_strata
+      extra$cox_event_value   <- input$cox_event_value
+
+      extra$logistic_response       <- input$logistic_response
+      extra$logistic_predictors     <- input$logistic_predictors %||% character(0)
+      extra$logistic_strata         <- input$logistic_strata
+      extra$logistic_facet          <- input$logistic_facet
+      extra$logistic_model_strata   <- input$logistic_model_strata
+      extra$logistic_event_value    <- input$logistic_event_value
+
+      extra$linear_response       <- input$linear_response
+      extra$linear_predictors     <- input$linear_predictors %||% character(0)
+      extra$linear_strata         <- input$linear_strata
+      extra$linear_facet          <- input$linear_facet
+      extra$linear_model_strata   <- input$linear_model_strata
+
+      extra$anova_response  <- input$anova_response
+      extra$anova_factors   <- input$anova_factors %||% character(0)
+
+      extra$chisq_var1  <- input$chisq_var1
+      extra$chisq_var2  <- input$chisq_var2
+
+      extra$desc_variables       <- input$desc_variables %||% character(0)
+      extra$desc_col_group_var   <- input$desc_col_group_var
+      extra$desc_row_group_var   <- input$desc_row_group_var
+      extra$desc_id_var          <- input$desc_id_var
+      extra$desc_decimals        <- input$desc_decimals
+      extra$desc_auto_decimals   <- input$desc_auto_decimals
+
+      # 导出参数
+      extra$dl_format           <- input$dl_format
+      extra$dl_include_report   <- input$dl_include_report
+      extra$export_title        <- input$export_title
+      extra$export_footnotes    <- input$export_footnotes
+
+      list(task_schema_version = 1, extra_state = extra)
     },
     apply_state = function(payload) {
       if (!is.list(payload)) return(invisible(FALSE))
       extra <- payload$extra_state
       if (is.null(extra) || is.null(extra$stat_method)) return(invisible(FALSE))
       updateSelectInput(session, "stat_method", selected = extra$stat_method)
+      # 导出参数可以立即恢复（不在 renderUI 内部）
+      if (!is.null(extra$dl_format))
+        updateSelectInput(session, "dl_format", selected = extra$dl_format)
+      if (!is.null(extra$dl_include_report))
+        updateCheckboxInput(session, "dl_include_report", value = extra$dl_include_report)
+      if (!is.null(extra$export_title))
+        updateTextInput(session, "export_title", value = extra$export_title)
+      if (!is.null(extra$export_footnotes))
+        updateTextAreaInput(session, "export_footnotes", value = extra$export_footnotes)
+      # 子模块参数需要等 UI 渲染后再恢复
+      pending_analysis_restore(extra)
       TRUE
     },
-    apply_failure_message = "当前模块暂未接入完整任务历史回填"
+    apply_failure_message = "当前模块暂未接入任务历史回填",
+    source_info = dataset_meta
   )
+
+  # 第二阶段：等 stat_params_ui 渲染后恢复子模块参数
+  observe({
+    extra <- pending_analysis_restore()
+    if (is.null(extra)) return()
+    session$onFlushed(function() {
+      shiny::isolate({
+        pending_analysis_restore(NULL)
+        method <- extra$stat_method
+        switch(method,
+          "cox"      = apply_cox_state(session, extra),
+          "logistic" = apply_logistic_state(session, extra),
+          "linear"   = apply_linear_state(session, extra),
+          "anova"    = apply_anova_state(session, extra),
+          "chi-sq"   = apply_chisq_state(session, extra),
+          "desc"     = apply_desc_state(session, extra)
+        )
+      })
+    })
+  })
 
   # 返回分析结果
   return(analysis_results)

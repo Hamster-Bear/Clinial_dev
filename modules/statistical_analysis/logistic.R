@@ -607,3 +607,21 @@ generate_logistic_code <- function(data_name = "data", logistic_response, logist
     )
   ))
 }
+
+# 任务历史回填
+apply_logistic_state <- function(session, extra) {
+  if (!is.list(extra)) return(invisible(FALSE))
+  if (!is.null(extra$logistic_response) && nzchar(extra$logistic_response))
+    updateSelectInput(session, "logistic_response", selected = extra$logistic_response)
+  if (!is.null(extra$logistic_strata) && nzchar(extra$logistic_strata))
+    updateSelectInput(session, "logistic_strata", selected = extra$logistic_strata)
+  if (!is.null(extra$logistic_facet) && nzchar(extra$logistic_facet))
+    updateSelectInput(session, "logistic_facet", selected = extra$logistic_facet)
+  if (!is.null(extra$logistic_model_strata) && nzchar(extra$logistic_model_strata))
+    updateSelectInput(session, "logistic_model_strata", selected = extra$logistic_model_strata)
+  if (!is.null(extra$logistic_event_value) && nzchar(extra$logistic_event_value))
+    updateSelectInput(session, "logistic_event_value", selected = extra$logistic_event_value)
+  if (!is.null(extra$logistic_predictors))
+    updateSelectizeInput(session, "logistic_predictors", selected = extra$logistic_predictors)
+  invisible(TRUE)
+}

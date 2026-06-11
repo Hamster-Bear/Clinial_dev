@@ -46,3 +46,13 @@ perform_anova_analysis <- function(data, anova_response, anova_factors) {
   
   return(result)
 }
+
+# 任务历史回填
+apply_anova_state <- function(session, extra) {
+  if (!is.list(extra)) return(invisible(FALSE))
+  if (!is.null(extra$anova_response) && nzchar(extra$anova_response))
+    updateSelectInput(session, "anova_response", selected = extra$anova_response)
+  if (!is.null(extra$anova_factors) && length(extra$anova_factors) > 0)
+    updateSelectizeInput(session, "anova_factors", selected = extra$anova_factors)
+  invisible(TRUE)
+}

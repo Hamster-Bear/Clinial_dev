@@ -304,7 +304,10 @@ AutoTFL/
 │   └── server_ssl.conf
 ├── postgres/
 │   ├── init.sql
-│   └── postgresql.conf
+│   ├── postgresql.conf
+│   ├── migrate.ps1
+│   └── migrations/
+│       └── 001_analysis_states_schema.sql
 ├── deploy/
 │   └── alicloud/
 ├── docs/
@@ -456,7 +459,7 @@ AutoTFL/
 | 复现代码    | `graphics_repro.R`                          | 为图形模块生成可复现代码片段                                                                                                                                                                                                                         |
 | UI 壳层   | `statistical_graphics_ui/common_ui_shell.R` | 统一页签容器、导出控件、主按钮样式，以及图形输出居中容器                                                                                                                                                                                                           |
 | 导出      | `plot_export.R`                             | 图形导出辅助能力                                                                                                                                                                                                                               |
-| 任务历史    | `task_history.R` + `modules/common/auth/account_service.R` | 共享任务历史模块负责保存/加载入口、最近任务列表、用户自定义 note、删除操作与用户友好提示；底层使用 PostgreSQL `analysis_states` 表持久化图形子模块完整参数、UI 状态与模块类型 JSON 快照，不保存图对象、结果对象或原始数据副本；快照只保留业务参数，不应混入 DT/Plotly 等派生交互输入，也不应保存配置折叠/页签这类导航态；旧任务恢复时也要跳过这些临时字段，避免加载任务触发未定义列、过滤异常或动态 UI 异步崩溃 |
+| 任务历史    | `task_history.R` + `modules/common/auth/account_service.R` | 共享任务历史模块负责保存/加载入口、最近任务列表、用户自定义 note、删除操作与用户友好提示；底层使用 PostgreSQL `analysis_states` 表持久化模块完整参数、UI 状态与模块类型 JSON 快照，不保存图对象、结果对象或原始数据副本；快照只保留业务参数，不应混入 DT/Plotly 等派生交互输入，也不应保存配置折叠/页签这类导航态；旧任务恢复时也要跳过这些临时字段，避免加载任务触发未定义列、过滤异常或动态 UI 异步崩溃。`source_info`（JSONB）字段记录任务创建时使用的来源数据集信息（数据集名称、数据空间、行数/列数等），保存时由调用模块通过 `task_history_server(source_info = ...)` 传入，历史表格中展示"来源数据"列 |
 
 ### 7.4 生存分析当前实现口径
 
@@ -576,8 +579,11 @@ AutoTFL/
 - 子模块允许存在的特例，只限表现层细节且必须在指南中明确说明边界；一旦第二个模块需要同类能力，必须上提到 common。
 - 新增或改动 common 函数时，至少同步更新本指南中的“可复用函数清单”和相关测试，确保后续开发按同一契约收紧。
 - 若守卫测试或模块联调输出过长，优先采用“静态定位 + 最小验证”策略：先用 `Grep/Read` 锁定失败断言或可疑代码，再用 `testthat::test_file(..., reporter = "summary")` 跑目标测试文件，避免直接执行整份长输出脚本导致终端/沙盒卡住。
-- 任务历史当前采用“共享模块先内嵌、一级导航后置”的演进策略：在统计图形/统计分析形成统一 `state/apply_state` 契约前，不直接迁移为左侧一级菜单。
-- 任务历史载入的本质是“状态快照恢复”：当前由 `task_history.R` 解析 `state_payload`，再调用各业务模块的 `apply_state()` 回填控件；图形模块需尽量覆盖当前子模块全部参数的保存/回填，但是否自动重新生成结果，仍取决于业务模块自身的交互设计。
+- 任务历史当前采用”共享模块先内嵌、一级导航后置”的演进策略：在统计图形/统计分析形成统一 `state/apply_state` 契约前，不直接迁移为左侧一级菜单。
+- 任务历史载入的本质是”状态快照恢复”：当前由 `task_history.R` 解析 `state_payload`，再调用各业务模块的 `apply_state()` 回填控件；回填采用两阶段恢复策略——先设置模块类型触发动态 UI 渲染，再通过 `session$onFlushed()` 等待渲染完成后恢复子模块参数。
+- 统计图形 9 个子模块、Tables 4 个子模块、统计分析 6 个子模块均已提供 `apply_state` 函数；统计分析模块的任务历史已从”仅保存方法类型”补齐为完整参数保存/回填（Review 7 修复）。
+- `workspace_id` 现在根据当前用户的数据空间注册表自动解析，不再硬编码为 NULL。
+- `analysis_states` 表新增 `source_info`（JSONB）字段用于记录任务创建时的来源数据集信息，`task_history_display_df` 在历史表格中展示”来源数据”列。
 - 统一参数面板布局规范已按前端真实形态重置为“3 个顶层功能卡片 + 卡片内部子页签 + 独立结果区”，不允许再把 `数据与变量 / 图形与样式 / 输出与导出` 这 3 个顶层功能卡本身做成并列页签。
 - 顶层功能卡固定为：
   - `数据与变量`：内部使用子页签承载 `核心映射` 与 `分组/分面/轨道/附加变量`。
@@ -722,9 +728,17 @@ AutoTFL/
 | 层级      | 当前实现                                                                           |
 | ------- | ------------------------------------------------------------------------------ |
 | 元数据     | PostgreSQL 表 `users`、`workspaces`、`workspace_memberships`、`folders`、`datasets` |
+| 分析状态    | PostgreSQL 表 `analysis_states`（含 `source_info` JSONB 来源数据集字段）          |
 | 数据体     | 本地 `RDS` 文件或 S3 对象                                                             |
 | 存储切换    | 通过 `STORAGE_BACKEND` 控制 `local` / `s3`                                         |
 | S3 前置条件 | 必须安装 `aws.s3`，并设置 `STORAGE_S3_BUCKET`                                          |
+
+### 10.2.0 数据库迁移
+
+- 初始化建表由 `postgres/init.sql` 负责，仅在容器首次创建时通过 `/docker-entrypoint-initdb.d/` 自动执行。
+- **增量迁移**由 `postgres/migrations/` 目录下的编号 SQL 文件承载，按序号顺序执行，每个迁移文件幂等（使用 `IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` / DO 块守卫）。
+- `postgres/migrate.ps1` 为迁移执行入口：自动检测运行中的 PostgreSQL 容器和凭据，逐文件应用 `migrations/` 下的 SQL，已应用的迁移自动跳过。
+- 新增迁移文件命名规则：`NNN_descriptive_name.sql`（如 `001_analysis_states_schema.sql`），同时在 `migrate.ps1` 的迁移清单末尾追加新文件引用。
 
 ### 10.2.1 当前数据接入边界
 
