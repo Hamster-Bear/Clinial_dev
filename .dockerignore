@@ -46,6 +46,16 @@ tests/
 *.txt
 docs/
 
+# 部署产物（绝不能打入应用镜像）
+apps/
+data_storage/
+postgres/
+deploy/
+nginx/
+
+# 商业文档
+商业化/
+
 # 其他不需要的文件
 .DS_Store
 Thumbs.db
