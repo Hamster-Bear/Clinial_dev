@@ -68,9 +68,10 @@ services:
     depends_on:
       - app
     volumes:
+      # 默认代理配置 —— 不挂载 landing 页面，所有请求直通 Shiny
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
-      - "80:80"
+      - "8080:80"  # 本地开发端口，避免与宿主机 80 端口冲突
     restart: unless-stopped
     networks:
       - autotfl-network
