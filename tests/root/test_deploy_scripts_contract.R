@@ -48,6 +48,18 @@ test_that("deploy_from_tar.sh 支持 apps 目录回退", {
   expect_match(txt, 'APPS_DIR="\\$\\{APPS_DIR:-\\$ROOT_DIR/apps\\}"')
   expect_match(txt, 'find "\\$APPS_DIR" -maxdepth 1 -type f -name "\\*\\.tar"')
   expect_match(txt, 'if \\[\\[ -f "\\$APPS_DIR/\\$input" \\]\\]')
+  expect_match(txt, 'require_env_value "DB_PASSWORD"', fixed = TRUE)
+  expect_match(txt, 'require_env_value "APP_ADMIN_PASSWORD"', fixed = TRUE)
+  expect_match(txt, 'Invalid default admin identity', fixed = TRUE)
+})
+
+test_that("生产 Compose 不再提供数据库弱默认密码", {
+  compose_path <- file.path(root_dir, "docker-compose.server.yml")
+  txt <- read_text(compose_path)
+
+  expect_false(grepl("ChangeMe123!", txt, fixed = TRUE))
+  expect_false(grepl("POSTGRES_PASSWORD: \\$\\{DB_PASSWORD:-", txt))
+  expect_match(txt, "POSTGRES_PASSWORD: \\$\\{DB_PASSWORD:\\?DB_PASSWORD is required\\}")
 })
 
 test_that("init_env.sh 会初始化 apps 目录", {

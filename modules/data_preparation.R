@@ -9,7 +9,6 @@ library(dplyr)
 library(shinyWidgets)
 library(readxl)
 library(haven)  # 支持SAS、SPSS、Stata文件
-library(vroom)  # 高性能CSV读取
 library(memoise) # 函数缓存
 library(DBI)
 library(RPostgres)
@@ -891,7 +890,7 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
     start_time <- Sys.time()
     
     tryCatch({
-      data <- data_read_file(input$file$datapath)
+      data <- data_read_file(input$file$datapath, original_file_name = input$file$name)
       
       # 强制垃圾回收以释放内存
       gc()

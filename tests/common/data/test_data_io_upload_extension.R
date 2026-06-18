@@ -29,23 +29,15 @@ project_root <- test_find_project_root()
 setwd(file.path(project_root, "tests"))
 library(testthat)
 
-source(file.path("..", "modules", "common", "export", "plot_export.R"))
+source(file.path(project_root, "modules", "common", "data", "data_io.R"))
 
-test_that("save_plot_export 允许超过 ggsave 默认 50 英寸限制的导出", {
-  p <- ggplot2::ggplot(data.frame(x = 1:3, y = 1:3), ggplot2::aes(x, y)) +
-    ggplot2::geom_point()
-  out_file <- tempfile(fileext = ".pdf")
-  expect_error(
-    save_plot_export(
-      file = out_file,
-      plot_obj = p,
-      format = "pdf",
-      width = 60,
-      height = 55,
-      dpi = 72
-    ),
-    NA
-  )
-  expect_true(file.exists(out_file))
-  unlink(out_file)
+test_that("Shiny 无扩展名临时上传文件可从原始文件名推断格式", {
+  tmp <- tempfile()
+  on.exit(unlink(tmp), add = TRUE)
+  writeLines(c("subject,value", "A,1", "B,2"), tmp, useBytes = TRUE)
+
+  dat <- data_read_file(tmp, original_file_name = "upload.csv")
+  expect_s3_class(dat, "data.frame")
+  expect_equal(names(dat), c("subject", "value"))
+  expect_equal(nrow(dat), 2)
 })

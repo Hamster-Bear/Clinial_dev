@@ -36,7 +36,7 @@
 - 新增或修改功能时，先更新本文件中对应章节，再改代码或同步提交代码变更。
 - 本文件描述“当前已实现”，不把占位菜单、计划能力、外部设想写成既成事实。
 - 若其他文档与本文件冲突，以当前代码实现和本文件为准，并在后续文档清理中同步收敛。
-- 测试目录结构、回归入口或测试归类发生变化时，需同步更新根目录 `TEST_GUIDE.md`。
+- 测试目录结构、回归入口或测试归类发生变化时，需同步更新 `docs/main/TEST_GUIDE.md`。
 
 ## 2. 系统概览
 
@@ -51,7 +51,7 @@
 | 分层     | 当前使用                                                                     |
 | ------ | ------------------------------------------------------------------------ |
 | UI 与交互 | Shiny、shinydashboard、shinyjs、shinyBS、bslib、shinyWidgets、reactable、plotly |
-| 数据处理   | dplyr、tidyr、purrr、stringr、readxl、haven、vroom、memoise                     |
+| 数据处理   | dplyr、tidyr、purrr、stringr、readxl、haven、memoise                            |
 | 统计分析   | survival、broom、gtsummary、rtables、tern、corrplot                           |
 | 导出能力   | gt、flextable、officer、rmarkdown、pagedown、r2rtf                            |
 | 基础设施   | PostgreSQL、Redis、Nginx、Docker Compose                                    |
@@ -79,13 +79,13 @@
 
 ## 3. 运行入口与部署形态
 
-部署细节、目录树、挂载关系、环境变量和分场景操作步骤统一维护在 `DEPLOYMENT_GUIDE.md`；本章仅保留部署矩阵与边界摘要。
+部署细节、目录树、挂载关系、环境变量和分场景操作步骤统一维护在 `docs/deploy/DEPLOY_GUIDE.md`；本章仅保留部署矩阵与边界摘要。
 
 ### 3.1 运行矩阵
 
 | 场景     | 入口                          | 访问方式                    | 说明                                |
 | ------ | --------------------------- | ----------------------- | --------------------------------- |
-| 本地开发直跑 | `run_app.R`                 | 默认 `127.0.0.1:8109`     | 自动检查依赖并直接运行 `app.R`               |
+| 本地开发直跑 | `run_app.R`                 | 默认 `127.0.0.1:8190`     | 自动检查依赖并直接运行 `app.R`               |
 | 开发编排   | `docker-compose.yml`        | `http://localhost`      | Nginx 直接反代 Shiny 根路径，不带 Landing 页 |
 | 本地联调   | `docker-compose.local.yml`  | `http://localhost:8080` | 含 Landing 页，应用入口为 `/app/`         |
 | 服务器生产  | `docker-compose.server.yml` | `https://<domain>`      | HTTPS + Landing 页，应用入口为 `/app/`   |
@@ -219,7 +219,7 @@
 - 立即可做：将 `run_auth_regression.ps1` 继续收口为清单驱动入口，统一从 `tests/common/auth/auth_regression_manifest.json` 读取固定顺序，减少后续新增认证测试时的手工同步成本。
 - 中长期建议：引入邮箱验证、邀请有效期、组织级 / 项目级协作模型与更细粒度权限矩阵。
 - 中长期建议：继续将 `tests/.../legacy/` 下的脚本式验证迁移为标准 `testthat` 用例，并回收到对应模块主目录，逐步消除长期并行维护成本。
-- 工具链建议：在 `tests/` 现有守卫测试基础上，持续维护 PostgreSQL 隔离 schema 回归测试、`pool` 模式回归与 pre-commit 文档一致性校验；账号权限链路可优先参考 `tests/common/auth/test_auth_access_postgres_integration.R`，并将 `check_test_guide_index.R` 作为固定质量闸门。
+- 工具链建议：在 `tests/` 现有守卫测试基础上，持续维护 PostgreSQL 隔离 schema 回归测试、`pool` 模式回归与 pre-commit 文档一致性校验；账号权限链路可优先参考 `tests/common/auth/test_auth_access_postgres_integration.R`，并将 `Rscript tests/check_test_guide_index.R` 作为固定质量闸门。
 
 ## 4. 仓库目录结构
 
@@ -347,7 +347,7 @@ AutoTFL/
 - `modules/statistical_graphics_ui/` 用于图形 UI 壳层与公共控件，和 `modules/statistical_graphics/` 的 server/分析逻辑分离。
 - `tests/` 为统一测试目录，新增测试文件必须放在这里。
 - `tests/` 内部目录应尽量与项目结构同层语义对齐，例如 `tests/common/auth/`、`tests/statistical_analysis/`、`tests/statistical_graphics/`、`tests/nginx/landing/`、`tests/root/`；测试夹具统一收口到 `tests/fixtures/`。
-- `TEST_GUIDE.md` 为根目录测试索引文档，按项目架构维护测试归类；整体性测试说明优先收口到这里，不散落到 `tests/`。
+- `docs/main/TEST_GUIDE.md` 为测试索引文档，按项目架构维护测试归类；整体性测试说明优先收口到这里，不散落到 `tests/`。
 - `nginx/landing/index.html` 作为 Medev 首页，保持精简，只负责入口说明与跳转。
 - `nginx/landing/autotfl.html` 作为 Medev 产品介绍子页，承接真实功能说明、使用路径与图片占位。
 - `nginx/landing/style.css` 与 `nginx/landing/script.js` 为 Medev 首页和产品介绍子页共享静态资源，改动时需同时验证两页。
@@ -787,7 +787,7 @@ AutoTFL/
 - 新增功能或修改现有逻辑时，测试文件统一放在 `tests/`，并按项目架构落到对应子目录。
 - 共享层改动至少要补一条可回归的最小测试；图形或统计口径改动优先补同口径断言。
 - 统一回归入口：`run_auth_regression.ps1`（账号链路）、`run_app_test.ps1`（集成回归）。
-- 索引校验：调整测试目录后执行 `check_test_guide_index.R`。
+- 索引校验：调整测试目录后执行 `Rscript tests/check_test_guide_index.R`。
 - pre-commit 串联 `styler`、`lintr` 与守卫测试，前端文案守卫作为独立 hook 优先拦截。
 - 当前缺口：`MMRM`/`MI` 占位菜单无对应测试（尚未落地）；2 个 legacy 脚本式验证待迁移为标准 testthat 用例。
 

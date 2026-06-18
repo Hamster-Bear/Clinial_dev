@@ -7,7 +7,7 @@ required_packages <- c(
   "DT", "gt", "purrr", "stringr",
   "ggsci", "patchwork", "digest", "colourpicker", "reactable",
   "waiter", "shinyalert", "scales", "gridExtra", "cowplot", "RColorBrewer",
-  "tidyr", "vroom", "memoise", "shinyWidgets", "gtsummary",
+  "tidyr", "memoise", "shinyWidgets", "gtsummary",
   "DBI", "RPostgres", "pool", "rmarkdown", "knitr", "flextable", "officer",
   "showtext", "sysfonts", "jsonlite"
 )

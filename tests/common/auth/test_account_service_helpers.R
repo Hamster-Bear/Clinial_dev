@@ -88,6 +88,14 @@ test_that("预览表格字段使用面向界面的中文名称", {
   expect_equal(invite_preview$邀请状态[[1]], "待领取")
 })
 
+test_that("workspace 写权限角色只开放给可编辑成员与负责人", {
+  expect_true(service_role_can_write_workspace("owner"))
+  expect_true(service_role_can_write_workspace("editor"))
+  expect_false(service_role_can_write_workspace("viewer"))
+  expect_false(service_role_can_write_workspace(""))
+  expect_false(service_role_can_write_workspace(NA_character_))
+})
+
 test_that("服务层守卫不再给管理员自动放开全部数据空间", {
   expect_match(account_service_text, "service_list_manageable_workspaces <- function")
   expect_match(account_service_text, "WHERE owner_user_id = \\$1")

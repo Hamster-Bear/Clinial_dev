@@ -25,6 +25,8 @@ deploy/alicloud/env/.env
 deploy/alicloud/certs/*.pem
 deploy/alicloud/certs/*.key
 plans/
+!docs/dep/plans/
+!docs/dep/plans/*.md
 test/tmp_*.R
 
 # local package cache for offline deployment

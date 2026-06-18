@@ -161,7 +161,7 @@ test_that("graphics_column_mapping_panel_ui 生成统一列映射卡片", {
     help_text = "用于测试"
   )
   html_str <- as.character(ui_output)
-  expect_match(html_str, "panel-heading")
+  expect_match(html_str, "app-card__panel")
   expect_match(html_str, "数据映射")
   expect_match(html_str, 'id="test_module-var_a"')
   expect_match(html_str, 'id="test_module-var_b"')

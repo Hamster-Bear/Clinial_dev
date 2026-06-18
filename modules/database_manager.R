@@ -4,7 +4,6 @@ library(shinydashboard)
 library(dplyr)
 library(readxl)
 library(haven)
-library(vroom)
 library(DBI)
 library(RPostgres)
 library(pool)
@@ -372,6 +371,22 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     FALSE
   }
 
+  require_workspace_write <- function(workspace_id) {
+    if (!require_database_access()) {
+      return(FALSE)
+    }
+    user <- get_current_user()
+    if (is.null(user)) {
+      showNotification("请先登录", type = "warning")
+      return(FALSE)
+    }
+    if (service_user_can_write_workspace(pool, workspace_id, user)) {
+      return(TRUE)
+    }
+    showNotification("当前账号无权编辑该数据空间", type = "error")
+    FALSE
+  }
+
   require_workspace_manage <- function(workspace_id) {
     if (!require_database_access()) {
       return(FALSE)
@@ -424,7 +439,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     }
 
     read_error <- NULL
-    data <- tryCatch(data_read_file(source_file_path, csv_encoding = csv_encoding), error = function(e) {
+    data <- tryCatch(data_read_file(source_file_path, original_file_name = source_file_name, csv_encoding = csv_encoding), error = function(e) {
       read_error <<- conditionMessage(e)
       NULL
     })
@@ -601,7 +616,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
           class = "db-panel",
           div(
             class = "db-panel-header",
-            h4(icon("database"), "数据空间"),
+            h4(icon("database"), "空间与目录"),
             div(class = "subtitle", "浏览结构、管理目录与数据集")
           ),
           div(
@@ -684,7 +699,8 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
               )
             )
           )
-        )
+        ),
+        uiOutput(session$ns("db_overview_cards"))
       )
     )
   })
@@ -712,7 +728,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       tagList(
         textInput(session$ns("workspace_path"), "从服务器目录导入数据空间", placeholder = "请输入服务器或容器可见的绝对路径"),
         tags$small("当前仅支持导入部署机器可见目录，不支持直接读取浏览器所在电脑的本地文件夹。"),
-        tags$small("该入口当前仅面向系统管理员开放。"),
+        tags$small("该入口当前仅面向系统管理员开放；多用户能力落地前不面向普通用户开放。"),
         actionButton(session$ns("import_workspace_path"), "导入文件夹为数据空间", class = "btn-info", width = "100%")
       )
     }
@@ -823,11 +839,19 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     ds_count <- nrow(reg$datasets)
     total_rows <- if (ds_count == 0) 0 else sum(reg$datasets$nrow, na.rm = TRUE)
     tags$div(
-      class = "app-stat-grid",
-      app_stat_card("数据空间数", ws_count, meta = "当前可见的数据空间总数", tone = "primary"),
-      app_stat_card("文件夹数", fd_count, meta = "当前已登记目录总数", tone = "info"),
-      app_stat_card("数据集数", ds_count, meta = "当前已登记数据集总数", tone = "success"),
-      app_stat_card("累计数据行数", format(total_rows, big.mark = ","), meta = "按数据集行数汇总", tone = "warning")
+      class = "db-panel",
+      div(
+        class = "db-panel-header",
+        h4(icon("chart-bar"), "结构总览"),
+        div(class = "subtitle", "汇总当前可见的数据空间、目录与数据集规模")
+      ),
+      tags$div(
+        class = "app-stat-grid",
+        app_stat_card("数据空间数", ws_count, meta = "当前可见的数据空间总数", tone = "primary"),
+        app_stat_card("文件夹数", fd_count, meta = "当前已登记目录总数", tone = "info"),
+        app_stat_card("数据集数", ds_count, meta = "当前已登记数据集总数", tone = "success"),
+        app_stat_card("累计数据行数", format(total_rows, big.mark = ","), meta = "按数据集行数汇总", tone = "warning")
+      )
     )
   })
   
@@ -1003,11 +1027,14 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   observeEvent(input$confirm_delete_workspace, {
     removeModal()
     workspace_id <- isolate(input$workspace_select)
+    if (!require_workspace_manage(workspace_id)) {
+      return()
+    }
     ds_to_remove <- dbGetQuery(pool, "SELECT data_path FROM datasets WHERE workspace_id = $1", params = list(workspace_id))
-    remove_dataset_files(ds_to_remove)
 
     tryCatch({
       service_delete_workspace(pool, workspace_id, acting_user = get_current_user())
+      remove_dataset_files(ds_to_remove)
 
       ws_dir <- file.path(storage_root, workspace_id)
       if (dir.exists(ws_dir)) {
@@ -1040,7 +1067,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       showNotification("请输入文件夹名称", type = "warning")
       return()
     }
-    if (!require_workspace_access(workspace_id)) {
+    if (!require_workspace_write(workspace_id)) {
       return()
     }
     
@@ -1090,7 +1117,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       showNotification("根目录不能删除，请选择具体文件夹", type = "warning")
       return()
     }
-    if (!require_workspace_access(workspace_id)) {
+    if (!require_workspace_write(workspace_id)) {
       return()
     }
     showModal(modalDialog(
@@ -1107,11 +1134,14 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
     removeModal()
     workspace_id <- isolate(input$workspace_select)
     folder_id <- isolate(input$folder_select)
+    if (!require_workspace_write(workspace_id)) {
+      return()
+    }
     ds_to_remove <- dbGetQuery(pool, "SELECT data_path FROM datasets WHERE workspace_id = $1 AND folder_id = $2", params = list(workspace_id, folder_id))
-    remove_dataset_files(ds_to_remove)
 
     tryCatch({
       dbExecute(pool, "DELETE FROM folders WHERE id = $1 AND workspace_id = $2", params = list(folder_id, workspace_id))
+      remove_dataset_files(ds_to_remove)
 
       fd_dir <- file.path(storage_root, workspace_id, folder_id)
       if (dir.exists(fd_dir)) {
@@ -1158,7 +1188,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       showNotification("请先创建并选择数据空间", type = "warning")
       return()
     }
-    if (!require_workspace_access(workspace_id)) {
+    if (!require_workspace_write(workspace_id)) {
       return()
     }
     folder_id <- ifelse(is.null(input$folder_select), root_folder_token, input$folder_select)
@@ -1196,7 +1226,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       showNotification("请先创建并选择数据空间", type = "warning")
       return()
     }
-    if (!require_workspace_access(workspace_id)) {
+    if (!require_workspace_write(workspace_id)) {
       return()
     }
     folder_id <- ifelse(is.null(input$folder_select), root_folder_token, input$folder_select)
@@ -1402,7 +1432,7 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
       showNotification("数据集不存在", type = "warning")
       return()
     }
-    if (!require_workspace_access(ds$workspace_id[[1]])) {
+    if (!require_workspace_write(ds$workspace_id[[1]])) {
       return()
     }
     showModal(modalDialog(
@@ -1418,19 +1448,29 @@ database_manager_server <- function(id, pg_pool = NULL, current_user = NULL) {
   observeEvent(input$confirm_delete_dataset, {
     removeModal()
     dataset_id <- isolate(input$dataset_select)
-    ds <- dbGetQuery(pool, "SELECT data_path FROM datasets WHERE id = $1", params = list(dataset_id))
-    if (nrow(ds) > 0) {
-      tryCatch(storage_delete_dataset(ds$data_path[[1]]), error = function(e) NULL)
+    ds <- dbGetQuery(pool, "SELECT workspace_id, data_path FROM datasets WHERE id = $1", params = list(dataset_id))
+    if (nrow(ds) == 0) {
+      showNotification("数据集不存在", type = "warning")
+      return()
     }
-    dbExecute(pool, "DELETE FROM datasets WHERE id = $1", params = list(dataset_id))
+    if (!require_workspace_write(ds$workspace_id[[1]])) {
+      return()
+    }
+    tryCatch({
+      dbExecute(pool, "DELETE FROM datasets WHERE id = $1", params = list(dataset_id))
+      tryCatch(storage_delete_dataset(ds$data_path[[1]]), error = function(e) NULL)
 
-    registry_version(as.numeric(Sys.time()))
-    workspace_id <- isolate(input$workspace_select)
-    folder_id <- isolate(input$folder_select)
-    refresh_dataset_choices(ifelse(is.null(workspace_id), "", workspace_id),
-                            ifelse(is.null(folder_id), root_folder_token, folder_id))
-    updateSelectInput(session, "dataset_select", selected = "")
-    showNotification("数据集已删除", type = "message")
+      registry_version(as.numeric(Sys.time()))
+      workspace_id <- isolate(input$workspace_select)
+      folder_id <- isolate(input$folder_select)
+      refresh_dataset_choices(ifelse(is.null(workspace_id), "", workspace_id),
+                              ifelse(is.null(folder_id), root_folder_token, folder_id))
+      updateSelectInput(session, "dataset_select", selected = "")
+      showNotification("数据集已删除", type = "message")
+    }, error = function(e) {
+      warning("删除数据集失败: ", conditionMessage(e))
+      showNotification("删除失败，请稍后重试", type = "error")
+    })
   })
   
   list(

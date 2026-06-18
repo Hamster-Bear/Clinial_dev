@@ -169,7 +169,11 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
   fit_tidy_interaction <- function(df_in, pred, strata_nm) {
     ctrl_terms <- if (!is.null(model_strata_var) && !identical(model_strata_var, strata_nm)) model_strata_var else NULL
     base_terms <- setdiff(linear_predictors, pred)
-    f1 <- stats::reformulate(c(base_terms, pred, strata_nm, ctrl_terms, paste0(pred, ":", strata_nm)), response = linear_response)
+    f1 <- analysis_build_formula(
+      response = linear_response,
+      terms = c(base_terms, pred, strata_nm, ctrl_terms),
+      interaction_pairs = list(c(pred, strata_nm))
+    )
     tryCatch({
       m1 <- stats::lm(f1, data = df_in)
       broom::tidy(m1)
@@ -182,8 +186,7 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
     })
   }
   model_terms <- unique(c(linear_predictors, model_strata_var))
-  formula_str <- paste(linear_response, "~", paste(model_terms, collapse = "+"))
-  formula <- as.formula(formula_str)
+  formula <- analysis_build_formula(linear_response, model_terms)
 
   # format_p <- function(p) {
   #   format_p_value_regression(p)
@@ -356,7 +359,7 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
       }
     }
     gt_tbl[["_data"]] <- raw
-    lbls <- stats::setNames(as.list(rep("event/N", length(n_cols))), n_cols)
+    lbls <- stats::setNames(as.list(rep("Event/N", length(n_cols))), n_cols)
     do.call(gt::cols_label, c(list(.data = gt_tbl), lbls))
   }
 
@@ -409,6 +412,7 @@ generate_linear_code <- function(data_name = "data", linear_response, linear_pre
       lines = c(
         "split_levels <- if (!is.null(split_var)) unique(as.character(stats::na.omit(data[[split_var]]))) else \"总体\"",
         "facet_levels <- if (!is.null(facet_var)) unique(as.character(stats::na.omit(data[[facet_var]]))) else \"__ALL__\"",
+        "qname <- function(x) paste0(\"`\", gsub(\"`\", \"\\\\`\", as.character(x), fixed = TRUE), \"`\")",
         "res_list <- list()",
         "for (s in split_levels) {",
         "  ds <- if (is.null(split_var)) data else data[as.character(data[[split_var]]) == as.character(s), , drop = FALSE]",
@@ -416,7 +420,8 @@ generate_linear_code <- function(data_name = "data", linear_response, linear_pre
         "    df_sub <- if (is.null(facet_var)) ds else ds[as.character(ds[[facet_var]]) == as.character(f), , drop = FALSE]",
         "    if (nrow(df_sub) == 0) next",
         "    model_terms <- unique(c(predictors, model_strata_var))",
-        "    fml <- as.formula(paste(response, \"~\", paste(model_terms, collapse = \"+\")))",
+        "    rhs <- if (length(model_terms) > 0) paste(vapply(model_terms, qname, character(1)), collapse = \" + \") else \"1\"",
+        "    fml <- as.formula(paste0(qname(response), \" ~ \", rhs))",
         "    fit <- stats::lm(fml, data = df_sub)",
         "    td <- broom::tidy(fit, conf.int = TRUE)",
         "    td$亚组 <- if (is.null(split_var)) \"总体\" else as.character(s)",

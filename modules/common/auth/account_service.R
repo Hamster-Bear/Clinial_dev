@@ -111,6 +111,11 @@ service_normalize_role <- function(role, allow_owner = TRUE) {
   role
 }
 
+service_role_can_write_workspace <- function(role) {
+  role <- trimws(as.character(role %||% ""))
+  !is.na(role) && role %in% c("owner", "editor")
+}
+
 service_get_workspace <- function(pool, workspace_id) {
   if (!nzchar(workspace_id %||% "")) {
     return(data.frame())
@@ -230,6 +235,25 @@ service_can_manage_workspace <- function(pool, workspace_id, user) {
     return(FALSE)
   }
   identical(workspace_row$owner_user_id[[1]] %||% "", user$id %||% "")
+}
+
+service_user_can_write_workspace <- function(pool, workspace_id, user) {
+  if (is.null(user) || !nzchar(workspace_id %||% "") || !nzchar(user$id %||% "")) {
+    return(FALSE)
+  }
+  workspace_row <- service_get_workspace(pool, workspace_id)
+  if (nrow(workspace_row) == 0) {
+    return(FALSE)
+  }
+  if (identical(workspace_row$owner_user_id[[1]] %||% "", user$id %||% "")) {
+    return(TRUE)
+  }
+  member <- DBI::dbGetQuery(
+    pool,
+    "SELECT role FROM workspace_memberships WHERE workspace_id = $1 AND user_id = $2 LIMIT 1",
+    params = list(workspace_id, user$id)
+  )
+  nrow(member) > 0 && service_role_can_write_workspace(member$role[[1]])
 }
 
 service_assert_workspace_manager <- function(pool, workspace_id, user) {

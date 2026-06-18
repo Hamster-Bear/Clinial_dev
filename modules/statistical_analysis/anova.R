@@ -5,6 +5,13 @@ if (file.exists("modules/common/stat_analysis_submodule_copy.R")) {
 } else {
   source(file.path("..", "modules", "common", "stat_analysis_submodule_copy.R"))
 }
+if (!exists("analysis_build_formula", mode = "function")) {
+  if (file.exists("modules/common/analysis/analysis_shared.R")) {
+    source("modules/common/analysis/analysis_shared.R")
+  } else {
+    source(file.path("..", "modules", "common", "analysis", "analysis_shared.R"))
+  }
+}
 if (!exists("app_card_note", mode = "function") || !exists("app_card_panel", mode = "function")) {
   if (file.exists("modules/common/ui_shell.R")) {
     source("modules/common/ui_shell.R")
@@ -36,10 +43,12 @@ anova_params_ui <- function(ns, data) {
 # 方差分析
 perform_anova_analysis <- function(data, anova_response, anova_factors) {
   req(anova_response, anova_factors)
-  
-  formula <- as.formula(
-    paste(anova_response, "~", paste(anova_factors, collapse = "*"))
-  )
+
+  interaction_pairs <- NULL
+  if (length(anova_factors) > 1) {
+    interaction_pairs <- utils::combn(anova_factors, 2, simplify = FALSE)
+  }
+  formula <- analysis_build_formula(anova_response, anova_factors, interaction_pairs = interaction_pairs)
   
   model <- aov(formula, data = data)
   result <- broom::tidy(model)

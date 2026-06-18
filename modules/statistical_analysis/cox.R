@@ -183,9 +183,15 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
     NA_character_
   }
   fit_tidy_interaction <- function(df_in, pred, strata_nm) {
-    ctrl_term <- if (!is.null(model_strata_var) && !identical(model_strata_var, strata_nm)) paste0("strata(", model_strata_var, ")") else NULL
+    ctrl_terms <- if (!is.null(model_strata_var) && !identical(model_strata_var, strata_nm)) model_strata_var else NULL
     base_terms <- setdiff(cox_covariates, pred)
-    f_int <- stats::reformulate(c(base_terms, pred, strata_nm, ctrl_term, paste0(pred, ":", strata_nm)), response = paste0("survival::Surv(", cox_time, ",", cox_status, ")"))
+    f_int <- analysis_build_surv_formula(
+      time_var = cox_time,
+      status_var = cox_status,
+      terms = c(base_terms, pred, strata_nm),
+      strata_terms = ctrl_terms,
+      interaction_pairs = list(c(pred, strata_nm))
+    )
     tryCatch({
       fit <- survival::coxph(f_int, data = df_in)
       broom::tidy(fit)
@@ -204,16 +210,9 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
     stop("亚组变量与分组变量不能相同")
   }
 
-  # 构建公式字符串
-  if (length(cox_covariates) > 0) {
-    formula_str <- paste("survival::Surv(", cox_time, ",", cox_status, ") ~", paste(cox_covariates, collapse = "+"))
-  } else {
-    formula_str <- paste("survival::Surv(", cox_time, ",", cox_status, ") ~ 1")
-  }
-  
-  formula <- as.formula(formula_str)
+  formula <- analysis_build_surv_formula(cox_time, cox_status, terms = cox_covariates)
   strata_ctrl_formula <- if (!is.null(model_strata_var)) {
-    as.formula(paste0(formula_str, " + strata(", model_strata_var, ")"))
+    analysis_build_surv_formula(cox_time, cox_status, terms = cox_covariates, strata_terms = model_strata_var)
   } else NULL
   analysis_formula <- if (!is.null(strata_ctrl_formula)) strata_ctrl_formula else formula
 
@@ -412,7 +411,7 @@ perform_cox_analysis <- function(data, cox_time, cox_status, cox_covariates, cox
       }
     }
     gt_tbl[["_data"]] <- raw
-    lbls <- stats::setNames(as.list(rep("event/N", length(n_cols))), n_cols)
+    lbls <- stats::setNames(as.list(rep("Event/N", length(n_cols))), n_cols)
     do.call(gt::cols_label, c(list(.data = gt_tbl), lbls))
   }
 
@@ -472,15 +471,17 @@ generate_cox_code <- function(data_name = "data", cox_time, cox_status, cox_cova
         "data[[cox_status]] <- ifelse(as.character(data[[cox_status]]) == event_val, 1, ifelse(!is.na(data[[cox_status]]), 0, NA_real_))",
         "split_levels <- if (!is.null(cox_strata)) unique(as.character(stats::na.omit(data[[cox_strata]]))) else \"总体\"",
         "facet_levels <- if (!is.null(cox_facet)) unique(as.character(stats::na.omit(data[[cox_facet]]))) else \"__ALL__\"",
+        "qname <- function(x) paste0(\"`\", gsub(\"`\", \"\\\\`\", as.character(x), fixed = TRUE), \"`\")",
         "res_list <- list()",
         "for (s in split_levels) {",
         "  ds <- if (is.null(cox_strata)) data else data[as.character(data[[cox_strata]]) == as.character(s), , drop = FALSE]",
         "  for (f in facet_levels) {",
         "    df_sub <- if (is.null(cox_facet)) ds else ds[as.character(ds[[cox_facet]]) == as.character(f), , drop = FALSE]",
         "    if (nrow(df_sub) == 0) next",
-        "    rhs <- cox_covariates",
-        "    if (!is.null(cox_model_strata) && nzchar(cox_model_strata)) rhs <- c(rhs, paste0(\"strata(\", cox_model_strata, \")\"))",
-        "    fml <- as.formula(paste0(\"survival::Surv(\", cox_time, \",\", cox_status, \") ~ \", paste(rhs, collapse = \" + \")))",
+        "    rhs <- if (length(cox_covariates) > 0) vapply(cox_covariates, qname, character(1)) else character(0)",
+        "    if (!is.null(cox_model_strata) && nzchar(cox_model_strata)) rhs <- c(rhs, paste0(\"strata(\", qname(cox_model_strata), \")\"))",
+        "    rhs <- if (length(rhs) > 0) paste(rhs, collapse = \" + \") else \"1\"",
+        "    fml <- as.formula(paste0(\"survival::Surv(\", qname(cox_time), \", \", qname(cox_status), \") ~ \", rhs))",
         "    fit <- survival::coxph(fml, data = df_sub)",
         "    td <- broom::tidy(fit, conf.int = TRUE, exponentiate = TRUE)",
         "    td$亚组 <- if (is.null(cox_strata)) \"总体\" else as.character(s)",

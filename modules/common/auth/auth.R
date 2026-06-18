@@ -108,7 +108,7 @@ auth_dev_show_email_code <- function() {
 
 auth_email_delivery_mode <- function() {
   mode <- tolower(trimws(Sys.getenv("EMAIL_DELIVERY_MODE", "console")))
-  if (!mode %in% c("console", "disabled")) {
+  if (!mode %in% c("console", "disabled", "smtp")) {
     mode <- "console"
   }
   mode
@@ -276,7 +276,7 @@ auth_create_pool <- function() {
     host = Sys.getenv("POSTGRES_HOST", "localhost"),
     port = as.integer(Sys.getenv("POSTGRES_PORT", "5432")),
     user = Sys.getenv("POSTGRES_USER", "autotfl_user"),
-    password = Sys.getenv("POSTGRES_PASSWORD", "ChangeMe123!"),
+    password = Sys.getenv("POSTGRES_PASSWORD", ""),
     options = "-c client_min_messages=WARNING"
   )
 }
@@ -679,6 +679,27 @@ auth_build_user_payload <- function(user_row) {
   )
 }
 
+auth_create_email_verification_token <- function(db, user_id, normalized_email, purpose, code, token_id, expires_minutes) {
+  DBI::dbExecute(
+    db,
+    paste(
+      "UPDATE email_verification_tokens",
+      "SET consumed_at = COALESCE(consumed_at, NOW())",
+      "WHERE user_id = $1 AND target_email = $2 AND purpose = $3 AND consumed_at IS NULL"
+    ),
+    params = list(user_id, normalized_email, purpose)
+  )
+  DBI::dbExecute(
+    db,
+    paste(
+      "INSERT INTO email_verification_tokens",
+      "(id, user_id, target_email, purpose, token_hash, expires_at, consumed_at, created_at)",
+      "VALUES ($1, $2, $3, $4, $5, NOW() + ($6 * INTERVAL '1 minute'), NULL, NOW())"
+    ),
+    params = list(token_id, user_id, normalized_email, purpose, auth_hash_token(code), expires_minutes)
+  )
+}
+
 auth_issue_email_verification <- function(pool, user_id, email, purpose = "register") {
   normalized_email <- auth_normalize_email(email)
   if (is.null(user_id) || !nzchar(user_id) || !nzchar(normalized_email)) {
@@ -688,27 +709,9 @@ auth_issue_email_verification <- function(pool, user_id, email, purpose = "regis
   expires_minutes <- auth_email_verification_expire_minutes()
   code <- auth_generate_verification_code()
   token_id <- auth_generate_id("evt")
-  token_hash <- auth_hash_token(code)
 
   auth_with_transaction(pool, {
-    DBI::dbExecute(
-      conn,
-      paste(
-        "UPDATE email_verification_tokens",
-        "SET consumed_at = COALESCE(consumed_at, NOW())",
-        "WHERE user_id = $1 AND target_email = $2 AND purpose = $3 AND consumed_at IS NULL"
-      ),
-      params = list(user_id, normalized_email, purpose)
-    )
-    DBI::dbExecute(
-      conn,
-      paste(
-        "INSERT INTO email_verification_tokens",
-        "(id, user_id, target_email, purpose, token_hash, expires_at, consumed_at, created_at)",
-        "VALUES ($1, $2, $3, $4, $5, NOW() + ($6 * INTERVAL '1 minute'), NULL, NOW())"
-      ),
-      params = list(token_id, user_id, normalized_email, purpose, token_hash, expires_minutes)
-    )
+    auth_create_email_verification_token(conn, user_id, normalized_email, purpose, code, token_id, expires_minutes)
   })
 
   delivery <- auth_deliver_email_verification(normalized_email, code, purpose = purpose)
@@ -971,15 +974,17 @@ auth_change_password <- function(pool, user_id, current_password, new_password) 
 
   salt <- auth_generate_salt()
   password_hash <- auth_hash_password(new_password, salt)
-  DBI::dbExecute(
-    pool,
-    paste(
-      "UPDATE users",
-      "SET password_salt = $1, password_hash = $2",
-      "WHERE id = $3"
-    ),
-    params = list(salt, password_hash, user_id)
-  )
+  auth_with_transaction(pool, {
+    DBI::dbExecute(
+      conn,
+      paste(
+        "UPDATE users",
+        "SET password_salt = $1, password_hash = $2",
+        "WHERE id = $3"
+      ),
+      params = list(salt, password_hash, user_id)
+    )
+  })
 
   list(success = TRUE, message = "密码修改成功")
 }
@@ -1126,15 +1131,21 @@ auth_register_user <- function(pool, username, email, password) {
   user_id <- auth_generate_id("usr")
   salt <- auth_generate_salt()
   password_hash <- auth_hash_password(password, salt)
-  DBI::dbExecute(
-    pool,
-    paste(
-      "INSERT INTO users (id, username, email, email_verified_at, password_salt, password_hash, is_admin, db_access_enabled, status, created_at)",
-      "VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, 'active', NOW())"
-    ),
-    params = list(user_id, normalized, normalized_email, salt, password_hash, FALSE, FALSE)
-  )
-  delivery <- auth_issue_email_verification(pool, user_id, normalized_email, purpose = "register")
+  expires_minutes <- auth_email_verification_expire_minutes()
+  code <- auth_generate_verification_code()
+  token_id <- auth_generate_id("evt")
+  auth_with_transaction(pool, {
+    DBI::dbExecute(
+      conn,
+      paste(
+        "INSERT INTO users (id, username, email, email_verified_at, password_salt, password_hash, is_admin, db_access_enabled, status, created_at)",
+        "VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, 'active', NOW())"
+      ),
+      params = list(user_id, normalized, normalized_email, salt, password_hash, FALSE, FALSE)
+    )
+    auth_create_email_verification_token(conn, user_id, normalized_email, "register", code, token_id, expires_minutes)
+  })
+  delivery <- auth_deliver_email_verification(normalized_email, code, purpose = "register")
   created <- auth_get_user_by_id(pool, user_id)
   list(
     success = TRUE,
@@ -1182,29 +1193,33 @@ auth_ensure_bootstrap_admin <- function(pool) {
 
   if (!nzchar(email_user_id) && !nzchar(username_user_id)) {
     user_id <- auth_generate_id("usr")
-    DBI::dbExecute(
-      pool,
-      paste(
-        "INSERT INTO users (id, username, email, email_verified_at, password_salt, password_hash, is_admin, db_access_enabled, status, created_at)",
-        "VALUES ($1, $2, $3, NOW(), $4, $5, TRUE, TRUE, 'active', NOW())"
-      ),
-      params = list(user_id, username, email, salt, password_hash)
-    )
+    auth_with_transaction(pool, {
+      DBI::dbExecute(
+        conn,
+        paste(
+          "INSERT INTO users (id, username, email, email_verified_at, password_salt, password_hash, is_admin, db_access_enabled, status, created_at)",
+          "VALUES ($1, $2, $3, NOW(), $4, $5, TRUE, TRUE, 'active', NOW())"
+        ),
+        params = list(user_id, username, email, salt, password_hash)
+      )
+    })
     return(invisible(list(status = "inserted", user_id = user_id, username = username, email = email)))
   }
 
   target_row <- if (nrow(existing_by_email) > 0) existing_by_email else existing_by_username
   target_user_id <- target_row$id[[1]] %||% ""
-  DBI::dbExecute(
-    pool,
-    paste(
-      "UPDATE users",
-      "SET username = $1, email = $2, password_salt = $3, password_hash = $4,",
-      "is_admin = TRUE, db_access_enabled = TRUE, status = 'active', email_verified_at = COALESCE(email_verified_at, NOW())",
-      "WHERE id = $5"
-    ),
-    params = list(username, email, salt, password_hash, target_user_id)
-  )
+  auth_with_transaction(pool, {
+    DBI::dbExecute(
+      conn,
+      paste(
+        "UPDATE users",
+        "SET username = $1, email = $2, password_salt = $3, password_hash = $4,",
+        "is_admin = TRUE, db_access_enabled = TRUE, status = 'active', email_verified_at = COALESCE(email_verified_at, NOW())",
+        "WHERE id = $5"
+      ),
+      params = list(username, email, salt, password_hash, target_user_id)
+    )
+  })
   invisible(list(status = "updated", user_id = target_user_id, username = username, email = email))
 }
 
@@ -1212,15 +1227,24 @@ auth_ensure_workspace_membership <- function(pool, workspace_id, user_id, role =
   if (is.null(workspace_id) || !nzchar(workspace_id) || is.null(user_id) || !nzchar(user_id)) {
     return(invisible(FALSE))
   }
-  DBI::dbExecute(
-    pool,
-    paste(
-      "INSERT INTO workspace_memberships (id, workspace_id, user_id, role, created_at)",
-      "VALUES ($1, $2, $3, $4, NOW())",
-      "ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role"
-    ),
-    params = list(auth_generate_id("wsm"), workspace_id, user_id, role)
-  )
+  upsert_membership <- function(db) {
+    DBI::dbExecute(
+      db,
+      paste(
+        "INSERT INTO workspace_memberships (id, workspace_id, user_id, role, created_at)",
+        "VALUES ($1, $2, $3, $4, NOW())",
+        "ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role"
+      ),
+      params = list(auth_generate_id("wsm"), workspace_id, user_id, role)
+    )
+  }
+  if (inherits(pool, "Pool") || inherits(pool, "pool")) {
+    auth_with_transaction(pool, {
+      upsert_membership(conn)
+    })
+  } else {
+    upsert_membership(pool)
+  }
   invisible(TRUE)
 }
 

@@ -110,7 +110,7 @@ test_that("底部 caption 与关键模块显式透传解析后的字体族", {
   expect_match(common_text, 'family = caption_family', fixed = TRUE)
   expect_match(common_text, 'theme_void(base_family = caption_family)', fixed = TRUE)
   expect_match(common_text, 'graphics_resolve_layout_family <- function', fixed = TRUE)
-  expect_match(waterfall_text, 'font_family = input$base_family %||% "sans"', fixed = TRUE)
+  expect_match(waterfall_text, 'font_family = params$base_family %||% "sans"', fixed = TRUE)
   expect_match(waterfall_text, 'layout_family = font_spec$layout', fixed = TRUE)
   expect_match(swimmer_text, 'font_family = params$base_family %||% "sans"', fixed = TRUE)
   expect_match(swimmer_text, 'layout_family = font_spec$layout', fixed = TRUE)

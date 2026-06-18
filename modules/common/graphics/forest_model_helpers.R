@@ -1,3 +1,11 @@
+if (!exists("analysis_build_formula", mode = "function") || !exists("analysis_build_surv_formula", mode = "function")) {
+  if (file.exists("modules/common/analysis/analysis_shared.R")) {
+    source("modules/common/analysis/analysis_shared.R")
+  } else {
+    source(file.path("..", "modules", "common", "analysis", "analysis_shared.R"))
+  }
+}
+
 forest_prepare_analysis_dataframe <- function(df, reg_type, time_var = NULL, status_var = NULL, outcome_var = NULL) {
   prepared <- df
   if (identical(reg_type, "cox")) {
@@ -23,11 +31,10 @@ forest_prepare_analysis_dataframe <- function(df, reg_type, time_var = NULL, sta
 }
 
 forest_build_model_formula <- function(reg_type, covariates, time_var = NULL, status_var = NULL, outcome_var = NULL) {
-  rhs <- paste(covariates, collapse = "+")
   if (identical(reg_type, "cox")) {
-    return(as.formula(paste("Surv(", time_var, ",", status_var, ") ~", rhs)))
+    return(analysis_build_surv_formula(time_var, status_var, terms = covariates))
   }
-  as.formula(paste(outcome_var, "~", rhs))
+  analysis_build_formula(outcome_var, covariates)
 }
 
 forest_fit_analysis_model <- function(formula, data, reg_type) {

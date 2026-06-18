@@ -25,6 +25,7 @@ test_find_project_root <- function() {
 }
 
 project_root <- test_find_project_root()
+library(testthat)
 source(file.path(project_root, "modules", "common", "graphics_common.R"))
 source(file.path(project_root, "modules", "tables", "ae_sidebyside.R"))
 

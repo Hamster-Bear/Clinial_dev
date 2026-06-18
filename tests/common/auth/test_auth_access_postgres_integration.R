@@ -127,6 +127,9 @@ with_isolated_auth_schema <- function(code) {
     add = TRUE
   )
   DBI::dbExecute(conn, paste("SET search_path TO", quoted_schema))
+  if (exists(".__schema_ensured_pools", inherits = TRUE)) {
+    .__schema_ensured_pools <<- new.env(parent = emptyenv())
+  }
   auth_ensure_schema(conn)
 
   force(code)(conn, schema_name)

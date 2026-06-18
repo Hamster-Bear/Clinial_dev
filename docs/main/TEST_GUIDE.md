@@ -3,16 +3,16 @@
 ## 1. 文档定位
 
 - 本文档用于按项目架构整理当前测试资产，作为 `tests/` 目录的总索引。
-- 整体性、跨模块、跨部署链路的测试说明统一放在项目根目录的 `TEST_GUIDE.md`。
+- 整体性、跨模块、跨部署链路的测试说明统一放在 `docs/main/TEST_GUIDE.md`。
 - `tests/` 目录继续只放测试代码、测试数据和少量专项验证脚本，不把测试说明文档散落进去。
-- `PROJECT_GUIDE.md` 只保留测试策略摘要；部署相关测试前置条件继续放在 `DEPLOYMENT_GUIDE.md`。
+- `docs/main/PROJECT_GUIDE.md` 只保留测试策略摘要；部署相关测试前置条件继续放在 `docs/deploy/DEPLOY_GUIDE.md`。
 
 ## 2. 落位规则
 
-- 根目录文档:
-  - `TEST_GUIDE.md`: 测试架构索引、归类规则、整体回归入口。
-  - `PROJECT_GUIDE.md`: 测试范围摘要、质量约束、维护边界。
-  - `DEPLOYMENT_GUIDE.md`: 测试环境变量、联调环境、部署前验证事项。
+- 规范文档:
+  - `docs/main/TEST_GUIDE.md`: 测试架构索引、归类规则、整体回归入口。
+  - `docs/main/PROJECT_GUIDE.md`: 测试范围摘要、质量约束、维护边界。
+  - `docs/deploy/DEPLOY_GUIDE.md`: 测试环境变量、联调环境、部署前验证事项。
 - `tests/` 目录:
   - 自动化测试文件统一使用 `test_*.R` 命名，并按项目架构放入对应子目录。
   - 当前建议子目录与项目结构保持同层语义，例如 `tests/common/auth/`、`tests/statistical_analysis/`、`tests/statistical_graphics/`、`tests/nginx/landing/`、`tests/root/`。
@@ -109,6 +109,8 @@
   - `tests/data_preparation/test_data_preparation_dataset_path_guard.R`
 - 数据库管理布局守卫:
   - `tests/database_manager/test_database_manager_layout_guard.R`
+- 数据读取 I/O:
+  - `tests/common/data/test_data_io_upload_extension.R`
 
 ### 3.4 统计分析总入口与分析共享层
 
@@ -180,6 +182,7 @@
 - Forest:
   - `tests/statistical_graphics/forest/test_forest_layout_guard.R`
   - `tests/common/graphics/test_forest_table_state_helpers.R`
+  - `tests/common/graphics/test_forest_result_schema_helpers.R`
 - Waterfall:
   - `tests/statistical_graphics/waterfall/test_waterfall_layout_guard.R`
   - `tests/statistical_graphics/waterfall/test_waterfall_symbol_choices.R`
@@ -218,17 +221,23 @@
 - 本地应用联调与集成回归:
   - `run_app_test.ps1`
 - 测试索引一致性校验:
-  - `check_test_guide_index.R`
+  - `Rscript tests/check_test_guide_index.R`
 - 长输出问题定位:
   - 优先采用“静态定位 + 最小验证”，先锁定目标文件，再执行单文件测试。
 
 ## 5. 测试维护规则
 
 - 新增测试文件后，同步更新本文档 §3 的架构分类索引。
-- 新增测试后至少执行一次 `check_test_guide_index.R` 校验索引一致性，该检查已纳入 pre-commit。
+- 新增测试后至少执行一次 `Rscript tests/check_test_guide_index.R` 校验索引一致性，该检查已纳入 pre-commit。
 - 测试依赖夹具、环境变量或数据库 schema 时，需在本文档登记前置条件。
 - 若测试被纳入 `run_auth_regression.ps1`，需同步更新 `tests/common/auth/auth_regression_manifest.json`。
 - 涉及文案变更时，同步检查对应的文案守卫测试（详见 §3.1 列表）。
+
+### 新增测试更新清单
+
+- 将新增 `tests/**/test_*.R` 或 `tests/fixtures/**` 登记到 §3 对应架构分类。
+- 执行 `Rscript tests/check_test_guide_index.R` 校验索引覆盖。
+- 若新增测试依赖数据库、环境变量、外部服务或按需 smoke 开关，在 §4 或对应分类下注明入口与前置条件。
 
 ## 6. Legacy 说明
 

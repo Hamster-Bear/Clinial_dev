@@ -87,6 +87,33 @@ test_that("邮箱验证配置与验证码 helper 可用", {
   expect_identical(reset_delivery$preview_code, code)
 })
 
+test_that("SMTP 投递模式不会在界面消息中泄露验证码", {
+  old_show <- Sys.getenv("AUTH_DEV_SHOW_EMAIL_CODE", unset = NA_character_)
+  old_mode <- Sys.getenv("EMAIL_DELIVERY_MODE", unset = NA_character_)
+  old_sender <- if (exists("email_service_send", mode = "function")) get("email_service_send") else NULL
+  on.exit({
+    if (is.na(old_show)) Sys.unsetenv("AUTH_DEV_SHOW_EMAIL_CODE") else Sys.setenv(AUTH_DEV_SHOW_EMAIL_CODE = old_show)
+    if (is.na(old_mode)) Sys.unsetenv("EMAIL_DELIVERY_MODE") else Sys.setenv(EMAIL_DELIVERY_MODE = old_mode)
+    if (!is.null(old_sender)) assign("email_service_send", old_sender, envir = .GlobalEnv)
+  }, add = TRUE)
+
+  assign("email_service_send", function(...) list(success = TRUE, message = "sent"), envir = .GlobalEnv)
+  Sys.setenv(AUTH_DEV_SHOW_EMAIL_CODE = "0", EMAIL_DELIVERY_MODE = "smtp")
+  code <- "123456"
+
+  delivery <- auth_deliver_email_verification("demo@example.com", code, purpose = "register")
+  expect_true(isTRUE(delivery$success))
+  expect_identical(delivery$delivery_mode, "smtp")
+  expect_null(delivery$preview_code)
+  expect_false(grepl(code, delivery$message, fixed = TRUE))
+
+  reset_delivery <- auth_deliver_password_reset("demo@example.com", code)
+  expect_true(isTRUE(reset_delivery$success))
+  expect_identical(reset_delivery$delivery_mode, "smtp")
+  expect_null(reset_delivery$preview_code)
+  expect_false(grepl(code, reset_delivery$message, fixed = TRUE))
+})
+
 test_that("非管理员 registry 过滤仅保留授权 workspace", {
   reg <- list(
     workspaces = data.frame(

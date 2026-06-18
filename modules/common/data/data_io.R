@@ -3,7 +3,6 @@
 
 library(readxl)
 library(haven)
-library(vroom)
 library(dplyr)
 
 SUPPORTED_FILE_EXTENSIONS <- c("csv", "xlsx", "xls", "sas7bdat", "sav", "dta", "por")
@@ -12,8 +11,11 @@ data_io_get_supported_extensions <- function() {
   SUPPORTED_FILE_EXTENSIONS
 }
 
-data_read_file <- function(file_path, csv_encoding = "UTF-8") {
+data_read_file <- function(file_path, original_file_name = NULL, csv_encoding = "UTF-8") {
   ext <- tolower(tools::file_ext(file_path))
+  if (!nzchar(ext) && !is.null(original_file_name)) {
+    ext <- tolower(tools::file_ext(original_file_name))
+  }
   if (!ext %in% SUPPORTED_FILE_EXTENSIONS) {
     stop(paste0("不支持的文件格式: ", ext))
   }
@@ -21,12 +23,13 @@ data_read_file <- function(file_path, csv_encoding = "UTF-8") {
   if (ext %in% c("xlsx", "xls")) {
     data <- readxl::read_excel(file_path)
   } else if (ext == "csv") {
-    if (csv_encoding == "GBK") {
-      data <- vroom::vroom(file_path, progress = FALSE,
-                           locale = readr::locale(encoding = "GBK"))
-    } else {
-      data <- vroom::vroom(file_path, progress = FALSE)
-    }
+    encoding <- if (is.null(csv_encoding) || !nzchar(csv_encoding)) "UTF-8" else csv_encoding
+    data <- utils::read.csv(
+      file_path,
+      fileEncoding = encoding,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
   } else if (ext == "sas7bdat") {
     data <- haven::read_sas(file_path, encoding = "UTF-8")
   } else if (ext == "sav") {

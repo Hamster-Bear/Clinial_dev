@@ -16,12 +16,12 @@ storage_data_key_build <- function(workspace_id, folder_id, dataset_id) {
 }
 
 storage_s3_ensure <- function() {
-  if (!requireNamespace("aws.s3", quietly = TRUE)) {
-    stop("对象存储模式需要安装 aws.s3 包")
-  }
   bucket <- storage_s3_bucket_get()
   if (!nzchar(bucket)) {
     stop("对象存储模式需要设置 STORAGE_S3_BUCKET")
+  }
+  if (!requireNamespace("aws.s3", quietly = TRUE)) {
+    stop("对象存储模式需要安装 aws.s3 包")
   }
   bucket
 }

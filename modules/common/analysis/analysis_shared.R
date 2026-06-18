@@ -33,6 +33,60 @@ normalize_optional_var <- function(x) {
   txt
 }
 
+analysis_quote_formula_name <- function(x) {
+  paste0("`", gsub("`", "\\\\`", as.character(x), fixed = TRUE), "`")
+}
+
+analysis_build_formula <- function(response, terms, interaction_pairs = NULL) {
+  main_terms <- as.character(terms %||% character(0))
+  main_terms <- main_terms[!is.na(main_terms) & nzchar(main_terms)]
+  quoted_terms <- if (length(main_terms) > 0) {
+    vapply(main_terms, analysis_quote_formula_name, character(1))
+  } else {
+    character(0)
+  }
+  interaction_terms <- character(0)
+  if (!is.null(interaction_pairs) && length(interaction_pairs) > 0) {
+    interaction_terms <- vapply(interaction_pairs, function(pair) {
+      paste0(analysis_quote_formula_name(pair[1]), ":", analysis_quote_formula_name(pair[2]))
+    }, character(1))
+  }
+  rhs <- unique(c(quoted_terms, interaction_terms))
+  if (length(rhs) == 0) rhs <- "1"
+  stats::as.formula(paste0(analysis_quote_formula_name(response), " ~ ", paste(rhs, collapse = " + ")))
+}
+
+analysis_build_surv_formula <- function(time_var, status_var, terms = character(0), strata_terms = character(0), interaction_pairs = NULL) {
+  main_terms <- as.character(terms %||% character(0))
+  main_terms <- main_terms[!is.na(main_terms) & nzchar(main_terms)]
+  quoted_terms <- if (length(main_terms) > 0) {
+    vapply(main_terms, analysis_quote_formula_name, character(1))
+  } else {
+    character(0)
+  }
+  strata_terms <- as.character(strata_terms %||% character(0))
+  strata_terms <- strata_terms[!is.na(strata_terms) & nzchar(strata_terms)]
+  quoted_strata <- if (length(strata_terms) > 0) {
+    paste0("strata(", vapply(strata_terms, analysis_quote_formula_name, character(1)), ")")
+  } else {
+    character(0)
+  }
+  interaction_terms <- character(0)
+  if (!is.null(interaction_pairs) && length(interaction_pairs) > 0) {
+    interaction_terms <- vapply(interaction_pairs, function(pair) {
+      paste0(analysis_quote_formula_name(pair[1]), ":", analysis_quote_formula_name(pair[2]))
+    }, character(1))
+  }
+  rhs <- unique(c(quoted_terms, quoted_strata, interaction_terms))
+  if (length(rhs) == 0) rhs <- "1"
+  stats::as.formula(paste0(
+    "survival::Surv(",
+    analysis_quote_formula_name(time_var), ", ",
+    analysis_quote_formula_name(status_var), ") ~ ",
+    paste(rhs, collapse = " + ")
+  ))
+}
+
 validate_regression_inputs <- function(data, response, predictors, split_var = NULL, facet_var = NULL, model_strata_var = NULL, analysis_name = "回归") {
   if (!is.data.frame(data)) stop(paste0(analysis_name, "输入数据必须是 data.frame。"))
   if (is.null(response) || !nzchar(trimws(as.character(response)))) stop(paste0(analysis_name, "未设置响应变量。"))

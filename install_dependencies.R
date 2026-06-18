@@ -22,7 +22,6 @@ required_packages <- c(
   "jsonlite",
   "purrr",
   "stringr",
-  "vroom",
   "memoise",
   
   # 可视化

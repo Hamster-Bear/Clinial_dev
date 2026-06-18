@@ -30,7 +30,7 @@ expect_contains(graphics_text, "source\\(\"modules/common/entry_copy.R\"\\)", "�
 expect_contains(graphics_text, "copy <- ENTRY_COPY\\$statistical_graphics", "统计图形总入口读取共享文案")
 expect_contains(
   graphics_text,
-  "statistical_graphics_server <- function\\(id, data, pg_pool = NULL, current_user = NULL, workspace_id = NULL\\) \\{[\\s\\S]*?moduleServer\\(id, function\\(input, output, session\\) \\{[\\s\\S]*?copy <- ENTRY_COPY\\$statistical_graphics",
+  "statistical_graphics_server <- function\\(id, data, pg_pool = NULL, current_user = NULL, workspace_id = NULL, dataset_meta = NULL\\) \\{[\\s\\S]*?moduleServer\\(id, function\\(input, output, session\\) \\{[\\s\\S]*?copy <- ENTRY_COPY\\$statistical_graphics",
   "统计图形服务端在 renderUI 前读取共享文案"
 )
 expect_contains(graphics_text, "data_filter_ui\\(ns\\(\"global_filter\"\\)\\)", "统计图形总入口直接复用全局筛选卡")

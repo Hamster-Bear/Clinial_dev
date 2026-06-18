@@ -12,7 +12,7 @@ read_utf8 <- function(...) {
   paste(readLines(file_path, encoding = "UTF-8", warn = FALSE), collapse = "\n")
 }
 
-data_filter_text <- read_utf8("modules", "common", "data_filter.R")
+data_filter_text <- read_utf8("modules", "common", "data", "data_filter.R")
 if (!nzchar(data_filter_text)) return(invisible(NULL))
 
 expect_contains <- function(text, pattern, label) {
@@ -34,9 +34,9 @@ expect_contains(data_filter_text, "verbatimTextOutput\\(ns\\(\"filter_stats\"\\)
 expect_contains(data_filter_text, "uiOutput\\(ns\\(\"filter_controls\"\\)\\)", "data_filter 保留动态筛选控件输出")
 expect_contains(data_filter_text, "filter-card-item", "data_filter 使用统一筛选条件卡片样式")
 
-source(file.path(project_root, "modules", "common", "data_metadata.R"))
+source(file.path(project_root, "modules", "common", "data", "data_metadata.R"))
 source(file.path(project_root, "modules", "common", "ui_shell.R"))
-source(file.path(project_root, "modules", "common", "data_filter.R"))
+source(file.path(project_root, "modules", "common", "data", "data_filter.R"))
 
 ui <- data_filter_ui("global_filter")
 if (!inherits(ui, "shiny.tag.list")) stop("data_filter_ui 未返回 shiny.tag.list", call. = FALSE)

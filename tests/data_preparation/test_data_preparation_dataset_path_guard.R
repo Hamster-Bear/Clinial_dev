@@ -29,7 +29,7 @@ project_root <- test_find_project_root()
 setwd(file.path(project_root, "tests"))
 library(testthat)
 
-source(file.path("..", "modules", "common", "data_metadata.R"), local = TRUE)
+source(file.path("..", "modules", "common", "data", "data_metadata.R"), local = TRUE)
 source(file.path("..", "modules", "data_preparation.R"), local = TRUE)
 
 test_that("data_preparation_build_fallback_dataset_path 在根目录数据集场景不报错", {

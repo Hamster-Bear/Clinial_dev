@@ -11,7 +11,7 @@
 ```bash
 # 本地直接运行
 Rscript run_app.R
-# 默认 http://127.0.0.1:8109
+# 默认 http://127.0.0.1:8190
 
 # Docker 开发编排
 docker compose up -d

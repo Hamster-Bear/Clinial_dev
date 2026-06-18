@@ -26,6 +26,7 @@ test_find_project_root <- function() {
 }
 
 project_root <- test_find_project_root()
+library(testthat)
 
 read_utf8 <- function(...) {
   fp <- file.path(project_root, ...)

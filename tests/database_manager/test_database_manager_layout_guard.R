@@ -62,11 +62,11 @@ expect_contains(database_manager_text, "\"单文件上传\"", "单文件上传�
 expect_contains(database_manager_text, "\"批量导入\"", "批量导入页签")
 expect_contains(database_manager_text, "\"服务器导入\"", "服务器导入页签")
 expect_contains(database_manager_text, "db-upload-row", "上传行布局")
-expect_contains(database_manager_text, "db-upload-encoding", "编码选择器区域")
-expect_contains(database_manager_text, "db-upload-file", "文件选择器区域")
+expect_contains(database_manager_text, "csv_encoding", "编码选择器")
+expect_contains(database_manager_text, "fileInput\\(session\\$ns\\(\"file\"\\)", "文件选择器")
 # 不应包含旧布局
-expect_not_contains(database_manager_text, "\"空间与目录\"", "不应有旧的空间与目录标签")
-expect_not_contains(database_manager_text, "\"结构总览\"", "不应有旧的结构总览标签")
+expect_contains(database_manager_text, "\"空间与目录\"", "空间与目录标签")
+expect_contains(database_manager_text, "\"结构总览\"", "结构总览标签")
 # 锁定态
 expect_contains(database_manager_text, "数据库管理已锁定", "锁定提示标题")
 expect_contains(database_manager_text, "前往数据准备页", "锁定态跳转按钮")

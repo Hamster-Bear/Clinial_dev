@@ -29,7 +29,7 @@ project_root <- test_find_project_root()
 setwd(file.path(project_root, "tests"))
 library(testthat)
 
-source(file.path("..", "modules", "common", "analysis_shared.R"))
+source(file.path("..", "modules", "common", "analysis", "analysis_shared.R"))
 
 test_that("compute_regression_context 正确解析 facet 与自定义总计列", {
   d <- data.frame(

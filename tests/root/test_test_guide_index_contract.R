@@ -41,13 +41,15 @@ collect_actual_test_assets <- function(root) {
     recursive = TRUE,
     full.names = TRUE
   )
+  quality_gate_scripts <- file.path(root, "tests", "check_test_guide_index.R")
+  quality_gate_scripts <- quality_gate_scripts[file.exists(quality_gate_scripts)]
   fixture_files <- list.files(
     file.path(root, "tests", "fixtures"),
     recursive = TRUE,
     full.names = TRUE
   )
 
-  assets <- c(test_files, fixture_files[file.info(fixture_files)$isdir %in% FALSE])
+  assets <- c(test_files, quality_gate_scripts, fixture_files[file.info(fixture_files)$isdir %in% FALSE])
   assets <- normalizePath(assets, winslash = "/", mustWork = TRUE)
   prefix <- paste0(normalizePath(root, winslash = "/", mustWork = TRUE), "/")
   sort(unique(sub(prefix, "", assets, fixed = TRUE)))

@@ -11,7 +11,7 @@
 - **统计图形**: 生存曲线、森林图、热图、相关性矩阵等出版级图形
 - **导出功能**: 支持Word文档和高质量图片导出
 
-图形显示口径、共享图例能力、风险表参数与 Y 轴格式规则请以 `PROJECT_GUIDE.md` 为准。
+图形显示口径、共享图例能力、风险表参数与 Y 轴格式规则请以 `docs/main/PROJECT_GUIDE.md` 为准。
 
 ## 安装和运行
 
@@ -46,20 +46,20 @@
 
 ### 方法三：部署入口摘要
 
-Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README 只保留入口摘要：
+Docker 与服务器部署细节已统一迁移到 `docs/deploy/DEPLOY_GUIDE.md`，README 只保留入口摘要：
 
 | 场景 | 入口 | 访问方式 | 详细说明 |
 | --- | --- | --- | --- |
-| 本地开发直跑 | `run_app.R` | 默认 `http://127.0.0.1:8109` | 适合单机开发与问题定位 |
+| 本地开发直跑 | `run_app.R` | 默认 `http://127.0.0.1:8190` | 适合单机开发与问题定位 |
 | 基础 Docker Compose | `docker-compose.yml` | `http://localhost` | 适合基础开发编排 |
 | 本地联调 | `docker-compose.local.yml` | `http://localhost:8080` | 含 Landing 页，应用入口为 `/app/` |
 | 服务器生产 | `docker-compose.server.yml` | `https://<domain>` | 需要证书、镜像与 `.env` |
 
 #### 详细文档入口
 
-- 部署细节、镜像构建与保存、目录结构、挂载关系、环境变量、服务器流程：`DEPLOYMENT_GUIDE.md`
-- 项目架构、模块职责、部署矩阵与实现边界：`PROJECT_GUIDE.md`
-- 测试资产索引、按架构归类的测试清单与回归入口：`TEST_GUIDE.md`
+- 部署细节、镜像构建与保存、目录结构、挂载关系、环境变量、服务器流程：`docs/deploy/DEPLOY_GUIDE.md`
+- 项目架构、模块职责、部署矩阵与实现边界：`docs/main/PROJECT_GUIDE.md`
+- 测试资产索引、按架构归类的测试清单与回归入口：`docs/main/TEST_GUIDE.md`
 
 ### 当前访问与账号边界
 
@@ -153,7 +153,7 @@ Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README
 - 项目风险：owner 迁移与协作能力已进入主流程，若后续继续扩展共享模型，需要尽快补齐审计日志与操作留痕。
 - 立即可做：补充 membership / invite / owner 迁移的数据库级集成测试，并明确 `viewer` / `editor` 的读写边界；继续验证新数据库管理布局与数据库管理锁在高频操作下的可达性。
 - 中长期建议：引入邮箱验证、邀请有效期、操作审计日志，并评估组织级 / 项目级协作模型。
-- 工具链建议：在现有 `tests/` 守卫测试之外持续维护基于 PostgreSQL 测试库的自动化回归，并把 `run_auth_regression.ps1` 与 `check_test_guide_index.R` 一并纳入发布前固定校验入口。
+- 工具链建议：在现有 `tests/` 守卫测试之外持续维护基于 PostgreSQL 测试库的自动化回归，并把 `run_auth_regression.ps1` 与 `Rscript tests/check_test_guide_index.R` 一并纳入发布前固定校验入口。
 
 ## 依赖管理
 
@@ -169,11 +169,11 @@ Docker 与服务器部署细节已统一迁移到 `DEPLOYMENT_GUIDE.md`，README
 - 自动检查依赖并安装缺失包
 - 加载所有必需的包
 - 启动Shiny应用
-- 设置默认端口(8109)和主机(127.0.0.1)
+- 设置默认端口(8190)和主机(127.0.0.1)
 
 ## 项目结构
 
-完整目录结构、模块职责与部署边界请参考 `PROJECT_GUIDE.md`。README 只保留最小入口摘要：
+完整目录结构、模块职责与部署边界请参考 `docs/main/PROJECT_GUIDE.md`。README 只保留最小入口摘要：
 
 ```
 AutoTFL/
@@ -181,8 +181,12 @@ AutoTFL/
 ├── install_dependencies.R
 ├── run_app.R
 ├── README.md
-├── PROJECT_GUIDE.md
-├── DEPLOYMENT_GUIDE.md
+├── docs/
+│   ├── main/
+│   │   ├── PROJECT_GUIDE.md
+│   │   └── TEST_GUIDE.md
+│   └── deploy/
+│       └── DEPLOY_GUIDE.md
 ├── Dockerfile
 ├── docker-compose.yml
 ├── docker-compose.local.yml

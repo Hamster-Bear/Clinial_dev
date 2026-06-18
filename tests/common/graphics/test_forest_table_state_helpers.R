@@ -55,8 +55,8 @@ test_that("forest_normalize_selected_columns 产物可安全进入排序比较",
   lhs <- forest_normalize_selected_columns(list("AVAL", "ARM"))
   rhs <- forest_normalize_selected_columns(c("ARM", "AVAL"))
 
-  expect_no_error(sort(lhs))
-  expect_no_error(sort(rhs))
+  expect_error(sort(lhs), NA)
+  expect_error(sort(rhs), NA)
   expect_identical(sort(lhs), sort(rhs))
 })
 

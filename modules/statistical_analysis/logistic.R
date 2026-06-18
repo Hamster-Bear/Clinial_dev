@@ -405,7 +405,7 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
     if (!inherits(gt_tbl, "gt_tbl")) return(gt_tbl)
     raw <- tryCatch(as.data.frame(gt_tbl[["_data"]], stringsAsFactors = FALSE), error = function(e) NULL)
     if (is.null(raw) || !is.data.frame(raw) || nrow(raw) == 0) return(gt_tbl)
-    if (!all(c("预测变量", "统计值", "P值") %in% names(raw))) return(gt_tbl)
+    if (!"预测变量" %in% names(raw)) return(gt_tbl)
     norm_text <- function(x) {
       z <- gsub("\u00A0", " ", as.character(x), fixed = TRUE)
       z <- trimws(z)
@@ -444,7 +444,26 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
       current_strata <- regression_update_current_strata(raw_df = raw, row_index = i, current_strata = current_strata, strata_levels = strata_levels)
       lbl <- as.character(raw$预测变量[i])
       lbl_norm <- norm_text(lbl)
-      stat_norm <- norm_text(raw$统计值[i])
+      stat_value <- if ("统计值" %in% names(raw)) raw$统计值[i] else ""
+      stat_norm <- norm_text(stat_value)
+      if (length(n_cols) > 0 && !is_header_row(lbl) && nzchar(lbl_norm)) {
+        for (cn in n_cols) {
+          denom <- suppressWarnings(as.numeric(raw[[cn]][i]))
+          slice <- regression_slice_for_n_context(
+            cc_data = cc_data,
+            raw_df = raw,
+            row_index = i,
+            n_col = cn,
+            strata_var = strata_var,
+            current_strata = current_strata,
+            facet_var = facet_var,
+            total_map = total_map
+          )
+          if (is.na(denom)) denom <- nrow(slice)
+          events <- sum(slice[[logistic_response]] == 1, na.rm = TRUE)
+          n_out_map[[cn]][i] <- paste0(as.integer(events), "/", as.integer(denom))
+        }
+      }
       if (is_header_row(lbl) && lbl_norm %in% names(header_map)) {
         current_var <- unname(header_map[[lbl_norm]])
         current_ref <- NA_character_

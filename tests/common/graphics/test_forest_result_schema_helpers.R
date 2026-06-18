@@ -29,23 +29,22 @@ project_root <- test_find_project_root()
 setwd(file.path(project_root, "tests"))
 library(testthat)
 
-source(file.path("..", "modules", "common", "export", "plot_export.R"))
+source(file.path(project_root, "modules", "common", "export", "table_export.R"), local = TRUE)
+source(file.path(project_root, "modules", "common", "graphics", "forest_result_schema_helpers.R"), local = TRUE)
 
-test_that("save_plot_export 允许超过 ggsave 默认 50 英寸限制的导出", {
-  p <- ggplot2::ggplot(data.frame(x = 1:3, y = 1:3), ggplot2::aes(x, y)) +
-    ggplot2::geom_point()
-  out_file <- tempfile(fileext = ".pdf")
-  expect_error(
-    save_plot_export(
-      file = out_file,
-      plot_obj = p,
-      format = "pdf",
-      width = 60,
-      height = 55,
-      dpi = 72
-    ),
-    NA
-  )
-  expect_true(file.exists(out_file))
-  unlink(out_file)
+test_that("森林图 raw-data 分析结果复用 AMA P 值格式", {
+  out <- forest_finalize_analysis_results(list(data.frame(
+    Variable = c("A", "B", "C", "D"),
+    Level = "Continuous",
+    Estimate = 1,
+    Lower = 0.8,
+    Upper = 1.2,
+    P_Value = c(0.0004, 0.025, 0.995, NA),
+    N = 10,
+    Events = 3,
+    stringsAsFactors = FALSE
+  )))
+
+  expect_equal(out$P_Value_Raw, c(0.0004, 0.025, 0.995, NA))
+  expect_equal(out$P_Value_Str, c("<0.001", "0.025", ">0.99", "—"))
 })

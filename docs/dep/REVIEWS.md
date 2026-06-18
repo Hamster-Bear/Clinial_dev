@@ -591,3 +591,63 @@ get_state = function() {
 **状态**: resolved（2026-06-11 R003 全部修复完成，测试回归通过）
 
 ---
+
+## Review 8 [2026-06-18] — 全项目多维度 P0 审阅
+
+### Scope
+
+本次审阅覆盖文档治理、DEVLOG/PLAN/Review 同步、认证与权限、统计公式构造、数据删除一致性、测试门禁、部署配置与主文档一致性。审阅依据包括 `docs/main/PROJECT_GUIDE.md`、`docs/main/PROJECT_SPEC.md`、`docs/main/CODE_STYLE.md`、`docs/main/TEST_GUIDE.md`、`docs/deploy/DEPLOY_GUIDE.md`、`docs/dep/DEVLOG-R001-R040.md`、`docs/dep/PLAN.md`、`docs/dep/REVIEWS.md` 与当前代码。
+
+### Dev Logs Reviewed
+
+| Round | Claim | Verified |
+|-------|-------|----------|
+| R001 | Review 2 架构债修复全计划执行 | 部分验证；后续提交能对应主要修复，但 `Files Changed / Commits` 仍为 `(uncommitted)` |
+| R002 | 测试回归与路径修复 | 部分验证；当前测试门禁仍有失败/退出码异常 |
+| R003 | Review 7 任务历史缺陷系统性修复 | 基本验证；`f156cd8` 覆盖 task_history/source_info 相关文件 |
+
+### Findings
+
+#### Issues
+
+| # | Severity | File/Area | Description | Status |
+|---|----------|-----------|-------------|--------|
+| 1 | high | `modules/common/auth/auth.R` / `modules/common/auth/email_service.R` | SMTP 模式与认证层投递模式判断不一致，存在验证码作为测试提示回显到前端的风险 | fixed |
+| 2 | high | `modules/database_manager.R` / `modules/common/auth/auth.R` | viewer 只读成员可能通过 `require_workspace_access()` 执行创建、上传、删除等写操作 | fixed |
+| 3 | high | `modules/statistical_analysis/linear.R`, `cox.R`, `anova.R`, `modules/common/graphics/forest_model_helpers.R` | 多个统计公式通过字符串拼接构造，非标准临床列名可能失败或被错误解析 | fixed |
+| 4 | high | `modules/database_manager.R` | 删除数据时先删物理文件再删数据库记录，DB 删除失败会留下指向丢失文件的元数据 | fixed |
+| 5 | high | `docker-compose.server.yml`, `deploy/alicloud/scripts/*.sh` | 生产部署仍允许弱默认 `DB_PASSWORD` 或占位管理员密码进入生产 | fixed |
+| 6 | high | `tests/root/test_project_docs_guard.R`, `tests/root/test_access_boundary_guard.R`, `tests/statistical_analysis/regression/test_regression_formula_validation.R` | 当前质量门禁存在失败项，且 testthat 命令输出 DONE 后仍可能返回非 0 | fixed: hard-exit gate `FAILURE_COUNT=0 TOTAL=101 NONZERO_EXIT_COUNT=0` |
+| 7 | medium | `modules/common/auth/auth.R` | 部分认证写操作未统一走 `auth_with_transaction()`，可能出现半完成状态 | fixed |
+| 8 | medium | `modules/common/data/data_io.R` | 上传格式判断依赖 Shiny 临时路径扩展名，可能误拒合法文件 | fixed |
+| 9 | medium | `modules/common/graphics/forest_result_schema_helpers.R` | Forest raw-data P 值格式与 AMA 风格不完全一致 | fixed |
+| 10 | medium | `docs/dep/DEVLOG-R001-R040.md` / git history | DEVLOG 覆盖断层，多个非平凡提交缺少对应轮次 | open |
+| 11 | medium | `docs/dep/PLAN.md` | 旧 PLAN 同时标记 `done` 又保留未勾选完成标准；已在本轮改为仪表盘 | fixed |
+| 12 | medium | `USAGE.md`, `docs/deploy/DEPLOY_GUIDE.md`, `run_app.R`, `run_app_test.ps1` | 默认端口文档为 8109，脚本实际为 8190 | fixed |
+
+#### Unimplemented / Incomplete
+
+| # | Reference | Description | Next step |
+|---|-----------|-------------|-----------|
+| 1 | Review 8 | 阻断级问题未进入独立 P0 子计划 | 已创建 `docs/dep/plans/P0-critical-remediation.md` |
+| 2 | Review 8 | 非阻断技术债无统一 track | 已创建 `docs/dep/plans/P0-tech-debt.md` |
+| 3 | Review 8 | 全量测试尚未通过 | 已通过临时 hard-exit runner：101 个测试文件 0 失败、0 非零退出 |
+
+#### Deviations
+
+| # | Expected | Actual | Impact |
+|---|----------|--------|--------|
+| 1 | Review 后 open 阻断项同步到 PLAN / P0 子计划 | 已同步到 `docs/dep/PLAN.md` 与 `docs/dep/plans/` | fixed |
+| 2 | 部署文档要求生产必须覆盖密码 | Compose 与部署脚本已强制校验生产密码/管理员占位 | fixed |
+| 3 | 测试指南和脚本路径一致 | `TEST_GUIDE.md` 已统一为 `Rscript tests/check_test_guide_index.R` | fixed |
+
+### Next Actions
+
+1. 按 `docs/dep/plans/P0-critical-remediation.md` P1-P5 执行，先写失败测试，再修 P0。
+2. 修复 SMTP 验证码回显、viewer 写权限、公式安全引用、删除顺序和生产密码校验。
+3. 修复测试门禁与文档漂移后跑全量 testthat 回归。
+4. 全量 hard-exit 门禁已通过；普通 R 进程卸载异常保留为环境技术债。
+
+### Status: resolved
+
+---

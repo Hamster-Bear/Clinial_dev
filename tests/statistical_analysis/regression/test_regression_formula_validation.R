@@ -38,6 +38,8 @@ module_path <- function(p) {
 source(module_path("modules/statistical_analysis/cox.R"))
 source(module_path("modules/statistical_analysis/logistic.R"))
 source(module_path("modules/statistical_analysis/linear.R"))
+source(module_path("modules/statistical_analysis/anova.R"))
+source(module_path("modules/common/graphics/forest_model_helpers.R"))
 
 set.seed(20260324)
 n <- 1200
@@ -212,6 +214,49 @@ test_that("Cox 全场景公式验算通过", {
   # td_x <- td_all[td_all$term == "x", , drop = FALSE]
   # ... obsolete
   expect_true(TRUE)
+})
+
+test_that("回归与森林图公式安全处理非标准列名", {
+  weird <- data.frame(
+    check.names = FALSE,
+    "PFS-month" = rexp(60, rate = 0.2) + 0.1,
+    "Event Flag" = rep(c(0, 1), 30),
+    "Age (years)" = seq(41, 100),
+    "Treatment Arm" = factor(rep(c("A", "B"), 30)),
+    "Response Value" = rnorm(60, mean = rep(c(0, 1), 30))
+  )
+
+  expect_error(perform_linear_analysis(
+    weird,
+    linear_response = "Response Value",
+    linear_predictors = c("Age (years)", "Treatment Arm"),
+    linear_strata = "None",
+    linear_facet = "None",
+    linear_model_strata = NULL
+  ), NA)
+  expect_error(perform_cox_analysis(
+    weird,
+    cox_time = "PFS-month",
+    cox_status = "Event Flag",
+    cox_covariates = c("Age (years)", "Treatment Arm"),
+    cox_strata = "None",
+    cox_facet = "None",
+    cox_event_value = "1",
+    cox_model_strata = NULL
+  ), NA)
+  expect_error(perform_anova_analysis(
+    weird,
+    anova_response = "Response Value",
+    anova_factors = "Treatment Arm"
+  ), NA)
+  expect_s3_class(
+    forest_build_model_formula("cox", c("Age (years)", "Treatment Arm"), time_var = "PFS-month", status_var = "Event Flag"),
+    "formula"
+  )
+  expect_s3_class(
+    forest_build_model_formula("logistic", c("Age (years)", "Treatment Arm"), outcome_var = "Event Flag"),
+    "formula"
+  )
 })
 
 cat("Regression formula validation tests passed\n")

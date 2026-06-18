@@ -7,7 +7,7 @@ required_packages <- c(
   "shiny", "shinydashboard", "shinyjs", "shinyBS", "bslib",
   "shinyWidgets", "waiter", "shinyalert",
   "dplyr", "readr", "readxl", "haven", "jsonlite", "purrr",
-  "stringr", "vroom", "memoise",
+  "stringr", "memoise",
   "ggplot2", "plotly", "DT", "gt", "patchwork", "reactable",
   "cowplot", "gridExtra", "scales", "RColorBrewer", "showtext", "sysfonts",
   "cards", "gtsummary", "tfrmt", "forcats", "tidyr", "rlang",

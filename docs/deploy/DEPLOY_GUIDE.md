@@ -39,7 +39,7 @@
 
 | 方案 | 入口文件                        | 对外地址                       | 根路径行为                       | 适用目标            |
 | -- | --------------------------- | -------------------------- | --------------------------- | --------------- |
-| A  | `run_app.R`                 | 默认 `http://127.0.0.1:8109` | 直接进入 Shiny 应用               | 单机开发、问题定位       |
+| A  | `run_app.R`                 | 默认 `http://127.0.0.1:8190` | 直接进入 Shiny 应用               | 单机开发、问题定位       |
 | B  | `docker-compose.yml`        | `http://localhost`         | `/` 直接反代到 Shiny             | 基础开发编排          |
 | C  | `docker-compose.local.yml`  | `http://localhost:8080`    | `/` 为 Landing 页，应用在 `/app/` | 本地联调、Landing 验证 |
 | D  | `docker-compose.server.yml` | `https://<domain>`         | `/` 为 Landing 页，应用在 `/app/` | 服务器生产部署         |
@@ -163,7 +163,7 @@ AutoTFL/
 | `SSL_CERT_FILE`    | `kyyin.xyz.pem`               | `docker-compose.server.yml` | 证书文件名     |
 | `SSL_KEY_FILE`     | `kyyin.xyz.key`               | `docker-compose.server.yml` | 私钥文件名     |
 | `APP_STORAGE_ROOT` | `/app/data_storage`           | `docker-compose.server.yml` | 容器内数据目录   |
-| `SHINY_PORT`       | `8109`                        | `run_app.R`                 | 本地直跑端口    |
+| `SHINY_PORT`       | `8190`                        | `run_app.R`                 | 本地直跑端口    |
 | `SHINY_HOST`       | `127.0.0.1`                   | `run_app.R`                 | 本地直跑监听地址  |
 
 ### 4.5 应用内部消费的关键变量
@@ -209,7 +209,7 @@ AutoTFL/
 ### 5.2 测试环境变量
 
 - `run_app_test.ps1` 会读取 `.env.test`；可先从 `.env.test.example` 复制。
-- `run_app_test.ps1` 会读取 `SHINY_PORT`；若未设置则默认占用检查与启动 `8109`。
+- `run_app_test.ps1` 会读取 `SHINY_PORT`；若未设置则默认占用检查与启动 `8190`。
 - 本地若数据库由 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起，应用应连接 `localhost:5432`。
 - `docker-compose.local.yml` 现直接读取 `.env.test`，以统一本地联调与 `run_app_test.ps1` 使用的 PostgreSQL 与管理员参数；其中 app 容器仍会在内部网络中覆盖 `POSTGRES_HOST=postgres`。
 - `docker-compose1.yml` 只提供 PostgreSQL 与 Redis 基础设施，适用于项目更新期间避免重建整套应用镜像时，继续让本机 `run_app.R` / `run_app_test.ps1` 复用同一组 `5432/6379` 端口做业务测试。
@@ -230,8 +230,8 @@ AutoTFL/
 | 项目   | 当前默认值                   |
 | ---- | ----------------------- |
 | Host | `127.0.0.1`             |
-| Port | `8109`                  |
-| URL  | `http://127.0.0.1:8109` |
+| Port | `8190`                  |
+| URL  | `http://127.0.0.1:8190` |
 
 ### 5.4 本地运行注意事项
 
@@ -750,7 +750,7 @@ deploy/alicloud/
 
 | 方案 | 必查项                                                 |
 | -- | --------------------------------------------------- |
-| A  | 应用能否在 `127.0.0.1:8109` 打开                           |
+| A  | 应用能否在 `127.0.0.1:8190` 打开                           |
 | B  | `http://localhost` 是否直接进入应用                         |
 | C  | `http://localhost:8080` 是否显示 Landing，`/app/` 是否进入应用 |
 

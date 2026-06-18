@@ -43,6 +43,38 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
+env_value() {
+  local key="$1"
+  local line=""
+  line="$(grep -E "^${key}=" "$ENV_FILE" | tail -n 1 || true)"
+  line="${line#*=}"
+  line="${line%\"}"
+  line="${line#\"}"
+  line="${line%\'}"
+  line="${line#\'}"
+  printf '%s' "$line"
+}
+
+require_env_value() {
+  local key="$1"
+  local value=""
+  value="$(env_value "$key")"
+  if [[ -z "$value" || "$value" == __CHANGE_ME_* ]]; then
+    echo "Invalid $key in $ENV_FILE: set a non-placeholder value before deployment"
+    exit 1
+  fi
+}
+
+require_env_value "DB_PASSWORD"
+require_env_value "APP_ADMIN_USERNAME"
+require_env_value "APP_ADMIN_EMAIL"
+require_env_value "APP_ADMIN_PASSWORD"
+
+if [[ "$(env_value "APP_ADMIN_USERNAME")" == "admin" || "$(env_value "APP_ADMIN_EMAIL")" == "admin@example.com" ]]; then
+  echo "Invalid default admin identity in $ENV_FILE: replace APP_ADMIN_USERNAME and APP_ADMIN_EMAIL before deployment"
+  exit 1
+fi
+
 IMAGE_TAR="$(resolve_tar_path "${1:-}")" || {
   echo "Usage: $0 <image_tar_path_or_basename>"
   echo "No tar file found in $APPS_DIR"

@@ -149,16 +149,32 @@ forest_extract_model_result <- function(model, var, data, type = "cox", status_v
   res
 }
 
+forest_format_p_value_ama <- function(x) {
+  if (exists("format_p_value_ama", mode = "function")) {
+    return(format_p_value_ama(x))
+  }
+  if (is.character(x) && length(x) == 1 && (x == "NA" || x == "—" || x == "")) {
+    return("—")
+  }
+  val <- suppressWarnings(as.numeric(x))
+  if (is.na(val)) {
+    return("—")
+  }
+  if (val < 0.001) {
+    return("<0.001")
+  }
+  if (val > 0.99) {
+    return(">0.99")
+  }
+  sprintf("%.3f", val)
+}
+
 forest_finalize_analysis_results <- function(final_list) {
   if (length(final_list) == 0) {
     return(NULL)
   }
   out <- do.call(rbind, final_list)
   out$P_Value_Raw <- out$P_Value
-  out$P_Value_Str <- ifelse(
-    is.na(out$P_Value),
-    "",
-    ifelse(out$P_Value < 0.001, "<0.001", sprintf("%.3f", out$P_Value))
-  )
+  out$P_Value_Str <- vapply(out$P_Value, forest_format_p_value_ama, character(1))
   out
 }

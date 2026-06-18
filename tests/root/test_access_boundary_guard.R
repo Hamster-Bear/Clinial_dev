@@ -68,13 +68,29 @@ expect_not_contains <- function(text, pattern, label) {
   }
 }
 
+expect_order_after <- function(text, anchor, first, second, label) {
+  anchor_pos <- regexpr(anchor, text, fixed = TRUE)[[1]]
+  if (anchor_pos < 0) {
+    stop(sprintf("缺少顺序锚点: %s", label), call. = FALSE)
+  }
+  scoped_text <- substring(text, anchor_pos)
+  first_pos <- regexpr(first, scoped_text, perl = TRUE)[[1]]
+  second_pos <- regexpr(second, scoped_text, perl = TRUE)[[1]]
+  if (first_pos < 0 || second_pos < 0 || first_pos >= second_pos) {
+    stop(sprintf("顺序不符合预期: %s", label), call. = FALSE)
+  }
+}
+
 expect_contains(database_manager_text, "从服务器目录导入数据空间", "数据库管理模块导入入口文案")
 expect_contains(database_manager_text, "请输入服务器或容器可见的绝对路径", "数据库管理模块导入占位提示")
 expect_contains(database_manager_text, "当前仅支持导入部署机器可见目录，不支持直接读取浏览器所在电脑的本地文件夹。", "数据库管理模块导入边界说明")
 expect_contains(database_manager_text, "该入口当前仅面向系统管理员开放；多用户能力落地前不面向普通用户开放。", "数据库管理模块管理员限定说明")
 expect_contains(database_manager_text, "service_create_workspace\\(", "数据库管理模块通过 service 创建 workspace")
 expect_contains(database_manager_text, "service_delete_workspace\\(", "数据库管理模块通过 service 删除 workspace")
+expect_contains(database_manager_text, "require_workspace_write <- function", "数据库管理模块写权限守卫")
+expect_contains(database_manager_text, "service_user_can_write_workspace\\(", "数据库管理模块服务层写权限判断")
 expect_contains(database_manager_text, "当前账号无权管理该数据空间", "数据库管理模块 workspace 管理权限提示")
+expect_contains(database_manager_text, "当前账号无权编辑该数据空间", "数据库管理模块 workspace 写权限提示")
 expect_contains(database_manager_text, "数据库管理功能尚未开放，请联系系统管理员授权", "数据库管理模块数据库锁提示")
 expect_contains(database_manager_text, "db_access_enabled", "数据库管理模块依赖数据库管理权限字段")
 expect_contains(database_manager_text, "title = \"数据空间管理\"", "数据库管理模块阶段二主标题")
@@ -82,6 +98,27 @@ expect_contains(database_manager_text, "\"空间与目录\"", "数据库管理�
 expect_contains(database_manager_text, "\"上传与导入\"", "数据库管理模块阶段二上传与导入标签")
 expect_contains(database_manager_text, "\"结构总览\"", "数据库管理模块阶段二结构总览标签")
 expect_not_contains(database_manager_text, "从本地文件夹导入数据空间", "数据库管理模块旧导入文案")
+expect_order_after(
+  database_manager_text,
+  "observeEvent(input$confirm_delete_workspace",
+  "service_delete_workspace\\(",
+  "remove_dataset_files\\(",
+  "删除数据空间应先删除数据库记录再清理文件"
+)
+expect_order_after(
+  database_manager_text,
+  "observeEvent(input$confirm_delete_folder",
+  "dbExecute\\(pool, \"DELETE FROM folders",
+  "remove_dataset_files\\(",
+  "删除文件夹应先删除数据库记录再清理文件"
+)
+expect_order_after(
+  database_manager_text,
+  "observeEvent(input$confirm_delete_dataset",
+  "dbExecute\\(pool, \"DELETE FROM datasets",
+  "storage_delete_dataset\\(",
+  "删除数据集应先删除数据库记录再清理文件"
+)
 
 expect_contains(readme_text, "当前 `/app/` 已实现应用内自注册、登录、退出与 workspace 级权限过滤。", "README 访问控制边界")
 expect_contains(readme_text, "登录、注册与忘记密码已拆为独立页面状态", "README 登录注册说明")

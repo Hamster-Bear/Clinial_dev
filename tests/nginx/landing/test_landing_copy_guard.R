@@ -27,6 +27,7 @@ test_find_project_root <- function() {
 
 project_root <- test_find_project_root()
 setwd(file.path(project_root, "tests"))
+library(testthat)
 
 copy_guard_json <- file.path(project_root, "inst", "copy_guard_patterns.json")
 if (!file.exists(copy_guard_json)) {

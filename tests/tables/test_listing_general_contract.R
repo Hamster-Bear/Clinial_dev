@@ -57,12 +57,13 @@ test_that("normalize_listing_columns 会过滤失效列并保留有效列", {
 
 test_that("perform_listing_general_analysis 在存在有效展示列时忽略失效列", {
   df <- data.frame(USUBJID = c("01", "02"), SITEID = c("1001", "1002"), AVAL = c(1.2, 3.4))
-  expect_no_error(
+  expect_error(
     perform_listing_general_analysis(
       data = df,
       key_cols = c("USUBJID", "MISSING_KEY"),
       disp_cols = c("AVAL", "MISSING_DISP")
-    )
+    ),
+    NA
   )
 })
 

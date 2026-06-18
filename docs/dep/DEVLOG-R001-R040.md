@@ -159,3 +159,48 @@
 - （uncommitted）
 
 ---
+
+## 2026-06-18
+
+### R004 [12:20] — Review 8: P0 安全、权限、公式与门禁修复
+
+#### Done
+- 按 Review 8 建立 `docs/dep/plans/P0-critical-remediation.md`、`docs/dep/plans/P0-tech-debt.md` 与 `docs/dep/TASK_STATE.md`，并把 `docs/dep/PLAN.md` 改为当前计划仪表盘。
+- 认证安全：`smtp` 投递模式不再把验证码作为测试提示回显；认证 DB pool 不再默认使用 `ChangeMe123!`；注册用户、邮箱验证码 token、改密码、启动管理员和 workspace membership 写操作收口到事务边界。
+- Workspace 写权限：新增 service 层写权限 helper，数据库管理模块的创建目录、上传数据、批量保存、删除数据集/目录/空间均改为 owner/editor 写权限校验，viewer 只读。
+- 数据一致性：删除数据集时先执行数据库删除，再清理物理文件，避免 DB 删除失败后元数据指向丢失文件。
+- 统计公式：新增安全公式构造 helper，Linear/Cox/ANOVA/Forest 统一支持非标准临床列名，生成代码同步引用安全列名函数。
+- 表格口径：Logistic/Linear/Cox 的 Event/N 展示口径统一；修复 Logistic facet 连续变量行的 Event/N；Forest raw-data 结果复用 AMA P 值格式。
+- 数据导入：`data_read_file()` 支持 Shiny 临时路径无扩展名时使用 `original_file_name` 判断上传格式，并移除未使用且在当前 R 环境触发退出异常的 `vroom` 依赖。
+- 部署安全：`docker-compose.server.yml` 强制 `DB_PASSWORD` 必填；阿里云 tar 部署脚本拒绝空值、占位管理员和默认管理员身份。
+- 文档同步：README/USAGE/DEPLOY/PROJECT_GUIDE/PROJECT_SPEC/CODE_STYLE/TEST_GUIDE 同步默认端口 `8190`、当前文档路径、权限/公式/删除/部署安全约束和新增测试索引。
+- 测试维护：修复旧路径、旧 UI 文案、旧布局契约和测试入口漂移；新增 P0 回归测试覆盖 SMTP、写权限、公式安全、删除顺序、上传扩展名与部署配置。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| 全量 hard-exit 枚举 `tests/**/test_*.R` | `FAILURE_COUNT=0 TOTAL=101 NONZERO_EXIT_COUNT=0` | 101 个测试文件执行期断言失败清零，文件级退出码全为 0 |
+| hard-exit `tests/check_test_guide_index.R` | 退出 0 | 输出 `.. DONE` 后由临时 runner 避开 R native 包卸载异常 |
+| 普通逐文件 Rscript 枚举 | `FAILURE_COUNT=0 TOTAL=101 ABNORMAL_EXIT_COUNT=77` | 定位为当前 R 4.5.3 / 新版 `cli`、`rlang` 链路卸载期异常 |
+| `Rscript tests/root/test_access_boundary_guard.R` | 通过，退出 0 | 不加载触发退出异常的包 |
+| `Rscript -e "library(testthat); cat('x\n')"` | 输出成功，退出 `-1073741819` | 定位为当前 R 4.5.3/包环境退出码问题 |
+
+#### Issues / Blockers
+- 普通 Rscript 进程在正常卸载新版 native 包时仍可能退出 `-1073741819`；本轮通过临时 hard-exit runner 验证测试执行期 0 失败、文件级 0 退出。该环境问题进入技术债，不再阻断本轮提交。
+- Review 8 中历史 DEVLOG 覆盖断层仍作为非阻断技术债保留；不回写旧轮次，从 R004 起恢复记录。
+
+#### Next
+1. 后续单独引入 `renv.lock` 或重建 R library，根治普通 Rscript 卸载期退出码异常。
+2. 继续追踪历史 DEVLOG 覆盖断层，不回写旧轮次。
+
+#### Files Changed
+- `modules/common/auth/auth.R`、`modules/common/auth/account_service.R`、`modules/database_manager.R`
+- `modules/common/analysis/analysis_shared.R`、`modules/statistical_analysis/linear.R`、`cox.R`、`anova.R`、`logistic.R`
+- `modules/common/graphics/forest_model_helpers.R`、`modules/common/data/data_io.R`、`modules/common/storage_backend.R`、`modules/data_preparation.R`
+- `docker-compose.server.yml`、`deploy/alicloud/scripts/deploy_from_tar.sh`
+- `README.md`、`USAGE.md`、`docs/main/PROJECT_GUIDE.md`、`PROJECT_SPEC.md`、`CODE_STYLE.md`、`TEST_GUIDE.md`、`docs/deploy/DEPLOY_GUIDE.md`
+- `docs/dep/PLAN.md`、`docs/dep/REVIEWS.md`、`docs/dep/TASK_STATE.md`、`docs/dep/plans/P0-critical-remediation.md`、`docs/dep/plans/P0-tech-debt.md`
+- `tests/common/auth/`、`tests/common/data/`、`tests/common/graphics/`、`tests/root/`、`tests/statistical_analysis/regression/`、`tests/database_manager/` 及相关测试守卫
+- commit: 本轮 P0 修复提交
+
+---
