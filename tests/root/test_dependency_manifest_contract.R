@@ -64,3 +64,14 @@ test_that("Docker 构建在运行安装脚本前复制依赖清单目录", {
     regexpr("Rscript /app/install_dependencies.R", docker_text, fixed = TRUE)[[1]]
   )
 })
+
+test_that("Docker 构建上下文包含依赖清单目录", {
+  dockerignore_text <- read_text(file.path(root_dir, ".dockerignore"))
+  dockerignore_lines <- trimws(strsplit(dockerignore_text, "\n", fixed = TRUE)[[1]])
+  dockerignore_lines <- dockerignore_lines[nzchar(dockerignore_lines)]
+  dockerignore_lines <- dockerignore_lines[!startsWith(dockerignore_lines, "#")]
+
+  expect_false("config/" %in% dockerignore_lines)
+  expect_false("config" %in% dockerignore_lines)
+  expect_true("required_packages.R" %in% list.files(file.path(root_dir, "config"), full.names = FALSE))
+})

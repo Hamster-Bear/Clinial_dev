@@ -4,6 +4,36 @@
 
 ## 2026-06-22
 
+### R008 [15:25] — local 镜像重建与 Docker 构建上下文修复
+
+#### Done
+- 修复 `.dockerignore` 误排除 `config/` 的问题，确保 Docker 构建上下文包含 `config/required_packages.R`。
+- 在依赖清单契约测试中加入 Docker 构建上下文守卫，避免后续再次排除统一依赖清单目录。
+- 使用 `docker compose -f docker-compose.local.yml build app` 重建 `autotfl-shiny-app:latest`。
+- 使用 `docker compose -f docker-compose.local.yml up -d app nginx` 与 `up -d redis` 重建本地联调容器，使 local 栈使用新镜像和一致容器命名。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| `Rscript -e "testthat::test_file('tests/root/test_dependency_manifest_contract.R', reporter='summary')"` | 退出 0 | 依赖清单与 Docker context 守卫通过 |
+| `git diff --check` | 退出 0 | 无 whitespace error；Windows 换行提示不阻断 |
+| `docker compose -f docker-compose.local.yml build app` | 退出 0 | `autotfl-shiny-app:latest` 构建成功 |
+| `curl http://localhost:8080/` 与 `/app/` | HTTP 200 | Landing 与 Shiny app 入口均可访问 |
+
+#### Issues / Blockers
+- None.
+
+#### Next
+1. 如需共享本次构建修复，提交并推送 `.dockerignore`、依赖清单契约测试和本 DEVLOG。
+
+#### Files Changed
+- `.dockerignore`（修改）— 不再排除 `config/`，仅排除常见本地/敏感配置模式
+- `tests/root/test_dependency_manifest_contract.R`（修改）— 新增 Docker context 守卫
+- `docs/dep/DEVLOG-R001-R040.md`（修改）— 记录本轮 local 镜像重建
+- `(uncommitted)`
+
+---
+
 ### R007 [11:45] — agent 入口规范收口
 
 #### Done

@@ -34,8 +34,9 @@ __pycache__/
 *.pyc
 
 # 用户配置
-config/
 *.config
+config/*.local
+config/*.secret
 
 # 测试文件
 test/
