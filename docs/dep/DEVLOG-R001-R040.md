@@ -4,6 +4,35 @@
 
 ## 2026-06-22
 
+### R007 [11:45] — agent 入口规范收口
+
+#### Done
+- 移除旧 agent 入口文件与重复 skill 目录，统一保留 `AGENTS.md` 与 `.agents/skills/project-skill/`。
+- 修正 `AGENTS.md` 中的项目 skill 路径，使其与仓库内实际目录一致。
+- 将历史审查文档中的项目约定入口引用统一改为 `AGENTS.md`，避免多套 agent 入口并行维护。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| 旧 agent 入口关键词搜索 | 无命中 | 旧入口口径已清空 |
+| `Rscript tests/check_test_guide_index.R` | 退出 0 | 测试索引仍一致 |
+| `git diff --check` | 退出 0 | 无 whitespace error；Windows 换行提示不阻断 |
+
+#### Issues / Blockers
+- None.
+
+#### Next
+1. 后续项目级 agent 约定统一维护在 `AGENTS.md`，项目 skill 统一维护在 `.agents/skills/project-skill/`。
+
+#### Files Changed
+- `AGENTS.md`（修改）— 修正 project skill 路径
+- `docs/dep/REVIEWS.md`（修改）— 历史审查入口引用统一到 `AGENTS.md`
+- 旧 agent 入口文件与重复 skill 目录（删除）
+- `docs/dep/DEVLOG-R001-R040.md`（修改）— 记录本轮入口规范收口
+- `(uncommitted)`
+
+---
+
 ### R006 [11:30] — 文档规范收口：移除旧规格目录
 
 #### Done

@@ -48,7 +48,7 @@
 
 ## Review 2 [2026-05-20] — AutoTFL 项目全面评审
 
-**评审依据**: personal-assistant 规范 + CLAUDE.md 项目约定
+**评审依据**: personal-assistant 规范 + AGENTS.md 项目约定
 **评审范围**: 文档体系、代码架构、common/ 共享层、图形模块、测试资产、目录结构、基础设施
 **状态**: 文档类问题已在 Review 1 整改中修复，其余问题待跟进
 
@@ -203,7 +203,7 @@ Redis 在 docker-compose 中但无业务代码使用，增加部署复杂度。
 
 本次评审不依赖 DEVLOG 自述，而是对每项 PLAN 交付物执行独立的代码级验证：
 
-- **文档层**: 对比 CLAUDE.md 索引 → `docs/main/` 四份规范文档 → `docs/dep/` 计划与开发日志
+- **文档层**: 对比 AGENTS.md 索引 → `docs/main/` 四份规范文档 → `docs/dep/` 计划与开发日志
 - **代码层**: 逐项 Grep 验证 PLAN 中所有文件操作（删除/移动/修改/新建）是否真实生效
 - **测试层**: 在 R 4.5.3 环境中执行全量 90 个测试文件回归 + `check_test_guide_index.R` 索引校验
 - **Git 层**: `git status` 确认无未提交变更，`git log` 确认 commit 完整
@@ -235,7 +235,7 @@ Redis 在 docker-compose 中但无业务代码使用，增加部署复杂度。
 | `app.R` 路径已更新 | Grep `modules/common/data/data_metadata.R` | ✅ |
 | 测试文件路径已更新 | 全量测试通过（含 `test_data_metadata_consistency.R`、`test_plot_export_contract.R`） | ✅ |
 | `check_test_guide_index.R` 通过 | R 4.5.3 直接执行 | ✅（Review 3 记录的 crash 已不复现） |
-| 文档同步 | PROJECT_GUIDE.md / PROJECT_SPEC.md / CLAUDE.md | ✅ |
+| 文档同步 | PROJECT_GUIDE.md / PROJECT_SPEC.md / AGENTS.md | ✅ |
 
 #### P3 — 图形模块标准化 ✅ 通过
 
@@ -301,7 +301,7 @@ Redis 在 docker-compose 中但无业务代码使用，增加部署复杂度。
 | PROJECT_SPEC.md | ✅ | common/ 状态更新为 5/5 |
 | CODE_STYLE.md | ✅ | 无越权内容 |
 | TEST_GUIDE.md | ✅ | §3 索引已更新，legacy 已移除 |
-| CLAUDE.md | ✅ | 路径描述正确 |
+| AGENTS.md | ✅ | 路径描述正确 |
 | PLAN.md | ✅ | status: done, P1-P5 全部完成 |
 
 ### 六、评审结论
@@ -311,7 +311,7 @@ Redis 在 docker-compose 中但无业务代码使用，增加部署复杂度。
 | 计划执行完整度 | ★★★★★ | P1-P5 全部 20+ 验收项通过，0 遗漏 |
 | 代码变更正确性 | ★★★★★ | 全仓库旧路径 Grep 0 残留，新路径全部正确 |
 | 测试覆盖 | ★★★★★ | 90 测试文件 0 errors，check_test_guide_index.R 通过 |
-| 文档同步 | ★★★★★ | 4 份核心文档 + CLAUDE.md 全部与代码一致 |
+| 文档同步 | ★★★★★ | 4 份核心文档 + AGENTS.md 全部与代码一致 |
 | 端到端验证 | ★★★★★ | 代码审计 + 全量测试 + 文档交叉校验三重验证 |
 
 **最终结论**: Review 2 架构债修复计划（PLAN.md P1-P5）已完整落地。五阶段全部 20+ 交付物通过独立代码级验证，90 个测试文件全量回归 0 errors，文档与代码一致。计划中标注的 `check_test_guide_index.R` R 4.5.3 crash 已不再复现。
@@ -397,7 +397,7 @@ Redis 在 docker-compose 中但无业务代码使用，增加部署复杂度。
 
 ## Review 6 [2026-06-03] — 项目主线计划贴合度审阅
 
-**评审依据**: personal-assistant Review 模式 + CLAUDE.md 项目约定 + PROJECT_GUIDE.md / PROJECT_SPEC.md / TEST_GUIDE.md
+**评审依据**: personal-assistant Review 模式 + AGENTS.md 项目约定 + PROJECT_GUIDE.md / PROJECT_SPEC.md / TEST_GUIDE.md
 **评审范围**: 文档目录树 vs 实际代码库、测试资产双向一致性、进度口径合规性、残留垃圾
 **评审方式**: 文件系统扫描 + 文档交叉校验 + 测试索引双向比对
 

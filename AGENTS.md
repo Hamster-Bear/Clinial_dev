@@ -1,6 +1,6 @@
 # AutoTFL 项目开发约定
 
-本项目定义了一个「个人开发协作者」AI skill，详见 `.Codex/skills/project-skill/`。
+本项目定义了一个「个人开发协作者」AI skill，详见 `.agents/skills/project-skill/`。
 
 ## 规范文档索引
 
