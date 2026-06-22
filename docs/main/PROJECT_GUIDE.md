@@ -326,8 +326,7 @@ AutoTFL/
 │   │   ├── PLAN.md
 │   │   └── REVIEWS.md
 │   ├── AI prompt.md
-│   ├── app_design.md
-│   └── superpowers/
+│   └── app_design.md
 ├── tests/
 │   └── check_test_guide_index.R
 ├── Dockerfile

@@ -4,6 +4,34 @@
 
 ## 2026-06-22
 
+### R006 [11:30] — 文档规范收口：移除旧规格目录
+
+#### Done
+- 接受用户删除的旧设计规格文档，不恢复该目录。
+- 同步清理 `docs/main/PROJECT_GUIDE.md` 仓库目录树中的旧规格目录引用，使项目文档结构回到 `docs/main/`、`docs/deploy/`、`docs/dep/` 等规范目录口径。
+- 全仓定向搜索旧规格目录关键词，确认无残留引用。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| 旧规格目录关键词搜索 | 无命中 | 旧规格文档口径已清空 |
+| `Rscript tests/check_test_guide_index.R` | 退出 0 | 测试索引仍一致 |
+| `git diff --check` | 退出 0 | 无 whitespace error；Windows 换行提示不阻断 |
+
+#### Issues / Blockers
+- None.
+
+#### Next
+1. 后续新增设计或任务说明统一进入 `docs/dep/plans/`、`docs/main/` 或对应规范文档，不再恢复旧规格目录。
+
+#### Files Changed
+- 旧规格文档目录（删除）— 移除不符合当前规范的历史设计文档
+- `docs/main/PROJECT_GUIDE.md`（修改）— 删除目录树中的旧规格目录引用
+- `docs/dep/DEVLOG-R001-R040.md`（修改）— 记录本轮文档规范收口
+- `(uncommitted)`
+
+---
+
 ### R005 [11:20] — P0-tech-debt: 依赖清单、离线包链路与 common 根层收口
 
 #### Done
