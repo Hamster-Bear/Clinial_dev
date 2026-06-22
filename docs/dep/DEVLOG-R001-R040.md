@@ -2,6 +2,48 @@
 
 ---
 
+## 2026-06-22
+
+### R005 [11:20] — P0-tech-debt: 依赖清单、离线包链路与 common 根层收口
+
+#### Done
+- 按用户要求不生成 REVIEWS 完整报告，且远端 CI 本轮暂不处理；`P0-tech-debt.md` 中 TD4 标记为 deferred。
+- 依赖清单单源化：新增 `config/required_packages.R`，`install_dependencies.R`、`download_offline_packages.R`、`download_binary_packages.R` 统一读取 `REQUIRED_PACKAGES`，避免安装清单与离线包下载清单分叉。
+- Docker 构建链路同步：`Dockerfile` 在运行 `install_dependencies.R` 前复制 `config/`；`DEPLOY_GUIDE.md` 与 README 同步记录统一依赖清单和离线 `package/` 生成前置。
+- `modules/common/` 根层收口：图形、统计分析、数据存储 helper 下沉到 `modules/common/graphics/`、`modules/common/analysis/`、`modules/common/data/`；根层只保留 `entry_copy.R` 与 `ui_shell.R` 两个跨域入口例外。
+- 补充守卫测试：新增 `test_common_directory_contract.R` 与 `test_dependency_manifest_contract.R`；部署脚本测试新增 `.gitattributes` 的 `*.sh text eol=lf` 约束，防止 Bash 脚本换行回退。
+- 当前普通 `Rscript` 已验证 `library(testthat)`、测试索引校验和相关 testthat 文件退出 0；R 4.5.3 卸载期异常在当前 shell 未复现，保留为“如再次复现再处理”的环境债。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| `Rscript -e "testthat::test_file('tests/root/test_common_directory_contract.R'); testthat::test_file('tests/root/test_dependency_manifest_contract.R')"` | 退出 0 | common 根层例外与依赖清单单源化守卫通过 |
+| `Rscript -e "testthat::test_file('tests/root/test_project_docs_guard.R'); testthat::test_file('tests/root/test_deploy_scripts_contract.R')"` | 退出 0 | 文档守卫与部署脚本/LF 守卫通过 |
+| `Rscript tests/check_test_guide_index.R` | 退出 0 | 新增测试已登记到 TEST_GUIDE |
+| 受路径迁移影响的图形、统计分析、Tables、storage 测试集合 | 退出 0 | survival、waterfall、graphics copy、analysis copy、storage、tables 相关测试通过 |
+| `git diff --check` | 退出 0 | 无 whitespace error；Windows 换行提示仍存在但 `.sh` 已由 `.gitattributes` 和测试约束 |
+
+#### Issues / Blockers
+- None.
+
+#### Next
+1. 远端 CI 按用户要求继续延后，后续单独规划。
+2. 若后续普通逐文件全量 Rscript 再次出现卸载期异常，再引入 `renv.lock` 或重建 R library。
+
+#### Files Changed
+- `.gitattributes`（新增）— Bash 脚本 LF 约束
+- `config/required_packages.R`（新增）— R 依赖单一清单
+- `install_dependencies.R`、`download_offline_packages.R`、`download_binary_packages.R`（修改）— 读取统一依赖清单
+- `Dockerfile`（修改）— 依赖安装前复制 `config/`
+- `modules/common/graphics/`、`modules/common/analysis/`、`modules/common/data/`（移动/新增）— common helper 下沉
+- `modules/` 与 `tests/` 相关 source 路径（修改）— 指向下沉后的 common helper
+- `tests/root/test_common_directory_contract.R`、`tests/root/test_dependency_manifest_contract.R`（新增）
+- `tests/root/test_deploy_scripts_contract.R`（修改）— `.gitattributes` 守卫
+- `README.md`、`docs/main/PROJECT_GUIDE.md`、`docs/main/CODE_STYLE.md`、`docs/main/TEST_GUIDE.md`、`docs/deploy/DEPLOY_GUIDE.md`、`docs/dep/PLAN.md`、`docs/dep/plans/P0-tech-debt.md`（修改）— 文档同步
+- `(uncommitted)`
+
+---
+
 ## 2026-05-20
 
 ### R001 [22:00] — P1-P5: Review 2 架构债修复全计划执行

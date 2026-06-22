@@ -58,6 +58,7 @@
 | ----------------------------- | ----------------------------------- |
 | `app.R`                       | Shiny 主应用入口                         |
 | `run_app.R`                   | 本地开发推荐启动脚本                          |
+| `config/required_packages.R`  | R 依赖单一清单，供安装与离线包脚本共用              |
 | `install_dependencies.R`      | 依赖安装脚本                              |
 | `download_offline_packages.R` | 生成本地离线 `package/` 仓库与 `PACKAGES` 索引 |
 | `Dockerfile`                  | 应用镜像构建文件                            |
@@ -100,6 +101,8 @@ AutoTFL/
 ├── docker-compose.local.yml
 ├── docker-compose.server.yml
 ├── docker-compose1.yml
+├── config/
+│   └── required_packages.R
 ├── install_dependencies.R
 ├── download_offline_packages.R
 ├── app.R
@@ -142,9 +145,9 @@ AutoTFL/
 
 ### 4.2 离线包前提
 
-- 当前 `Dockerfile` 会先执行 `COPY package /app/package`。
+- 当前 `Dockerfile` 会先执行 `COPY package /app/package` 与 `COPY config /app/config`。
 - 因此，如果要按当前 `Dockerfile` 构建镜像，必须先在项目根目录准备好 `package/` 目录。
-- `package/` 目录由 `download_offline_packages.R` 生成，并应包含 `PACKAGES` 索引。
+- `package/` 目录由 `download_offline_packages.R` 生成，并应包含 `PACKAGES` 索引；依赖列表来自 `config/required_packages.R`。
 - 如果没有先生成 `package/`，当前 Docker 构建流程会在复制阶段失败。
 
 ### 4.3 数据与网络前提

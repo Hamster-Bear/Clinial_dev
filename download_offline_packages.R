@@ -14,32 +14,13 @@ message("=== AutoTFL 离线包下载与维护工具 ===")
 message("目标目录: ", normalizePath(dest_dir))
 message("镜像源: ", getOption("repos")["CRAN"])
 
-# 3. 从 install_dependencies.R 提取包列表
-# 使用 parse() 读取文件但不执行，从而安全地提取变量
-message("\n正在读取 install_dependencies.R ...")
-dep_file <- "install_dependencies.R"
-if (!file.exists(dep_file)) stop("找不到 install_dependencies.R 文件！")
+# 3. 从统一依赖清单提取包列表
+message("\n正在读取 config/required_packages.R ...")
+manifest_file <- file.path("config", "required_packages.R")
+if (!file.exists(manifest_file)) stop("找不到 config/required_packages.R 文件！")
 
-# 解析文件内容
-exprs <- parse(dep_file)
-# 寻找 required_packages <- c(...) 赋值语句
-pkgs_to_download <- NULL
-
-for (expr in exprs) {
-  # 检查是否是赋值语句且变量名为 required_packages
-  if (is.call(expr) && (as.character(expr[[1]]) == "<-" || as.character(expr[[1]]) == "=")) {
-    if (as.character(expr[[2]]) == "required_packages") {
-      # 执行赋值语句以获取变量值（仅执行这一句，安全）
-      eval(expr)
-      pkgs_to_download <- required_packages
-      break
-    }
-  }
-}
-
-if (is.null(pkgs_to_download)) {
-  stop("无法从 install_dependencies.R 中解析出 required_packages 列表！")
-}
+source(manifest_file, local = TRUE)
+pkgs_to_download <- REQUIRED_PACKAGES
 
 message("已提取依赖包列表: ", length(pkgs_to_download), " 个")
 # print(pkgs_to_download)

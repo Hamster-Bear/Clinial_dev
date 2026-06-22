@@ -30,7 +30,7 @@ setwd(file.path(project_root, "tests"))
 library(testthat)
 library(shiny)
 
-source(file.path("..", "modules", "common", "graphics_common.R"))
+source(file.path("..", "modules", "common", "graphics", "graphics_common.R"))
 source(file.path("..", "modules", "statistical_graphics_ui", "common_ui_shell.R"))
 source(file.path("..", "modules", "statistical_graphics", "survival_analysis.R"))
 

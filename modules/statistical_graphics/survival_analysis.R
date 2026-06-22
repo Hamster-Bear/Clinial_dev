@@ -16,15 +16,15 @@ if (!exists("app_card_box", mode = "function") ||
     source(file.path("..", "modules", "common", "ui_shell.R"))
   }
 }
-if (file.exists("modules/common/graphics_result_copy.R")) {
-  source("modules/common/graphics_result_copy.R")
+if (file.exists("modules/common/graphics/graphics_result_copy.R")) {
+  source("modules/common/graphics/graphics_result_copy.R")
 } else {
-  source(file.path("..", "modules", "common", "graphics_result_copy.R"))
+  source(file.path("..", "modules", "common", "graphics", "graphics_result_copy.R"))
 }
-if (file.exists("modules/common/graphics_export_copy.R")) {
-  source("modules/common/graphics_export_copy.R")
+if (file.exists("modules/common/graphics/graphics_export_copy.R")) {
+  source("modules/common/graphics/graphics_export_copy.R")
 } else {
-  source(file.path("..", "modules", "common", "graphics_export_copy.R"))
+  source(file.path("..", "modules", "common", "graphics", "graphics_export_copy.R"))
 }
 
 .resolve_survival_choice <- function(input_value, state_value, choices, default_value = NULL) {

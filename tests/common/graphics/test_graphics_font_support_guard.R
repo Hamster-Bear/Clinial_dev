@@ -29,7 +29,7 @@ project_root <- test_find_project_root()
 setwd(file.path(project_root, "tests"))
 library(testthat)
 
-source(file.path("..", "modules", "common", "graphics_common.R"))
+source(file.path("..", "modules", "common", "graphics", "graphics_common.R"))
 
 test_that("设备安全映射、CJK 兜底与统一字体方案分别可预测", {
   expect_equal(graphics_resolve_device_safe_family(""), "sans")
@@ -82,7 +82,7 @@ test_that("关键图形模块不再对自由文本硬编码 sans", {
 
 test_that("底部 caption 与关键模块显式透传解析后的字体族", {
   common_text <- paste(
-    readLines(file.path("..", "modules", "common", "graphics_common.R"), encoding = "UTF-8"),
+    readLines(file.path("..", "modules", "common", "graphics", "graphics_common.R"), encoding = "UTF-8"),
     collapse = "\n"
   )
   waterfall_text <- paste(

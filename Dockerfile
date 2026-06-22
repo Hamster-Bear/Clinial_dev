@@ -94,6 +94,7 @@ WORKDIR /app
 
 # 1. 优先复制本地包目录和依赖脚本，利用 Docker 缓存层
 COPY package /app/package
+COPY config /app/config
 COPY install_dependencies.R /app/install_dependencies.R
 COPY download_binary_packages.R /app/download_binary_packages.R
 

@@ -63,7 +63,7 @@
 - 登录与注册当前已拆分为两个独立页面，并在注册阶段采集邮箱用于后续协作授权扩展；认证主体区域已抽到 `auth_manager.R`。
 - 当前用户信息与退出入口稳定显示在侧边栏卡片中，不再依赖顶栏动态渲染。
 - `modules/` 目录采用“路由层 + 子模块 + common 共享层”结构。
-- 数据元数据走 PostgreSQL；数据体通过 `modules/common/storage_backend.R` 落到本地目录或 S3。
+- 数据元数据走 PostgreSQL；数据体通过 `modules/common/data/storage_backend.R` 落到本地目录或 S3。
 - 图形与统计模块普遍采用“UI 输入层、公共校验/格式层、分析执行层、导出层”的分层方式。
 
 ### 2.4 六步主流程
@@ -110,9 +110,10 @@
 
 ### 3.4 依赖与离线仓库前置条件
 
+- `config/required_packages.R` 是安装脚本与离线包脚本的 R 依赖单一清单；新增安装依赖先改该文件。
 - `install_dependencies.R` 支持“本地离线仓库优先、在线镜像回退”。
-- `download_offline_packages.R` 用于预生成本地 `package/` 仓库及 `PACKAGES` 索引。
-- 当前仓库默认未提交 `package/` 目录；如果直接执行当前 `Dockerfile`，需要先生成 `package/`，否则 `COPY package /app/package` 会失败。
+- `download_offline_packages.R` 用于预生成本地 `package/` 仓库及 `PACKAGES` 索引，依赖列表来自 `config/required_packages.R`。
+- 当前仓库默认未提交完整 `package/` 离线仓库；如果直接执行当前 `Dockerfile`，需要先生成 `package/`，否则 `COPY package /app/package` 会失败。Docker 构建会在安装依赖前复制 `config/`，保证容器内可读取统一依赖清单。
 - Windows 本地如需从源码构建依赖，仍建议准备 Rtools。
 
 ### 3.5 生产环境关键变量
@@ -178,9 +179,9 @@
 - 普通用户在未开通数据空间功能时，只允许单文件临时上传；上传数据仅用于当前会话分析，不写入持久化数据空间。
 - 前端卡片样式开始收口到新的公共 UI 壳 `modules/common/ui_shell.R`；当前已从数据预备模块先接入，统一卡片标题、说明区、边框和留白，但暂不改变原有布局结构。
 - 统计分析、统计图形、Tables 与探索分析四个入口层使用共享文案源 `modules/common/entry_copy.R`：只收口入口层标题、副标题与说明文案，避免这些高频入口卡片继续在多个模块文件里平行硬编码；按钮文案、结果页签名与子模块内部说明暂不纳入该 helper。
-- 统计分析子模块使用共享说明文案源 `modules/common/stat_analysis_submodule_copy.R`：先覆盖 `desc`、`cox`、`logistic`、`linear`、`anova`、`chisq` 内部的 `app_card_note()`，统一参数说明块口径；字段标签、`helpText()`、`bsTooltip()` 和结果解释仍保留在模块内。
-- 统计图形第一批结果区通用文案收口到 `modules/common/graphics_result_copy.R`：覆盖 `survival_analysis`、`forest_plot`、`combo_plot`、`waterfall_plot`、`swimmer_plot`、`spider_plot` 的结果卡 `subtitle`、结果卡 `app_card_note()` 与结果页 `note`。模块专属结果提示可继续保留在原模块内，不强行共享化。
-- 统计图形第一批导出卡通用文案收口到 `modules/common/graphics_export_copy.R`：覆盖 `survival_analysis`、`forest_plot`、`combo_plot`、`waterfall_plot`、`swimmer_plot`、`spider_plot` 的导出卡 `subtitle` 与 `app_card_note()`；导出区 `helpText()`、固定画布、宽高比和分层标签等模块专属语义继续保留在原模块中。
+- 统计分析子模块使用共享说明文案源 `modules/common/analysis/stat_analysis_submodule_copy.R`：先覆盖 `desc`、`cox`、`logistic`、`linear`、`anova`、`chisq` 内部的 `app_card_note()`，统一参数说明块口径；字段标签、`helpText()`、`bsTooltip()` 和结果解释仍保留在模块内。
+- 统计图形第一批结果区通用文案收口到 `modules/common/graphics/graphics_result_copy.R`：覆盖 `survival_analysis`、`forest_plot`、`combo_plot`、`waterfall_plot`、`swimmer_plot`、`spider_plot` 的结果卡 `subtitle`、结果卡 `app_card_note()` 与结果页 `note`。模块专属结果提示可继续保留在原模块内，不强行共享化。
+- 统计图形第一批导出卡通用文案收口到 `modules/common/graphics/graphics_export_copy.R`：覆盖 `survival_analysis`、`forest_plot`、`combo_plot`、`waterfall_plot`、`swimmer_plot`、`spider_plot` 的导出卡 `subtitle` 与 `app_card_note()`；导出区 `helpText()`、固定画布、宽高比和分层标签等模块专属语义继续保留在原模块中。
 - 数据库管理页使用公共卡片壳：统一主卡片、说明块、锁定提示、上下文摘要与结构总览摘要卡，但保持原有”空间与目录 / 上传与导入 / 结构总览”页签结构不变。
 - 统计分析总入口使用公共卡片壳：统一全局筛选卡、方法选择卡、参数设置卡、结果卡与导出说明面板，但保持原有“统计表格 / 统计报告 / 可复现代码”结果结构，以及各统计子模块参数 UI 与分析逻辑不变。
 - 统计分析子模块样板覆盖 `desc.R` 与 `cox.R`：统一参数区说明块与分组面板，但保留原有输入项、动态输出、tooltip、建模逻辑与结果链路不变。
@@ -235,25 +236,27 @@ AutoTFL/
 │   │   │   └── email_service.R
 │   │   ├── data/
 │   │   │   ├── data_filter.R
-│   │   │   └── data_metadata.R
+│   │   │   ├── data_io.R
+│   │   │   ├── data_metadata.R
+│   │   │   ├── data_registry.R
+│   │   │   └── storage_backend.R
 │   │   ├── analysis/
 │   │   │   ├── analysis_format.R
-│   │   │   └── analysis_shared.R
+│   │   │   ├── analysis_shared.R
+│   │   │   └── stat_analysis_submodule_copy.R
 │   │   ├── graphics/
 │   │   │   ├── forest_analysis_pipeline.R
 │   │   │   ├── forest_model_helpers.R
 │   │   │   ├── forest_result_schema_helpers.R
-│   │   │   └── forest_table_state_helpers.R
+│   │   │   ├── forest_table_state_helpers.R
+│   │   │   ├── graphics_common.R
+│   │   │   ├── graphics_export_copy.R
+│   │   │   ├── graphics_repro.R
+│   │   │   └── graphics_result_copy.R
 │   │   ├── export/
 │   │   │   ├── plot_export.R
 │   │   │   └── table_export.R
 │   │   ├── entry_copy.R
-│   │   ├── graphics_common.R
-│   │   ├── graphics_export_copy.R
-│   │   ├── graphics_repro.R
-│   │   ├── graphics_result_copy.R
-│   │   ├── stat_analysis_submodule_copy.R
-│   │   ├── storage_backend.R
 │   │   └── ui_shell.R
 │   ├── account_access/
 │   │   ├── permission_manager.R
@@ -328,6 +331,8 @@ AutoTFL/
 ├── tests/
 │   └── check_test_guide_index.R
 ├── Dockerfile
+├── config/
+│   └── required_packages.R
 ├── docker-compose.yml
 ├── docker-compose.local.yml
 ├── docker-compose.server.yml
@@ -340,9 +345,9 @@ AutoTFL/
 
 ### 4.1 目录使用约定
 
-- `modules/common/` 只放跨模块共享逻辑，不放单一图形或单一统计方法的专属实现。
+- `modules/common/` 只放跨模块共享逻辑，不放单一图形或单一统计方法的专属实现；根层只保留 `entry_copy.R` 与 `ui_shell.R` 两个跨域入口例外。
 - 为保持 `modules/statistical_graphics/` 目录干净，图形子模块主文件之外的辅助类、结果整形器、状态桥接器和分析流水线 helper，后续不得继续堆回 `modules/statistical_graphics/`；应优先下沉到 `modules/common/graphics/` 这类按图形域归类的共享目录中。
-- `modules/common/` 已统一收敛为 `modules/common/auth/`、`modules/common/data/`、`modules/common/analysis/`、`modules/common/graphics/`、`modules/common/export/` 五类，后续新增共享逻辑优先进入对应子目录。
+- `modules/common/` 已统一收敛为 `modules/common/auth/`、`modules/common/data/`、`modules/common/analysis/`、`modules/common/graphics/`、`modules/common/export/` 五类；新增共享逻辑必须进入 auth/data/analysis/graphics/export 对应子目录，根层例外不承载领域逻辑。
 - 这里所说的“后端服务层/服务域”优先指账号认证、权限、会话、workspace 与持久化服务，不指图形模块内部的 `server` 函数拆分；图形模块当前仍优先按 common helper 下沉，不单独引入新的图形 server 目录。
 - `modules/statistical_graphics_ui/` 用于图形 UI 壳层与公共控件，和 `modules/statistical_graphics/` 的 server/分析逻辑分离。
 - `tests/` 为统一测试目录，新增测试文件必须放在这里。

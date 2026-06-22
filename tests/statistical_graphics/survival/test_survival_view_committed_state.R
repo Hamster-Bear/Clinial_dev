@@ -30,8 +30,13 @@ setwd(file.path(project_root, "tests"))
 library(testthat)
 library(shiny)
 
-source(file.path("..", "modules", "common", "graphics_common.R"))
-source(file.path("..", "modules", "statistical_graphics", "survival_analysis.R"))
+source_utf8 <- function(path) {
+  Sys.setlocale("LC_CTYPE", "English_United States.65001")
+  eval(parse(text = readLines(path, encoding = "UTF-8", warn = FALSE)), envir = .GlobalEnv)
+}
+
+source_utf8(file.path("..", "modules", "common", "graphics", "graphics_common.R"))
+source_utf8(file.path("..", "modules", "statistical_graphics", "survival_analysis.R"))
 
 test_that("未点击生成时切换筛选后下拉不闪回", {
   d1 <- data.frame(

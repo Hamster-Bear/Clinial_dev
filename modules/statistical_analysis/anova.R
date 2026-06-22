@@ -1,9 +1,9 @@
 # 方差分析模块
 
-if (file.exists("modules/common/stat_analysis_submodule_copy.R")) {
-  source("modules/common/stat_analysis_submodule_copy.R")
+if (file.exists("modules/common/analysis/stat_analysis_submodule_copy.R")) {
+  source("modules/common/analysis/stat_analysis_submodule_copy.R")
 } else {
-  source(file.path("..", "modules", "common", "stat_analysis_submodule_copy.R"))
+  source(file.path("..", "modules", "common", "analysis", "stat_analysis_submodule_copy.R"))
 }
 if (!exists("analysis_build_formula", mode = "function")) {
   if (file.exists("modules/common/analysis/analysis_shared.R")) {

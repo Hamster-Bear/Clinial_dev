@@ -26,6 +26,8 @@
 - 文档与规范守卫:
   - `tests/root/test_project_docs_guard.R`
   - `tests/root/test_test_guide_index_contract.R`
+  - `tests/root/test_common_directory_contract.R`
+  - `tests/root/test_dependency_manifest_contract.R`
 - 工具链与入口层文案守卫:
   - `tests/root/test_precommit_contract.R`
   - `tests/root/test_entry_copy_guard.R`

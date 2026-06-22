@@ -112,3 +112,9 @@ test_that("Linux Bash 脚本统一使用 LF 换行", {
   }
 })
 
+test_that("仓库属性约束 Bash 脚本使用 LF", {
+  attrs_path <- file.path(root_dir, ".gitattributes")
+  attrs_txt <- read_text(attrs_path)
+
+  expect_match(attrs_txt, "\\*\\.sh\\s+text\\s+eol=lf")
+})

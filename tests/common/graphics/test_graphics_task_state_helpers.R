@@ -37,7 +37,7 @@ script_path <- if (length(script_path) > 0) script_path[[1]] else ""
 script_dir <- dirname(normalizePath(script_path, winslash = "/", mustWork = FALSE))
 project_root <- test_find_project_root()
 
-graphics_common_path <- file.path(project_root, "modules", "common", "graphics_common.R")
+graphics_common_path <- file.path(project_root, "modules", "common", "graphics", "graphics_common.R")
 source(graphics_common_path, local = TRUE)
 
 test_that("任务快照排除 DT 与 Plotly 派生交互输入", {

@@ -63,7 +63,7 @@ test_that("export handler reads from committed_params first", {
 })
 
 test_that("graphics_common.R is sourced for font support", {
-  expect_true(grepl("modules/common/graphics_common.R", tables_text, fixed = TRUE))
+  expect_true(grepl("modules/common/graphics/graphics_common.R", tables_text, fixed = TRUE))
 })
 
 test_that("ae_sidebyside font guard is simplified", {

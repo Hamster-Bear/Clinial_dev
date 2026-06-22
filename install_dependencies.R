@@ -3,84 +3,8 @@
 # 此脚本用于自动安装和检查项目所需的所有R包
 
 # 定义项目所需的包列表
-required_packages <- c(
-  # Shiny相关
-  "shiny",
-  "shinydashboard",
-  "shinyjs",
-  "shinyBS",
-  "bslib",
-  "shinyWidgets",
-  "waiter",
-  "shinyalert",
-  
-  # 数据处理
-  "dplyr",
-  "readr",
-  "readxl",
-  "haven",
-  "jsonlite",
-  "purrr",
-  "stringr",
-  "memoise",
-  
-  # 可视化
-  "ggplot2",
-  "plotly",
-  "DT",
-  "gt",
-  "patchwork",
-  "reactable",
-  "cowplot",
-  "gridExtra",
-  "scales",
-  "RColorBrewer",
-  "showtext",
-  "sysfonts",
-  
-  # 表格生成
-  "cards",
-  "gtsummary",
-  "tfrmt",
-  "forcats",
-  "tidyr",
-  "rlang",
-  "rtables",
-  "tern",
-  
-  # 统计分析
-  "survival",
-  "broom",
-  "survminer",
-  "corrplot",
-  
-  # 数据库连接
-  "DBI",
-  "RPostgres",
-  "pool",
-  
-  # 颜色主题支持
-  "ggsci",
-  "colourpicker",
-  
-  # 数据安全
-  "digest",
-  "curl",
-  
-  # 列表处理与测试
-  "rlistings",
-  "r2rtf",
-  "rmarkdown",
-  "pagedown",
-  "knitr",
-  "flextable",
-  "officer",
-  "testthat",
-  "lintr",
-  "styler",
-  "shinytest2",
-  "shinyFiles"
-)
+source("config/required_packages.R")
+required_packages <- REQUIRED_PACKAGES
 
 # 安装缺失的包（pak 统一处理本地二进制 + 在线 PPM）
 install_missing_packages <- function(packages) {

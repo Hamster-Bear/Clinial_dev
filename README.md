@@ -178,6 +178,8 @@ Docker 与服务器部署细节已统一迁移到 `docs/deploy/DEPLOY_GUIDE.md`�
 ```
 AutoTFL/
 ├── app.R
+├── config/
+│   └── required_packages.R
 ├── install_dependencies.R
 ├── run_app.R
 ├── README.md
@@ -200,11 +202,11 @@ AutoTFL/
 
 ## 更新依赖
 
-当项目添加新功能或新的包依赖时，需要更新依赖管理脚本：
+当项目添加新功能或新的包依赖时，需要更新统一依赖清单：
 
-1. 编辑 `install_dependencies.R` 中的 `required_packages` 列表
-2. 编辑 `run_app.R` 中的 `required_packages` 列表
-3. 运行 `source("install_dependencies.R")` 来安装新依赖
+1. 编辑 `config/required_packages.R` 中的 `REQUIRED_PACKAGES` 清单
+2. 运行 `Rscript install_dependencies.R` 安装新依赖
+3. 需要离线部署时运行 `Rscript download_offline_packages.R` 重新生成 `package/` 仓库和 `PACKAGES` 索引
 
 ## 使用示例
 

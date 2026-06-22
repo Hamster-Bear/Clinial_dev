@@ -52,9 +52,9 @@
 - **模块现状与能力矩阵**: `PROJECT_GUIDE.md` 中的模块现状、能力矩阵和章节标题，应直接写结构、覆盖范围和能力边界；不要写“已完成”“已落地”“增强中”“已开始接入”这类状态型过程表述。
 - **入口层共享文案**: 统计分析、统计图形、Tables 与探索分析入口层的标题、副标题和说明文案，优先收口到 `modules/common/entry_copy.R`；入口模块应读取共享文案源，而不是继续在各文件平行硬编码同类说明。
 - **共享文案作用域**: 当入口层共享文案同时用于 UI 函数和 server 侧渲染时，应在各自函数作用域内独立读取 `ENTRY_COPY`；不要让 `renderUI()`、`renderText()` 等服务端代码隐式依赖 UI 函数中的局部 `copy` 变量。
-- **统计分析子模块说明文案**: `desc`、`cox`、`logistic`、`linear`、`anova`、`chisq` 内部的 `app_card_note()` 优先收口到 `modules/common/stat_analysis_submodule_copy.R`；不要在各子模块重复硬编码同类参数说明。
-- **统计图形结果区文案**: 图形模块结果区的通用 `subtitle`、`app_card_note()` 和 `app_result_panel(note = ...)` 优先收口到 `modules/common/graphics_result_copy.R`；模块专属结果边界提示可继续保留在原模块内。
-- **统计图形导出卡文案**: 图形模块导出卡的通用 `subtitle` 和 `app_card_note()` 优先收口到 `modules/common/graphics_export_copy.R`；`helpText()` 和专属导出语义继续在各模块内维护。
+- **统计分析子模块说明文案**: `desc`、`cox`、`logistic`、`linear`、`anova`、`chisq` 内部的 `app_card_note()` 优先收口到 `modules/common/analysis/stat_analysis_submodule_copy.R`；不要在各子模块重复硬编码同类参数说明。
+- **统计图形结果区文案**: 图形模块结果区的通用 `subtitle`、`app_card_note()` 和 `app_result_panel(note = ...)` 优先收口到 `modules/common/graphics/graphics_result_copy.R`；模块专属结果边界提示可继续保留在原模块内。
+- **统计图形导出卡文案**: 图形模块导出卡的通用 `subtitle` 和 `app_card_note()` 优先收口到 `modules/common/graphics/graphics_export_copy.R`；`helpText()` 和专属导出语义继续在各模块内维护。
 - **图形帮助说明改写**: 统计图形模块中的 `helpText()`、`help_text` 和局部 `note` 应直接描述“能设置什么 / 不影响什么 / 当前缺少什么”；可保留客观功能限制，不写“本轮优先收口”“继续收纳”“暂不额外暴露”这类研发过程描述。
 - **入口与公共说明改写**: 入口层共享文案、公共筛选卡、任务历史卡以及入口页结果说明，应优先描述用户动作和页面结果，不写“工作台复用”“动态 UI”“类型分支”“代码草稿”这类内部实现视角说明。
 - **实现保持型说明改写**: 参数区说明、结果区 `note` 与共享 copy helper，应优先描述“何时可以执行 / 未运行时会显示什么 / 系统会按当前设置生成什么”；不要写“保持原有逻辑”“server 校验”“统一空状态提示”“原有处理方式”等实现保持型说明。

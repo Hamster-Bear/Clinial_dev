@@ -3,23 +3,8 @@
 # 用途：从 PPM 预下载所有依赖的二进制包到 package/ 目录，用于离线/加速构建
 # 用法：Rscript download_binary_packages.R
 
-required_packages <- c(
-  "shiny", "shinydashboard", "shinyjs", "shinyBS", "bslib",
-  "shinyWidgets", "waiter", "shinyalert",
-  "dplyr", "readr", "readxl", "haven", "jsonlite", "purrr",
-  "stringr", "memoise",
-  "ggplot2", "plotly", "DT", "gt", "patchwork", "reactable",
-  "cowplot", "gridExtra", "scales", "RColorBrewer", "showtext", "sysfonts",
-  "cards", "gtsummary", "tfrmt", "forcats", "tidyr", "rlang",
-  "rtables", "tern",
-  "survival", "broom", "survminer", "corrplot",
-  "DBI", "RPostgres", "pool",
-  "ggsci", "colourpicker",
-  "digest", "curl",
-  "rlistings", "r2rtf", "rmarkdown", "pagedown", "knitr",
-  "flextable", "officer",
-  "testthat", "lintr", "styler", "shinytest2"
-)
+source("config/required_packages.R")
+required_packages <- REQUIRED_PACKAGES
 
 main <- function() {
   cat("=== AutoTFL 离线二进制包下载 ===\n")

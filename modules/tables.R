@@ -8,7 +8,7 @@ library(gt)
 library(shinyjs)
 source("modules/common/entry_copy.R")
 source("modules/common/ui_shell.R")
-source("modules/common/graphics_common.R")
+source("modules/common/graphics/graphics_common.R")
 
 # 加载子模块分析函数
 source("modules/tables/t_dm.R")

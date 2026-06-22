@@ -30,7 +30,7 @@ setwd(file.path(project_root, "tests"))
 library(testthat)
 library(ggplot2)
 
-source(file.path("..", "modules", "common", "graphics_common.R"))
+source(file.path("..", "modules", "common", "graphics", "graphics_common.R"))
 
 # -- 辅助：模拟 app.R 中的字体注册 + PostScript 数据库同步 --
 .setup_font_env <- function() {

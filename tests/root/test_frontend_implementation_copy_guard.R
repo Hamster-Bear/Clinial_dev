@@ -41,7 +41,7 @@ read_utf8 <- function(relative_path) {
 target_files <- c(
   file.path("modules", "tables.R"),
   file.path("modules", "statistical_analysis.R"),
-  file.path("modules", "common", "stat_analysis_submodule_copy.R")
+  file.path("modules", "common", "analysis", "stat_analysis_submodule_copy.R")
 )
 
 forbidden_patterns <- c(

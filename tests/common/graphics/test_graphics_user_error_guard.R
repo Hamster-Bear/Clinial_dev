@@ -36,7 +36,7 @@ test_that("图形模块页面提示不直接回显程序级异常文本", {
     "modules/statistical_graphics/spider_plot.R",
     "modules/statistical_graphics/swimmer_plot.R",
     "modules/statistical_graphics/waterfall_plot.R",
-    "modules/common/graphics_common.R"
+    "modules/common/graphics/graphics_common.R"
   )
 
   for (target in target_files) {

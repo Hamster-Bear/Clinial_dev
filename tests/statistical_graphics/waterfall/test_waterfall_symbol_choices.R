@@ -29,8 +29,13 @@ project_root <- test_find_project_root()
 setwd(file.path(project_root, "tests"))
 library(testthat)
 
-source(file.path("..", "modules", "common", "graphics_common.R"))
-source(file.path("..", "modules", "statistical_graphics", "waterfall_plot.R"))
+source_utf8 <- function(path) {
+  Sys.setlocale("LC_CTYPE", "English_United States.65001")
+  eval(parse(text = readLines(path, encoding = "UTF-8", warn = FALSE)), envir = .GlobalEnv)
+}
+
+source_utf8(file.path("..", "modules", "common", "graphics", "graphics_common.R"))
+source_utf8(file.path("..", "modules", "statistical_graphics", "waterfall_plot.R"))
 
 test_that(".waterfall_symbol_choices 提供可选具体符号集合", {
   choices <- .waterfall_symbol_choices()

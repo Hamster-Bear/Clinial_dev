@@ -29,7 +29,7 @@ project_root <- test_find_project_root()
 setwd(file.path(project_root, "tests"))
 library(testthat)
 
-source(file.path("..", "modules", "common", "graphics_common.R"))
+source(file.path("..", "modules", "common", "graphics", "graphics_common.R"))
 
 test_that("graphics_override_colors 在无覆盖时返回默认颜色", {
   defaults <- c("A : x" = "#111111", "B : y" = "#222222")

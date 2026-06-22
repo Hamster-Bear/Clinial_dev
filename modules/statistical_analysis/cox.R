@@ -6,10 +6,10 @@ if (file.exists("modules/common/analysis/analysis_shared.R")) {
 } else {
   source(file.path("..", "modules", "common", "analysis", "analysis_shared.R"))
 }
-if (file.exists("modules/common/stat_analysis_submodule_copy.R")) {
-  source("modules/common/stat_analysis_submodule_copy.R")
+if (file.exists("modules/common/analysis/stat_analysis_submodule_copy.R")) {
+  source("modules/common/analysis/stat_analysis_submodule_copy.R")
 } else {
-  source(file.path("..", "modules", "common", "stat_analysis_submodule_copy.R"))
+  source(file.path("..", "modules", "common", "analysis", "stat_analysis_submodule_copy.R"))
 }
 if (!exists("app_card_note", mode = "function") || !exists("app_card_panel", mode = "function")) {
   if (file.exists("modules/common/ui_shell.R")) {

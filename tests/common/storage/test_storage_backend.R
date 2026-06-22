@@ -25,7 +25,7 @@ test_find_project_root <- function() {
 
 project_root <- test_find_project_root()
 library(testthat)
-source(file.path(project_root, "modules", "common", "storage_backend.R"))
+source(file.path(project_root, "modules", "common", "data", "storage_backend.R"))
 
 # ---- storage_backend_get ----
 

@@ -40,7 +40,7 @@ read_utf8 <- function(relative_path) {
 
 comment_targets <- c(
   file.path("modules", "data_preparation.R"),
-  file.path("modules", "common", "graphics_common.R")
+  file.path("modules", "common", "graphics", "graphics_common.R")
 )
 
 forbidden_patterns <- c(

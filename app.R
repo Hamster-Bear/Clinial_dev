@@ -222,7 +222,7 @@ if (requireNamespace("showtext", quietly = TRUE) && requireNamespace("sysfonts",
 # 加载所有模块
 # 模块内部有 library() 调用，使用 suppressPackageStartupMessages() 抑制重复的包加载通知
 suppressPackageStartupMessages({
-  source("modules/common/storage_backend.R")
+  source("modules/common/data/storage_backend.R")
   source("modules/common/data/data_metadata.R")
   source("modules/common/data/data_io.R")
   source("modules/common/data/data_registry.R")

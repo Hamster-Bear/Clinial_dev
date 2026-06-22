@@ -40,7 +40,7 @@ expect_contains <- function(text, pattern, label) {
   }
 }
 
-copy_text <- read_utf8("modules", "common", "graphics_export_copy.R")
+copy_text <- read_utf8("modules", "common", "graphics", "graphics_export_copy.R")
 forest_text <- read_utf8("modules", "statistical_graphics", "forest_plot.R")
 combo_text <- read_utf8("modules", "statistical_graphics", "combo_plot.R")
 waterfall_text <- read_utf8("modules", "statistical_graphics", "waterfall_plot.R")
@@ -56,32 +56,32 @@ expect_contains(copy_text, "swimmer = list", "泳道图导出卡共享文案")
 expect_contains(copy_text, "spider = list", "蜘蛛图导出卡共享文案")
 expect_contains(copy_text, "survival = list", "生存分析导出卡共享文案")
 
-expect_contains(forest_text, "source\\(\"modules/common/graphics_export_copy.R\"\\)", "森林图加载导出卡共享文案")
+expect_contains(forest_text, "source\\(\"modules/common/graphics/graphics_export_copy.R\"\\)", "森林图加载导出卡共享文案")
 expect_contains(forest_text, "export_copy <- GRAPHICS_EXPORT_COPY\\$forest", "森林图读取导出卡共享文案")
 expect_contains(forest_text, "subtitle = export_copy\\$subtitle", "森林图导出卡副标题改为共享文案")
 expect_contains(forest_text, "app_card_note\\(export_copy\\$note\\)", "森林图导出卡说明改为共享文案")
 
-expect_contains(combo_text, "source\\(\"modules/common/graphics_export_copy.R\"\\)", "组合图加载导出卡共享文案")
+expect_contains(combo_text, "source\\(\"modules/common/graphics/graphics_export_copy.R\"\\)", "组合图加载导出卡共享文案")
 expect_contains(combo_text, "export_copy <- GRAPHICS_EXPORT_COPY\\$combo", "组合图读取导出卡共享文案")
 expect_contains(combo_text, "subtitle = export_copy\\$subtitle", "组合图导出卡副标题改为共享文案")
 expect_contains(combo_text, "app_card_note\\(export_copy\\$note\\)", "组合图导出卡说明改为共享文案")
 
-expect_contains(waterfall_text, "source\\(\"modules/common/graphics_export_copy.R\"\\)", "瀑布图加载导出卡共享文案")
+expect_contains(waterfall_text, "source\\(\"modules/common/graphics/graphics_export_copy.R\"\\)", "瀑布图加载导出卡共享文案")
 expect_contains(waterfall_text, "export_copy <- GRAPHICS_EXPORT_COPY\\$waterfall", "瀑布图读取导出卡共享文案")
 expect_contains(waterfall_text, "subtitle = export_copy\\$subtitle", "瀑布图导出卡副标题改为共享文案")
 expect_contains(waterfall_text, "app_card_note\\(export_copy\\$note\\)", "瀑布图导出卡说明改为共享文案")
 
-expect_contains(swimmer_text, "source\\(\"modules/common/graphics_export_copy.R\"\\)", "泳道图加载导出卡共享文案")
+expect_contains(swimmer_text, "source\\(\"modules/common/graphics/graphics_export_copy.R\"\\)", "泳道图加载导出卡共享文案")
 expect_contains(swimmer_text, "export_copy <- GRAPHICS_EXPORT_COPY\\$swimmer", "泳道图读取导出卡共享文案")
 expect_contains(swimmer_text, "subtitle = export_copy\\$subtitle", "泳道图导出卡副标题改为共享文案")
 expect_contains(swimmer_text, "app_card_note\\(export_copy\\$note\\)", "泳道图导出卡说明改为共享文案")
 
-expect_contains(spider_text, "source\\(\"modules/common/graphics_export_copy.R\"\\)", "蜘蛛图加载导出卡共享文案")
+expect_contains(spider_text, "source\\(\"modules/common/graphics/graphics_export_copy.R\"\\)", "蜘蛛图加载导出卡共享文案")
 expect_contains(spider_text, "export_copy <- GRAPHICS_EXPORT_COPY\\$spider", "蜘蛛图读取导出卡共享文案")
 expect_contains(spider_text, "subtitle = export_copy\\$subtitle", "蜘蛛图导出卡副标题改为共享文案")
 expect_contains(spider_text, "app_card_note\\(export_copy\\$note\\)", "蜘蛛图导出卡说明改为共享文案")
 
-expect_contains(survival_text, "source\\(\"modules/common/graphics_export_copy.R\"\\)", "生存分析加载导出卡共享文案")
+expect_contains(survival_text, "source\\(\"modules/common/graphics/graphics_export_copy.R\"\\)", "生存分析加载导出卡共享文案")
 expect_contains(survival_text, "export_copy <- GRAPHICS_EXPORT_COPY\\$survival", "生存分析读取导出卡共享文案")
 expect_contains(survival_text, "subtitle = export_copy\\$subtitle", "生存分析导出卡副标题改为共享文案")
 expect_contains(survival_text, "app_card_note\\(export_copy\\$note\\)", "生存分析导出卡说明改为共享文案")

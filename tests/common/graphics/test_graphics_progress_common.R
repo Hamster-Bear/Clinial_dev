@@ -29,7 +29,12 @@ project_root <- test_find_project_root()
 setwd(file.path(project_root, "tests"))
 library(testthat)
 
-source(file.path("..", "modules", "common", "graphics_common.R"))
+source_utf8 <- function(path) {
+  Sys.setlocale("LC_CTYPE", "English_United States.65001")
+  eval(parse(text = readLines(path, encoding = "UTF-8", warn = FALSE)), envir = .GlobalEnv)
+}
+
+source_utf8(file.path("..", "modules", "common", "graphics", "graphics_common.R"))
 
 test_that("graphics_progress_text 正确格式化阶段与百分比", {
   msg <- graphics_progress_text("生存分析", detail = "模型拟合", value = 0.55)
