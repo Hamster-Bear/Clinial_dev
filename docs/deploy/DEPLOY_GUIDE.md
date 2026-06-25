@@ -90,6 +90,7 @@
 | `deploy/alicloud/env/.env.example`                   | 生产环境变量模板                           |
 | `deploy/alicloud/scripts/init_env.sh`                | 生成 `.env` 并填充随机数据库密码               |
 | `deploy/alicloud/scripts/deploy_from_tar.sh`         | 离线导入镜像并启动生产编排                      |
+| `scripts/offline-ops.sh`                             | 宿主机离线部署/运维交互菜单与非交互 action 入口     |
 | `deploy/alicloud/scripts/setup_docker_mirror.sh`     | 配置 Docker 镜像加速源                    |
 
 ### 3.4 仓库内与部署直接相关的目录结构
@@ -571,8 +572,8 @@ deploy/alicloud/scripts/publish_release.sh
 2. 保存离线 tar 到本地 `apps/`
 3. 生成 `.sha256` 与 `.summary.txt`
 4. 上传到服务器 `/opt/hamster-analysis/current/apps`
-5. 远端执行 `deploy_from_tar.sh`
-6. 拉起 `docker-compose.server.yml`
+5. 远端调用 `scripts/offline-ops.sh --action image`
+6. 导入镜像并重建 `app/nginx`
 
 #### 8.10.1 典型用法
 
@@ -608,7 +609,36 @@ bash deploy/alicloud/scripts/publish_release.sh --server user@your-server
 1. 创建 `/opt/hamster-analysis/current/apps`
 2. 上传 tar、摘要和说明文件
 3. 调用 `deploy/alicloud/scripts/init_env.sh`
-4. 调用 `deploy/alicloud/scripts/deploy_from_tar.sh`
+4. 调用 `scripts/offline-ops.sh --action image --target <remote-root> --image-tar <remote-tar>`
+
+#### 8.10.5 宿主机离线菜单
+
+`scripts/offline-ops.sh` 可直接放在宿主机部署目录中运行。无参数时进入交互菜单；带 `--action` 时可用于自动化。
+
+常用 action：
+
+| action | 作用 |
+| ------ | ---- |
+| `install` | 首次部署或全量部署；保留已有 `.env`，只在缺失时从 `.env.example` 生成 |
+| `load` | 只执行 `docker load` |
+| `up` | 启动或更新全部服务 |
+| `image` | 加载镜像并重建 `app/nginx` |
+| `status` | 查看服务状态 |
+| `logs` | 查看服务日志，可配合 `--service app` |
+| `backup` | 逻辑备份 PostgreSQL 数据库到 `backups/` |
+| `backup-volume` | 短暂停止 `app/postgres`，打包 PostgreSQL 数据目录到 `backups/` |
+| `migrate` | 执行 `postgres/migrations/*.sql`，用于已部署实例 schema 迁移 |
+| `reset-db` | 先执行逻辑备份，再把旧 PostgreSQL 数据目录移动到 `backups/` 并重建数据目录 |
+| `uninstall` | 停止服务并按确认删除本地数据 |
+
+示例：
+
+```bash
+bash scripts/offline-ops.sh
+bash scripts/offline-ops.sh --action image --image-tar apps/autotfl-offline-bundle.tar
+bash scripts/offline-ops.sh --action migrate
+bash scripts/offline-ops.sh --action reset-db
+```
 
 ### 8.11 生产环境变量模板
 
@@ -790,7 +820,7 @@ deploy/alicloud/
 
 - `docker-compose.server.yml` 不会帮你构建应用镜像。
 - 必须先让服务器拥有 `autotfl-shiny-app:latest` 镜像。
-- 推荐使用 tar 离线导入，再执行 `deploy_from_tar.sh`。
+- 推荐使用 tar 离线导入，再执行 `scripts/offline-ops.sh --action image`。
 
 ### 12.4 Redis 当前边界
 

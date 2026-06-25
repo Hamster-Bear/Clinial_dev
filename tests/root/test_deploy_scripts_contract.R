@@ -79,7 +79,48 @@ test_that("publish_release.sh 串联构建、导出、上传和远端部署", {
   expect_match(txt, 'docker build -t "\\$IMAGE_NAME" "\\$ROOT_DIR"')
   expect_match(txt, 'docker save -o "\\$BUNDLE_PATH" "\\$IMAGE_NAME"')
   expect_match(txt, 'scp "\\$BUNDLE_PATH" "\\$SHA_PATH" "\\$SUMMARY_PATH"')
-  expect_match(txt, 'bash deploy/alicloud/scripts/deploy_from_tar.sh')
+  expect_match(txt, 'bash scripts/offline-ops.sh --action image')
+  expect_match(txt, '--image-tar')
+})
+
+test_that("offline-ops.sh 提供 AutoTFL 交互式离线运维入口", {
+  script_path <- file.path(root_dir, "scripts", "offline-ops.sh")
+  txt <- read_text(script_path)
+
+  expect_match(txt, "AutoTFL 离线部署/运维工具", fixed = TRUE)
+  expect_match(txt, "read_menu_choice", fixed = TRUE)
+  expect_match(txt, "--action <name>", fixed = TRUE)
+  expect_match(txt, "install|load|up|image|status|logs|stop|restart|backup|backup-volume|migrate|reset-db|uninstall", fixed = TRUE)
+  expect_match(txt, "--skip-db-backup", fixed = TRUE)
+  expect_match(txt, "--yes", fixed = TRUE)
+  expect_match(txt, 'info "检测到已有 .env，保留现有配置', fixed = TRUE)
+  expect_match(txt, 'cp "$ENV_EXAMPLE" "$ENV_FILE"', fixed = TRUE)
+  expect_match(txt, 'compose_cmd up -d --pull never --force-recreate app nginx', fixed = TRUE)
+  expect_match(txt, 'pg_dump -U autotfl_user autotfl', fixed = TRUE)
+  expect_match(txt, "backup_database_volume", fixed = TRUE)
+  expect_match(txt, "run_migrations", fixed = TRUE)
+  expect_match(txt, 'migration_dir="$TARGET_DIR/postgres/migrations"', fixed = TRUE)
+  expect_match(txt, "psql -v ON_ERROR_STOP=1 -U autotfl_user -d autotfl", fixed = TRUE)
+  expect_match(txt, "reset_database_volume", fixed = TRUE)
+  expect_match(txt, "postgres-volume-reset-", fixed = TRUE)
+
+  expect_false(grepl("PDFanno|pdf-annotator|flask db|verify-schema", txt))
+})
+
+test_that("build_deploy_package.ps1 会把 offline-ops.sh 放入宿主机部署包", {
+  script_path <- file.path(root_dir, "scripts", "build_deploy_package.ps1")
+  txt <- read_text(script_path)
+
+  expect_match(txt, 'scripts\\offline-ops.sh', fixed = TRUE)
+  expect_match(txt, 'offline-ops.sh (Linux interactive menu)', fixed = TRUE)
+  expect_match(txt, 'bash offline-ops.sh', fixed = TRUE)
+  expect_match(txt, 'bash offline-ops.sh --action backup-volume', fixed = TRUE)
+  expect_match(txt, 'bash offline-ops.sh --action migrate', fixed = TRUE)
+  expect_match(txt, 'bash offline-ops.sh --action reset-db', fixed = TRUE)
+  expect_match(txt, "PSNativeCommandUseErrorActionPreference", fixed = TRUE)
+  expect_match(txt, 'Get-ChildItem $imagesDir -Filter "autotfl-images-*.tar*"', fixed = TRUE)
+  expect_match(txt, "Reset-GeneratedDirectory $postgresDir", fixed = TRUE)
+  expect_match(txt, "Reset-GeneratedDirectory $nginxDir", fixed = TRUE)
 })
 
 test_that("部署文档与快速入口文档引用 apps 路径和发布脚本", {
@@ -100,7 +141,8 @@ test_that("Linux Bash 脚本统一使用 LF 换行", {
     file.path(root_dir, "deploy", "alicloud", "scripts", "init_env.sh"),
     file.path(root_dir, "deploy", "alicloud", "scripts", "deploy_from_tar.sh"),
     file.path(root_dir, "deploy", "alicloud", "scripts", "publish_release.sh"),
-    file.path(root_dir, "deploy", "alicloud", "scripts", "setup_docker_mirror.sh")
+    file.path(root_dir, "deploy", "alicloud", "scripts", "setup_docker_mirror.sh"),
+    file.path(root_dir, "scripts", "offline-ops.sh")
   )
 
   for (script_path in script_paths) {

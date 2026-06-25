@@ -261,4 +261,4 @@ fi
 REMOTE_BUNDLE_PATH="$REMOTE_APPS_DIR/$(basename "$BUNDLE_PATH")"
 
 log "远端导入镜像并启动 compose"
-ssh "$SERVER_TARGET" "cd '$REMOTE_ROOT' && bash deploy/alicloud/scripts/init_env.sh >/dev/null && bash deploy/alicloud/scripts/deploy_from_tar.sh '$REMOTE_BUNDLE_PATH'"
+ssh "$SERVER_TARGET" "cd '$REMOTE_ROOT' && bash deploy/alicloud/scripts/init_env.sh >/dev/null && bash scripts/offline-ops.sh --action image --target '$REMOTE_ROOT' --image-tar '$REMOTE_BUNDLE_PATH'"

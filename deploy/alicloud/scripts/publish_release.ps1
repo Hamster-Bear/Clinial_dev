@@ -280,10 +280,7 @@ $remoteCmd = @"
 set -e
 cd '$RemoteRoot'
 bash deploy/alicloud/scripts/init_env.sh >/dev/null 2>&1
-docker load -i '$($bundleFullPath ?? "$RemoteApps/$bundleLeaf")'
-docker compose --env-file deploy/alicloud/env/.env -f docker-compose.server.yml up -d --pull never
-echo '---CONTAINERS---'
-docker compose --env-file deploy/alicloud/env/.env -f docker-compose.server.yml ps
+bash scripts/offline-ops.sh --action image --target '$RemoteRoot' --image-tar '$($bundleFullPath ?? "$RemoteApps/$bundleLeaf")'
 "@
 
 ssh $sshOpts $Server $remoteCmd

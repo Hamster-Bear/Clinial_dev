@@ -2,6 +2,44 @@
 
 ---
 
+## 2026-06-25
+
+### R009 [11:55] — 宿主机离线部署菜单与发布入口统一
+
+#### Done
+- 将 `scripts/offline-ops.sh` 改为 AutoTFL 专用的宿主机离线部署/运维菜单，支持无参数交互选择和 `--action` 非交互执行。
+- 菜单动作覆盖首次部署、只加载镜像、启动/更新、加载镜像并重建 `app/nginx`、状态、日志、停止、重启、数据库逻辑备份、数据库卷目录备份、迁移 SQL、重置数据库卷和卸载。
+- 数据库卷运维新增 `backup-volume`、`migrate` 与 `reset-db` action：物理目录备份会短暂停 `app/postgres`，迁移会执行 `postgres/migrations/*.sql`，重置会默认先做逻辑备份并把旧 `DATA_ROOT/postgres` 移入 `backups/`。
+- `.env` 行为收紧为“已有则保留，缺失才从 `.env.example` 生成”；脚本不会覆盖已有生产配置。
+- `publish_release.sh` 与 `publish_release.ps1` 远端部署统一调用 `scripts/offline-ops.sh --action image`，避免发布脚本与宿主机手工操作分叉。
+- `scripts/build_deploy_package.ps1` 生成宿主机部署包时复制 `offline-ops.sh`，并在包内 README 与完成提示中把 Linux 主入口改为 `bash offline-ops.sh`。
+- `DEPLOY_GUIDE.md` 与 `deploy/alicloud/README.md` 同步说明菜单入口、action 参数和 `.env` 保护行为。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| `bash -n scripts/offline-ops.sh` 与部署 shell 脚本语法检查 | 退出 0 | shell 语法通过 |
+| `Rscript -e "testthat::test_file('tests/root/test_deploy_scripts_contract.R', reporter='summary')"` | 退出 0 | 部署脚本契约通过 |
+| `bash scripts/offline-ops.sh --help` | 退出 0 | CLI 参数说明可用 |
+| `Rscript tests/check_test_guide_index.R` | 退出 0 | 测试索引一致 |
+| `git diff --check` | 退出 0 | 无 whitespace error；Windows 换行提示不阻断 |
+
+#### Issues / Blockers
+- None.
+
+#### Next
+1. 下一次生成宿主机部署包后，在 Linux 宿主机上执行 `bash offline-ops.sh` 做一次菜单流程验收，重点覆盖 `backup`、`backup-volume`、`migrate` 和 `reset-db`。
+
+#### Files Changed
+- `scripts/offline-ops.sh`（新增/重写）— AutoTFL 离线部署/运维菜单
+- `scripts/build_deploy_package.ps1`（修改）— 打包 `offline-ops.sh` 并更新包内 Linux 主入口
+- `deploy/alicloud/scripts/publish_release.sh`、`publish_release.ps1`（修改）— 远端部署调用统一菜单 action
+- `docs/deploy/DEPLOY_GUIDE.md`、`deploy/alicloud/README.md`（修改）— 部署说明同步
+- `tests/root/test_deploy_scripts_contract.R`（修改）— 新增菜单脚本契约与 LF 守卫
+- `(uncommitted)`
+
+---
+
 ## 2026-06-22
 
 ### R008 [15:25] — local 镜像重建与 Docker 构建上下文修复
