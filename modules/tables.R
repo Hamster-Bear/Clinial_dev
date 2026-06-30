@@ -579,36 +579,53 @@ tables_server <- function(id, data, pg_pool = NULL, current_user = NULL, dataset
       obj <- table_result()
       fmt <- cp$table_export_format %||% input$table_export_format
       ttype <- cp$table_type %||% input$table_type
-      if (identical(ttype, "ae_sidebyside")) {
-        save_plot_export(
-          file = file,
-          plot_obj = obj,
-          format = fmt,
-          width = 12,
-          height = 8,
-          dpi = 300
-        )
-      } else {
-        export_title <- switch(
-          ttype,
-          "t_dm" = "人口统计表格 (t_dm)",
-          "t_ae_soc_pt" = "分级统计表 (t_ae_soc_pt)",
-          "listing_general" = "一般列表 (listing_general)",
-          "ae_sidebyside" = "不良事件并列对比图 (ae_sidebyside)",
-          "导出结果"
-        )
-        if (identical(fmt, "png")) {
-          save_table_png(file = file, table_obj = obj, width = 12, height = 8, dpi = 300)
-        } else {
-          save_table_export(
+      tryCatch({
+        if (identical(ttype, "ae_sidebyside")) {
+          save_plot_export(
             file = file,
-            result_obj = list(table = obj),
+            plot_obj = obj,
             format = fmt,
-            title = export_title,
-            include_report = FALSE
+            width = 12,
+            height = 8,
+            dpi = 300
           )
+        } else {
+          export_title <- switch(
+            ttype,
+            "t_dm" = "人口统计表格 (t_dm)",
+            "t_ae_soc_pt" = "分级统计表 (t_ae_soc_pt)",
+            "listing_general" = "一般列表 (listing_general)",
+            "ae_sidebyside" = "不良事件并列对比图 (ae_sidebyside)",
+            "导出结果"
+          )
+          if (identical(fmt, "png")) {
+            save_table_png(file = file, table_obj = obj, width = 12, height = 8, dpi = 300)
+          } else if (identical(ttype, "listing_general") && identical(fmt, "rtf")) {
+            listing_key <- cp$listing_key_cols %||% input$listing_key_cols
+            listing_disp <- cp$listing_disp_cols %||% input$listing_disp_cols
+            export_listing_general_rtf(
+              data = filtered_data(),
+              key_cols = listing_key,
+              disp_cols = listing_disp,
+              file = file,
+              landscape = cp$listing_landscape %||% input$listing_landscape,
+              font_size = cp$listing_font_size %||% input$listing_font_size
+            )
+          } else {
+            save_table_export(
+              file = file,
+              result_obj = list(table = obj),
+              format = fmt,
+              title = export_title,
+              include_report = FALSE
+            )
+          }
         }
-      }
+      }, error = function(e) {
+        message(sprintf("[TableExportError] %s", conditionMessage(e)))
+        showNotification(paste("导出失败：", conditionMessage(e)), type = "error")
+        stop(conditionMessage(e))
+      })
     }
   )
   

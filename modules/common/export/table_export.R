@@ -128,7 +128,7 @@ apply_sci_gt_style <- function(gt_table, title = NULL, footnotes = NULL, left_co
   center_cols <- if (length(all_cols) > 0) setdiff(all_cols, left_cols_resolved) else gt::everything()
   styled <- gt_table %>%
     gt::tab_options(
-      table.font.names = "Times New Roman",
+      table.font.names = c("Times New Roman", "SimSun", "sans"),
       table.font.size = gt::px(10),
       heading.align = "left",
       table.border.top.style = "none",

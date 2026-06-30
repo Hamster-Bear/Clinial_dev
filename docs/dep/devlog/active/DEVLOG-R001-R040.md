@@ -2,6 +2,40 @@
 
 ---
 
+## 2026-06-30
+
+### R010 [14:00] [P0-export-chain-remediation] P1-P2: 导出链路质量修复
+
+#### Done
+- `tables.R` `table_download` downloadHandler 加 tryCatch + showNotification，导出失败时用户看到友好提示而非原始错误堆栈。
+- `table_export.R` `apply_sci_gt_style` 的 `table.font.names` 从硬编码 `"Times New Roman"` 改为 `c("Times New Roman", "SimSun", "sans")` CJK fallback 链，PNG/HTML 导出中文不再显示为方块。
+- `tables.R` listing_general RTF 导出统一到 `table_download` 分发：选 RTF 格式时走专用 `export_listing_general_rtf` 函数（保留 SAS Group 留白、列格式化），不再走通用 `save_table_export` 文本回退。
+- 全模块导出链路审查：验证 9 个统计图形模块 PNG/PDF/SVG 导出、statistical_analysis DOCX/HTML/RTF/PDF 导出、t_dm gt_tbl 导出、ae_sidebyside 图片导出均正确接线。
+- 发现并记录：`extract_table_dataframe` 文本回退路径已有 `graphics_with_showtext_paused` 保护（line 88），非 bug；rtables 无 `as_flextable` 方法，t_ae_soc_pt DOCX 保持文本回退。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| `testthat::test_file('tests/common/export/test_table_export_contract.R')` | 通过 | 6 断言通过 |
+| `testthat::test_file('tests/common/export/test_plot_export_contract.R')` | 通过 | 1 断言通过 |
+| `testthat::test_file('tests/tables/test_listing_general_contract.R')` | 通过 | 5 断言通过 |
+
+#### Issues / Blockers
+- None.
+
+#### Next
+1. 如需进一步提升 t_ae_soc_pt 导出质量，需 rtables 包增加 `as_flextable` 支持或自研 matrix_form→flextable 转换。
+2. 可选：将 svglite 加入 `config/required_packages.R` 以统一 SVG 输出质量。
+
+#### Files Changed
+- `modules/tables.R`（修改）— table_download 加 tryCatch；listing_general RTF 走专用导出函数
+- `modules/common/export/table_export.R`（修改）— CJK 字体 fallback 链
+- `docs/dep/plans/complete/P0-export-chain-remediation.md`（新增）— 子计划
+- `docs/dep/PLAN.md`（修改）— 注册并标记完成
+- `(uncommitted)`
+
+---
+
 ## 2026-06-25
 
 ### R009 [11:55] — 宿主机离线部署菜单与发布入口统一

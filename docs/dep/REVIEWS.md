@@ -177,7 +177,7 @@ Redis 在 docker-compose 中但无业务代码使用，增加部署复杂度。
 
 ### 测试回归
 
-23 个受变更影响的测试文件全部通过（1300+ 断言）。详细结果见 [DEVLOG-R001-R040.md](DEVLOG-R001-R040.md) R002。
+23 个受变更影响的测试文件全部通过（1300+ 断言）。详细结果见 [DEVLOG-R001-R040.md](devlog/active/DEVLOG-R001-R040.md) R002。
 
 ### 预存问题（非本轮引入）
 - `test_access_boundary_guard.R:259` — Review 1 文档精简后断言失效
