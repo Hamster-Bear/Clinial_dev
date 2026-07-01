@@ -35,6 +35,21 @@ extract_table_dataframe <- function(table_obj) {
   if (is.data.frame(table_obj)) {
     return(table_obj)
   }
+  # rtables 对象通过 matrix_form 提取多列结构
+  if (inherits(table_obj, "TableTree") || inherits(table_obj, "InstantiatedColumnInfo")) {
+    mf <- tryCatch(matrix_form(table_obj), error = function(e) NULL)
+    if (!is.null(mf) && is.matrix(mf$strings) && nrow(mf$strings) > 1 && ncol(mf$strings) > 0) {
+      col_names <- as.character(mf$strings[1, ])
+      col_names[!nzchar(col_names)] <- "Row"
+      col_names <- make.unique(col_names, sep = "_")
+      data_mat <- mf$strings[-1, , drop = FALSE]
+      if (ncol(data_mat) == length(col_names)) {
+        df <- as.data.frame(data_mat, stringsAsFactors = FALSE)
+        names(df) <- col_names
+        return(df)
+      }
+    }
+  }
   if (inherits(table_obj, "gt_tbl")) {
     gt_data <- tryCatch(table_obj[["_data"]], error = function(e) NULL)
     gt_boxhead <- tryCatch(table_obj[["_boxhead"]], error = function(e) NULL)
@@ -433,9 +448,133 @@ markdown_to_doc_lines <- function(report_md) {
   lines[nzchar(lines)]
 }
 
+rtables_to_flextable <- function(tbl, title = NULL, footnotes = NULL) {
+  if (!requireNamespace("flextable", quietly = TRUE) || !requireNamespace("officer", quietly = TRUE)) {
+    stop("导出 Word 需要安装 flextable 和 officer 包")
+  }
+  mf <- matrix_form(tbl)
+  mat <- mf$strings
+  ri <- mf$row_info
+
+  if (!is.matrix(mat) || nrow(mat) < 2 || ncol(mat) < 1) {
+    stop("matrix_form 返回的矩阵结构异常")
+  }
+
+  # 第一行作为列名，其余为数据
+  col_names <- as.character(mat[1, ])
+  col_names[!nzchar(col_names)] <- "Row"
+  col_names <- make.unique(col_names, sep = "_")
+  data_mat <- mat[-1, , drop = FALSE]
+
+  if (ncol(data_mat) != length(col_names)) {
+    stop(sprintf("列数不匹配: 数据 %d 列, 列名 %d 个", ncol(data_mat), length(col_names)))
+  }
+
+  df <- as.data.frame(data_mat, stringsAsFactors = FALSE)
+  names(df) <- col_names
+
+  # 构建 flextable
+  ft <- flextable::flextable(df)
+
+  # 行标签缩进：ri 是 data.frame，第一行对应 mat[1,]（表头），跳过
+  if (is.data.frame(ri) && nrow(ri) > 1) {
+    ri_body <- ri[-1, , drop = FALSE]
+    indent_vals <- vapply(seq_len(nrow(ri_body)), function(i) {
+      node_class <- ri_body$node_class[i]
+      path_raw <- ri_body$path[[i]]
+      path_str <- paste(path_raw, collapse = " ")
+      if (identical(node_class, "LabelRow")) {
+        0L
+      } else if (grepl("USUBJID|analyze_num_patients", path_str)) {
+        # 分析行（Total patients/events）在顶层，不缩进
+        0L
+      } else if (grepl("PT", path_str)) {
+        # SOC > PT 下的 DataRow，缩进
+        2L
+      } else {
+        0L
+      }
+    }, integer(1))
+  } else {
+    indent_vals <- rep(0L, nrow(df))
+  }
+
+  # 应用样式
+  ft <- flextable::border_remove(ft)
+  thick_border <- officer::fp_border(color = "black", width = 1.5)
+  thin_border <- officer::fp_border(color = "black", width = 0.8)
+  ft <- flextable::hline_top(ft, border = thick_border, part = "all")
+  ft <- flextable::hline(ft, i = 1, border = thin_border, part = "header")
+  ft <- flextable::hline_bottom(ft, border = thick_border, part = "all")
+  ft <- flextable::font(ft, fontname = "Times New Roman", part = "all")
+  ft <- flextable::fontsize(ft, size = 10, part = "all")
+  ft <- flextable::align(ft, align = "center", part = "header")
+
+  # 行标签左对齐，数据列居中（按 matrix_form aligns）
+  ft <- flextable::align(ft, j = 1, align = "left", part = "all")
+  if (ncol(df) > 1) {
+    ft <- flextable::align(ft, j = seq_len(ncol(df))[-1], align = "center", part = "all")
+  }
+
+  # 行标签缩进
+  if (any(indent_vals > 0)) {
+    indent_rows <- which(indent_vals > 0)
+    for (ir in indent_rows) {
+      ft <- flextable::padding(ft, i = ir, j = 1, padding.left = indent_vals[ir] * 10, part = "body")
+    }
+  }
+
+  ft <- flextable::autofit(ft)
+  ft <- flextable::fit_to_width(ft, max_width = 6.5)
+  ft <- flextable::set_table_properties(ft, layout = "autofit", width = 1)
+
+  # 标题
+  if (!is.null(title) && nzchar(trimws(title))) {
+    ft <- flextable::set_caption(
+      ft,
+      caption = flextable::as_paragraph(
+        flextable::as_chunk(
+          trimws(title),
+          props = officer::fp_text(font.family = "Times New Roman", font.size = 10, bold = TRUE)
+        )
+      )
+    )
+  }
+
+  # 脚注
+  footnote_vec <- normalize_footnotes(footnotes)
+  if (length(footnote_vec) > 0) {
+    for (ft_note in footnote_vec) {
+      ft <- flextable::add_footer_lines(ft, values = ft_note)
+    }
+    ft <- flextable::font(ft, fontname = "Times New Roman", part = "footer")
+    ft <- flextable::fontsize(ft, size = 9, part = "footer")
+    ft <- flextable::align(ft, align = "left", part = "footer")
+  }
+
+  ft
+}
+
 save_table_docx <- function(file, table_obj, title = "导出结果", footnotes = NULL, report_md = NULL, method_name = "统计分析", include_report = FALSE, merge_first_col = TRUE) {
-  df <- extract_table_dataframe(table_obj)
-  ft <- build_sci_flextable(table_obj = table_obj, title = title, footnotes = footnotes, merge_first_col = merge_first_col)
+  # rtables 对象走专用转换路径，保留多列结构；失败则降级到通用路径
+  if (inherits(table_obj, "TableTree") || inherits(table_obj, "InstantiatedColumnInfo")) {
+    ft <- tryCatch(
+      rtables_to_flextable(table_obj, title = title, footnotes = footnotes),
+      error = function(e) {
+        message(sprintf("[rtables_to_flextable] 降级到文本回退: %s", conditionMessage(e)))
+        NULL
+      }
+    )
+    if (!is.null(ft)) {
+      df <- NULL
+    } else {
+      df <- extract_table_dataframe(table_obj)
+      ft <- build_sci_flextable(table_obj = df, title = title, footnotes = footnotes, merge_first_col = merge_first_col)
+    }
+  } else {
+    df <- extract_table_dataframe(table_obj)
+    ft <- build_sci_flextable(table_obj = table_obj, title = title, footnotes = footnotes, merge_first_col = merge_first_col)
+  }
   if (isTRUE(include_report)) {
     doc <- officer::read_docx()
     doc <- officer::body_add_par(doc, "统计分析报告", style = "heading 1")
@@ -451,7 +590,7 @@ save_table_docx <- function(file, table_obj, title = "导出结果", footnotes =
     print(doc, target = file)
     return(invisible(TRUE))
   }
-  if (ncol(df) > 8) {
+  if (!is.null(df) && ncol(df) > 8) {
     sec <- officer::prop_section(
       page_size = officer::page_size(orient = "landscape"),
       page_margins = officer::page_mar()

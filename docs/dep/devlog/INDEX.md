@@ -12,3 +12,4 @@
 | R008 | 2026-06-22 | 15:25 | - | - | local 镜像重建与 Docker 构建上下文修复 | `.dockerignore`, `tests/root/test_dependency_manifest_contract.R` | active/DEVLOG-R001-R040.md |
 | R009 | 2026-06-25 | 11:55 | - | - | 宿主机离线部署菜单与发布入口统一 | `scripts/offline-ops.sh`, `scripts/build_deploy_package.ps1`, `docs/deploy/` | active/DEVLOG-R001-R040.md |
 | R010 | 2026-06-30 | 14:00 | P0-export-chain-remediation | P1-P2 | 导出链路质量修复：tryCatch、CJK fallback、listing RTF 统一 | `modules/tables.R`, `modules/common/export/table_export.R` | active/DEVLOG-R001-R040.md |
+| R011 | 2026-06-30 | 15:30 | - | - | t_ae_soc_pt 导出修复：rtables matrix_form 多列结构保留 | `modules/common/export/table_export.R` | active/DEVLOG-R001-R040.md |

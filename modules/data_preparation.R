@@ -202,14 +202,24 @@ data_preparation_ui <- function(id) {
                     onInitialize = I('function() { this.setValue(""); }')
                   )
                 ),
-                selectizeInput(
-                  ns("selected_columns"),
-                  "选择显示列:",
-                  choices = NULL,
-                  multiple = TRUE,
-                  options = list(
-                    placeholder = '搜索变量名或Label后选择显示列...',
-                    plugins = list('remove_button')
+                fluidRow(
+                  column(
+                    width = 10,
+                    selectizeInput(
+                      ns("selected_columns"),
+                      "选择显示列:",
+                      choices = NULL,
+                      multiple = TRUE,
+                      options = list(
+                        placeholder = '搜索变量名或Label后选择显示列...',
+                        plugins = list('remove_button')
+                      )
+                    )
+                  ),
+                  column(
+                    width = 2,
+                    style = "padding-top: 25px;",
+                    checkboxInput(ns("show_all_columns"), "显示全部列", value = FALSE)
                   )
                 )
               ),
@@ -1711,6 +1721,25 @@ data_preparation_server <- function(id, pg_pool = NULL, current_user = NULL) {
                          selected = character(0),
                          server = TRUE)
   })
+
+  # 显示全部列 / 恢复默认列 toggle
+  observeEvent(input$show_all_columns, {
+    ds <- data_store()
+    if (is.null(ds)) return()
+    all_choices <- build_column_choices(ds)
+    if (isTRUE(input$show_all_columns)) {
+      updateSelectizeInput(session, "selected_columns",
+                           choices = all_choices,
+                           selected = names(ds),
+                           server = TRUE)
+    } else {
+      max_default_cols <- min(25, length(names(ds)))
+      updateSelectizeInput(session, "selected_columns",
+                           choices = all_choices,
+                           selected = head(names(ds), max_default_cols),
+                           server = TRUE)
+    }
+  }, ignoreInit = TRUE)
   
   # 返回供分析模块使用的数据（已去除行号）及来源元信息
   return(list(

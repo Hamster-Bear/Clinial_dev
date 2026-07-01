@@ -4,6 +4,36 @@
 
 ## 2026-06-30
 
+### R011 [15:30] — t_ae_soc_pt 导出链路修复：rtables 多列结构保留
+
+#### Done
+- `extract_table_dataframe` 新增 rtables 对象检测：通过 `matrix_form(tbl)$strings` 提取多列矩阵结构，不再走 `capture.output(print())` 单列文本回退。影响所有导出格式（DOCX/HTML/RTF/PDF）。
+- 新增 `rtables_to_flextable(tbl, title, footnotes)` 函数：rtables 专用 DOCX 导出路径，保留多列对齐（行标签左对齐、数据列居中）、PT 行缩进、边框样式。
+- `save_table_docx` 检测 rtables 对象（`inherits TableTree`）并走 `rtables_to_flextable` 专用路径，绕过 `build_sci_flextable` 的单列回退。
+- 修复 `matrix_form` 返回的空列名（`""`）导致 flextable 报错的问题：空列名替换为 `"Row"`。
+- 修复 `save_table_docx` 中 `ncol(df) > 8` 横屏判断在 rtables 路径 `df=NULL` 时的 `if(logical(0))` 错误。
+- 验证：rtables SOC/PT 表格 DOCX 导出 14KB、HTML 导出 624KB，均保留多列结构。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| `testthat::test_file('tests/common/export/test_table_export_contract.R')` | 通过 | 6 断言 |
+| `testthat::test_file('tests/tables/test_listing_general_contract.R')` | 通过 | 5 断言 |
+| 手动集成测试：rtables → DOCX/HTML 导出 | 通过 | 多列结构保留 |
+
+#### Issues / Blockers
+- None.
+
+#### Next
+1. PT 行缩进目前通过 `matrix_form$path` 中是否含 `"PT"` 判断，依赖 rtables 布局命名约定；如布局变化需同步更新。
+
+#### Files Changed
+- `modules/common/export/table_export.R`（修改）— `extract_table_dataframe` rtables 多列提取、`rtables_to_flextable` 新函数、`save_table_docx` rtables 分发、空列名修复
+- `docs/dep/devlog/active/DEVLOG-R001-R040.md`（修改）— R011 记录
+- `(uncommitted)`
+
+---
+
 ### R010 [14:00] [P0-export-chain-remediation] P1-P2: 导出链路质量修复
 
 #### Done

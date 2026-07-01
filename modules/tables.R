@@ -622,9 +622,10 @@ tables_server <- function(id, data, pg_pool = NULL, current_user = NULL, dataset
           }
         }
       }, error = function(e) {
-        message(sprintf("[TableExportError] %s", conditionMessage(e)))
+        msg <- sprintf("[TableExportError] type=%s fmt=%s: %s", ttype, fmt, conditionMessage(e))
+        message(msg)
         showNotification(paste("导出失败：", conditionMessage(e)), type = "error")
-        stop(conditionMessage(e))
+        stop(msg)
       })
     }
   )
