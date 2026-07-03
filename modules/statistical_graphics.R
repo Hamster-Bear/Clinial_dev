@@ -99,14 +99,6 @@ statistical_graphics_server <- function(id, data, pg_pool = NULL, current_user =
       list()
     }
 
-    module_handler_repro_state <- function(handler) {
-      state <- module_handler_state(handler)
-      if (is.list(state) && is.list(state$extra_state)) {
-        return(state$extra_state)
-      }
-      state
-    }
-
     module_handler_apply_state <- function(handler, state) {
       if (is.list(handler) && is.function(handler$apply_state)) {
         return(handler$apply_state(state))
@@ -145,35 +137,16 @@ statistical_graphics_server <- function(id, data, pg_pool = NULL, current_user =
     })
 
     output$selected_graphic_ui <- renderUI({
-      tagList(
-        switch(input$fig_type,
-          "km" = survival_analysis_ui(ns("survival")),
-          "boxplot" = boxplot_ui(ns("boxplot")),
-          "forest" = forest_plot_ui(ns("forest")),
-          "heatmap" = heatmap_ui(ns("heatmap")),
-          "correlation" = correlation_matrix_ui(ns("correlation")),
-          "combo" = combo_plot_ui(ns("combo")),
-          "waterfall" = waterfall_plot_ui(ns("waterfall")),
-          "swimmer" = swimmer_plot_ui(ns("swimmer")),
-          "spider" = spider_plot_ui(ns("spider"))
-        ),
-        app_card_box(
-          width = 12,
-          title = copy$repro$title,
-          subtitle = copy$repro$subtitle,
-          tone = "info",
-          status = "info",
-          solidHeader = FALSE,
-          collapsible = TRUE,
-          collapsed = TRUE,
-          app_card_note(copy$repro$note),
-          app_result_panel(
-            title = "图形复现代码",
-            note = "根据当前图形参数生成 R 代码，便于本地复现或整理文档。",
-            tone = "info",
-            verbatimTextOutput(ns("graphic_repro_code_out"))
-          )
-        )
+      switch(input$fig_type,
+        "km" = survival_analysis_ui(ns("survival")),
+        "boxplot" = boxplot_ui(ns("boxplot")),
+        "forest" = forest_plot_ui(ns("forest")),
+        "heatmap" = heatmap_ui(ns("heatmap")),
+        "correlation" = correlation_matrix_ui(ns("correlation")),
+        "combo" = combo_plot_ui(ns("combo")),
+        "waterfall" = waterfall_plot_ui(ns("waterfall")),
+        "swimmer" = swimmer_plot_ui(ns("swimmer")),
+        "spider" = spider_plot_ui(ns("spider"))
       )
     })
 
@@ -240,15 +213,6 @@ statistical_graphics_server <- function(id, data, pg_pool = NULL, current_user =
       apply_failure_message = "当前模块暂未接入任务历史回填",
       source_info = dataset_meta
     )
-
-    output$graphic_repro_code_out <- renderText({
-      req(input$fig_type)
-      active_state <- module_handler_repro_state(active_module_handler())
-      if (!is.list(active_state)) {
-        active_state <- list()
-      }
-      generate_graphics_repro_code(input$fig_type, active_state, data_name = "data")
-    })
 
     return(reactive({
       module_handler_state(active_module_handler())

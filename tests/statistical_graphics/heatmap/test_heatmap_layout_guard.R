@@ -51,6 +51,8 @@ test_that("热图模块包含结果区动作条和结果页签", {
     info = "缺少'交互图'结果页签")
   expect_true(grepl('"数据"', source_text, fixed = TRUE),
     info = "缺少'数据'结果页签")
+  expect_true(grepl('"可复现代码"', source_text, fixed = TRUE),
+    info = "缺少'可复现代码'结果页签")
 })
 
 test_that("热图模块不包含已废弃的裸 box 或 wellPanel 包装", {

@@ -353,7 +353,8 @@ forest_plot_ui <- function(id) {
                   tabPanel("统计报告", uiOutput(ns("analysis_report_ui")))
                 )
               )
-            )
+            ),
+            graphics_result_repro_tab_ui(ns)
           )
         )
       )
@@ -1511,33 +1512,42 @@ forest_plot_server <- function(input, output, session, data) {
     invisible(TRUE)
   }
 
+  state_reactive <- reactive({
+    column_state <- forest_collect_selected_column_state(
+      selected_cols = user_selections$selected_cols,
+      display_names = isolate(user_selections$display_names),
+      alignments = isolate(user_selections$alignments)
+    )
+    graphics_build_task_state(
+      input,
+      extra_state = list(
+        subgroup_col = input$subgroup_col,
+        study_col = input$study_col,
+        estimate_col = input$estimate_col,
+        lower_col = input$lower_col,
+        upper_col = input$upper_col,
+        time_col = input$time_col,
+        status_col = input$status_col,
+        outcome_col = input$outcome_col,
+        covariates = input$covariates,
+        selected_table_cols = column_state$selected_cols,
+        display_names = column_state$display_names,
+        alignments = column_state$alignments
+      ),
+      exclude_ids = c("generate", "run_analysis", "selected_table_cols"),
+      exclude_patterns = forest_task_state_exclude_patterns
+    )
+  })
+
+  graphics_bind_repro_code_output(
+    output = output,
+    output_id = "repro_code_out",
+    fig_type = "forest",
+    state_getter = function() state_reactive()
+  )
+
   list(
-    state = reactive({
-      column_state <- forest_collect_selected_column_state(
-        selected_cols = user_selections$selected_cols,
-        display_names = isolate(user_selections$display_names),
-        alignments = isolate(user_selections$alignments)
-      )
-      graphics_build_task_state(
-        input,
-        extra_state = list(
-          subgroup_col = input$subgroup_col,
-          study_col = input$study_col,
-          estimate_col = input$estimate_col,
-          lower_col = input$lower_col,
-          upper_col = input$upper_col,
-          time_col = input$time_col,
-          status_col = input$status_col,
-          outcome_col = input$outcome_col,
-          covariates = input$covariates,
-          selected_table_cols = column_state$selected_cols,
-          display_names = column_state$display_names,
-          alignments = column_state$alignments
-        ),
-        exclude_ids = c("generate", "run_analysis", "selected_table_cols"),
-        exclude_patterns = forest_task_state_exclude_patterns
-      )
-    }),
+    state = state_reactive,
     apply_state = apply_state
   )
 }

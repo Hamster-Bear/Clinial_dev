@@ -16,8 +16,15 @@ if (!exists("app_card_box", mode = "function") ||
   }
 }
 
+if (file.exists("modules/common/graphics/graphics_result_copy.R")) {
+  source("modules/common/graphics/graphics_result_copy.R")
+} else {
+  source(file.path("..", "modules", "common", "graphics", "graphics_result_copy.R"))
+}
+
 boxplot_ui <- function(id) {
   ns <- NS(id)
+  copy <- GRAPHICS_RESULT_COPY$boxplot
   
   tagList(
     fluidRow(
@@ -152,11 +159,11 @@ boxplot_ui <- function(id) {
         app_card_box(
           width = 12,
           title = "结果区",
-          subtitle = "查看结果并导出输出",
+          subtitle = copy$result_card$subtitle,
           tone = "success",
           status = "success",
           solidHeader = FALSE,
-          app_card_note("结果区提供生成图形、下载、交互图和数据表。"),
+          app_card_note(copy$result_card$note),
           graphics_output_action_bar_ui(ns, render_button_id = "render_plot", download_id = "dl_plot"),
           tabsetPanel(
             id = ns("output_tabs"),
@@ -164,7 +171,7 @@ boxplot_ui <- function(id) {
               "静态图",
               app_result_panel(
                 title = "静态图结果",
-                note = "展示当前箱线图配置生成的静态图结果。",
+                note = copy$static_plot$note,
                 tone = "success",
                 plotOutput(ns("static_plot"), height = "600px")
               )
@@ -173,7 +180,7 @@ boxplot_ui <- function(id) {
               "交互图",
               app_result_panel(
                 title = "交互图结果",
-                note = "展示当前参数生成的交互式箱线图结果。",
+                note = copy$interactive_plot$note,
                 tone = "info",
                 plotly::plotlyOutput(ns("interactive_plot"), height = "600px")
               )
@@ -182,11 +189,12 @@ boxplot_ui <- function(id) {
               "数据",
               app_result_panel(
                 title = "箱线图结果数据",
-                note = "查看当前箱线图对应的结果数据表。",
+                note = copy$data_tab$note,
                 tone = "warning",
                 DTOutput(ns("data_table"))
               )
-            )
+            ),
+            graphics_result_repro_tab_ui(ns)
           )
         )
       )
@@ -343,16 +351,25 @@ boxplot_server <- function(input, output, session, data) {
     invisible(TRUE)
   }
 
-  list(
-    state = reactive({
-      graphics_build_task_state(
-        input,
-        extra_state = list(
-          x_var = input$boxplot_x,
-          y_var = input$boxplot_y
-        )
+  state_reactive <- reactive({
+    graphics_build_task_state(
+      input,
+      extra_state = list(
+        x_var = input$boxplot_x,
+        y_var = input$boxplot_y
       )
-    }),
+    )
+  })
+
+  graphics_bind_repro_code_output(
+    output = output,
+    output_id = "repro_code_out",
+    fig_type = "boxplot",
+    state_getter = function() state_reactive()
+  )
+
+  list(
+    state = state_reactive,
     apply_state = apply_state
   )
 }

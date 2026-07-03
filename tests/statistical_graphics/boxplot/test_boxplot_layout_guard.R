@@ -35,6 +35,7 @@ expect_contains(boxplot_text, "graphics_output_action_bar_ui\\(", "箱线图结�
 expect_contains(boxplot_text, "tabPanel\\(\\s*\"静态图\"", "箱线图保留静态图页签")
 expect_contains(boxplot_text, "tabPanel\\(\\s*\"交互图\"", "箱线图保留交互图页签")
 expect_contains(boxplot_text, "tabPanel\\(\\s*\"数据\"", "箱线图保留数据页签")
+expect_contains(boxplot_text, "tabPanel\\(\\s*\"可复现代码\"", "箱线图结果区新增可复现代码页签")
 expect_contains(boxplot_text, "plotOutput\\(ns\\(\"static_plot\"\\), height = \"600px\"\\)", "箱线图保留静态图输出")
 expect_contains(boxplot_text, "plotly::plotlyOutput\\(ns\\(\"interactive_plot\"\\), height = \"600px\"\\)", "箱线图保留交互图输出")
 expect_contains(boxplot_text, "DTOutput\\(ns\\(\"data_table\"\\)\\)", "箱线图保留数据表输出")

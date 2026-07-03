@@ -37,10 +37,9 @@ expect_contains(graphics_text, "data_filter_ui\\(ns\\(\"global_filter\"\\)\\)", 
 expect_contains(graphics_text, "task_history_ui\\(", "统计图形总入口直接复用任务历史卡")
 expect_contains(graphics_text, "app_card_box\\(", "统计图形总入口使用公共卡片 helper")
 expect_contains(graphics_text, "title = copy\\$selector\\$title", "统计图形总入口保留类型选择卡")
-expect_contains(graphics_text, "title = copy\\$repro\\$title", "统计图形总入口保留可复现代码卡")
-expect_contains(graphics_text, "app_result_panel\\(", "统计图形总入口可复现代码使用结果 panel")
 expect_contains(graphics_text, "switch\\(input\\$fig_type", "统计图形总入口保留子模块切换逻辑")
 expect_not_contains(graphics_text, "(?<!app_card_)box\\([\\s\\S]*title = \"统计图形类型选择\"", "统计图形总入口不再用裸 box 包裹类型选择卡")
-expect_not_contains(graphics_text, "(?<!app_card_)box\\([\\s\\S]*title = \"可复现代码\"", "统计图形总入口不再用裸 box 包裹可复现代码卡")
+expect_not_contains(graphics_text, "title = copy\\$repro\\$title", "统计图形总入口不再单独渲染可复现代码卡")
+expect_not_contains(graphics_text, "graphic_repro_code_out", "统计图形总入口不再维护顶层复现代码输出")
 
 cat("Statistical graphics layout guard passed.\n")

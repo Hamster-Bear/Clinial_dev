@@ -41,6 +41,7 @@ expect_contains <- function(text, pattern, label) {
 }
 
 copy_text <- read_utf8("modules", "common", "graphics", "graphics_result_copy.R")
+boxplot_text <- read_utf8("modules", "statistical_graphics", "boxplot.R")
 survival_text <- read_utf8("modules", "statistical_graphics", "survival_analysis.R")
 forest_text <- read_utf8("modules", "statistical_graphics", "forest_plot.R")
 combo_text <- read_utf8("modules", "statistical_graphics", "combo_plot.R")
@@ -49,12 +50,21 @@ swimmer_text <- read_utf8("modules", "statistical_graphics", "swimmer_plot.R")
 spider_text <- read_utf8("modules", "statistical_graphics", "spider_plot.R")
 
 expect_contains(copy_text, "GRAPHICS_RESULT_COPY <- list", "统计图形结果区共享文案对象")
+expect_contains(copy_text, "boxplot = list", "箱线图结果区共享文案")
 expect_contains(copy_text, "survival = list", "生存分析结果区共享文案")
 expect_contains(copy_text, "forest = list", "森林图结果区共享文案")
 expect_contains(copy_text, "combo = list", "组合图结果区共享文案")
 expect_contains(copy_text, "waterfall = list", "瀑布图结果区共享文案")
 expect_contains(copy_text, "swimmer = list", "泳道图结果区共享文案")
 expect_contains(copy_text, "spider = list", "蜘蛛图结果区共享文案")
+
+expect_contains(boxplot_text, "source\\(\"modules/common/graphics/graphics_result_copy.R\"\\)", "箱线图加载结果区共享文案")
+expect_contains(boxplot_text, "copy <- GRAPHICS_RESULT_COPY\\$boxplot", "箱线图读取结果区共享文案")
+expect_contains(boxplot_text, "subtitle = copy\\$result_card\\$subtitle", "箱线图结果卡副标题改为共享文案")
+expect_contains(boxplot_text, "app_card_note\\(copy\\$result_card\\$note\\)", "箱线图结果卡说明改为共享文案")
+expect_contains(boxplot_text, "note = copy\\$static_plot\\$note", "箱线图静态图说明改为共享文案")
+expect_contains(boxplot_text, "note = copy\\$interactive_plot\\$note", "箱线图交互图说明改为共享文案")
+expect_contains(boxplot_text, "note = copy\\$data_tab\\$note", "箱线图数据页说明改为共享文案")
 
 expect_contains(survival_text, "source\\(\"modules/common/graphics/graphics_result_copy.R\"\\)", "生存分析加载结果区共享文案")
 expect_contains(survival_text, "copy <- GRAPHICS_RESULT_COPY\\$survival", "生存分析读取结果区共享文案")

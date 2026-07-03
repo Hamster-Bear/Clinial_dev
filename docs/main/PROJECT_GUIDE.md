@@ -180,7 +180,7 @@
 - 前端卡片样式开始收口到新的公共 UI 壳 `modules/common/ui_shell.R`；当前已从数据预备模块先接入，统一卡片标题、说明区、边框和留白，但暂不改变原有布局结构。
 - 统计分析、统计图形、Tables 与探索分析四个入口层使用共享文案源 `modules/common/entry_copy.R`：只收口入口层标题、副标题与说明文案，避免这些高频入口卡片继续在多个模块文件里平行硬编码；按钮文案、结果页签名与子模块内部说明暂不纳入该 helper。
 - 统计分析子模块使用共享说明文案源 `modules/common/analysis/stat_analysis_submodule_copy.R`：先覆盖 `desc`、`cox`、`logistic`、`linear`、`anova`、`chisq` 内部的 `app_card_note()`，统一参数说明块口径；字段标签、`helpText()`、`bsTooltip()` 和结果解释仍保留在模块内。
-- 统计图形第一批结果区通用文案收口到 `modules/common/graphics/graphics_result_copy.R`：覆盖 `survival_analysis`、`forest_plot`、`combo_plot`、`waterfall_plot`、`swimmer_plot`、`spider_plot` 的结果卡 `subtitle`、结果卡 `app_card_note()` 与结果页 `note`。模块专属结果提示可继续保留在原模块内，不强行共享化。
+- 统计图形结果区通用文案收口到 `modules/common/graphics/graphics_result_copy.R`：覆盖 `boxplot`、`survival_analysis`、`forest_plot`、`heatmap`、`correlation_matrix`、`combo_plot`、`waterfall_plot`、`swimmer_plot`、`spider_plot` 的结果卡 `subtitle`、结果卡 `app_card_note()` 与结果页 `note`。模块专属结果提示可继续保留在原模块内，不强行共享化。
 - 统计图形第一批导出卡通用文案收口到 `modules/common/graphics/graphics_export_copy.R`：覆盖 `survival_analysis`、`forest_plot`、`combo_plot`、`waterfall_plot`、`swimmer_plot`、`spider_plot` 的导出卡 `subtitle` 与 `app_card_note()`；导出区 `helpText()`、固定画布、宽高比和分层标签等模块专属语义继续保留在原模块中。
 - 数据库管理页使用公共卡片壳：统一主卡片、说明块、锁定提示、上下文摘要与结构总览摘要卡，但保持原有”空间与目录 / 上传与导入 / 结构总览”页签结构不变。
 - 统计分析总入口使用公共卡片壳：统一全局筛选卡、方法选择卡、参数设置卡、结果卡与导出说明面板，但保持原有“统计表格 / 统计报告 / 可复现代码”结果结构，以及各统计子模块参数 UI 与分析逻辑不变。
@@ -189,7 +189,7 @@
 - 统计分析基础检验子模块样板覆盖 `anova.R` 与 `chisq.R`：统一响应变量、分组因素或变量选择说明块，但保留原有输入项、检验逻辑与结果链路不变。
 - 统计分析结果区已统一：`统计表格 / 统计报告 / 可复现代码` 三个 tab 现统一使用结果 panel 和空状态 helper，导出区也统一为结果区说明面板，但不调整结果对象、报告生成与导出逻辑。
 - 第一批 UI 归一已接入公共扩散源：`modules/common/data_filter.R` 与 `modules/task_history.R` 已统一到公共壳下的可折叠工作台卡片，减少旧式 `box()` 壳继续扩散到统计分析、统计图形与 Tables 入口。
-- 统计图形总入口使用公共卡片壳：统一图形类型选择卡与可复现代码卡，直接复用已收口的全局筛选卡与任务历史卡，但保持原有图形子模块切换、任务历史回填和代码生成链路不变。
+- 统计图形总入口使用公共卡片壳：统一图形类型选择卡，直接复用已收口的全局筛选卡与任务历史卡；可复现代码改为收口到各图形子模块结果区页签，保持原有图形子模块切换、任务历史回填和代码生成链路不变。
 - 统计图形总入口当前要求在 UI 与 server 各自作用域内独立读取 `ENTRY_COPY$statistical_graphics`；凡在 `renderUI()`、`renderText()` 等服务端渲染中继续使用入口共享文案时，不得依赖 `statistical_graphics_ui()` 内部局部变量，避免运行时出现 `找不到对象 'copy'`。
 - 箱线图外层使用公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有 X/Y 映射、固定 `10 x 8` 英寸导出与任务历史契约不变。
 - 组合图外层使用公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有高动态图层参数页签、两阶段任务历史恢复与固定 `12 x 8` 英寸导出链路不变。
@@ -595,7 +595,7 @@ AutoTFL/
   - `输出与导出`：内部使用子页签承载 `尺寸与画布 / 导出参数`。
 - 结果区固定为：
   - 动作条：`生成图形 / 下载图形`，统一放在结果区顶部，不放在参数区。
-  - 结果页签：`静态图 / 交互图 / 数据`。
+  - 结果页签：`静态图 / 交互图 / 数据 / 可复现代码`。
 - “同层级功能卡片优先合并为页签组”这条规则，只适用于每个顶层功能卡片的**内部**，不适用于把顶层功能卡本身折叠成页签导航；只有高动态映射区、强业务算法区或 common 尚无等价抽象时，才允许临时保留卡片内部的非页签结构。
 
 ### 7.6 图形参数抽象类

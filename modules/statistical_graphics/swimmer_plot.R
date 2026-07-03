@@ -430,7 +430,8 @@ swimmer_plot_ui <- function(id) {
                   tabPanel("分组轨道数据", DTOutput(ns("track_table")))
                 )
               )
-            )
+            ),
+            graphics_result_repro_tab_ui(ns)
           )
         )
       )
@@ -2258,39 +2259,48 @@ swimmer_plot_server <- function(input, output, session, data) {
     })
   }
 
-  list(
-    state = reactive({
-      df_state <- data()
-      event_mappings <- collect_swimmer_event_mappings(df_state)
-      track_mode_map <- capture_track_mode_map(input$tracks %||% character(0))
-      time_axis_cfg <- graphics_collect_time_axis_config(input, unit_id = "x_unit", break_id = "x_break_step")
-      graphics_build_task_state(
-        input,
-        extra_state = list(
-          subject_id = graphics_state$subject_id %||% input$subject_id,
-          lane_time_mode = graphics_state$lane_time_mode %||% input$lane_time_mode,
-          start_time = graphics_state$start_time %||% input$start_time,
-          end_time = graphics_state$end_time %||% input$end_time,
-          duration_var = graphics_state$duration_var %||% input$duration_var,
-          lane_color_by = graphics_state$lane_color_by %||% input$lane_color_by,
-          ongoing_var = graphics_state$ongoing_var %||% input$ongoing_var,
-          event_mappings = event_mappings,
-          lock_event_style_refresh = input$lock_event_style_refresh,
-          event_symbol_seed = input$event_symbol_seed,
-          event_legend_title = input$event_legend_title,
-          x_unit = time_axis_cfg$unit,
-          x_break_step = time_axis_cfg$break_step,
-          time_range = normalize_time_range(graphics_state$time_range %||% input$time_range),
-          tracks = graphics_state$tracks %||% input$tracks %||% character(0),
-          track_mode_map = track_mode_map,
-          lane_manual_colors = capture_lane_manual_color_values(df_state),
-          track_color_values = capture_track_color_values(df_state, input$tracks %||% character(0), track_mode_map),
-          size_mode = input$size_mode,
-          export_width_in = size_config()$export_width,
-          export_height_in = size_config()$export_height
-        )
+  state_reactive <- reactive({
+    df_state <- data()
+    event_mappings <- collect_swimmer_event_mappings(df_state)
+    track_mode_map <- capture_track_mode_map(input$tracks %||% character(0))
+    time_axis_cfg <- graphics_collect_time_axis_config(input, unit_id = "x_unit", break_id = "x_break_step")
+    graphics_build_task_state(
+      input,
+      extra_state = list(
+        subject_id = graphics_state$subject_id %||% input$subject_id,
+        lane_time_mode = graphics_state$lane_time_mode %||% input$lane_time_mode,
+        start_time = graphics_state$start_time %||% input$start_time,
+        end_time = graphics_state$end_time %||% input$end_time,
+        duration_var = graphics_state$duration_var %||% input$duration_var,
+        lane_color_by = graphics_state$lane_color_by %||% input$lane_color_by,
+        ongoing_var = graphics_state$ongoing_var %||% input$ongoing_var,
+        event_mappings = event_mappings,
+        lock_event_style_refresh = input$lock_event_style_refresh,
+        event_symbol_seed = input$event_symbol_seed,
+        event_legend_title = input$event_legend_title,
+        x_unit = time_axis_cfg$unit,
+        x_break_step = time_axis_cfg$break_step,
+        time_range = normalize_time_range(graphics_state$time_range %||% input$time_range),
+        tracks = graphics_state$tracks %||% input$tracks %||% character(0),
+        track_mode_map = track_mode_map,
+        lane_manual_colors = capture_lane_manual_color_values(df_state),
+        track_color_values = capture_track_color_values(df_state, input$tracks %||% character(0), track_mode_map),
+        size_mode = input$size_mode,
+        export_width_in = size_config()$export_width,
+        export_height_in = size_config()$export_height
       )
-    }),
+    )
+  })
+
+  graphics_bind_repro_code_output(
+    output = output,
+    output_id = "repro_code_out",
+    fig_type = "swimmer",
+    state_getter = function() state_reactive()
+  )
+
+  list(
+    state = state_reactive,
     apply_state = apply_state
   )
 }

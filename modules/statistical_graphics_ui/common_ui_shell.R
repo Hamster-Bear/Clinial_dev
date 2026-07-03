@@ -142,6 +142,41 @@ graphics_output_action_bar_ui <- function(
   )
 }
 
+graphics_result_repro_tab_ui <- function(
+  ns,
+  output_id = "repro_code_out",
+  panel_title = "可复现代码",
+  note = "根据当前图形参数生成 R 代码，便于本地复现或整理文档。",
+  tone = "primary"
+) {
+  tabPanel(
+    "可复现代码",
+    app_result_panel(
+      title = panel_title,
+      note = note,
+      tone = tone,
+      verbatimTextOutput(ns(output_id))
+    )
+  )
+}
+
+graphics_bind_repro_code_output <- function(
+  output,
+  output_id = "repro_code_out",
+  fig_type,
+  state_getter,
+  data_name = "data"
+) {
+  output[[output_id]] <- renderText({
+    state <- state_getter()
+    active_state <- graphics_task_payload_extra_state(state)
+    if (!is.list(active_state)) {
+      active_state <- list()
+    }
+    generate_graphics_repro_code(fig_type, active_state, data_name = data_name)
+  })
+}
+
 #' 通用参考线配置 UI
 #' @param ns Shiny 命名空间函数
 #' @param id_prefix 控件 ID 前缀 (如 "ref", "recist_lower")

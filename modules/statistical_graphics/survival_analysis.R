@@ -810,7 +810,8 @@ if (file.exists("modules/common/graphics/graphics_export_copy.R")) {
                 tabPanel("统计报告", uiOutput(ns("survival_report")))
               )
             )
-          )
+          ),
+          graphics_result_repro_tab_ui(ns)
         )
       )
     )
@@ -2387,23 +2388,32 @@ survival_analysis_server <- function(input, output, session, data) {
     invisible(TRUE)
   }
 
-  list(
-    state = reactive({
-      graphics_build_task_state(
-        input,
-        extra_state = list(
-          time_var = graphics_state$km_time %||% input$km_time,
-          status_var = graphics_state$km_status %||% input$km_status,
-          time_range = graphics_state$time_range %||% input$time_range,
-          km_censor_value = graphics_state$km_censor_value %||% input$km_censor_value,
-          strata_var = graphics_state$km_strata %||% input$strata_var,
-          facet_var = graphics_state$km_facet %||% input$facet_var,
-          facet_value = graphics_state$km_facet_values %||% input$facet_value,
-          strata_labels = graphics_state$strata_labels %||% list(),
-          overall_group_label = graphics_state$overall_group_label %||% input$overall_group_label
-        )
+  state_reactive <- reactive({
+    graphics_build_task_state(
+      input,
+      extra_state = list(
+        time_var = graphics_state$km_time %||% input$km_time,
+        status_var = graphics_state$km_status %||% input$km_status,
+        time_range = graphics_state$time_range %||% input$time_range,
+        km_censor_value = graphics_state$km_censor_value %||% input$km_censor_value,
+        strata_var = graphics_state$km_strata %||% input$strata_var,
+        facet_var = graphics_state$km_facet %||% input$facet_var,
+        facet_value = graphics_state$km_facet_values %||% input$facet_value,
+        strata_labels = graphics_state$strata_labels %||% list(),
+        overall_group_label = graphics_state$overall_group_label %||% input$overall_group_label
       )
-    }),
+    )
+  })
+
+  graphics_bind_repro_code_output(
+    output = output,
+    output_id = "repro_code_out",
+    fig_type = "km",
+    state_getter = function() state_reactive()
+  )
+
+  list(
+    state = state_reactive,
     apply_state = apply_state
   )
 }

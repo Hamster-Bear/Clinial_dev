@@ -380,7 +380,8 @@ waterfall_plot_ui <- function(id) {
                   tabPanel("分组轨道数据", DTOutput(ns("track_table")))
                 )
               )
-            )
+            ),
+            graphics_result_repro_tab_ui(ns)
           )
         )
       )
@@ -1328,22 +1329,31 @@ waterfall_plot_server <- function(input, output, session, data) {
     invisible(TRUE)
   }
 
-  list(
-    state = reactive({
-      graphics_build_task_state(
-        input,
-        extra_state = list(
-          subject_id = input$subject_id,
-          value_var = input$value_var,
-          color_by = input$bar_color_by,
-          symbol_by = input$symbol_by,
-          tracks = if (is.null(input$tracks)) character(0) else input$tracks,
-          size_mode = input$size_mode,
-          export_width_in = size_config()$export_width,
-          export_height_in = size_config()$export_height
-        )
+  state_reactive <- reactive({
+    graphics_build_task_state(
+      input,
+      extra_state = list(
+        subject_id = input$subject_id,
+        value_var = input$value_var,
+        color_by = input$bar_color_by,
+        symbol_by = input$symbol_by,
+        tracks = if (is.null(input$tracks)) character(0) else input$tracks,
+        size_mode = input$size_mode,
+        export_width_in = size_config()$export_width,
+        export_height_in = size_config()$export_height
       )
-    }),
+    )
+  })
+
+  graphics_bind_repro_code_output(
+    output = output,
+    output_id = "repro_code_out",
+    fig_type = "waterfall",
+    state_getter = function() state_reactive()
+  )
+
+  list(
+    state = state_reactive,
     apply_state = apply_state
   )
 }

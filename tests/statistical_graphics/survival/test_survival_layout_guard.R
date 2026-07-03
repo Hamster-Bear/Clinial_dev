@@ -35,6 +35,7 @@ expect_contains(survival_text, "graphics_output_action_bar_ui\\(", "生存分析
 expect_contains(survival_text, "tabPanel\\(\\s*\"静态图\"", "生存分析保留静态图页签")
 expect_contains(survival_text, "tabPanel\\(\\s*\"交互图\"", "生存分析保留交互图页签")
 expect_contains(survival_text, "tabPanel\\(\\s*\"数据\"", "生存分析保留数据页签")
+expect_contains(survival_text, "tabPanel\\(\\s*\"可复现代码\"", "生存分析结果区新增可复现代码页签")
 expect_contains(survival_text, "DTOutput\\(ns\\(\"km_data_table\"\\)\\)", "生存分析保留结果数据表输出")
 expect_contains(survival_text, "uiOutput\\(ns\\(\"survival_report\"\\)\\)", "生存分析保留统计报告输出")
 expect_contains(survival_text, "do.call\\(\\s*tabsetPanel", "生存分析保留图形与样式内部页签结构")

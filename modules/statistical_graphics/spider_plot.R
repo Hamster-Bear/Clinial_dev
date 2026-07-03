@@ -311,7 +311,8 @@ spider_plot_ui <- function(id) {
                 tone = "warning",
                 DTOutput(ns("data_table"))
               )
-            )
+            ),
+            graphics_result_repro_tab_ui(ns)
           )
         )
       )
@@ -849,27 +850,36 @@ spider_plot_server <- function(input, output, session, data) {
     invisible(TRUE)
   }
 
-  list(
-    state = reactive({
-      time_axis_cfg <- graphics_collect_time_axis_config(input, unit_id = "time_unit", break_id = "x_break_step")
-      graphics_build_task_state(
-        input,
-        extra_state = list(
-          subject_id = input$subject_id,
-          time_var = input$time_var,
-          value_var = input$value_var,
-          line_color_by = input$line_color_by,
-          facet_var = input$facet_var,
-          add_baseline_zero = input$add_baseline_zero,
-          line_linetype = input$line_linetype,
-          time_unit = time_axis_cfg$unit,
-          x_break_step = time_axis_cfg$break_step,
-          size_mode = input$size_mode,
-          export_width_in = size_config()$export_width,
-          export_height_in = size_config()$export_height
-        )
+  state_reactive <- reactive({
+    time_axis_cfg <- graphics_collect_time_axis_config(input, unit_id = "time_unit", break_id = "x_break_step")
+    graphics_build_task_state(
+      input,
+      extra_state = list(
+        subject_id = input$subject_id,
+        time_var = input$time_var,
+        value_var = input$value_var,
+        line_color_by = input$line_color_by,
+        facet_var = input$facet_var,
+        add_baseline_zero = input$add_baseline_zero,
+        line_linetype = input$line_linetype,
+        time_unit = time_axis_cfg$unit,
+        x_break_step = time_axis_cfg$break_step,
+        size_mode = input$size_mode,
+        export_width_in = size_config()$export_width,
+        export_height_in = size_config()$export_height
       )
-    }),
+    )
+  })
+
+  graphics_bind_repro_code_output(
+    output = output,
+    output_id = "repro_code_out",
+    fig_type = "spider",
+    state_getter = function() state_reactive()
+  )
+
+  list(
+    state = state_reactive,
     apply_state = apply_state
   )
 }

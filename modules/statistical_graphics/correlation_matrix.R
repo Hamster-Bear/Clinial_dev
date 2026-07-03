@@ -135,7 +135,8 @@ correlation_matrix_ui <- function(id) {
           id = ns("output_tabs"),
           tabPanel("静态图", plotOutput(ns("static_plot"), height = "600px")),
           tabPanel("交互图", plotly::plotlyOutput(ns("interactive_plot"), height = "600px")),
-          tabPanel("数据", DTOutput(ns("data_table")))
+          tabPanel("数据", DTOutput(ns("data_table"))),
+          graphics_result_repro_tab_ui(ns)
         )
       )
     )
@@ -312,25 +313,34 @@ correlation_matrix_server <- function(input, output, session, data) {
     invisible(TRUE)
   }
 
-  list(
-    state = reactive({
-      graphics_build_task_state(
-        input,
-        extra_state = list(
-          selected_vars = input$correlation_vars,
-          method = input$correlation_method,
-          plot_title = input$plot_title,
-          plot_xlab = input$plot_xlab,
-          plot_ylab = input$plot_ylab,
-          color_palette = input$color_palette,
-          text_size = input$text_size,
-          tile_size = input$tile_size,
-          show_values = input$show_values,
-          export_format = input$export_format,
-          export_dpi = if (is.null(input$export_dpi)) 300 else input$export_dpi
-        )
+  state_reactive <- reactive({
+    graphics_build_task_state(
+      input,
+      extra_state = list(
+        selected_vars = input$correlation_vars,
+        method = input$correlation_method,
+        plot_title = input$plot_title,
+        plot_xlab = input$plot_xlab,
+        plot_ylab = input$plot_ylab,
+        color_palette = input$color_palette,
+        text_size = input$text_size,
+        tile_size = input$tile_size,
+        show_values = input$show_values,
+        export_format = input$export_format,
+        export_dpi = if (is.null(input$export_dpi)) 300 else input$export_dpi
       )
-    }),
+    )
+  })
+
+  graphics_bind_repro_code_output(
+    output = output,
+    output_id = "repro_code_out",
+    fig_type = "correlation",
+    state_getter = function() state_reactive()
+  )
+
+  list(
+    state = state_reactive,
     apply_state = apply_state
   )
 }

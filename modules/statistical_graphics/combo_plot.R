@@ -237,7 +237,8 @@ combo_plot_ui <- function(id) {
                 tone = "warning",
                 DTOutput(ns("combo_data_table"))
               )
-            )
+            ),
+            graphics_result_repro_tab_ui(ns)
           )
         )
       )
@@ -660,17 +661,26 @@ combo_plot_server <- function(input, output, session, data) {
     invisible(TRUE)
   }
 
-  list(
-    state = reactive({
-      cp <- committed_params()
-      graphics_build_task_state(
-        input,
-        extra_state = list(
-          plot_types = if (!is.null(cp$plot_types)) cp$plot_types else input$plot_types,
-          method = if (!is.null(cp$combo_method)) cp$combo_method else input$combo_method
-        )
+  state_reactive <- reactive({
+    cp <- committed_params()
+    graphics_build_task_state(
+      input,
+      extra_state = list(
+        plot_types = if (!is.null(cp$plot_types)) cp$plot_types else input$plot_types,
+        method = if (!is.null(cp$combo_method)) cp$combo_method else input$combo_method
       )
-    }),
+    )
+  })
+
+  graphics_bind_repro_code_output(
+    output = output,
+    output_id = "repro_code_out",
+    fig_type = "combo",
+    state_getter = function() state_reactive()
+  )
+
+  list(
+    state = state_reactive,
     apply_state = apply_state
   )
 }
