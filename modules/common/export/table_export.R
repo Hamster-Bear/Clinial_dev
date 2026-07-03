@@ -1,5 +1,7 @@
 build_table_export_filename <- function(prefix, format, include_time = FALSE) {
   export_format <- tolower(if (is.null(format) || !nzchar(format)) "docx" else format)
+  # 规范化：内部 "word" 映射为文件扩展名 "docx"
+  export_format <- switch(export_format, word = "docx", export_format)
   stamp <- if (include_time) format(Sys.time(), "%Y%m%d_%H%M%S") else as.character(Sys.Date())
   paste0(prefix, "_", stamp, ".", export_format)
 }
@@ -214,29 +216,54 @@ apply_sci_gt_style <- function(gt_table, title = NULL, footnotes = NULL, left_co
 }
 
 save_table_png <- function(file, table_obj, width = 10, height = 8, dpi = 300, title = NULL, footnotes = NULL) {
-  if (inherits(table_obj, "ggplot")) {
-    ggsave(filename = file, plot = table_obj, width = width, height = height, dpi = dpi, bg = "white")
-    return(invisible(TRUE))
-  }
-  if (inherits(table_obj, "gt_tbl")) {
-    gt_obj <- apply_sci_gt_style(table_obj, title = title, footnotes = footnotes)
-    gt::gtsave(data = gt_obj, filename = file)
-    return(invisible(TRUE))
-  }
-  if (is.data.frame(table_obj)) {
-    grDevices::png(filename = file, width = width, height = height, units = "in", res = dpi, bg = "white")
-    on.exit(grDevices::dev.off(), add = TRUE)
-    grid::grid.newpage()
-    grid::grid.draw(gridExtra::tableGrob(table_obj))
-    return(invisible(TRUE))
-  }
-  text_content <- graphics_with_showtext_paused(paste(capture.output(print(table_obj)), collapse = "\n"))
-  data_frame <- data.frame(Result = strsplit(text_content, "\n", fixed = TRUE)[[1]], stringsAsFactors = FALSE)
-  grDevices::png(filename = file, width = width, height = height, units = "in", res = dpi, bg = "white")
-  on.exit(grDevices::dev.off(), add = TRUE)
-  grid::grid.newpage()
-  grid::grid.draw(gridExtra::tableGrob(data_frame))
-  invisible(TRUE)
+  tryCatch({
+    if (inherits(table_obj, "ggplot")) {
+      tryCatch({
+        ggsave(filename = file, plot = table_obj, width = width, height = height, dpi = dpi, bg = "white")
+      }, error = function(e) {
+        stop(sprintf("ggplot 对象 PNG 导出失败: %s", conditionMessage(e)))
+      })
+      return(invisible(TRUE))
+    }
+    if (inherits(table_obj, "gt_tbl")) {
+      if (!requireNamespace("webshot2", quietly = TRUE)) {
+        stop("表格 PNG 导出需要 webshot2 包。请运行 install.packages('webshot2') 安装。")
+      }
+      tryCatch({
+        gt_obj <- apply_sci_gt_style(table_obj, title = title, footnotes = footnotes)
+        gt::gtsave(data = gt_obj, filename = file)
+      }, error = function(e) {
+        stop(sprintf("gt 表格 PNG 导出失败: %s", conditionMessage(e)))
+      })
+      return(invisible(TRUE))
+    }
+    if (is.data.frame(table_obj)) {
+      tryCatch({
+        grDevices::png(filename = file, width = width, height = height, units = "in", res = dpi, bg = "white")
+        on.exit(grDevices::dev.off(), add = TRUE)
+        grid::grid.newpage()
+        grid::grid.draw(gridExtra::tableGrob(table_obj))
+      }, error = function(e) {
+        stop(sprintf("data.frame 表格 PNG 导出失败: %s", conditionMessage(e)))
+      })
+      return(invisible(TRUE))
+    }
+    tryCatch({
+      text_content <- graphics_with_showtext_paused(paste(capture.output(print(table_obj)), collapse = "\n"))
+      data_frame <- data.frame(Result = strsplit(text_content, "\n", fixed = TRUE)[[1]], stringsAsFactors = FALSE)
+      grDevices::png(filename = file, width = width, height = height, units = "in", res = dpi, bg = "white")
+      on.exit(grDevices::dev.off(), add = TRUE)
+      grid::grid.newpage()
+      grid::grid.draw(gridExtra::tableGrob(data_frame))
+    }, error = function(e) {
+      stop(sprintf("文本回退表格 PNG 导出失败: %s", conditionMessage(e)))
+    })
+    invisible(TRUE)
+  }, error = function(e) {
+    msg <- sprintf("[TableExportError] PNG export failed: %s", conditionMessage(e))
+    message(msg)
+    stop(msg)
+  })
 }
 
 build_sci_flextable <- function(table_obj, title = "导出结果", footnotes = NULL, merge_first_col = TRUE) {
@@ -609,6 +636,156 @@ extract_table_for_export <- function(result_obj) {
   result_obj
 }
 
+#' R 原生表格 PDF 导出（零外部依赖）
+#'
+#' 使用 grid::grid.table / gridExtra::tableGrob + grDevices::cairo_pdf 将表格
+#' 渲染为 PDF，无需 Chromium、pandoc 或 rmarkdown。
+#'
+#' @param file 输出 PDF 文件路径
+#' @param table_obj gt_tbl / data.frame / TableTree / InstantiatedColumnInfo 对象
+#' @param width 页面宽度（英寸）
+#' @param height 页面高度（英寸）
+#' @param title 表格标题（可选）
+#' @param footnotes 脚注字符向量（可选）
+#' @param pointsize 基础字体大小（pt）
+save_table_pdf_native <- function(file, table_obj, width = 10, height = 8,
+                                   title = NULL, footnotes = NULL,
+                                   pointsize = 10) {
+  tryCatch({
+    # 提取纯数据框（复用现有提取逻辑，处理 gt/rtables/data.frame/文本回退）
+    df <- extract_table_dataframe(table_obj)
+    if (!is.data.frame(df) || nrow(df) == 0) {
+      stop("无法从表格对象提取有效数据")
+    }
+
+    # 统一列名为字符型，避免 tableGrob 显示 NA
+    colnames(df) <- make.unique(ifelse(
+      is.na(names(df)) | !nzchar(names(df)),
+      paste0("Col", seq_along(names(df))),
+      names(df)
+    ), sep = "_")
+
+    # 所有单元格转为字符
+    df[] <- lapply(df, as.character)
+    df[is.na(df)] <- ""
+
+    font_family <- "sans"
+
+    # 规范化脚注
+    footnote_vec <- normalize_footnotes(footnotes)
+    has_title <- !is.null(title) && nzchar(trimws(title))
+    has_footnotes <- length(footnote_vec) > 0
+
+    # 计算布局行数
+    n_parts <- 1L  # 表格本体
+    if (has_title) n_parts <- n_parts + 1L
+    if (has_footnotes) n_parts <- n_parts + length(footnote_vec)
+
+    # 高度分配
+    heights <- rep(1, n_parts)
+    title_row <- NULL
+    table_row <- 1L
+    fn_start <- NULL
+
+    if (has_title && has_footnotes) {
+      heights <- c(0.08, 0.82, rep(0.10 / length(footnote_vec), length(footnote_vec)))
+      title_row <- 1L
+      table_row <- 2L
+      fn_start <- 3L
+    } else if (has_title) {
+      heights <- c(0.08, 0.92)
+      title_row <- 1L
+      table_row <- 2L
+    } else if (has_footnotes) {
+      heights <- c(0.90, rep(0.10 / length(footnote_vec), length(footnote_vec)))
+      table_row <- 1L
+      fn_start <- 2L
+    }
+
+    # 打开 PDF 设备（优先 Cairo，兜底基础 pdf）
+    device_ok <- tryCatch({
+      grDevices::cairo_pdf(file, width = width, height = height,
+                           pointsize = pointsize, bg = "white")
+      TRUE
+    }, error = function(e) {
+      message(sprintf("[TableExport] cairo_pdf 不可用，回退到基础 pdf 设备: %s",
+                      conditionMessage(e)))
+      FALSE
+    })
+    if (!isTRUE(device_ok)) {
+      grDevices::pdf(file, width = width, height = height,
+                     pointsize = pointsize, bg = "white")
+    }
+    on.exit(grDevices::dev.off(), add = TRUE)
+
+    grid::grid.newpage()
+
+    # 创建网格布局
+    grid::pushViewport(grid::viewport(
+      layout = grid::grid.layout(n_parts, 1,
+                                  heights = grid::unit(heights, "npc"))
+    ))
+
+    # 标题
+    if (has_title) {
+      grid::pushViewport(grid::viewport(layout.pos.row = title_row, layout.pos.col = 1))
+      grid::grid.text(
+        trimws(title),
+        x = grid::unit(0.02, "npc"), hjust = 0,
+        gp = grid::gpar(fontsize = pointsize + 2, fontface = "bold",
+                        fontfamily = font_family)
+      )
+      grid::popViewport()
+    }
+
+    # 表格主体
+    grid::pushViewport(grid::viewport(layout.pos.row = table_row, layout.pos.col = 1))
+    tbl_theme <- gridExtra::ttheme_default(
+      base_size = pointsize,
+      base_family = font_family,
+      padding = grid::unit(c(2, 4), "mm"),
+      core = list(
+        fg_params = list(hjust = 0, x = 0.02),
+        bg_params = list(fill = "white")
+      ),
+      colhead = list(
+        fg_params = list(fontface = "bold", hjust = 0, x = 0.02),
+        bg_params = list(fill = "#f5f5f5")
+      )
+    )
+    tbl_grob <- gridExtra::tableGrob(
+      df,
+      rows = NULL,
+      theme = tbl_theme
+    )
+    grid::grid.draw(tbl_grob)
+    grid::popViewport()
+
+    # 脚注
+    if (has_footnotes) {
+      for (i in seq_along(footnote_vec)) {
+        grid::pushViewport(grid::viewport(
+          layout.pos.row = fn_start + i - 1L,
+          layout.pos.col = 1
+        ))
+        grid::grid.text(
+          footnote_vec[i],
+          x = grid::unit(0.02, "npc"), hjust = 0,
+          gp = grid::gpar(fontsize = pointsize - 2, fontfamily = font_family)
+        )
+        grid::popViewport()
+      }
+    }
+
+    invisible(TRUE)
+  }, error = function(e) {
+    msg <- sprintf("[TableExportError] Native PDF export failed: %s",
+                   conditionMessage(e))
+    message(msg)
+    stop(msg)
+  })
+}
+
 save_table_export <- function(file, result_obj, format = "word", title = "导出结果", footnotes = NULL, report_md = NULL, method_name = "统计分析", include_report = FALSE, merge_first_col = TRUE) {
   fmt <- tolower(if (is.null(format) || !nzchar(format)) "word" else format)
   fmt <- switch(fmt, docx = "word", fmt)
@@ -620,12 +797,27 @@ save_table_export <- function(file, result_obj, format = "word", title = "导出
   if (!fmt %in% c("html", "rtf", "pdf")) {
     stop("仅支持 word/html/rtf/pdf 导出格式")
   }
-  if (!requireNamespace("rmarkdown", quietly = TRUE)) {
-    stop("导出 HTML/RTF/PDF 需要安装 rmarkdown 包")
+  prereq_err <- graphics_check_export_prerequisites(fmt)
+  if (!is.null(prereq_err)) {
+    stop(prereq_err)
   }
-  if (identical(fmt, "pdf") && !requireNamespace("pagedown", quietly = TRUE)) {
-    stop("导出 PDF 需要安装 pagedown 包")
+
+  # PDF 格式走 R 原生路径（零外部依赖），不走 rmarkdown→chrome_print
+  if (identical(fmt, "pdf")) {
+    if (isTRUE(include_report)) {
+      stop("PDF 导出暂不支持附带分析报告。请使用 Word 格式导出完整报告。")
+    }
+    save_table_pdf_native(
+      file = file,
+      table_obj = table_obj,
+      width = 10,
+      height = 8,
+      title = title,
+      footnotes = footnotes
+    )
+    return(invisible(TRUE))
   }
+
   rendered_table <- if (inherits(table_obj, "gt_tbl")) {
     apply_sci_gt_style(table_obj, title = title, footnotes = footnotes)
   } else if (is.data.frame(table_obj)) {
@@ -693,29 +885,15 @@ save_table_export <- function(file, result_obj, format = "word", title = "导出
   }
   tmp_rmd <- tempfile(fileext = ".Rmd")
   writeLines(rmd_content, tmp_rmd)
-  output_format <- switch(fmt, html = "html_document", rtf = "rtf_document", pdf = "html_document", "word_document")
-  if (identical(fmt, "pdf")) {
-    tmp_html <- tempfile(fileext = ".html")
-    rmarkdown::render(
-      input = tmp_rmd,
-      output_format = output_format,
-      output_file = basename(tmp_html),
-      output_dir = dirname(tmp_html),
-      params = list(payload_rds = tmp_rds, method_name = payload$method_name),
-      envir = new.env(parent = globalenv()),
-      quiet = TRUE
-    )
-    pagedown::chrome_print(input = normalizePath(tmp_html, winslash = "/", mustWork = TRUE), output = file)
-  } else {
-    rmarkdown::render(
-      input = tmp_rmd,
-      output_format = output_format,
-      output_file = basename(file),
-      output_dir = dirname(file),
-      params = list(payload_rds = tmp_rds, method_name = payload$method_name),
-      envir = new.env(parent = globalenv()),
-      quiet = TRUE
-    )
-  }
+  output_format <- switch(fmt, html = "html_document", rtf = "rtf_document", "word_document")
+  rmarkdown::render(
+    input = tmp_rmd,
+    output_format = output_format,
+    output_file = basename(file),
+    output_dir = dirname(file),
+    params = list(payload_rds = tmp_rds, method_name = payload$method_name),
+    envir = new.env(parent = globalenv()),
+    quiet = TRUE
+  )
   invisible(TRUE)
 }

@@ -1170,3 +1170,44 @@ graphics_apply_x_break_step <- function(plot_obj, x_data, break_step) {
   }
   plot_obj
 }
+
+#' 导出格式前置依赖检测
+#'
+#' 检测指定导出格式所需的外部依赖是否可用。
+#' - html/rtf: 需要 rmarkdown + pandoc
+#' - pdf: 使用 R 原生 cairo_pdf 设备，零外部依赖，无需额外检测
+#'
+#' @param format 导出格式 ("html", "rtf", "pdf")
+#' @return NULL 表示所有依赖可用；字符串表示错误信息
+graphics_check_export_prerequisites <- function(format) {
+  fmt <- tolower(if (is.null(format) || !nzchar(format)) "html" else format)
+
+  # PDF 使用 R 原生路径 (save_table_pdf_native)，零外部依赖
+  if (identical(fmt, "pdf")) {
+    return(NULL)
+  }
+
+  if (fmt %in% c("html", "rtf")) {
+    if (!requireNamespace("rmarkdown", quietly = TRUE)) {
+      return("导出 HTML/RTF 需要安装 rmarkdown 包")
+    }
+    pandoc_available <- tryCatch({
+      rmarkdown::pandoc_available()
+    }, error = function(e) FALSE)
+    if (!isTRUE(pandoc_available)) {
+      return("导出 HTML/RTF 需要 pandoc，当前环境未检测到。请安装 RStudio 或 pandoc。")
+    }
+  }
+
+  NULL
+}
+
+#' 表格 PNG 导出前置依赖检测
+#'
+#' @return NULL 表示 webshot2 可用；字符串表示错误信息
+graphics_check_png_prerequisites <- function() {
+  if (!requireNamespace("webshot2", quietly = TRUE)) {
+    return("表格 PNG 导出需要 webshot2 包。请运行 install.packages('webshot2') 安装。")
+  }
+  NULL
+}

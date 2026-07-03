@@ -102,6 +102,26 @@ statistical_analysis_ui <- function(id) {
               )
             ),
             tabPanel(
+              "导出配置",
+              app_result_panel(
+                title = "导出配置",
+                note = copy$result$export_note,
+                tone = "warning",
+                fluidRow(
+                  column(4, selectInput(ns("dl_format"), "导出格式", choices = c("Word" = "word", "HTML" = "html", "RTF" = "rtf", "PDF" = "pdf"), selected = "word")),
+                  column(4, div(style = "padding-top: 25px;", checkboxInput(ns("dl_include_report"), "导出包含报告", value = FALSE))),
+                  column(4, textInput(ns("export_title"), "导出标题", value = "Table 1. Statistical Analysis Results"))
+                ),
+                fluidRow(
+                  column(12, textAreaInput(ns("export_footnotes"), "导出脚注（每行一条）",
+                    value = "Data are presented as n (%) for categorical variables and summary statistics for continuous variables.\nP values were calculated using method-specific tests.\nMissing values were retained and reported as available in source data.",
+                    rows = 3))
+                ),
+                br(),
+                div(style = "text-align: right;", downloadButton(ns("dl_table"), "导出报告", class = "btn-primary"))
+              )
+            ),
+            tabPanel(
               "可复现代码",
               app_result_panel(
                 title = "可复现代码",
@@ -109,22 +129,6 @@ statistical_analysis_ui <- function(id) {
                 tone = "primary",
                 verbatimTextOutput(ns("repro_code_out"))
               )
-            )
-          ),
-          app_result_panel(
-            title = "导出配置",
-            note = copy$result$export_note,
-            tone = "warning",
-            fluidRow(
-              column(3, selectInput(ns("dl_format"), "导出格式", choices = c("Word" = "word", "HTML" = "html", "RTF" = "rtf", "PDF" = "pdf"), selected = "word")),
-              column(3, div(style = "padding-top: 25px;", checkboxInput(ns("dl_include_report"), "导出包含报告", value = FALSE))),
-              column(3, textInput(ns("export_title"), "导出标题", value = "Table 1. Statistical Analysis Results")),
-              column(3, div(style = "padding-top: 25px;", downloadButton(ns("dl_table"), "导出报告", class = "btn-primary")))
-            ),
-            fluidRow(
-              column(12, textAreaInput(ns("export_footnotes"), "导出脚注（每行一条）",
-                value = "Data are presented as n (%) for categorical variables and summary statistics for continuous variables.\nP values were calculated using method-specific tests.\nMissing values were retained and reported as available in source data.",
-                rows = 3))
             )
           )
         )

@@ -53,10 +53,14 @@ autotfl_required_packages <- function() {
     "rlistings",
     "r2rtf",
     "rmarkdown",
-    "pagedown",
+    "webshot2",
     "knitr",
+    # pagedown — 可选依赖：表格 PDF 导出已改为 R 原生 cairo_pdf 路径，不再需要 Chromium。
+    # 如将来需要 chrome_print 功能（如复杂 HTML→PDF），可取消注释。
+    # "pagedown",
     "flextable",
     "officer",
+    "svglite",
     "testthat",
     "lintr",
     "styler",

@@ -804,21 +804,29 @@ spider_plot_server <- function(input, output, session, data) {
       build_plot_export_filename("spider_plot", input$export_format)
     },
     content = function(file) {
-      req(final_plot())
-      cfg <- committed_size_config()
-      save_plot_export(
-        file = file,
-        plot_obj = graphics_apply_canvas_frame(
-          final_plot(),
-          frame_width_px = cfg$static_width,
-          frame_height_px = cfg$static_height,
-          canvas_config = cfg
-        ),
-        format = input$export_format,
-        width = cfg$export_width,
-        height = cfg$export_height,
-        dpi = input$export_dpi %||% 600
-      )
+      tryCatch({
+        req(final_plot())
+        cfg <- committed_size_config()
+        save_plot_export(
+          file = file,
+          plot_obj = graphics_apply_canvas_frame(
+            final_plot(),
+            frame_width_px = cfg$static_width,
+            frame_height_px = cfg$static_height,
+            canvas_config = cfg
+          ),
+          format = input$export_format,
+          width = cfg$export_width,
+          height = cfg$export_height,
+          dpi = input$export_dpi %||% 600
+        )
+      }, error = function(e) {
+        msg <- sprintf("[GraphicsExportError][spider] fmt=%s: %s",
+                       input$export_format %||% "png", conditionMessage(e))
+        message(msg)
+        showNotification(paste("spider导出失败：", conditionMessage(e)), type = "error")
+        stop(msg)
+      })
     }
   )
 

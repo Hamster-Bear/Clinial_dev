@@ -22,6 +22,7 @@ updated: 2026-06-30
 
 | 日期 | 子计划 | 文件 | 已同步到 |
 |------|--------|------|----------|
+| 2026-07-03 | 导出链路深度修复 | [P1-export-chain-deep-fix.md](plans/complete/P1-export-chain-deep-fix.md) | PROJECT_GUIDE, TEST_GUIDE |
 | 2026-06-30 | 导出链路质量修复 | [P0-export-chain-remediation.md](plans/complete/P0-export-chain-remediation.md) | TEST_GUIDE |
 | 2026-06-22 | 非阻断技术债收敛 | [P0-tech-debt.md](plans/complete/P0-tech-debt.md) | PROJECT_GUIDE, TEST_GUIDE |
 | 2026-06-18 | Review 8 阻断级修复 | [P0-critical-remediation.md](plans/complete/P0-critical-remediation.md) | PROJECT_SPEC, PROJECT_GUIDE, TEST_GUIDE, CODE_STYLE |

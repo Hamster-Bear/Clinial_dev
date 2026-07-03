@@ -295,31 +295,12 @@ forest_plot_ui <- function(id) {
           tags$div(
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
-                tabPanel(
-                  "尺寸与画布",
-                  br(),
-                  graphics_card_panel_ui(
-                    "尺寸与画布",
-                    tagList(
-                      fluidRow(
-                        column(6, numericInput(ns("plot_width"), "宽度(英寸)", value = 14, min = 8, max = 20, step = 1, width = "100%")),
-                        column(6, numericInput(ns("plot_height"), "高度(英寸)", value = 10, min = 6, max = 16, step = 1, width = "100%"))
-                      ),
-                      sliderInput(ns("plot_ratio"), "表格/图形宽度比", min = 0.3, max = 0.7, value = 0.55, step = 0.05, width = "100%"),
-                      helpText("森林图导出中，宽高控制输出尺寸，表格/图形宽度比控制左右布局。")
-                    )
-                  )
-                ),
-                tabPanel(
-                  "导出参数",
-                  br(),
-                  graphics_export_panel_ui(
-                    ns,
-                    title = "导出参数",
-                    include_render_button = FALSE,
-                    include_size_mode = FALSE,
-                    include_download_button = FALSE
-                  )
+                tabPanel("尺寸与导出", br(),
+                  graphics_export_size_controls_ui(ns, download_id = "download_plot",
+                    include_size_mode = TRUE, include_download_button = FALSE),
+                  hr(),
+                  sliderInput(ns("plot_ratio"), "表格/图形宽度比", min = 0.3, max = 0.7, value = 0.55, step = 0.05, width = "100%"),
+                  helpText("森林图导出中，表格/图形宽度比控制左右布局。")
                 )
               )
           )
@@ -383,7 +364,12 @@ forest_plot_ui <- function(id) {
 forest_plot_server <- function(input, output, session, data) {
   ns <- session$ns
   `%||%` <- function(x, y) if (is.null(x)) y else x
-  
+
+  # 导出尺寸配置
+  size_config <- reactive({
+    graphics_collect_size_config(input)
+  })
+
   # 存储用户选择和变量历史
   user_selections <- reactiveValues(
     subgroup_col = NULL,
@@ -1440,22 +1426,36 @@ forest_plot_server <- function(input, output, session, data) {
   # 下载图形
   output$download_plot <- downloadHandler(
     filename = function() {
-      export_fmt <- if (is.null(input$export_format) || !nzchar(input$export_format)) "png" else input$export_format
+      export_fmt <- input$export_format %||% "png"
       build_plot_export_filename("forest_plot", export_fmt, include_time = TRUE)
     },
     content = function(file) {
-      export_fmt <- if (is.null(input$export_format) || !nzchar(input$export_format)) "png" else input$export_format
-      export_dpi <- suppressWarnings(as.numeric(input$export_dpi))
-      if (is.na(export_dpi) || !is.finite(export_dpi)) export_dpi <- 600
-      save_plot_export(
-        file = file,
-        plot_obj = forest_plot_reactive(),
-        format = export_fmt,
-        width = input$plot_width,
-        height = input$plot_height,
-        dpi = export_dpi,
-        bg = "white"
-      )
+      tryCatch({
+        export_fmt <- input$export_format %||% "png"
+        export_dpi <- suppressWarnings(as.numeric(input$export_dpi))
+        if (is.na(export_dpi) || !is.finite(export_dpi)) export_dpi <- 600
+        cfg <- size_config()
+        save_plot_export(
+          file = file,
+          plot_obj = graphics_apply_canvas_frame(
+            forest_plot_reactive(),
+            frame_width_px = cfg$static_width,
+            frame_height_px = cfg$static_height,
+            canvas_config = cfg
+          ),
+          format = export_fmt,
+          width = cfg$export_width,
+          height = cfg$export_height,
+          dpi = export_dpi,
+          bg = "white"
+        )
+      }, error = function(e) {
+        msg <- sprintf("[GraphicsExportError][forest] fmt=%s: %s",
+                       input$export_format %||% "png", conditionMessage(e))
+        message(msg)
+        showNotification(paste("森林图导出失败：", conditionMessage(e)), type = "error")
+        stop(msg)
+      })
     }
   )
 

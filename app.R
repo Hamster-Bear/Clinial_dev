@@ -9,6 +9,7 @@ required_packages <- c(
   "waiter", "shinyalert", "scales", "gridExtra", "cowplot", "RColorBrewer",
   "tidyr", "memoise", "shinyWidgets", "gtsummary",
   "DBI", "RPostgres", "pool", "rmarkdown", "knitr", "flextable", "officer",
+  "webshot2",
   "showtext", "sysfonts", "jsonlite"
 )
 

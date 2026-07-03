@@ -13,3 +13,8 @@
 | R009 | 2026-06-25 | 11:55 | - | - | 宿主机离线部署菜单与发布入口统一 | `scripts/offline-ops.sh`, `scripts/build_deploy_package.ps1`, `docs/deploy/` | active/DEVLOG-R001-R040.md |
 | R010 | 2026-06-30 | 14:00 | P0-export-chain-remediation | P1-P2 | 导出链路质量修复：tryCatch、CJK fallback、listing RTF 统一 | `modules/tables.R`, `modules/common/export/table_export.R` | active/DEVLOG-R001-R040.md |
 | R011 | 2026-06-30 | 15:30 | - | - | t_ae_soc_pt 导出修复：rtables matrix_form 多列结构保留 | `modules/common/export/table_export.R` | active/DEVLOG-R001-R040.md |
+| R012 | 2026-07-03 | 13:00 | P1-export-chain-deep-fix | P1-P2 | 导出链路深度修复：tryCatch 全覆盖 + 前置检测 + 依赖补齐 | `config/`, `app.R`, `modules/` (12 files), `docs/dep/` | active/DEVLOG-R001-R040.md |
+| R013 | 2026-07-03 | 14:00 | P1-export-chain-deep-fix | P2 | 图表导出尺寸统一：5 模块接入公共 size_config | `modules/statistical_graphics/` (5 files), `docs/dep/` | active/DEVLOG-R001-R040.md |
+| R014 | 2026-07-03 | 14:30 | P1-export-chain-deep-fix | P3 | R 原生表格 PDF 导出 — 移除 Chromium 外部依赖 | `modules/common/export/table_export.R`, `modules/common/graphics/graphics_common.R`, `config/` | active/DEVLOG-R001-R040.md |
+| R015 | 2026-07-03 | 15:00 | - | - | 导出格式 committed_params 冻结 bug 修复（boxplot/combo/tables） | `modules/statistical_graphics/boxplot.R`, `combo_plot.R`, `modules/tables.R`, `modules/common/export/table_export.R` | active/DEVLOG-R001-R040.md |
+| R016 | 2026-07-03 | 15:15 | - | - | UI 重构：导出配置移至结果区子页签，按钮移至卡片右上角 | `modules/statistical_analysis.R`, `modules/statistical_graphics/` (9 files) | active/DEVLOG-R001-R040.md |

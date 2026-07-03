@@ -435,3 +435,139 @@
 - commit: 本轮 P0 修复提交
 
 ---
+
+## 2026-07-03
+
+### R012 [13:00] [P1-export-chain-deep-fix] P1-P2: 导出链路深度修复 — tryCatch 全覆盖 + 前置检测 + 依赖补齐
+
+#### Done
+- **依赖补齐**: `webshot2` 和 `svglite` 加入 `config/required_packages.R` 和 `app.R` 启动校验清单。解决表格 PNG 导出因 `gt::gtsave` 缺少 `webshot2` 而静默失败的问题。
+- **save_table_png tryCatch**: `save_table_png()` 4 个分支各自加独立 tryCatch + 语义化错误消息；最外层统一 `[TableExportError]` 日志记录。
+- **9 个图表模块 tryCatch 全覆盖**: boxplot、survival、forest、heatmap、correlation_matrix、combo、waterfall、swimmer、spider 全部 downloadHandler 加 `tryCatch` + `showNotification` + `message("[GraphicsExportError]...")` 统一错误处理模式（以 tables.R 为参考）。
+- **导出前置检测函数**: `graphics_common.R` 新增 `graphics_check_export_prerequisites(format)` 和 `graphics_check_png_prerequisites()`，统一检测 pandoc/Chrome/webshot2 可用性。
+- **table_export 集成前置检测**: `save_table_export()` 替换原有的分散 `requireNamespace` 检查为统一的 `graphics_check_export_prerequisites(fmt)`。
+- **PDF R 原生方案**: 文档化到子计划 P3 — 使用 `gridExtra::tableGrob` + `grDevices::cairo_pdf`（零外部依赖），待后续实施。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| 代码审查（静态） | 通过 | 9 模块 + 2 工具文件修改，模式一致 |
+
+#### Issues / Blockers
+- PDF 格式暂搁置（P3），当前 `pagedown::chrome_print` 路径仍依赖 Chromium，在无 Chrome 环境下会给出明确错误提示而非静默失败。
+- 图表模块导出尺寸统一（boxplot/heatmap/correlation_matrix/combo/forest 统一从 committed_params + size_config 读取）延后至后续轮次。
+
+#### Next
+1. P3: 实施 R 原生表格 PDF 导出（`save_table_pdf_native`），移除 Chromium 外部依赖
+2. 图表模块导出尺寸统一：boxplot、heatmap、correlation_matrix、combo_plot、forest_plot
+
+#### Files Changed
+- `config/required_packages.R`（修改）— 添加 webshot2, svglite
+- `app.R`（修改）— 添加 webshot2 到启动校验
+- `modules/common/export/table_export.R`（修改）— save_table_png tryCatch + 前置检测集成
+- `modules/common/graphics/graphics_common.R`（修改）— 新增 graphics_check_export_prerequisites, graphics_check_png_prerequisites
+- `modules/statistical_graphics/boxplot.R`（修改）— downloadHandler tryCatch
+- `modules/statistical_graphics/survival_analysis.R`（修改）— downloadHandler tryCatch
+- `modules/statistical_graphics/forest_plot.R`（修改）— downloadHandler tryCatch
+- `modules/statistical_graphics/heatmap.R`（修改）— downloadHandler tryCatch
+- `modules/statistical_graphics/correlation_matrix.R`（修改）— downloadHandler tryCatch
+- `modules/statistical_graphics/combo_plot.R`（修改）— downloadHandler tryCatch
+- `modules/statistical_graphics/waterfall_plot.R`（修改）— downloadHandler tryCatch
+- `modules/statistical_graphics/swimmer_plot.R`（修改）— downloadHandler tryCatch
+- `modules/statistical_graphics/spider_plot.R`（修改）— downloadHandler tryCatch
+- `docs/dep/plans/ongoing/P1-export-chain-deep-fix.md`（新建）— 子计划
+- `docs/dep/PLAN.md`（修改）— 注册子计划
+- `docs/dep/TASK_STATE.md`（新建/修改）— 任务检查点
+
+---
+
+## 2026-07-03
+
+### R013 [14:00] [P1-export-chain-deep-fix] P2: 图表导出尺寸统一 — 5 模块接入公共 size_config
+
+#### Done
+- **boxplot/heatmap/correlation_matrix/combo/forest 全部接入 `graphics_collect_size_config(input)` 统一尺寸体系**：
+  - UI 侧：将原 `graphics_export_panel_ui(include_size_mode=FALSE)` + 空占位"尺寸与画布"tab 替换为 `graphics_export_size_controls_ui(include_size_mode=TRUE)`，提供宽图标准/自定义尺寸双模式、同步导出尺寸、画布边框等完整尺寸控制
+  - Server 侧：每个模块新增 `size_config <- reactive({ graphics_collect_size_config(input) })`
+  - DownloadHandler 侧：导出尺寸从硬编码（10×8 / 12×8 / input$plot_width×input$plot_height）统一为 `cfg$export_width` × `cfg$export_height`，并统一应用 `graphics_apply_canvas_frame()` 画布边框包装
+- **forest_plot 特殊处理**：保留 `plot_ratio` 滑块作为森林图专属控件（表格/图形宽度比），其余尺寸控制全部接入标准体系
+- **前后端一致性**：UI 中用户设置的尺寸模式/px值/ppi/边距 → `graphics_collect_size_config(input)` 解析 → downloadHandler 使用解析后的英寸尺寸 → `save_plot_export` 输出，全链路统一
+
+#### 统一前后对比
+
+| 模块 | 修改前 | 修改后 |
+|------|--------|--------|
+| boxplot | `width=10, height=8` 硬编码 | `cfg$export_width, cfg$export_height` + canvas_frame |
+| heatmap | `width=10, height=8` 硬编码 | `cfg$export_width, cfg$export_height` + canvas_frame |
+| correlation_matrix | `width=10, height=8` 硬编码 | `cfg$export_width, cfg$export_height` + canvas_frame |
+| combo_plot | `width=12, height=8` 硬编码 | `cfg$export_width, cfg$export_height` + canvas_frame |
+| forest_plot | `input$plot_width, input$plot_height` | `cfg$export_width, cfg$export_height` + canvas_frame |
+| survival/waterfall/swimmer/spider | 已使用 size_config | 不变 |
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| 代码审查（静态模式一致） | 通过 | 9 模块全部使用 `graphics_collect_size_config(input)` |
+
+#### Issues / Blockers
+- None.
+
+#### Next
+1. P3: 实施 R 原生表格 PDF 导出（`save_table_pdf_native`），移除 Chromium 外部依赖
+
+#### Files Changed
+- `modules/statistical_graphics/boxplot.R`（修改）— UI: size controls; server: size_config; downloadHandler: cfg sizing + canvas_frame
+- `modules/statistical_graphics/heatmap.R`（修改）— 同上
+- `modules/statistical_graphics/correlation_matrix.R`（修改）— 同上
+- `modules/statistical_graphics/combo_plot.R`（修改）— 同上
+- `modules/statistical_graphics/forest_plot.R`（修改）— 同上 + 保留 plot_ratio
+- `docs/dep/plans/ongoing/P1-export-chain-deep-fix.md`（修改）— P2 完成标准更新
+- `docs/dep/PLAN.md`（修改）— 当前阶段 P2→P3
+
+---
+
+### R014 [14:30] [P1-export-chain-deep-fix] P3: R 原生表格 PDF 导出 — 移除 Chromium 外部依赖
+
+#### Done
+- **新增 `save_table_pdf_native()` 函数**（`table_export.R`）：使用 `gridExtra::tableGrob` + `grDevices::cairo_pdf`（R 内置设备）将表格渲染为 PDF，零外部依赖。
+  - 复用 `extract_table_dataframe()` 处理 gt_tbl / data.frame / rtables / 文本回退
+  - 网格布局：标题（可选）+ 表格主体 + 脚注（可选），自适应高度分配
+  - Cairo 不可用时自动回退到基础 `grDevices::pdf` 设备
+  - 全链路 tryCatch 错误保护
+- **`save_table_export` PDF 路径重写**：`fmt == "pdf"` 时直接调用 `save_table_pdf_native()`，跳过原有的 `rmarkdown::render` → `pagedown::chrome_print` 路径（~40 行删除）。
+  - `include_report=TRUE` + PDF 给出明确错误提示："请使用 Word 格式导出完整报告"
+- **`graphics_check_export_prerequisites` 简化**：PDF 格式返回 `NULL`（零外部依赖），不再检查 pagedown/Chrome。HTML/RTF 仍检查 rmarkdown/pandoc。
+- **`pagedown` 标记为可选依赖**：从 `required_packages.R` 必装列表移除并注释说明，Docker 镜像不再需要 Chromium。
+
+#### 导出依赖对比
+
+| 格式 | 修改前 | 修改后 |
+|------|--------|--------|
+| 表格 PDF | rmarkdown + pagedown + Chromium | **R 原生 cairo_pdf（零外部依赖）** |
+| 表格 HTML | rmarkdown + pandoc | 不变 |
+| 表格 RTF | rmarkdown + pandoc | 不变 |
+| 表格 DOCX | flextable + officer | 不变 |
+| 表格 PNG | webshot2 + Chrome | webshot2 + Chrome (仍需要) |
+| 图表 PDF | cairo_pdf (R 内置) | 不变（一直原生） |
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| 代码审查（静态） | 通过 | save_table_pdf_native 全链路 tryCatch；cairo_pdf 回退逻辑 |
+
+#### Issues / Blockers
+- `include_report=TRUE` + PDF 组合暂不支持（需 rmarkdown 渲染报告文本）。当前给出友好错误提示，引导用户使用 Word 格式。
+- `save_table_pdf_native` 使用 `tableGrob` 渲染纯文本表格，gt 富格式（spanner header、条件颜色等）丢失。核心数据完整。
+
+#### Next
+1. 如需恢复 gt 富格式 PDF 导出，可探索 `gt::as_latex()` → `tinytex::pdflatex()` 路径（仍需 LaTeX 外部依赖，但比 Chromium 轻量）。
+2. P1-export-chain-deep-fix 子计划全部 3 个 Phase 完成，可关闭。
+
+#### Files Changed
+- `modules/common/export/table_export.R`（修改）— 新增 save_table_pdf_native()；save_table_export PDF 路径重写
+- `modules/common/graphics/graphics_common.R`（修改）— graphics_check_export_prerequisites 移除 PDF Chrome 检测
+- `config/required_packages.R`（修改）— pagedown 标记为可选
+- `docs/dep/plans/ongoing/P1-export-chain-deep-fix.md`（修改）— P3 完成标准
+- `docs/dep/PLAN.md`（修改）— 子计划状态更新
+
+---

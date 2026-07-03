@@ -114,26 +114,9 @@ correlation_matrix_ui <- function(id) {
               style = "height: 680px; overflow-y: auto;",
               h4("输出与导出", style = "color: #007bff; margin-top: 0;"),
               tabsetPanel(
-                tabPanel(
-                  "尺寸与画布",
-                  br(),
-                  graphics_card_panel_ui(
-                    "尺寸与画布",
-                    tagList(
-                      helpText("当前相关性矩阵导出默认使用固定画布 10 x 8 英寸。")
-                    )
-                  )
-                ),
-                tabPanel(
-                  "导出参数",
-                  br(),
-                  graphics_export_panel_ui(
-                    ns,
-                    download_id = "dl_plot",
-                    include_render_button = FALSE,
-                    include_download_button = FALSE,
-                    include_size_mode = FALSE
-                  )
+                tabPanel("尺寸与导出", br(),
+                  graphics_export_size_controls_ui(ns, download_id = "dl_plot",
+                    include_size_mode = TRUE, include_download_button = FALSE)
                 )
               )
             )
@@ -161,7 +144,11 @@ correlation_matrix_ui <- function(id) {
 
 correlation_matrix_server <- function(input, output, session, data) {
   ns <- session$ns
-  
+
+  size_config <- reactive({
+    graphics_collect_size_config(input)
+  })
+
   # 存储图形参数状态
   graphics_state <- reactiveValues(
     correlation_vars = NULL,
@@ -285,14 +272,24 @@ correlation_matrix_server <- function(input, output, session, data) {
       build_plot_export_filename("correlation_matrix", input$export_format)
     },
     content = function(file) {
-      save_plot_export(
-        file = file,
-        plot_obj = final_plot(),
-        format = input$export_format,
-        width = 10,
-        height = 8,
-        dpi = if (is.null(input$export_dpi)) 300 else input$export_dpi
-      )
+      tryCatch({
+        cfg <- size_config()
+        save_plot_export(
+          file = file,
+          plot_obj = graphics_apply_canvas_frame(final_plot(),
+            frame_width_px = cfg$static_width, frame_height_px = cfg$static_height,
+            canvas_config = cfg),
+          format = input$export_format,
+          width = cfg$export_width, height = cfg$export_height,
+          dpi = if (is.null(input$export_dpi)) 300 else input$export_dpi
+        )
+      }, error = function(e) {
+        msg <- sprintf("[GraphicsExportError][correlation_matrix] fmt=%s: %s",
+                       input$export_format %||% "png", conditionMessage(e))
+        message(msg)
+        showNotification(paste("correlation_matrix导出失败：", conditionMessage(e)), type = "error")
+        stop(msg)
+      })
     }
   )
   

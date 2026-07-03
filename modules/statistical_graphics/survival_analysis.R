@@ -2318,21 +2318,29 @@ survival_analysis_server <- function(input, output, session, data) {
       build_plot_export_filename("survival_plot", input$export_format)
     },
     content = function(file) {
-      cfg <- size_config()
-      save_plot_export(
-        file = file,
-        plot_obj = graphics_apply_canvas_frame(
-          create_surv_plot(),
-          frame_width_px = cfg$static_width,
-          frame_height_px = cfg$static_height,
-          canvas_config = cfg
-        ),
-        format = input$export_format,
-        width = cfg$export_width,
-        height = cfg$export_height,
-        dpi = input$export_dpi %||% 600,
-        bg = "white"
-      )
+      tryCatch({
+        cfg <- size_config()
+        save_plot_export(
+          file = file,
+          plot_obj = graphics_apply_canvas_frame(
+            create_surv_plot(),
+            frame_width_px = cfg$static_width,
+            frame_height_px = cfg$static_height,
+            canvas_config = cfg
+          ),
+          format = input$export_format,
+          width = cfg$export_width,
+          height = cfg$export_height,
+          dpi = input$export_dpi %||% 600,
+          bg = "white"
+        )
+      }, error = function(e) {
+        msg <- sprintf("[GraphicsExportError][survival] fmt=%s: %s",
+                       input$export_format %||% "png", conditionMessage(e))
+        message(msg)
+        showNotification(paste("survival导出失败：", conditionMessage(e)), type = "error")
+        stop(msg)
+      })
     }
   )
   

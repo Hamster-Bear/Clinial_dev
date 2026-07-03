@@ -137,25 +137,9 @@ boxplot_ui <- function(id) {
             style = "height: 680px; overflow-y: auto;",
             tabsetPanel(
                 tabPanel(
-                  "尺寸与画布",
-                  br(),
-                  graphics_card_panel_ui(
-                    "尺寸与画布",
-                    tagList(
-                      helpText("当前箱线图导出默认使用固定画布 10 x 8 英寸。")
-                    )
-                  )
-                ),
-                tabPanel(
-                  "导出参数",
-                  br(),
-                  graphics_export_panel_ui(
-                    ns,
-                    download_id = "dl_plot",
-                    include_render_button = FALSE,
-                    include_download_button = FALSE,
-                    include_size_mode = FALSE
-                  )
+                  "尺寸与导出", br(),
+                  graphics_export_size_controls_ui(ns, download_id = "dl_plot",
+                      include_size_mode = TRUE, include_download_button = FALSE)
                 )
               )
           )
@@ -221,6 +205,10 @@ boxplot_server <- function(input, output, session, data) {
 
   # committed state — Generate 时快照，分析只读此对象
   committed_params <- reactiveVal(NULL)
+
+  size_config <- reactive({
+    graphics_collect_size_config(input)
+  })
 
   # 更新变量选择
   observe({
@@ -312,23 +300,31 @@ boxplot_server <- function(input, output, session, data) {
     datatable(data(), options = list(pageLength = 10, scrollX = TRUE))
   })
 
-  # 图形导出（从 committed_params 读取导出参数）
   output$dl_plot <- downloadHandler(
     filename = function() {
-      cp <- committed_params()
-      fmt <- if (!is.null(cp$export_format)) cp$export_format else input$export_format
+      fmt <- input$export_format %||% "png"
       build_plot_export_filename("boxplot", fmt)
     },
     content = function(file) {
-      cp <- committed_params()
-      save_plot_export(
-        file = file,
-        plot_obj = final_plot(),
-        format = if (!is.null(cp$export_format)) cp$export_format else (input$export_format %||% "png"),
-        width = 10,
-        height = 8,
-        dpi = if (!is.null(cp$export_dpi)) cp$export_dpi else (if (is.null(input$export_dpi)) 300 else input$export_dpi)
-      )
+      tryCatch({
+        cfg <- size_config()
+        save_plot_export(
+          file = file,
+          plot_obj = graphics_apply_canvas_frame(final_plot(),
+              frame_width_px = cfg$static_width, frame_height_px = cfg$static_height,
+              canvas_config = cfg),
+          format = input$export_format %||% "png",
+          width = cfg$export_width,
+          height = cfg$export_height,
+          dpi = input$export_dpi %||% 300
+        )
+      }, error = function(e) {
+        msg <- sprintf("[GraphicsExportError][boxplot] fmt=%s: %s",
+                       input$export_format %||% "png", conditionMessage(e))
+        message(msg)
+        showNotification(paste("boxplot导出失败：", conditionMessage(e)), type = "error")
+        stop(msg)
+      })
     }
   )
 

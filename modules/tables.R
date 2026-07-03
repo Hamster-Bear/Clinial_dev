@@ -95,16 +95,20 @@ tables_ui <- function(id) {
                 tone = "info",
                 verbatimTextOutput(ns("code_output"), placeholder = TRUE)
               )
-            )
-          ),
-          app_result_panel(
-            title = "导出配置",
-            note = copy$result$export_note,
-            tone = "warning",
-            fluidRow(
-              column(4, selectInput(ns("table_export_format"), "导出格式", choices = c("Word (.docx)" = "docx", "PNG (.png)" = "png"), selected = "docx")),
-              column(4, textInput(ns("table_export_name"), "文件名前缀", value = "table_result")),
-              column(4, div(style = "padding-top: 25px;", downloadButton(ns("table_download"), "导出结果", class = "btn-primary")))
+            ),
+            tabPanel(
+              "导出配置",
+              app_result_panel(
+                title = "导出配置",
+                note = copy$result$export_note,
+                tone = "warning",
+                fluidRow(
+                  column(6, selectInput(ns("table_export_format"), "导出格式", choices = c("Word (.docx)" = "docx", "PNG (.png)" = "png"), selected = "docx")),
+                  column(6, textInput(ns("table_export_name"), "文件名前缀", value = "table_result"))
+                ),
+                br(),
+                div(style = "text-align: right;", downloadButton(ns("table_download"), "导出结果", class = "btn-primary"))
+              )
             )
           )
         )
@@ -565,7 +569,8 @@ tables_server <- function(id, data, pg_pool = NULL, current_user = NULL, dataset
         input$table_export_name
       else
         "table_result"
-      fmt <- cp$table_export_format %||% input$table_export_format
+      # 导出格式从 live input 读取（输出选择，非分析参数）
+      fmt <- input$table_export_format %||% "docx"
       ttype <- cp$table_type %||% input$table_type
       if (identical(ttype, "ae_sidebyside")) {
         build_plot_export_filename(prefix = prefix, format = fmt)
@@ -577,7 +582,8 @@ tables_server <- function(id, data, pg_pool = NULL, current_user = NULL, dataset
       req(table_result())
       cp <- committed_params()
       obj <- table_result()
-      fmt <- cp$table_export_format %||% input$table_export_format
+      # 导出格式从 live input 读取（输出选择，非分析参数）
+      fmt <- input$table_export_format %||% "docx"
       ttype <- cp$table_type %||% input$table_type
       tryCatch({
         if (identical(ttype, "ae_sidebyside")) {
