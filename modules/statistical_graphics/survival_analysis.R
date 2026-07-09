@@ -2138,23 +2138,32 @@ survival_analysis_server <- function(input, output, session, data) {
     surv_summary <- summary(fit_obj, censored = TRUE)
     if (is.null(surv_summary$time) || length(surv_summary$time) == 0) return(NULL)
     surv_df <- data.frame(
-      时间 = surv_summary$time,
-      组别 = if (!is.null(surv_summary$strata)) as.character(surv_summary$strata) else overall_label,
-      风险人数 = surv_summary$n.risk,
-      事件数 = surv_summary$n.event,
-      删失数 = surv_summary$n.censor,
-      生存概率 = round(surv_summary$surv, 4),
-      置信区间下限 = round(surv_summary$lower, 4),
-      置信区间上限 = round(surv_summary$upper, 4),
-      check.names = FALSE
+      time = surv_summary$time,
+      group = if (!is.null(surv_summary$strata)) as.character(surv_summary$strata) else overall_label,
+      n_risk = surv_summary$n.risk,
+      n_event = surv_summary$n.event,
+      n_censor = surv_summary$n.censor,
+      surv = round(surv_summary$surv, 4),
+      lower = round(surv_summary$lower, 4),
+      upper = round(surv_summary$upper, 4)
     )
-    surv_df$组别 <- vapply(
-      surv_df$组别,
+    names(surv_df) <- c(
+      "时间",
+      "组别",
+      "风险人数",
+      "事件数",
+      "删失数",
+      "生存概率",
+      "置信区间下限",
+      "置信区间上限"
+    )
+    surv_df[["组别"]] <- vapply(
+      surv_df[["组别"]],
       function(x) .format_survival_group_label(x, strata_var, strata_labels, overall_label),
       character(1)
     )
     if (!is.null(time_range) && length(time_range) == 2) {
-      surv_df <- surv_df[surv_df$时间 >= min(time_range) & surv_df$时间 <= max(time_range), , drop = FALSE]
+      surv_df <- surv_df[surv_df[["时间"]] >= min(time_range) & surv_df[["时间"]] <= max(time_range), , drop = FALSE]
     }
     surv_df
   }
@@ -2185,13 +2194,16 @@ survival_analysis_server <- function(input, output, session, data) {
         )) %>%
           formatRound(columns = c("生存概率", "置信区间下限", "置信区间上限"), digits = 4)
       } else {
-        data.frame(错误 = "无法生成生存分析数据表", 信息 = "请检查输入数据")
+        setNames(
+          data.frame(error = "无法生成生存分析数据表", message = "请检查输入数据"),
+          c("错误", "信息")
+        )
       }
     }, error = function(e) {
       message(sprintf("[SurvivalTableError] %s", conditionMessage(e)))
-      data.frame(
-        错误 = "结果表当前无法生成",
-        信息 = "请检查当前分层、分面与变量设置后重试。"
+      setNames(
+        data.frame(error = "结果表当前无法生成", message = "请检查当前分层、分面与变量设置后重试。"),
+        c("错误", "信息")
       )
     })
   })

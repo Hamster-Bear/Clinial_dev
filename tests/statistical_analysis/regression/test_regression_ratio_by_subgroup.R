@@ -110,8 +110,8 @@ test_that("linear 在亚组场景下 event/N 按亚组切片计算", {
   expect_true(length(ext$n_cols) > 0)
   expect_true(any(vapply(ext$label_map, function(z) identical(z, "Event/N"), logical(1))))
   vals <- unique(unlist(lapply(ext$n_cols, function(cn) ext$raw[[cn]][nzchar(ext$raw[[cn]])]), use.names = FALSE))
-  expect_true(any(grepl("^10/10$", vals)))
-  expect_true(any(grepl("^8/8$", vals)))
+  expect_true("10/10" %in% vals)
+  expect_true("8/8" %in% vals)
 })
 
 test_that("cox 在分组+亚组场景下 event/N 按上下文切片计算", {

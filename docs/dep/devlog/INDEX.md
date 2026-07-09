@@ -18,3 +18,6 @@
 | R014 | 2026-07-03 | 14:30 | P1-export-chain-deep-fix | P3 | R 原生表格 PDF 导出 — 移除 Chromium 外部依赖 | `modules/common/export/table_export.R`, `modules/common/graphics/graphics_common.R`, `config/` | active/DEVLOG-R001-R040.md |
 | R015 | 2026-07-03 | 15:00 | - | - | 导出格式 committed_params 冻结 bug 修复（boxplot/combo/tables） | `modules/statistical_graphics/boxplot.R`, `combo_plot.R`, `modules/tables.R`, `modules/common/export/table_export.R` | active/DEVLOG-R001-R040.md |
 | R016 | 2026-07-03 | 15:15 | - | - | UI 重构：导出配置移至结果区子页签，按钮移至卡片右上角 | `modules/statistical_analysis.R`, `modules/statistical_graphics/` (9 files) | active/DEVLOG-R001-R040.md |
+| R017 | 2026-07-09 | 14:28 | - | - | 统计分析模块第一轮正确性修复与验证 | `modules/statistical_analysis.R`, `modules/statistical_analysis/`, `modules/common/analysis/`, `tests/statistical_analysis/`, `tests/common/analysis/`, `docs/main/` | active/DEVLOG-R001-R040.md |
+| R018 | 2026-07-09 | 15:01 | - | - | 恢复线性回归 N 设计口径并补齐统计分析正确性测试 | `modules/statistical_analysis/linear.R`, `tests/statistical_analysis/`, `docs/main/`, `docs/dep/devlog/` | active/DEVLOG-R001-R040.md |
+| R019 | 2026-07-09 | 16:04 | - | - | 统计图形首批可用性与正确性修复：布局、committed-state、复现代码 | `modules/statistical_graphics/`, `modules/common/graphics/`, `tests/statistical_graphics/`, `tests/common/graphics/`, `docs/main/` | active/DEVLOG-R001-R040.md |

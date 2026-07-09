@@ -46,6 +46,7 @@ align_compare_df <- function(df) {
   if ("OR (95% CI)" %in% names(x)) names(x)[names(x) == "OR (95% CI)"] <- "效应值"
   if ("Beta (95% CI)" %in% names(x)) names(x)[names(x) == "Beta (95% CI)"] <- "效应值"
   if ("HR (95% CI)" %in% names(x)) names(x)[names(x) == "HR (95% CI)"] <- "效应值"
+  if ("P for interaction" %in% names(x)) names(x)[names(x) == "P for interaction"] <- "亚组差异P值"
   x
 }
 

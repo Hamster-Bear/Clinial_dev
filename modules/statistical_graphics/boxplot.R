@@ -218,6 +218,22 @@ boxplot_server <- function(input, output, session, data) {
     graphics_collect_size_config(input)
   })
 
+  collect_boxplot_params <- function() {
+    list(
+      boxplot_x = input$boxplot_x,
+      boxplot_y = input$boxplot_y,
+      plot_title = input$plot_title,
+      plot_xlab = input$plot_xlab,
+      plot_ylab = input$plot_ylab,
+      plot_palette = input$plot_palette,
+      line_size = input$line_size,
+      line_type = input$line_type,
+      point_size = input$point_size,
+      export_format = input$export_format,
+      export_dpi = if (is.null(input$export_dpi)) 300 else input$export_dpi
+    )
+  }
+
   # 更新变量选择
   observe({
     req(data())
@@ -265,19 +281,7 @@ boxplot_server <- function(input, output, session, data) {
   observeEvent(input$render_plot, {
     req(data(), input$boxplot_x, input$boxplot_y)
 
-    params <- list(
-      boxplot_x   = input$boxplot_x,
-      boxplot_y   = input$boxplot_y,
-      plot_title  = input$plot_title,
-      plot_xlab   = input$plot_xlab,
-      plot_ylab   = input$plot_ylab,
-      plot_palette = input$plot_palette,
-      line_size   = input$line_size,
-      line_type   = input$line_type,
-      point_size  = input$point_size,
-      export_format = input$export_format,
-      export_dpi   = if (is.null(input$export_dpi)) 300 else input$export_dpi
-    )
+    params <- collect_boxplot_params()
 
     tryCatch({
       p <- create_boxplot(params)
@@ -310,25 +314,28 @@ boxplot_server <- function(input, output, session, data) {
 
   output$dl_plot <- downloadHandler(
     filename = function() {
-      fmt <- input$export_format %||% "png"
+      params <- committed_params() %||% collect_boxplot_params()
+      fmt <- params$export_format %||% "png"
       build_plot_export_filename("boxplot", fmt)
     },
     content = function(file) {
       tryCatch({
+        params <- committed_params() %||% collect_boxplot_params()
         cfg <- size_config()
         save_plot_export(
           file = file,
           plot_obj = graphics_apply_canvas_frame(final_plot(),
               frame_width_px = cfg$static_width, frame_height_px = cfg$static_height,
               canvas_config = cfg),
-          format = input$export_format %||% "png",
+          format = params$export_format %||% "png",
           width = cfg$export_width,
           height = cfg$export_height,
-          dpi = input$export_dpi %||% 300
+          dpi = params$export_dpi %||% 300
         )
       }, error = function(e) {
+        params <- committed_params() %||% collect_boxplot_params()
         msg <- sprintf("[GraphicsExportError][boxplot] fmt=%s: %s",
-                       input$export_format %||% "png", conditionMessage(e))
+                       params$export_format %||% "png", conditionMessage(e))
         message(msg)
         showNotification(paste("boxplot导出失败：", conditionMessage(e)), type = "error")
         stop(msg)
@@ -352,11 +359,13 @@ boxplot_server <- function(input, output, session, data) {
   }
 
   state_reactive <- reactive({
-    graphics_build_task_state(
+    params <- committed_params() %||% collect_boxplot_params()
+    graphics_build_committed_task_state(
       input,
+      committed_input_state = params,
       extra_state = list(
-        x_var = input$boxplot_x,
-        y_var = input$boxplot_y
+        x_var = params$boxplot_x,
+        y_var = params$boxplot_y
       )
     )
   })

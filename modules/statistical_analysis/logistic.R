@@ -175,7 +175,7 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
   split_levels <- if (!is.null(strata_var)) normalize_subgroup_levels(get_levels_all(data[[strata_var]])) else character(0)
 
   count_effective_n <- function(df_sub) {
-    vars <- unique(c(logistic_response, logistic_predictors))
+    vars <- unique(c(logistic_response, logistic_predictors, model_strata_var))
     vars <- vars[vars %in% names(df_sub)]
     if (length(vars) == 0) return(0L)
     sum(stats::complete.cases(df_sub[, vars, drop = FALSE]))
@@ -225,14 +225,28 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
   fit_tidy_interaction <- function(df_in, pred, strata_nm) {
     ctrl_terms <- if (!is.null(model_strata_var) && !identical(model_strata_var, strata_nm)) model_strata_var else NULL
     base_terms <- setdiff(logistic_predictors, pred)
+    f0 <- build_formula_safe(
+      response = logistic_response,
+      terms = c(base_terms, pred, strata_nm, ctrl_terms)
+    )
     f1 <- build_formula_safe(
       response = logistic_response,
       terms = c(base_terms, pred, strata_nm, ctrl_terms),
       interaction_pairs = list(c(pred, strata_nm))
     )
     tryCatch({
+      m0 <- stats::glm(f0, data = df_in, family = binomial())
       m1 <- stats::glm(f1, data = df_in, family = binomial())
-      broom::tidy(m1)
+      td <- broom::tidy(m1)
+      cmp <- tryCatch(stats::anova(m0, m1, test = "LRT"), error = function(e) NULL)
+      p_col <- if (!is.null(cmp)) grep("^Pr\\(", names(cmp), value = TRUE) else character(0)
+      overall_p <- if (!is.null(cmp) && nrow(cmp) >= 2 && length(p_col) > 0) {
+        suppressWarnings(as.numeric(cmp[[p_col[1]]][2]))
+      } else {
+        NA_real_
+      }
+      attr(td, "overall_interaction_p") <- overall_p
+      td
     }, warning = function(w) {
       add_note(paste0("亚组交互检验提示(", pred, "): ", conditionMessage(w)))
       NULL
@@ -523,15 +537,16 @@ perform_logistic_analysis <- function(data, logistic_response, logistic_predicto
     }
     if (length(n_cols) > 0) {
       for (cn in n_cols) raw[[cn]] <- n_out_map[[cn]]
-      nm <- names(raw)
-      nm[nm == "N"] <- "Event/N"
-      nm <- sub("__N$", "__Event/N", nm)
-      names(raw) <- nm
     }
+    skipped_n <- attr(gt_tbl, "skipped_models", exact = TRUE)
     sanitized <- raw[keep, , drop = FALSE]
-    new_tbl <- gt::gt(sanitized)
-    attr(new_tbl, "skipped_models") <- attr(gt_tbl, "skipped_models", exact = TRUE)
-    new_tbl
+    gt_tbl[["_data"]] <- sanitized
+    if (length(n_cols) > 0) {
+      lbls <- stats::setNames(as.list(rep("Event/N", length(n_cols))), n_cols)
+      gt_tbl <- do.call(gt::cols_label, c(list(.data = gt_tbl), lbls))
+    }
+    attr(gt_tbl, "skipped_models") <- skipped_n
+    gt_tbl
   }
 
   gt_table <- sanitize_logistic_gt(build_strata_first_gt(data, strata_var, facet_var), data)

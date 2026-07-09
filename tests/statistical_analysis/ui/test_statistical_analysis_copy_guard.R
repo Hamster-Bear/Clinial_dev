@@ -55,6 +55,7 @@ expect_contains(copy_text, "logistic = list", "Logistic 回归共享文案")
 expect_contains(copy_text, "linear = list", "线性回归共享文案")
 expect_contains(copy_text, "anova = list", "方差分析共享文案")
 expect_contains(copy_text, "chisq = list", "卡方检验共享文案")
+expect_contains(copy_text, "cmh = list", "CMH 检验共享文案")
 
 expect_contains(desc_text, "source\\(\"modules/common/analysis/stat_analysis_submodule_copy.R\"\\)", "desc 加载统计分析共享文案")
 expect_contains(desc_text, "copy <- STAT_ANALYSIS_SUBMODULE_COPY\\$desc", "desc 读取共享文案")
@@ -93,5 +94,6 @@ expect_contains(chisq_text, "source\\(\"modules/common/analysis/stat_analysis_su
 expect_contains(chisq_text, "copy <- STAT_ANALYSIS_SUBMODULE_COPY\\$chisq", "chisq 读取共享文案")
 expect_contains(chisq_text, "app_card_note\\(copy\\$intro\\)", "chisq 顶部说明改为共享文案")
 expect_contains(chisq_text, "app_card_note\\(copy\\$variables\\)", "chisq 变量说明改为共享文案")
+expect_contains(chisq_text, "copy <- STAT_ANALYSIS_SUBMODULE_COPY\\$cmh", "cmh 读取共享文案")
 
 cat("Statistical analysis copy guard passed.\n")

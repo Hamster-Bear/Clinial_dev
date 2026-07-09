@@ -217,6 +217,7 @@ statistical_analysis_server <- function(id, data, pg_pool = NULL, current_user =
       "linear" = linear_params_ui(ns, filtered_data()),
       "anova" = anova_params_ui(ns, filtered_data()),
       "chi-sq" = chisq_params_ui(ns, filtered_data()),
+      "cmh" = cmh_params_ui(ns, filtered_data()),
       "desc" = desc_params_ui(ns, filtered_data()),
       NULL
     )
@@ -294,6 +295,13 @@ statistical_analysis_server <- function(id, data, pg_pool = NULL, current_user =
         scenarios = c("列联表分析", "组别与分类结局关联检验", "安全性事件发生率比较"),
         metrics = c("核心统计量: 卡方值、P值", "必要时关注单元格期望频数条件"),
         tips = c("当期望频数过低时考虑Fisher精确检验", "同时报告各组比例差异", "结果解读结合实际业务背景")
+      ),
+      "cmh" = list(
+        name = "CMH检验",
+        intro = "用于在分层条件下检验两个分类变量之间的总体关联。",
+        scenarios = c("分层列联表分析", "中心或分层因素校正后的组间比较", "分类结局的分层一致性检验"),
+        metrics = c("核心统计量: CMH卡方值、P值", "2x2xK 表格会同时给出共同 OR 与 95%CI"),
+        tips = c("确认行变量、列变量和分层变量互不相同", "每个变量至少需要两个非缺失水平", "稀疏分层结果应结合单元格频数谨慎解释")
       )
     )
     if (!method_code %in% names(profiles)) {
@@ -339,8 +347,8 @@ statistical_analysis_server <- function(id, data, pg_pool = NULL, current_user =
     raw_df <- tryCatch(gt_obj[["_data"]], error = function(e) NULL)
     if (is.null(raw_df) || !is.data.frame(raw_df) || nrow(raw_df) == 0) return(character(0))
     nm <- names(raw_df)
-    p_cols <- nm[grepl("p\\.value|p_value|pvalue|^p$", nm, ignore.case = TRUE)]
-    label_cols <- nm[grepl("^label$|variable|term|characteristic|statistics", nm, ignore.case = TRUE)]
+    p_cols <- nm[grepl("p\\.value|p_value|pvalue|^p$|^P值$", nm, ignore.case = TRUE)]
+    label_cols <- nm[grepl("^label$|variable|term|characteristic|statistics|^项目$|^检验$", nm, ignore.case = TRUE)]
     est_cols <- nm[grepl("^estimate$|or$|hr$|rr$|beta|coef", nm, ignore.case = TRUE)]
     if (length(p_cols) == 0 || length(label_cols) == 0) return(character(0))
     p_col <- p_cols[1]
@@ -622,6 +630,9 @@ statistical_analysis_server <- function(id, data, pg_pool = NULL, current_user =
     # 更新卡方检验变量选择
     updateSelectInput(session, "chisq_var1", choices = factor_vars)
     updateSelectInput(session, "chisq_var2", choices = factor_vars)
+    updateSelectInput(session, "cmh_var1", choices = factor_vars)
+    updateSelectInput(session, "cmh_var2", choices = factor_vars)
+    updateSelectInput(session, "cmh_strata", choices = factor_vars)
 
     current_col_group <- isolate(input$desc_col_group_var)
     current_row_group <- isolate(input$desc_row_group_var)
@@ -871,6 +882,10 @@ statistical_analysis_server <- function(id, data, pg_pool = NULL, current_user =
             incProgress(0.3, detail = "运行卡方检验")
             perform_chisq_analysis(filtered_data(), input$chisq_var1, input$chisq_var2)
           },
+          "cmh" = {
+            incProgress(0.3, detail = "运行CMH检验")
+            perform_cmh_analysis(filtered_data(), input$cmh_var1, input$cmh_var2, input$cmh_strata)
+          },
           "desc" = {
             incProgress(0.3, detail = "运行描述性统计")
             desc_vars <- if (is.null(input$desc_variables)) character(0) else input$desc_variables
@@ -1054,6 +1069,10 @@ statistical_analysis_server <- function(id, data, pg_pool = NULL, current_user =
       extra$chisq_var1  <- input$chisq_var1
       extra$chisq_var2  <- input$chisq_var2
 
+      extra$cmh_var1    <- input$cmh_var1
+      extra$cmh_var2    <- input$cmh_var2
+      extra$cmh_strata  <- input$cmh_strata
+
       extra$desc_variables       <- input$desc_variables %||% character(0)
       extra$desc_col_group_var   <- input$desc_col_group_var
       extra$desc_row_group_var   <- input$desc_row_group_var
@@ -1105,6 +1124,7 @@ statistical_analysis_server <- function(id, data, pg_pool = NULL, current_user =
           "linear"   = apply_linear_state(session, extra),
           "anova"    = apply_anova_state(session, extra),
           "chi-sq"   = apply_chisq_state(session, extra),
+          "cmh"      = apply_cmh_state(session, extra),
           "desc"     = apply_desc_state(session, extra)
         )
       })

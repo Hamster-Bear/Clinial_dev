@@ -152,7 +152,7 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
   }
   split_levels <- if (!is.null(strata_var)) normalize_subgroup_levels(get_levels_all(data[[strata_var]])) else character(0)
   count_effective_n <- function(df_sub) {
-    vars <- unique(c(linear_response, linear_predictors))
+    vars <- unique(c(linear_response, linear_predictors, model_strata_var))
     vars <- vars[vars %in% names(df_sub)]
     if (length(vars) == 0) return(0L)
     sum(stats::complete.cases(df_sub[, vars, drop = FALSE]))
@@ -169,14 +169,28 @@ perform_linear_analysis <- function(data, linear_response, linear_predictors, li
   fit_tidy_interaction <- function(df_in, pred, strata_nm) {
     ctrl_terms <- if (!is.null(model_strata_var) && !identical(model_strata_var, strata_nm)) model_strata_var else NULL
     base_terms <- setdiff(linear_predictors, pred)
+    f0 <- analysis_build_formula(
+      response = linear_response,
+      terms = c(base_terms, pred, strata_nm, ctrl_terms)
+    )
     f1 <- analysis_build_formula(
       response = linear_response,
       terms = c(base_terms, pred, strata_nm, ctrl_terms),
       interaction_pairs = list(c(pred, strata_nm))
     )
     tryCatch({
+      m0 <- stats::lm(f0, data = df_in)
       m1 <- stats::lm(f1, data = df_in)
-      broom::tidy(m1)
+      td <- broom::tidy(m1)
+      cmp <- tryCatch(stats::anova(m0, m1), error = function(e) NULL)
+      p_col <- if (!is.null(cmp)) grep("^Pr\\(", names(cmp), value = TRUE) else character(0)
+      overall_p <- if (!is.null(cmp) && nrow(cmp) >= 2 && length(p_col) > 0) {
+        suppressWarnings(as.numeric(cmp[[p_col[1]]][2]))
+      } else {
+        NA_real_
+      }
+      attr(td, "overall_interaction_p") <- overall_p
+      td
     }, warning = function(w) {
       add_note(paste0("亚组交互检验提示(", pred, "): ", conditionMessage(w)))
       NULL

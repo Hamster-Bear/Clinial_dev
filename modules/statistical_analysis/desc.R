@@ -63,8 +63,10 @@ calculate_original_decimals <- function(data, variables) {
     # 计算原始数据的小数位数
     decimals <- sapply(values, function(x) {
       if(is.integer(x) || x == round(x)) return(0)
-      # 转换为字符串并计算小数位数
-      x_str <- as.character(x)
+      # 用非科学计数法展开，避免 1e-04 被误判为 0 位小数。
+      x_str <- format(x, scientific = FALSE, trim = TRUE, digits = 15)
+      x_str <- sub("0+$", "", x_str)
+      x_str <- sub("\\.$", "", x_str)
       if(grepl("\\.", x_str)) {
         return(nchar(strsplit(x_str, "\\.")[[1]][2]))
       } else {

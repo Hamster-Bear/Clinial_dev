@@ -2,6 +2,48 @@
 
 ---
 
+### R019 [16:04] — 统计图形首批可用性与正确性修复：布局、committed-state、复现代码
+
+#### Done
+- `correlation_matrix.R` 与 `heatmap.R` 从旧裸 `box()` / `wellPanel()` 外壳迁移到统一 `app_card_box()` 三卡结构，并接入 `GRAPHICS_RESULT_COPY` 结果区共享文案。
+- `graphics_common.R` 增加独立加载兜底：缺少 `%||%`、`generate_graphics_repro_code()` 或 `graphics_bind_repro_code_output()` 时自动补齐依赖，修复独立 `testServer()` source 子模块时报找不到可复现代码绑定函数的问题。
+- 修复 `survival_analysis.R` 默认 R locale 下 `parse(file=...)` 因中文列名标识符失败的问题；展示列名仍保留中文，内部构造改为 ASCII 列名后再赋中文表头。
+- 新增 `graphics_build_committed_task_state()`，用于将已生成参数覆盖到 `input_state`，防止生成后修改控件但未重新生成时，任务历史与可复现代码保存 live input。
+- `boxplot.R`、`heatmap.R`、`correlation_matrix.R` 已改为生成时提交参数快照；state、数据表和复现代码读取 committed 参数，重新生成后才更新。
+- `graphics_repro.R` 自加载复现模板依赖；热图与相关矩阵复现代码改为与 UI 同源的 `stats::cor(..., use = "complete.obs")`，热图不再改用 UI 未使用的 `pheatmap`。
+- 修复 heatmap/correlation `geom_tile(size=...)` 的 ggplot2 3.4 弃用警告，改用 `linewidth`。
+- 同步 `test_graphics_preset_guard.R`、heatmap/correlation layout guard 与结果区文案 guard，使静态守卫匹配当前 committed-state helper 和“尺寸与导出”页签契约。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| `Rscript -e "testthat::test_file('tests/statistical_graphics/committed_state/test_basic_graphics_committed_state.R', reporter='summary', stop_on_failure=TRUE)"` | 通过 | 新增默认 locale parse、boxplot/heatmap/correlation committed-state、heatmap/correlation 复现代码矩阵一致性测试 |
+| 统计图形目录逐文件 testthat | 通过 | `tests/statistical_graphics/**/test_*.R` 全量通过；保留既有脚本式 empty-test skip |
+| `Rscript -e "testthat::test_file('tests/common/graphics/test_graphics_preset_guard.R', reporter='summary', stop_on_failure=TRUE)"` | 通过 | common graphics 守卫同步到当前导出页签与 committed-state helper |
+
+#### Issues / Blockers
+- 子代理审计中仍有待处理项：boxplot palette/样式控件有效性、heatmap 聚类开关未实际作用、combo/spider/waterfall/swimmer 更完整的 server 级 committed-state 覆盖、尺寸控件与前端输出一致性。
+- 本轮未处理 combo 可复现代码仍含占位坐标的问题；需要结合 combo 的动态 `main_x_var/main_y_var/plot_types` 状态结构单独修复，避免用不完整上下文改坏现有动态图层逻辑。
+
+#### Next
+1. 继续统计图形模块第二批正确性修复：boxplot palette/样式控件、heatmap 聚类语义、combo 复现代码。
+2. 将 spider/swimmer/waterfall/combo 纳入与本轮同等级的 `testServer()` committed-state 回归，而不是只依赖 grep layout guard。
+3. 清理现有脚本式 empty-test skip 的 layout guard，逐步迁移为标准 `test_that()`。
+
+#### Files Changed / Commits
+- `modules/statistical_graphics/correlation_matrix.R`、`heatmap.R`（修改）— 三卡外壳、共享结果文案、committed 参数快照、数据表/导出/state 读取提交态
+- `modules/statistical_graphics/boxplot.R`（修改）— state/input_state 读取 committed 参数
+- `modules/statistical_graphics/survival_analysis.R`（修改）— 默认 locale parse 修复
+- `modules/common/graphics/graphics_common.R`（修改）— 依赖兜底与 `graphics_build_committed_task_state()`
+- `modules/common/graphics/graphics_repro.R`（修改）— 复现模板依赖与 heatmap/correlation 同源代码
+- `tests/statistical_graphics/committed_state/test_basic_graphics_committed_state.R`（新增）— parse、committed-state 与复现代码正确性测试
+- `tests/statistical_graphics/heatmap/test_heatmap_layout_guard.R`、`correlation_matrix/test_correlation_matrix_layout_guard.R`（修改）— committed helper/layout 守卫
+- `tests/statistical_graphics/ui/test_graphics_result_copy_guard.R`、`tests/common/graphics/test_graphics_preset_guard.R`（修改）— 共享文案与 common 契约守卫
+- `docs/main/PROJECT_GUIDE.md`、`docs/main/TEST_GUIDE.md`、`docs/dep/devlog/INDEX.md`、`docs/dep/devlog/active/DEVLOG-R001-R040.md`（修改）— 实现契约、测试索引与本轮记录
+- `(uncommitted)`
+
+---
+
 ## 2026-06-30
 
 ### R011 [15:30] — t_ae_soc_pt 导出链路修复：rtables 多列结构保留
@@ -569,5 +611,103 @@
 - `config/required_packages.R`（修改）— pagedown 标记为可选
 - `docs/dep/plans/ongoing/P1-export-chain-deep-fix.md`（修改）— P3 完成标准
 - `docs/dep/PLAN.md`（修改）— 子计划状态更新
+
+---
+
+## 2026-07-09
+
+### R017 [14:28] — 统计分析模块第一轮正确性修复与验证
+
+#### Done
+- 补齐 `CMH检验` 的入口路由、参数 UI、执行分支、任务历史保存/恢复与共享说明文案，菜单项不再是不可运行分支。
+- `chisq.R` 新增 CMH 计算链路：行变量、列变量、分层变量均按分类变量处理，基于完整观测构造三维列联表并调用 `mantelhaen.test()`。
+- `chisq.R` 的卡方检验支持 factor/character/logical 分类变量，拒绝重复变量，输出 `检验 / 统计量 / 自由度 / P值`，P 值统一走 AMA 风格。
+- `anova.R` 增加输入校验与 complete cases 处理，输出 `项目 / 自由度 / 平方和 / 均方 / F值 / P值`，P 值统一走 AMA 风格。
+- `linear.R` 修正样本量显示口径：线性回归结果列显示有效样本数 `n`，不再错误标记为 `Event/N` 或 `n/n`。
+- 补充 ANOVA / 卡方 / CMH 正确性测试，并更新既有线性回归样本量测试与 UI/copy 守卫。
+- 修复 common analysis 测试在 Windows `C.UTF-8` 环境回退到 `C` locale 时的解析/占位符断言问题。
+- 同步 `PROJECT_GUIDE.md` 与 `TEST_GUIDE.md` 中的统计分析实现与新增测试索引。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| `Rscript -e "testthat::test_file('tests/statistical_analysis/basic/test_anova_chisq_cmh_correctness.R', reporter='summary', stop_on_failure=TRUE)"` | 通过 | 新增 ANOVA / 卡方 / CMH 正确性测试 |
+| 统计分析目录逐文件 testthat | 通过 | `tests/statistical_analysis/**/test_*.R` 全量通过；仅保留既有 skip 与稀疏模型 warning |
+| `Rscript -e "testthat::test_file('tests/common/analysis/test_analysis_format.R', reporter='summary', stop_on_failure=TRUE); testthat::test_file('tests/common/analysis/test_analysis_shared.R', reporter='summary', stop_on_failure=TRUE)"` | 通过 | 覆盖最初暴露的 locale 解析/占位符问题 |
+| 文档守卫集合 | 通过 | `test_project_docs_guard.R`、`test_project_guide_status_terms_guard.R`、`test_docs_*_guard.R` |
+| `Rscript tests/check_test_guide_index.R` | 通过 | 新增测试已登记到 TEST_GUIDE |
+| `git diff --check` | 通过 | 仅 Git 报告 CRLF 转换提示 |
+
+#### Issues / Blockers
+- 本轮未发现统计分析修复后的阻断问题。
+- 预存 DEVLOG 不一致：`devlog/INDEX.md` 已记录 R015/R016，但 active batch 明细文件未包含对应段落；本轮未回写历史轮次。
+
+#### Next
+1. 继续第二轮统计分析端到端验证：描述性统计分母/缺失值口径、Cox/Logistic complete-case N 与交互 P 值细化。
+2. 如需修复 DEVLOG 历史缺口，单独核对 R015/R016 的原始上下文后再补登记，不在统计分析修复中混做。
+
+#### Files Changed / Commits
+- `modules/statistical_analysis.R`（修改）— CMH 路由、运行分支、报告识别、任务历史参数
+- `modules/statistical_analysis/anova.R`（修改）— complete cases、输入校验、AMA P 值结果字段
+- `modules/statistical_analysis/chisq.R`（修改）— 卡方字段统一、CMH UI/计算/恢复
+- `modules/statistical_analysis/linear.R`（修改）— 线性回归样本量列改为 `n`
+- `modules/common/analysis/stat_analysis_submodule_copy.R`（修改）— CMH 共享说明文案
+- `tests/statistical_analysis/basic/test_anova_chisq_cmh_correctness.R`（新增）— ANOVA / 卡方 / CMH 正确性测试
+- `tests/statistical_analysis/regression/test_regression_ratio_by_subgroup.R`（修改）— 线性回归样本量期望修正
+- `tests/statistical_analysis/ui/test_statistical_analysis_basic_submodule_ui_guard.R`、`test_statistical_analysis_copy_guard.R`（修改）— CMH UI/copy 守卫
+- `tests/common/analysis/test_analysis_format.R`、`test_analysis_shared.R`（修改）— locale 与中文列名解析守卫
+- `docs/main/PROJECT_GUIDE.md`、`docs/main/TEST_GUIDE.md`（修改）— 统计分析实现与测试索引同步
+- `(uncommitted)`
+
+---
+
+### R018 [15:01] — 恢复线性回归 N 设计口径并补齐统计分析正确性测试
+
+#### Done
+- 按用户设计恢复 `linear.R` 中 `Event/N` / `n/n` 的人数/有效样本人数口径，撤回 R017 中将其改为纯 `n` 的误改。
+- 恢复 `test_regression_ratio_by_subgroup.R` 中线性回归 `Event/N` 期望，保护既有展示设计。
+- 新增项目记忆 `docs/main/memory/project-statistical-analysis-linear-n.md`，并在 `PROJECT_GUIDE.md` 记录：线性回归 `N` 表示人数/有效样本人数，不按二分类事件率解释。
+- 新增描述性统计手算正确性测试，覆盖分类百分比分母、连续变量缺失排除、配置总计列和分组变量重复校验。
+- 恢复 `test_regression_formula_validation.R` 中 Linear / Cox 公式验算：效应值、95% CI、P 值与 `lm()` / `coxph()` 逐项复核，并校验 N/Event-N 口径。
+- 修复多水平亚组 `P for interaction` 只读取第一个非参考水平系数 P 值的问题，统一使用主效应模型与交互模型的整体比较。
+- 修复 `model_strata` 缺失值未纳入回归类 effective N 的问题，确保列头 N、单元格分母与模型 complete cases 口径一致。
+- 修复 Cox 允许 time/status 选择同一变量并静默拟合的问题，改为明确报错。
+- 修复 Logistic facet sanitize 重建 `gt` 导致 spanner/展示标签丢失的问题，保留原 gt 渲染结构并只更新数据层。
+- 修复描述性统计自动小数位对科学计数法小量数值误判为 0 位小数的问题。
+- 修复 `test_logistic_medical_csv_consistency.R` 夹具路径，确保 `tests/fixtures/medical_test_data.csv` 实际参与回归测试。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| `Rscript -e "testthat::test_file('tests/statistical_analysis/desc/test_desc_correctness.R', reporter='summary', stop_on_failure=TRUE)"` | 通过 | 新增描述性统计正确性测试 |
+| `Rscript -e "testthat::test_file('tests/statistical_analysis/regression/test_regression_formula_validation.R', reporter='summary', stop_on_failure=TRUE)"` | 通过 | Linear / Cox 公式验算恢复；仅保留既有 Cox 非标准列名 warning |
+| `Rscript -e "testthat::test_file('tests/statistical_analysis/regression/test_logistic_medical_csv_consistency.R', reporter='summary', stop_on_failure=TRUE)"` | 通过 | Logistic CSV 夹具、facet spanner 与 Event/N 标签验证 |
+| `Rscript -e "testthat::test_file('tests/statistical_analysis/common/test_interaction_frontend_consistency.R', reporter='summary', stop_on_failure=TRUE); testthat::test_file('tests/statistical_analysis/common/test_compute_render_decoupling.R', reporter='summary', stop_on_failure=TRUE)"` | 通过 | 交互 P 前后端列名归一与计算/渲染解耦验证 |
+| common analysis 测试 | 通过 | `test_analysis_shared.R`、`test_analysis_format.R` |
+| 统计分析目录逐文件 testthat | 通过 | `tests/statistical_analysis/**/test_*.R` 全量通过；仅保留既有 empty-test skip 与稀疏/完全分离 warning |
+
+#### Issues / Blockers
+- 根因：将线性回归结果中 `N` 的人数/有效样本人数设计语义误读为事件率展示问题，未先确认该列在模块中的业务含义。
+- 子代理审计继续发现的根因：交互 P 与 effective N 属于共享统计口径，但此前测试多为二水平/能跑通场景，未覆盖多水平整体交互检验、`model_strata` 缺失和 gt spanner 渲染结构。
+- R017 已记录的“线性回归样本量列改为 `n`”为错误判断；以本轮 R018 纠偏记录为准。
+
+#### Next
+1. 继续统计分析模块后续收尾：确认 MMRM / MI 保持占位说明，避免被误列为已交付功能。
+2. 进入下一模块前，先把每个统计口径的业务语义写入测试或项目记忆，减少同类误改风险。
+
+#### Files Changed / Commits
+- `modules/statistical_analysis/linear.R`（修改）— 恢复线性回归 `Event/N` 人数口径
+- `modules/statistical_analysis/logistic.R`、`cox.R`（修改）— 整体交互 P、model_strata N 口径、Logistic gt 结构、Cox time/status 校验
+- `modules/common/analysis/analysis_shared.R`（修改）— 优先使用整体交互 P 属性
+- `modules/statistical_analysis/desc.R`（修改）— 科学计数法小数位识别
+- `tests/statistical_analysis/regression/test_regression_ratio_by_subgroup.R`（修改）— 恢复线性回归 `Event/N` 断言
+- `tests/statistical_analysis/desc/test_desc_correctness.R`（新增）— 描述性统计手算正确性测试
+- `tests/statistical_analysis/regression/test_regression_formula_validation.R`（修改）— Linear / Cox 公式验算、多水平交互 P、model_strata N、Cox 重复变量校验
+- `tests/statistical_analysis/regression/test_logistic_medical_csv_consistency.R`（修改）— 夹具路径与 Logistic facet 表头测试
+- `tests/statistical_analysis/common/test_interaction_frontend_consistency.R`（修改）— P for interaction 显示标签归一
+- `docs/main/PROJECT_GUIDE.md`、`docs/main/TEST_GUIDE.md`（修改）— N 口径与新增测试索引同步
+- `docs/main/memory/MEMORY.md`、`docs/main/memory/project-statistical-analysis-linear-n.md`（修改/新增）— 线性回归 N 口径项目记忆
+- `docs/dep/devlog/INDEX.md`、`docs/dep/devlog/active/DEVLOG-R001-R040.md`（修改）— 本轮纠偏与验证记录
+- `(uncommitted)`
 
 ---

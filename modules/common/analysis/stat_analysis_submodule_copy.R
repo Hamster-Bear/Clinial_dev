@@ -30,5 +30,9 @@ STAT_ANALYSIS_SUBMODULE_COPY <- list(
   chisq = list(
     intro = "选择两列分类变量并生成列联表与卡方检验结果。",
     variables = "选择两列分类型变量后，生成列联表并计算统计量、自由度和 P 值。"
+  ),
+  cmh = list(
+    intro = "选择两列分类变量和分层变量，运行 Cochran-Mantel-Haenszel 检验。",
+    variables = "用于在分层条件下检验两列分类变量的关联，并输出统计量、自由度和 P 值。"
   )
 )

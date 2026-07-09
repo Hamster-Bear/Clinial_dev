@@ -179,18 +179,19 @@
 - 普通用户在未开通数据空间功能时，只允许单文件临时上传；上传数据仅用于当前会话分析，不写入持久化数据空间。
 - 前端卡片样式开始收口到新的公共 UI 壳 `modules/common/ui_shell.R`；当前已从数据预备模块先接入，统一卡片标题、说明区、边框和留白，但暂不改变原有布局结构。
 - 统计分析、统计图形、Tables 与探索分析四个入口层使用共享文案源 `modules/common/entry_copy.R`：只收口入口层标题、副标题与说明文案，避免这些高频入口卡片继续在多个模块文件里平行硬编码；按钮文案、结果页签名与子模块内部说明暂不纳入该 helper。
-- 统计分析子模块使用共享说明文案源 `modules/common/analysis/stat_analysis_submodule_copy.R`：先覆盖 `desc`、`cox`、`logistic`、`linear`、`anova`、`chisq` 内部的 `app_card_note()`，统一参数说明块口径；字段标签、`helpText()`、`bsTooltip()` 和结果解释仍保留在模块内。
+- 统计分析子模块使用共享说明文案源 `modules/common/analysis/stat_analysis_submodule_copy.R`：覆盖 `desc`、`cox`、`logistic`、`linear`、`anova`、`chisq`、`cmh` 内部的 `app_card_note()` 参数说明块；字段标签、`helpText()`、`bsTooltip()` 和结果解释由各模块维护。
 - 统计图形结果区通用文案收口到 `modules/common/graphics/graphics_result_copy.R`：覆盖 `boxplot`、`survival_analysis`、`forest_plot`、`heatmap`、`correlation_matrix`、`combo_plot`、`waterfall_plot`、`swimmer_plot`、`spider_plot` 的结果卡 `subtitle`、结果卡 `app_card_note()` 与结果页 `note`。模块专属结果提示可继续保留在原模块内，不强行共享化。
 - 统计图形第一批导出卡通用文案收口到 `modules/common/graphics/graphics_export_copy.R`：覆盖 `survival_analysis`、`forest_plot`、`combo_plot`、`waterfall_plot`、`swimmer_plot`、`spider_plot` 的导出卡 `subtitle` 与 `app_card_note()`；导出区 `helpText()`、固定画布、宽高比和分层标签等模块专属语义继续保留在原模块中。
 - 数据库管理页使用公共卡片壳：统一主卡片、说明块、锁定提示、上下文摘要与结构总览摘要卡，但保持原有”空间与目录 / 上传与导入 / 结构总览”页签结构不变。
 - 统计分析总入口使用公共卡片壳：统一全局筛选卡、方法选择卡、参数设置卡、结果卡与导出说明面板，但保持原有“统计表格 / 统计报告 / 可复现代码”结果结构，以及各统计子模块参数 UI 与分析逻辑不变。
 - 统计分析子模块样板覆盖 `desc.R` 与 `cox.R`：统一参数区说明块与分组面板，但保留原有输入项、动态输出、tooltip、建模逻辑与结果链路不变。
 - 统计分析回归类子模块样板覆盖 `logistic.R` 与 `linear.R`：统一响应/分层、总计列或事件映射、预测变量与参考组分区，但保留原有输入项、动态输出、tooltip、建模逻辑与结果链路不变。
-- 统计分析基础检验子模块样板覆盖 `anova.R` 与 `chisq.R`：统一响应变量、分组因素或变量选择说明块，但保留原有输入项、检验逻辑与结果链路不变。
+- 统计分析基础检验子模块覆盖 `anova.R` 与 `chisq.R`：ANOVA 输出 `项目 / 自由度 / 平方和 / 均方 / F值 / P值`；卡方与 CMH 输出 `检验 / 统计量 / 自由度 / P值`，P 值均使用 AMA 风格。
 - 统计分析结果区已统一：`统计表格 / 统计报告 / 可复现代码` 三个 tab 现统一使用结果 panel 和空状态 helper，导出区也统一为结果区说明面板，但不调整结果对象、报告生成与导出逻辑。
 - 第一批 UI 归一已接入公共扩散源：`modules/common/data_filter.R` 与 `modules/task_history.R` 已统一到公共壳下的可折叠工作台卡片，减少旧式 `box()` 壳继续扩散到统计分析、统计图形与 Tables 入口。
 - 统计图形总入口使用公共卡片壳：统一图形类型选择卡，直接复用已收口的全局筛选卡与任务历史卡；可复现代码改为收口到各图形子模块结果区页签，保持原有图形子模块切换、任务历史回填和代码生成链路不变。
 - 统计图形总入口当前要求在 UI 与 server 各自作用域内独立读取 `ENTRY_COPY$statistical_graphics`；凡在 `renderUI()`、`renderText()` 等服务端渲染中继续使用入口共享文案时，不得依赖 `statistical_graphics_ui()` 内部局部变量，避免运行时出现 `找不到对象 'copy'`。
+- 统计图形子模块保存任务历史与生成可复现代码时，必须优先使用点击“生成图形”时的 committed 参数快照；若模块允许生成后继续编辑控件，`state()$input_state` 与 `extra_state` 均不得漂移到未生成的 live input。`boxplot.R`、`heatmap.R`、`correlation_matrix.R` 当前通过 `graphics_build_committed_task_state()` 覆盖已提交输入，并由 `tests/statistical_graphics/committed_state/test_basic_graphics_committed_state.R` 做 server 级回归。
 - 箱线图外层使用公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有 X/Y 映射、固定 `10 x 8` 英寸导出与任务历史契约不变。
 - 组合图外层使用公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有高动态图层参数页签、两阶段任务历史恢复与固定 `12 x 8` 英寸导出链路不变。
 - 生存分析外层使用公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有风险表、统计报告、提交态快照与导出链路不变。
@@ -399,12 +400,16 @@ AutoTFL/
 
 | 文件           | 功能          | 当前实现要点                                       |
 | ------------ | ----------- | -------------------------------------------- |
-| `desc.R`     | 描述性统计       | 基于 `gtsummary` 生成汇总表，支持总计列扩展                 |
+| `desc.R`     | 描述性统计       | 手工构造 `gt` 汇总表，支持总计列扩展与自动小数位识别          |
 | `cox.R`      | Cox 回归      | 使用 `survival::coxph`，支持 strata、split、列分组     |
 | `logistic.R` | Logistic 回归 | 使用 `stats::glm(family = binomial())`，支持事件值映射 |
 | `linear.R`   | 线性回归        | 使用 `stats::lm`，支持多预测变量和列分组                   |
-| `anova.R`    | 方差分析        | 连续变量组间比较                                     |
-| `chisq.R`    | 卡方 / CMH    | 分类变量组间比较与分层检验                                |
+| `anova.R`    | 方差分析        | 连续变量组间比较，基于完整观测输出 AMA 风格 P 值             |
+| `chisq.R`    | 卡方 / CMH    | 分类变量组间比较与分层检验，支持字符/因子分类变量              |
+
+线性回归结果中的 `N` 表示人数/有效样本人数口径，用于保持与现有统计表口径一致；该列不按二分类事件率解释。
+回归类 `model_strata` 参与模型 complete cases 与结果表 N/Event-N 口径计算；多水平亚组的 `P for interaction` 使用主效应模型与交互模型的整体比较结果。
+Logistic 列分组表保留 `gt` spanner 与展示标签，内部列名可保持 `A__N` 等结构化名称，页面展示为 `Event/N`。
 
 ### 6.3 当前共享引擎
 
@@ -571,7 +576,8 @@ AutoTFL/
 | 元数据标签与类型             | `data_metadata.R`   | `metadata_get_var_label()`、`metadata_get_var_type()`、`metadata_build_column_choices()`、`metadata_attach_to_data()`                                                                                                                                                                                                                                               | 标签解析顺序固定为 `override > metadata表 > 列label > var_name`；元数据变更后必须重新回写到数据对象                                                                                                                                                                                     |
 | 元数据底层推断              | `data_metadata.R`   | `metadata_determine_var_type()`、`metadata_coerce_var_data()`、`metadata_safe_numeric_range()`                                                                                                                                                                                                                                                                     | 字符变量低基数判定与日期/数值转换规则统一由 common 维护，子模块不得各写一套推断逻辑                                                                                                                                                                                                             |
 | 统计格式化与复现模板           | `analysis_format.R` | `format_p_value_regression()`、`format_regression_stat()`、`build_repro_code_template()`                                                                                                                                                                                                                                                                           | 回归统计值、缺失占位符、复现代码模板统一走 common，禁止模块各自维护格式                                                                                                                                                                                                                    |
-| 图形复现代码               | `graphics_repro.R`  | `graphics_quote_value()`、`graphics_quote_vector()`、`generate_graphics_repro_code()`                                                                                                                                                                                                                                                                              | 图形复现代码输入必须来自 committed 状态快照；新增图形类型时必须补 common 入口分支                                                                                                                                                                                                         |
+| 图形任务状态               | `graphics_common.R` | `graphics_build_task_state()`、`graphics_build_committed_task_state()`、`graphics_task_payload_input_state()`、`graphics_task_payload_extra_state()`、`graphics_restore_task_input_state()`                                                                                                                                                                        | 生成型图形应优先保存 committed 快照；需要保护已生成结果时，用 `graphics_build_committed_task_state()` 将已提交参数覆盖到 `input_state`，避免任务历史和复现代码保存未生成的 live input                                                                                                          |
+| 图形复现代码               | `graphics_repro.R`  | `graphics_quote_value()`、`graphics_quote_vector()`、`generate_graphics_repro_code()`                                                                                                                                                                                                                                                                              | 图形复现代码输入必须来自 committed 状态快照；新增图形类型时必须补 common 入口分支。热图与相关矩阵复现代码必须与 UI 的 `stats::cor(..., use = "complete.obs")` 口径一致，不得改用 `pairwise.complete.obs` 或 UI 未使用的绘图包                                                                 |
 | 表格样式与导出              | `table_export.R`    | `format_p_value_ama()`、`normalize_footnotes()`、`extract_table_dataframe()`、`apply_sci_gt_style()`                                                                                                                                                                                                                                                                | P 值显示、脚注清洗、gt 风格统一由 common 注入，禁止模块私有化导出样式                                                                                                                                                                                                                  |
 | 图形导出                 | `plot_export.R`     | `build_plot_export_filename()`、`save_plot_export()`                                                                                                                                                                                                                                                                                                              | 导出文件名与支持格式统一由 common 维护；业务模块不得扩展不一致的私有导出参数                                                                                                                                                                                                                 |
 | 存储抽象                 | `storage_backend.R` | `storage_backend_get()`、`storage_data_key_build()`、`storage_save_dataset()`、`storage_load_dataset()`、`storage_delete_dataset()`                                                                                                                                                                                                                                  | 数据体读写删除统一走 common；业务模块不得拼接本地/S3 细节路径                                                                                                                                                                                                                       |
@@ -661,9 +667,9 @@ AutoTFL/
   - `swimmer_plot.R`：committed 参数快照已落地，事件映射恢复链路已修复，三卡外层已回正。
   - `waterfall_plot.R`：committed 参数快照已落地，普通面板已全部切换到 common，三卡外层已回正。
   - `survival_analysis.R`：committed 参数边界已收紧，统计语义文案已明确，三卡外层已回正。
-  - `boxplot.R`：三卡外层已回正，固定 10×8 英寸导出。
-  - `heatmap.R`：三卡外层已回正，task_history 已接入（通过路由器统一委托）。
-  - `correlation_matrix.R`：三卡外层已回正，task_history 已接入（通过路由器统一委托）。
+  - `boxplot.R`：三卡外层已回正，committed 快照已覆盖 task_history / 可复现代码状态，固定 10×8 英寸导出。
+  - `heatmap.R`：三卡外层已回正，committed 快照已覆盖 task_history / 数据表 / 可复现代码状态。
+  - `correlation_matrix.R`：三卡外层已回正，committed 快照已覆盖 task_history / 数据表 / 可复现代码状态。
   - `combo_plot.R`：三卡外层已回正，committed 参数快照已落地，固定 12×8 英寸导出。
   - `forest_plot.R`：分析流水线完整下沉到 4 个 common helper，统一 result schema 已落地，`extra_state` 桥接 + pending restore 已建立。
 
@@ -679,8 +685,8 @@ AutoTFL/
 | survival_analysis.R（生存曲线） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
 | boxplot.R（箱线图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
 | forest_plot.R（森林图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据（含数据预览/统计报告） | schema 桥接 |
-| heatmap.R（热图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 已接入（路由器统一委托） |
-| correlation_matrix.R（相关性矩阵） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | 已接入（路由器统一委托） |
+| heatmap.R（热图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
+| correlation_matrix.R（相关性矩阵） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
 | combo_plot.R（组合图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
 | swimmer_plot.R（泳道图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
 | spider_plot.R（蜘蛛图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |

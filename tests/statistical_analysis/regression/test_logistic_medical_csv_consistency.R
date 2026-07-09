@@ -37,7 +37,7 @@ source(module_path("modules/statistical_analysis/logistic.R"))
 source(module_path("modules/common/export/table_export.R"))
 
 test_that("medical_test_data.csv: event=1, predictor=gender 前端与表格规范完全一致", {
-  csv_path <- module_path("test/medical_test_data.csv")
+  csv_path <- module_path("fixtures/medical_test_data.csv")
   skip_if_not(file.exists(csv_path), "Medical test data CSV missing")
   dat <- read.csv(csv_path, stringsAsFactors = FALSE)
   dat$gender <- factor(dat$gender)
@@ -107,5 +107,38 @@ test_that("非标准分类变量名在前端与表格抽取结果保持一致", 
   expect_true(startsWith(front_df$预测变量[non_ref_idx], "\u00A0\u00A0\u00A0\u00A0"))
   expect_match(front_df[["OR (95% CI)"]][non_ref_idx], "^1\\.00 \\(")
   expect_identical(front_df$P值[ref_idx], "")
+})
+
+test_that("Logistic facet 保留 gt spanner 和 Event/N 展示标签", {
+  set.seed(20260709)
+  dat <- data.frame(
+    event = rep(c(0, 1), 30),
+    x = rnorm(60),
+    arm = factor(rep(c("A", "B"), each = 30))
+  )
+
+  res <- perform_logistic_analysis(
+    data = dat,
+    logistic_response = "event",
+    logistic_predictors = "x",
+    logistic_facet = "arm",
+    logistic_event_value = "1"
+  )
+
+  raw <- as.data.frame(res$table[["_data"]], stringsAsFactors = FALSE)
+  expect_true(all(c("A__N", "B__N") %in% names(raw)))
+  expect_false(any(grepl("__Event/N", names(raw), fixed = TRUE)))
+
+  box <- res$table[["_boxhead"]]
+  labels <- as.character(box$column_label)
+  expect_false(any(grepl("__", labels, fixed = TRUE)))
+  expect_true("Event/N" %in% labels)
+  expect_true("OR (95% CI)" %in% labels)
+
+  spanners <- res$table[["_spanners"]]
+  expect_gt(nrow(spanners), 0)
+  spanner_labels <- paste(as.character(spanners$spanner_label), collapse = " ")
+  expect_match(spanner_labels, "A")
+  expect_match(spanner_labels, "B")
 })
 

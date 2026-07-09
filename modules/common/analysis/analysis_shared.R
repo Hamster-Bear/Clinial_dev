@@ -167,9 +167,15 @@ compute_interaction_p_map <- function(
     dsub[[strata_nm]] <- stats::relevel(dsub[[strata_nm]], ref = ref_level)
     for (pred in predictors) {
       td <- fit_tidy_fn(dsub, pred, strata_nm)
+      overall_p <- if (!is.null(td)) attr(td, "overall_interaction_p", exact = TRUE) else NA_real_
+      overall_p_fmt <- if (length(overall_p) > 0 && !is.na(suppressWarnings(as.numeric(overall_p[1])))) {
+        format_p_value_ama(suppressWarnings(as.numeric(overall_p[1])))
+      } else {
+        "NA"
+      }
       for (lv in as.character(strata_levels[as.character(strata_levels) != ref_level])) {
-        p_fmt <- "NA"
-        if (!is.null(td) && is.data.frame(td) && nrow(td) > 0 && "p.value" %in% names(td)) {
+        p_fmt <- overall_p_fmt
+        if (identical(p_fmt, "NA") && !is.null(td) && is.data.frame(td) && nrow(td) > 0 && "p.value" %in% names(td)) {
           idx <- which(
             grepl(":", td$term, fixed = TRUE) &
               grepl(pred, td$term, fixed = TRUE) &

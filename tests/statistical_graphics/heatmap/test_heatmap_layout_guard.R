@@ -51,8 +51,8 @@ test_that("热图模块包含结果区动作条和结果页签", {
     info = "缺少'交互图'结果页签")
   expect_true(grepl('"数据"', source_text, fixed = TRUE),
     info = "缺少'数据'结果页签")
-  expect_true(grepl('"可复现代码"', source_text, fixed = TRUE),
-    info = "缺少'可复现代码'结果页签")
+  expect_true(grepl("graphics_result_repro_tab_ui(ns)", source_text, fixed = TRUE),
+    info = "缺少可复现代码结果页签 helper")
 })
 
 test_that("热图模块不包含已废弃的裸 box 或 wellPanel 包装", {
@@ -63,12 +63,14 @@ test_that("热图模块不包含已废弃的裸 box 或 wellPanel 包装", {
 })
 
 test_that("热图模块包含 task_history state/apply_state 契约", {
-  expect_true(grepl("state = reactive", source_text, fixed = TRUE),
+  expect_true(grepl("state_reactive <- reactive", source_text, fixed = TRUE),
     info = "缺少 state reactive")
+  expect_true(grepl("state = state_reactive", source_text, fixed = TRUE),
+    info = "缺少 state 暴露")
   expect_true(grepl("apply_state <- function", source_text, fixed = TRUE),
     info = "缺少 apply_state 函数")
-  expect_true(grepl("graphics_build_task_state", source_text, fixed = TRUE),
-    info = "缺少 graphics_build_task_state 调用")
+  expect_true(grepl("graphics_build_committed_task_state", source_text, fixed = TRUE),
+    info = "缺少 graphics_build_committed_task_state 调用")
   expect_true(grepl("graphics_restore_task_input_state", source_text, fixed = TRUE),
     info = "缺少 graphics_restore_task_input_state 调用")
 })

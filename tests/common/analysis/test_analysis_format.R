@@ -25,8 +25,20 @@ test_find_project_root <- function() {
 
 project_root <- test_find_project_root()
 library(testthat)
+
+ensure_test_utf8_locale <- function() {
+  for (loc in c("Chinese_China.utf8", "English_United States.65001", "en_US.UTF-8", "C.UTF-8")) {
+    try(Sys.setlocale("LC_CTYPE", loc), silent = TRUE)
+    if (isTRUE(l10n_info()[["UTF-8"]])) return(invisible(TRUE))
+  }
+  invisible(FALSE)
+}
+
+ensure_test_utf8_locale()
 source(file.path(project_root, "modules", "common", "export", "table_export.R"))
 source(file.path(project_root, "modules", "common", "analysis", "analysis_format.R"))
+
+emdash <- intToUtf8(8212)
 
 # ---- format_p_value_regression ----
 
@@ -43,11 +55,11 @@ test_that("format_p_value_regression 正常值保留三位小数", {
 })
 
 test_that("format_p_value_regression NA 返回占位符", {
-  expect_equal(format_p_value_regression(NA), "—")
+  expect_equal(format_p_value_regression(NA), emdash)
 })
 
 test_that("format_p_value_regression 字符串 NA 返回占位符", {
-  expect_equal(format_p_value_regression("NA"), "—")
+  expect_equal(format_p_value_regression("NA"), emdash)
 })
 
 # ---- format_regression_stat ----
@@ -58,12 +70,12 @@ test_that("format_regression_stat 正常格式化", {
 })
 
 test_that("format_regression_stat NA estimate 返回占位符", {
-  expect_equal(format_regression_stat(NA, 1.1, 2.0), "—")
+  expect_equal(format_regression_stat(NA, 1.1, 2.0), emdash)
 })
 
 test_that("format_regression_stat NA CI 返回部分格式", {
   result <- format_regression_stat(1.5, NA, NA)
-  expect_equal(result, "1.50 (—, —)")
+  expect_equal(result, paste0("1.50 (", emdash, ", ", emdash, ")"))
 })
 
 test_that("format_regression_stat 字符串输入正确转换", {

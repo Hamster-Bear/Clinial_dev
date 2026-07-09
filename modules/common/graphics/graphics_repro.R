@@ -1,3 +1,11 @@
+if (!exists("build_repro_code_template", mode = "function")) {
+  if (file.exists("modules/common/analysis/analysis_format.R")) {
+    source("modules/common/analysis/analysis_format.R")
+  } else {
+    source(file.path("..", "modules", "common", "analysis", "analysis_format.R"))
+  }
+}
+
 graphics_quote_value <- function(x) {
   if (is.null(x) || length(x) == 0 || all(is.na(x))) return("NULL")
   val <- as.character(x[[1]])
@@ -148,16 +156,21 @@ generate_graphics_repro_code <- function(fig_type, state = list(), data_name = "
       list(
         title = "Set heatmap parameters",
         lines = c(
-          paste0("selected_vars <- ", graphics_quote_vector(state$selected_vars)),
-          paste0("cluster_method <- ", graphics_quote_value(state$clustering))
+          paste0("selected_vars <- ", graphics_quote_vector(state$selected_vars))
         )
       ),
       list(
         title = "Draw heatmap",
         lines = c(
-          "mat <- stats::cor(data[, selected_vars, drop = FALSE], use = \"pairwise.complete.obs\")",
-          "library(pheatmap)",
-          "pheatmap::pheatmap(mat, clustering_method = if (is.null(cluster_method)) \"complete\" else gsub('^\"|\"$', '', cluster_method))"
+          "mat <- stats::cor(data[, selected_vars, drop = FALSE], use = \"complete.obs\")",
+          "cor_long <- as.data.frame(as.table(mat))",
+          "names(cor_long) <- c(\"Var1\", \"Var2\", \"Correlation\")",
+          "p <- ggplot(cor_long, aes(Var1, Var2, fill = Correlation)) +",
+          "  geom_tile(linewidth = 0.8) +",
+          "  scale_fill_gradient2(low = \"blue\", high = \"red\", mid = \"white\", midpoint = 0, limit = c(-1, 1)) +",
+          "  theme_minimal() +",
+          "  labs(title = \"相关性热图\", x = \"变量\", y = \"变量\")",
+          "print(p)"
         )
       )
     ),
@@ -172,7 +185,7 @@ generate_graphics_repro_code <- function(fig_type, state = list(), data_name = "
       list(
         title = "Run correlation analysis",
         lines = c(
-          "corr_mat <- stats::cor(data[, selected_vars, drop = FALSE], use = \"pairwise.complete.obs\", method = if (is.null(corr_method)) \"pearson\" else gsub('^\"|\"$', '', corr_method))",
+          "corr_mat <- stats::cor(data[, selected_vars, drop = FALSE], use = \"complete.obs\", method = if (is.null(corr_method)) \"pearson\" else gsub('^\"|\"$', '', corr_method))",
           "corr_df <- as.data.frame(as.table(corr_mat))",
           "names(corr_df) <- c(\"Var1\", \"Var2\", \"Correlation\")",
           "print(head(corr_df))"

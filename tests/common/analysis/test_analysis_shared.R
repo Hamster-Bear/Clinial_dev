@@ -25,6 +25,16 @@ test_find_project_root <- function() {
 
 project_root <- test_find_project_root()
 library(testthat)
+
+ensure_test_utf8_locale <- function() {
+  for (loc in c("Chinese_China.utf8", "English_United States.65001", "en_US.UTF-8", "C.UTF-8")) {
+    try(Sys.setlocale("LC_CTYPE", loc), silent = TRUE)
+    if (isTRUE(l10n_info()[["UTF-8"]])) return(invisible(TRUE))
+  }
+  invisible(FALSE)
+}
+
+ensure_test_utf8_locale()
 source(file.path(project_root, "modules", "common", "export", "table_export.R"))
 source(file.path(project_root, "modules", "common", "analysis", "analysis_format.R"))
 source(file.path(project_root, "modules", "common", "analysis", "analysis_shared.R"))
@@ -133,7 +143,7 @@ test_that("regression_norm_text 标准化文本", {
 # ---- regression_extract_n_cols ----
 
 test_that("regression_extract_n_cols 提取 N 列", {
-  df <- data.frame(总体__N = 100, DrugA__N = 50, 统计值 = "1.20")
+  df <- data.frame(check.names = FALSE, "总体__N" = 100, DrugA__N = 50, "统计值" = "1.20")
   result <- regression_extract_n_cols(df)
   expect_equal(result, c("总体__N", "DrugA__N"))
 })

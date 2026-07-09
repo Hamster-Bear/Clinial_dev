@@ -43,7 +43,8 @@ read_utf8 <- function(...) {
 
 anova_text <- read_utf8("modules", "statistical_analysis", "anova.R")
 chisq_text <- read_utf8("modules", "statistical_analysis", "chisq.R")
-if (!nzchar(anova_text) || !nzchar(chisq_text)) return(invisible(NULL))
+analysis_text <- read_utf8("modules", "statistical_analysis.R")
+if (!nzchar(anova_text) || !nzchar(chisq_text) || !nzchar(analysis_text)) return(invisible(NULL))
 
 expect_contains <- function(text, pattern, label) {
   if (!grepl(pattern, text, perl = TRUE)) {
@@ -65,6 +66,13 @@ expect_contains(chisq_text, "app_card_panel\\(", "chisq 模块使用公共信息
 expect_contains(chisq_text, "变量选择", "chisq 模块保留变量选择区")
 expect_contains(chisq_text, "selectInput\\(ns\\(\"chisq_var1\"\\)", "chisq 模块保留变量1输入")
 expect_contains(chisq_text, "selectInput\\(ns\\(\"chisq_var2\"\\)", "chisq 模块保留变量2输入")
+expect_contains(chisq_text, "cmh_params_ui <- function", "chisq 模块提供 CMH 参数 UI")
+expect_contains(chisq_text, "perform_cmh_analysis <- function", "chisq 模块提供 CMH 检验函数")
+expect_contains(chisq_text, "selectInput\\(ns\\(\"cmh_strata\"\\)", "CMH 模块保留分层变量输入")
+
+expect_contains(analysis_text, "\"cmh\" = cmh_params_ui", "统计分析入口渲染 CMH 参数 UI")
+expect_contains(analysis_text, "\"cmh\" = \\{", "统计分析入口提供 CMH 运行分支")
+expect_contains(analysis_text, "perform_cmh_analysis\\(", "统计分析入口调用 CMH 检验函数")
 
 module_path <- function(p) file.path(project_root, p)
 source(module_path(file.path("modules", "statistical_analysis", "anova.R")))
@@ -80,8 +88,10 @@ demo_df <- data.frame(
 
 anova_ui <- anova_params_ui(NS("anova"), demo_df)
 chisq_ui <- chisq_params_ui(NS("chisq"), demo_df)
+cmh_ui <- cmh_params_ui(NS("cmh"), demo_df)
 if (!inherits(anova_ui, "shiny.tag.list")) stop("anova_params_ui 未返回 shiny.tag.list", call. = FALSE)
 if (!inherits(chisq_ui, "shiny.tag.list")) stop("chisq_params_ui 未返回 shiny.tag.list", call. = FALSE)
+if (!inherits(cmh_ui, "shiny.tag.list")) stop("cmh_params_ui 未返回 shiny.tag.list", call. = FALSE)
 
 cat("Statistical analysis basic submodule UI guard passed.\n")
 

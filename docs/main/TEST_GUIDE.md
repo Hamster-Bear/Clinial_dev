@@ -133,7 +133,10 @@
 ### 3.5 统计分析算法与业务回归
 
 - 描述性统计:
+  - `tests/statistical_analysis/desc/test_desc_correctness.R`
   - `tests/statistical_analysis/desc/test_desc_regression.R`
+- ANOVA / 卡方 / CMH:
+  - `tests/statistical_analysis/basic/test_anova_chisq_cmh_correctness.R`
 - Logistic / Linear / Cox 回归:
   - `tests/statistical_analysis/regression/test_logistic_medical_csv_consistency.R`
   - `tests/statistical_analysis/regression/test_logistic_regression.R`
@@ -166,6 +169,8 @@
 
 - 入口层 UI 守卫:
   - `tests/statistical_graphics/ui/test_statistical_graphics_layout_guard.R`
+- 基础图形 committed-state、默认 locale parse 与可复现代码正确性:
+  - `tests/statistical_graphics/committed_state/test_basic_graphics_committed_state.R`
 - Survival:
   - `tests/statistical_graphics/survival/test_survival_layout_guard.R`
   - `tests/statistical_graphics/survival/test_survival_display_contract.R`

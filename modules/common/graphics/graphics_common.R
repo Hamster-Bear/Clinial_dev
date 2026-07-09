@@ -1,3 +1,24 @@
+if (!exists("%||%", mode = "function")) {
+  `%||%` <- function(x, y) if (is.null(x)) y else x
+}
+
+if (!exists("generate_graphics_repro_code", mode = "function")) {
+  if (file.exists("modules/common/graphics/graphics_repro.R")) {
+    source("modules/common/graphics/graphics_repro.R")
+  } else {
+    source(file.path("..", "modules", "common", "graphics", "graphics_repro.R"))
+  }
+}
+
+if (!exists("graphics_bind_repro_code_output", mode = "function") ||
+    !exists("graphics_result_repro_tab_ui", mode = "function")) {
+  if (file.exists("modules/statistical_graphics_ui/common_ui_shell.R")) {
+    source("modules/statistical_graphics_ui/common_ui_shell.R")
+  } else {
+    source(file.path("..", "modules", "statistical_graphics_ui", "common_ui_shell.R"))
+  }
+}
+
 get_numeric_vars <- function(df) {
   if (is.null(df)) return(character(0))
   names(df)[vapply(df, is.numeric, logical(1))]
@@ -408,6 +429,32 @@ graphics_build_task_state <- function(input, extra_state = list(), exclude_ids =
       exclude_ids = exclude_ids,
       exclude_patterns = exclude_patterns %||% graphics_task_input_exclude_patterns()
     ),
+    extra_state = extra_state %||% list()
+  )
+}
+
+graphics_build_committed_task_state <- function(input,
+                                                committed_input_state = list(),
+                                                extra_state = list(),
+                                                exclude_ids = character(0),
+                                                exclude_patterns = NULL) {
+  input_state <- graphics_collect_task_input_state(
+    input = input,
+    exclude_ids = exclude_ids,
+    exclude_patterns = exclude_patterns %||% graphics_task_input_exclude_patterns()
+  )
+  if (is.list(committed_input_state) && length(committed_input_state) > 0) {
+    for (input_id in names(committed_input_state)) {
+      if (!graphics_should_skip_task_input(input_id, committed_input_state[[input_id]],
+                                           exclude_ids = exclude_ids,
+                                           exclude_patterns = exclude_patterns %||% graphics_task_input_exclude_patterns())) {
+        input_state[[input_id]] <- committed_input_state[[input_id]]
+      }
+    }
+  }
+  list(
+    task_schema_version = 1,
+    input_state = input_state,
     extra_state = extra_state %||% list()
   )
 }
