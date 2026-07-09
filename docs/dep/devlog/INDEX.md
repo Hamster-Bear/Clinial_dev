@@ -21,3 +21,6 @@
 | R017 | 2026-07-09 | 14:28 | - | - | 统计分析模块第一轮正确性修复与验证 | `modules/statistical_analysis.R`, `modules/statistical_analysis/`, `modules/common/analysis/`, `tests/statistical_analysis/`, `tests/common/analysis/`, `docs/main/` | active/DEVLOG-R001-R040.md |
 | R018 | 2026-07-09 | 15:01 | - | - | 恢复线性回归 N 设计口径并补齐统计分析正确性测试 | `modules/statistical_analysis/linear.R`, `tests/statistical_analysis/`, `docs/main/`, `docs/dep/devlog/` | active/DEVLOG-R001-R040.md |
 | R019 | 2026-07-09 | 16:04 | - | - | 统计图形首批可用性与正确性修复：布局、committed-state、复现代码 | `modules/statistical_graphics/`, `modules/common/graphics/`, `tests/statistical_graphics/`, `tests/common/graphics/`, `docs/main/` | active/DEVLOG-R001-R040.md |
+| R020 | 2026-07-09 | 22:58 | - | - | Docker 部署依赖检测与镜像启动修复 | `Dockerfile`, `install_dependencies.R`, `tests/root/test_dependency_manifest_contract.R`, `docs/deploy/DEPLOY_GUIDE.md` | active/DEVLOG-R001-R040.md |
+| R021 | 2026-07-09 | 23:41 | - | - | 统计图形第二批正确性修复：热图聚类与箱线图样式控件 | `modules/statistical_graphics/`, `modules/common/graphics/`, `tests/statistical_graphics/`, `docs/main/` | active/DEVLOG-R001-R040.md |
+| R022 | 2026-07-10 | 00:33 | - | - | 统计图形第二批正确性修复：组合图复现代码与动态图层状态 | `modules/statistical_graphics/combo_plot.R`, `modules/common/graphics/graphics_repro.R`, `tests/statistical_graphics/`, `docs/main/` | active/DEVLOG-R001-R040.md |

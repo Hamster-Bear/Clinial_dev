@@ -6,6 +6,49 @@ library(ggplot2)
 library(plotly)
 library(DT)
 
+boxplot_fill_scale <- function(palette) {
+  switch(
+    palette %||% "",
+    lancet = ggsci::scale_fill_lancet(),
+    jama = ggsci::scale_fill_jama(),
+    nejm = ggsci::scale_fill_nejm(),
+    viridis = ggplot2::scale_fill_viridis_d(),
+    NULL
+  )
+}
+
+boxplot_build_plot <- function(plot_data, params) {
+  plot_family <- graphics_resolve_font_spec("sans")$unified
+  p <- ggplot(
+    plot_data,
+    aes(
+      x = .data[[params$boxplot_x]],
+      y = .data[[params$boxplot_y]],
+      fill = .data[[params$boxplot_x]]
+    )
+  ) +
+    geom_boxplot(
+      alpha = 0.7,
+      linewidth = params$line_size %||% 0.6,
+      linetype = params$line_type %||% "solid",
+      outlier.size = params$point_size %||% 1
+    ) +
+    theme_minimal(base_family = plot_family) +
+    labs(
+      title = ifelse(nchar(params$plot_title %||% "") > 0, params$plot_title, "箱线图"),
+      x = ifelse(nchar(params$plot_xlab %||% "") > 0, params$plot_xlab, params$boxplot_x),
+      y = ifelse(nchar(params$plot_ylab %||% "") > 0, params$plot_ylab, params$boxplot_y),
+      fill = params$boxplot_x
+    )
+
+  fill_scale <- boxplot_fill_scale(params$plot_palette)
+  if (!is.null(fill_scale)) {
+    p <- p + fill_scale
+  }
+
+  p
+}
+
 if (!exists("app_card_box", mode = "function") ||
     !exists("app_card_note", mode = "function") ||
     !exists("app_result_panel", mode = "function")) {
@@ -258,21 +301,7 @@ boxplot_server <- function(input, output, session, data) {
   # 创建箱线图（从 committed params 读取参数，不直接从 input$ 读取）
   create_boxplot <- function(params) {
     req(data(), params$boxplot_x, params$boxplot_y)
-    plot_family <- graphics_resolve_font_spec("sans")$unified
-
-    p <- ggplot(data(), aes(x = .data[[params$boxplot_x]], y = .data[[params$boxplot_y]])) +
-      geom_boxplot(fill = "lightblue", alpha = 0.7) +
-      theme_minimal(base_family = plot_family) +
-      labs(title = ifelse(nchar(params$plot_title %||% "") > 0, params$plot_title, "箱线图"),
-           x = ifelse(nchar(params$plot_xlab %||% "") > 0, params$plot_xlab, params$boxplot_x),
-           y = ifelse(nchar(params$plot_ylab %||% "") > 0, params$plot_ylab, params$boxplot_y))
-
-    # 应用颜色主题
-    if (!is.null(params$plot_palette) && nzchar(params$plot_palette)) {
-      p <- p + scale_fill_brewer(palette = params$plot_palette)
-    }
-
-    return(p)
+    boxplot_build_plot(data(), params)
   }
 
   # 生成箱线图
@@ -365,7 +394,14 @@ boxplot_server <- function(input, output, session, data) {
       committed_input_state = params,
       extra_state = list(
         x_var = params$boxplot_x,
-        y_var = params$boxplot_y
+        y_var = params$boxplot_y,
+        plot_title = params$plot_title,
+        plot_xlab = params$plot_xlab,
+        plot_ylab = params$plot_ylab,
+        plot_palette = params$plot_palette,
+        line_size = params$line_size,
+        line_type = params$line_type,
+        point_size = params$point_size
       )
     )
   })

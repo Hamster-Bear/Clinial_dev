@@ -191,7 +191,7 @@
 - 第一批 UI 归一已接入公共扩散源：`modules/common/data_filter.R` 与 `modules/task_history.R` 已统一到公共壳下的可折叠工作台卡片，减少旧式 `box()` 壳继续扩散到统计分析、统计图形与 Tables 入口。
 - 统计图形总入口使用公共卡片壳：统一图形类型选择卡，直接复用已收口的全局筛选卡与任务历史卡；可复现代码改为收口到各图形子模块结果区页签，保持原有图形子模块切换、任务历史回填和代码生成链路不变。
 - 统计图形总入口当前要求在 UI 与 server 各自作用域内独立读取 `ENTRY_COPY$statistical_graphics`；凡在 `renderUI()`、`renderText()` 等服务端渲染中继续使用入口共享文案时，不得依赖 `statistical_graphics_ui()` 内部局部变量，避免运行时出现 `找不到对象 'copy'`。
-- 统计图形子模块保存任务历史与生成可复现代码时，必须优先使用点击“生成图形”时的 committed 参数快照；若模块允许生成后继续编辑控件，`state()$input_state` 与 `extra_state` 均不得漂移到未生成的 live input。`boxplot.R`、`heatmap.R`、`correlation_matrix.R` 当前通过 `graphics_build_committed_task_state()` 覆盖已提交输入，并由 `tests/statistical_graphics/committed_state/test_basic_graphics_committed_state.R` 做 server 级回归。
+- 统计图形子模块保存任务历史与生成可复现代码时，必须优先使用点击“生成图形”时的 committed 参数快照；若模块允许生成后继续编辑控件，`state()$input_state` 与 `extra_state` 均不得漂移到未生成的 live input。`boxplot.R`、`heatmap.R`、`correlation_matrix.R`、`combo_plot.R` 当前通过 `graphics_build_committed_task_state()` 覆盖已提交输入，并由 `tests/statistical_graphics/committed_state/test_basic_graphics_committed_state.R` 做 server 级回归。
 - 箱线图外层使用公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有 X/Y 映射、固定 `10 x 8` 英寸导出与任务历史契约不变。
 - 组合图外层使用公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有高动态图层参数页签、两阶段任务历史恢复与固定 `12 x 8` 英寸导出链路不变。
 - 生存分析外层使用公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有风险表、统计报告、提交态快照与导出链路不变。
@@ -577,7 +577,7 @@ Logistic 列分组表保留 `gt` spanner 与展示标签，内部列名可保持
 | 元数据底层推断              | `data_metadata.R`   | `metadata_determine_var_type()`、`metadata_coerce_var_data()`、`metadata_safe_numeric_range()`                                                                                                                                                                                                                                                                     | 字符变量低基数判定与日期/数值转换规则统一由 common 维护，子模块不得各写一套推断逻辑                                                                                                                                                                                                             |
 | 统计格式化与复现模板           | `analysis_format.R` | `format_p_value_regression()`、`format_regression_stat()`、`build_repro_code_template()`                                                                                                                                                                                                                                                                           | 回归统计值、缺失占位符、复现代码模板统一走 common，禁止模块各自维护格式                                                                                                                                                                                                                    |
 | 图形任务状态               | `graphics_common.R` | `graphics_build_task_state()`、`graphics_build_committed_task_state()`、`graphics_task_payload_input_state()`、`graphics_task_payload_extra_state()`、`graphics_restore_task_input_state()`                                                                                                                                                                        | 生成型图形应优先保存 committed 快照；需要保护已生成结果时，用 `graphics_build_committed_task_state()` 将已提交参数覆盖到 `input_state`，避免任务历史和复现代码保存未生成的 live input                                                                                                          |
-| 图形复现代码               | `graphics_repro.R`  | `graphics_quote_value()`、`graphics_quote_vector()`、`generate_graphics_repro_code()`                                                                                                                                                                                                                                                                              | 图形复现代码输入必须来自 committed 状态快照；新增图形类型时必须补 common 入口分支。热图与相关矩阵复现代码必须与 UI 的 `stats::cor(..., use = "complete.obs")` 口径一致，不得改用 `pairwise.complete.obs` 或 UI 未使用的绘图包                                                                 |
+| 图形复现代码               | `graphics_repro.R`  | `graphics_quote_value()`、`graphics_quote_vector()`、`graphics_quote_bool()`、`graphics_quote_bool_default()`、`graphics_quote_number()`、`graphics_quote_value_default()`、`graphics_first_non_null()`、`generate_graphics_repro_code()`                                                                                                                          | 图形复现代码输入必须来自 committed 状态快照；新增图形类型时必须补 common 入口分支。热图与相关矩阵复现代码必须与 UI 的 `stats::cor(..., use = "complete.obs")` 口径一致；热图聚类开关必须同步影响 UI 矩阵、数据表与复现代码；箱线图复现代码必须携带分组填色、调色板、线宽、线型与离群点大小；组合图复现代码必须使用真实 X/Y、分组、分面与动态图层样式，禁止生成 `aes(1, 1)` 占位图 |
 | 表格样式与导出              | `table_export.R`    | `format_p_value_ama()`、`normalize_footnotes()`、`extract_table_dataframe()`、`apply_sci_gt_style()`                                                                                                                                                                                                                                                                | P 值显示、脚注清洗、gt 风格统一由 common 注入，禁止模块私有化导出样式                                                                                                                                                                                                                  |
 | 图形导出                 | `plot_export.R`     | `build_plot_export_filename()`、`save_plot_export()`                                                                                                                                                                                                                                                                                                              | 导出文件名与支持格式统一由 common 维护；业务模块不得扩展不一致的私有导出参数                                                                                                                                                                                                                 |
 | 存储抽象                 | `storage_backend.R` | `storage_backend_get()`、`storage_data_key_build()`、`storage_save_dataset()`、`storage_load_dataset()`、`storage_delete_dataset()`                                                                                                                                                                                                                                  | 数据体读写删除统一走 common；业务模块不得拼接本地/S3 细节路径                                                                                                                                                                                                                       |
@@ -667,10 +667,10 @@ Logistic 列分组表保留 `gt` spanner 与展示标签，内部列名可保持
   - `swimmer_plot.R`：committed 参数快照已落地，事件映射恢复链路已修复，三卡外层已回正。
   - `waterfall_plot.R`：committed 参数快照已落地，普通面板已全部切换到 common，三卡外层已回正。
   - `survival_analysis.R`：committed 参数边界已收紧，统计语义文案已明确，三卡外层已回正。
-  - `boxplot.R`：三卡外层已回正，committed 快照已覆盖 task_history / 可复现代码状态，固定 10×8 英寸导出。
-  - `heatmap.R`：三卡外层已回正，committed 快照已覆盖 task_history / 数据表 / 可复现代码状态。
+  - `boxplot.R`：三卡外层已回正，committed 快照已覆盖 task_history / 可复现代码状态；图形与样式控件覆盖分组填色、调色板、线宽、线型与离群点大小，固定 10×8 英寸导出。
+  - `heatmap.R`：三卡外层已回正，committed 快照已覆盖 task_history / 数据表 / 可复现代码状态；聚类开关统一控制相关矩阵重排、数据表顺序与复现代码。
   - `correlation_matrix.R`：三卡外层已回正，committed 快照已覆盖 task_history / 数据表 / 可复现代码状态。
-  - `combo_plot.R`：三卡外层已回正，committed 参数快照已落地，固定 12×8 英寸导出。
+  - `combo_plot.R`：三卡外层已回正，committed 快照已覆盖 task_history / 可复现代码状态；复现代码使用真实 X/Y、分组、分面与动态图层样式，固定 12×8 英寸导出。
   - `forest_plot.R`：分析流水线完整下沉到 4 个 common helper，统一 result schema 已落地，`extra_state` 桥接 + pending restore 已建立。
 
 ### 7.7 UI 改进与职责边界现状
@@ -683,11 +683,11 @@ Logistic 列分组表保留 `gt` spanner 与展示标签，内部列名可保持
 |------|----------|------------|---------|------------|
 | statistical_graphics.R（总入口） | 统一入口壳 | 图形类型切换 + 代码卡 | 代码容器已收口 | 共享 `task_history` |
 | survival_analysis.R（生存曲线） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
-| boxplot.R（箱线图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
+| boxplot.R（箱线图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据/可复现代码 | committed_params 快照 + apply_state 已标准化；样式状态进入复现代码 |
 | forest_plot.R（森林图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据（含数据预览/统计报告） | schema 桥接 |
-| heatmap.R（热图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
+| heatmap.R（热图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据/可复现代码 | committed_params 快照 + apply_state 已标准化；聚类状态进入数据表与复现代码 |
 | correlation_matrix.R（相关性矩阵） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
-| combo_plot.R（组合图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
+| combo_plot.R（组合图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据/可复现代码 | committed_params 快照 + apply_state 已标准化；动态图层状态进入复现代码 |
 | swimmer_plot.R（泳道图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
 | spider_plot.R（蜘蛛图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据 | committed_params 快照 + apply_state 已标准化 |
 | waterfall_plot.R（瀑布图） | 统一三卡外层 | 数据与变量 / 图形与样式 / 输出与导出 | 静态图/交互图/数据（瀑布数据/分组轨道数据） | committed_params 快照 + apply_state 已标准化 |

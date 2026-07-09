@@ -14,18 +14,17 @@ ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
 # 预装 pak 包管理器（install_dependencies.R 使用它调用 PPM 二进制仓库）
-RUN R -e 'install.packages("pak", repos = "https://mirrors.tuna.tsinghua.edu.cn/CRAN/")'
+RUN /usr/local/bin/R -e 'install.packages("pak", repos = "https://mirrors.tuna.tsinghua.edu.cn/CRAN/")'
 
 # 切换 Ubuntu 清华镜像源（国内网络环境加速）
 RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/ubuntu.sources && \
     sed -i 's|http://security.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/ubuntu.sources
 
-# 安装 R 及所有常见编译依赖
+# 安装系统编译依赖；R 版本只使用 rocker/shiny 自带的 /usr/local/bin/R
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        r-base-dev \
         g++ \
         gcc \
         gfortran \
@@ -115,7 +114,7 @@ RUN --mount=type=cache,target=/var/cache/r-site-library,sharing=locked \
         cp -rn /var/cache/r-pkg-downloads/* /root/.cache/R/pkgcache/ 2>/dev/null || true; \
     fi && \
     echo "==> Running R dependency installation..." && \
-    Rscript /app/install_dependencies.R && \
+    /usr/local/bin/Rscript /app/install_dependencies.R && \
     echo "==> Saving installed R packages to build cache..." && \
     mkdir -p /var/cache/r-site-library && \
     cp -rn /usr/local/lib/R/site-library/* /var/cache/r-site-library/ && \
@@ -136,4 +135,4 @@ RUN chown -R shiny:shiny /app && chmod -R 755 /app
 EXPOSE 3838
 
 # 使用run_app.R启动应用，这是项目推荐的方式
-CMD ["R", "-e", "options(shiny.port=3838, shiny.host='0.0.0.0', shiny.maxRequestSize=100*1024^2); shiny::runApp('app.R', port=3838, host='0.0.0.0')"]
+CMD ["/usr/local/bin/R", "-e", "options(shiny.port=3838, shiny.host='0.0.0.0', shiny.maxRequestSize=100*1024^2); shiny::runApp('app.R', port=3838, host='0.0.0.0')"]

@@ -2,6 +2,130 @@
 
 ---
 
+### R022 [00:33] — 统计图形第二批正确性修复：组合图复现代码与动态图层状态
+
+#### Done
+- `graphics_repro.R` 的 combo 分支改为使用真实 `main_x_var/main_y_var/group_var/facet_var`，不再生成 `aes(1, 1)` 占位图。
+- combo 可复现代码补齐 overlay / side-by-side / top-bottom 生成路径，并携带散点、折线、柱状、箱线、密度、直方、面积、小提琴等动态图层样式参数。
+- `combo_plot.R` 新增 `collect_combo_params()` 与 `combo_repro_state()`，`state_reactive()` 改用 `graphics_build_committed_task_state()`，让任务历史与复现代码读取生成时快照。
+- 新增 `tests/statistical_graphics/combo/test_combo_behavior.R`，覆盖组合图复现代码的真实映射、分组、分面和动态图层样式。
+- 扩展 `tests/statistical_graphics/committed_state/test_basic_graphics_committed_state.R`，覆盖 combo `extra_state` 的映射与样式字段。
+- 同步 `PROJECT_GUIDE.md` 与 `TEST_GUIDE.md`，将 combo 纳入 committed-state 与复现代码行为契约。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| Docker 挂载工作区运行 `tests/statistical_graphics/combo/test_combo_behavior.R` | 通过 | 0 failures / 0 errors；覆盖真实映射与动态图层样式复现 |
+| Docker 挂载工作区运行 `tests/statistical_graphics/committed_state/test_basic_graphics_committed_state.R` | 通过 | 0 failures / 0 errors；保留既有 locale warning |
+| Docker 挂载工作区运行 combo layout guard、graphics preset guard、result copy guard | 通过 | 0 failures / 0 errors；脚本式 empty-test guard 保留既有 skip |
+| Docker 挂载工作区运行 `tests/root/test_project_docs_guard.R` | 通过 | 0 failures / 0 errors |
+| Docker 挂载工作区运行 `tests/check_test_guide_index.R` | 通过 | 测试索引校验通过 |
+
+#### Issues / Blockers
+- 本轮 combo 复现代码阻塞已解除。
+- Windows 主机 R 的 `rlang`/`cli`/`testthat` 非零退出风险仍未处理；本轮回归继续使用 Docker 环境。
+- 部分 layout guard 仍是脚本式 empty-test 形态，后续可迁移到标准 `test_that()`。
+
+#### Next
+1. 将 spider、swimmer、waterfall 纳入 server 级 committed-state 回归，减少仅靠静态守卫覆盖的盲区。
+2. 清理脚本式 empty-test layout guard，逐步迁移为标准 `test_that()`。
+3. 如需恢复主机 R 测试入口，先关闭 VS Code R language/help server，再重装被占用的 `rlang`、`cli`、`testthat`。
+
+#### Files Changed / Commits
+- `modules/common/graphics/graphics_repro.R`（修改）— combo 复现模板使用真实映射与动态图层样式，新增引用 helper。
+- `modules/statistical_graphics/combo_plot.R`（修改）— combo 参数收集与复现 extra_state 补齐，state 改用 committed 快照。
+- `tests/statistical_graphics/combo/test_combo_behavior.R`（新增）— combo 复现代码行为测试。
+- `tests/statistical_graphics/combo/test_combo_layout_guard.R`（修改）— committed-state helper 守卫同步。
+- `tests/statistical_graphics/committed_state/test_basic_graphics_committed_state.R`（修改）— combo extra_state server 级守卫。
+- `docs/main/PROJECT_GUIDE.md`、`docs/main/TEST_GUIDE.md`、`docs/dep/devlog/INDEX.md`、`docs/dep/devlog/active/DEVLOG-R001-R040.md`（修改）— 实现契约、测试索引与本轮记录。
+- `(uncommitted)`
+
+---
+
+### R021 [23:41] — 统计图形第二批正确性修复：热图聚类与箱线图样式控件
+
+#### Done
+- `heatmap.R` 新增 `heatmap_order_correlation_matrix()`，将聚类开关统一应用到相关矩阵、数据表与 UI 绘图路径。
+- `graphics_repro.R` 的热图复现代码同步生成 `cluster_heatmap`，并在开启聚类时使用同一 `hclust(as.dist(1 - cor))` 顺序重排矩阵。
+- `boxplot.R` 提取 `boxplot_build_plot()` 与 `boxplot_fill_scale()`，图形与样式控件现在进入 ggplot 对象：分组填色、调色板、线宽、线型与离群点大小均由 committed 参数控制。
+- `boxplot.R` 的 `extra_state` 补齐标题、轴标签、调色板、线宽、线型与离群点大小，任务历史与复现代码读取生成时快照。
+- `graphics_repro.R` 补充数值、布尔与默认字符串引用 helper；boxplot 复现代码改为自包含的 ggplot 代码，样式参数与 UI 绘图路径一致。
+- 新增 heatmap/boxplot 行为测试，并同步 `PROJECT_GUIDE.md` 与 `TEST_GUIDE.md`。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| Docker 挂载工作区运行 `tests/statistical_graphics/boxplot/test_boxplot_behavior.R` | 通过 | 0 failures / 0 errors；覆盖绘图对象样式与复现代码样式 |
+| Docker 挂载工作区运行 `tests/statistical_graphics/heatmap/test_heatmap_behavior.R` | 通过 | 0 failures / 0 errors；覆盖聚类排序与复现代码排序 |
+| Docker 挂载工作区运行 `tests/statistical_graphics/committed_state/test_basic_graphics_committed_state.R` | 通过 | 0 failures / 0 errors；保留既有 locale warning |
+| Docker 挂载工作区运行 boxplot/heatmap layout guard、graphics preset guard、result copy guard | 通过 | 0 failures / 0 errors；脚本式 empty-test guard 保留既有 skip |
+| Docker 挂载工作区运行 `tests/check_test_guide_index.R` | 通过 | 测试索引校验通过 |
+
+#### Issues / Blockers
+- 本轮功能阻塞已解除。
+- Windows 主机 R 的 `rlang`/`cli`/`testthat` 非零退出风险仍未处理；本轮所有 R 回归继续使用 Docker 环境。
+- boxplot layout guard 仍是脚本式 empty-test 形态，后续可迁移到标准 `test_that()`。
+
+#### Next
+1. 继续统计图形第二批剩余项：combo 可复现代码真实变量映射与动态图层状态。
+2. 将 spider、swimmer、waterfall、combo 纳入 server 级 committed-state 回归。
+3. 如需恢复主机 R 测试入口，先关闭 VS Code R language/help server，再重装被占用的 `rlang`、`cli`、`testthat`。
+
+#### Files Changed / Commits
+- `modules/statistical_graphics/heatmap.R`（修改）— 热图聚类排序 helper 与 UI/数据表路径接入。
+- `modules/statistical_graphics/boxplot.R`（修改）— 样式控件进入 ggplot 对象，style extra_state 补齐。
+- `modules/common/graphics/graphics_repro.R`（修改）— 热图聚类复现、boxplot 样式复现与引用 helper。
+- `tests/statistical_graphics/heatmap/test_heatmap_behavior.R`（新增）— 热图聚类行为与复现代码测试。
+- `tests/statistical_graphics/boxplot/test_boxplot_behavior.R`（新增）— boxplot 样式控件与复现代码测试。
+- `tests/statistical_graphics/committed_state/test_basic_graphics_committed_state.R`（修改）— boxplot style committed-state 守卫。
+- `docs/main/PROJECT_GUIDE.md`、`docs/main/TEST_GUIDE.md`、`docs/dep/devlog/INDEX.md`、`docs/dep/devlog/active/DEVLOG-R001-R040.md`（修改）— 实现契约、测试索引与本轮记录。
+- `(uncommitted)`
+
+---
+
+### R020 [22:58] — Docker 部署依赖检测与镜像启动修复
+
+#### Done
+- 完成 Docker/Compose 部署预检：Docker 与 Compose 可用，`docker-compose*.yml` 配置校验通过；当前端口 5432/6379/8080 已由 AutoTFL 栈占用。
+- 定位部署阻塞：旧 `autotfl-shiny` 容器因缺失 `webshot2` 反复重启，nginx 入口 `http://localhost:8080/` 返回 502。
+- 修复 `install_dependencies.R` 缺失包判断：避免 `find.package(..., quiet = TRUE)` 返回 `NA` 时被 `nzchar()` 误判为已安装；构建阶段现能正确识别并安装 51 个缺失包。
+- 收紧 Dockerfile R 版本边界：移除发行版 `r-base-dev`，依赖安装与运行命令显式使用 `rocker/shiny:4.5.3` 自带的 `/usr/local/bin/R` 与 `/usr/local/bin/Rscript`。
+- 同步部署文档，说明离线 `package/` 缺少 `PACKAGES` 索引时会回退在线 CRAN 镜像，并记录 Docker 镜像只使用 rocker 自带 R 的约束。
+- 重建 `autotfl-shiny-app:latest` 并重建 app 容器；`autotfl-shiny` 当前 `restartCount=0`，nginx 入口返回 200。
+
+#### Tests
+| 命令 / 范围 | 结果 | 说明 |
+|-------------|------|------|
+| `docker build --no-cache -t autotfl-shiny-app:latest .` | 通过 | 构建完成；依赖安装脚本最终确认 60 个依赖包均已安装 |
+| `docker run --rm autotfl-shiny-app:latest Rscript -e "source('/app/config/required_packages.R'); ..."` | 通过 | `required_packages=60 missing=0` |
+| `docker run --rm autotfl-shiny-app:latest sh -lc 'which R; which Rscript; ...'` | 通过 | `R=/usr/local/bin/R`、`Rscript=/usr/local/bin/Rscript`、`/usr/bin/Rscript` 不存在 |
+| `docker compose -f docker-compose.yml up -d --no-deps --force-recreate app` + nginx restart | 通过 | app/nginx/postgres/redis 均运行；postgres healthy |
+| `Invoke-WebRequest http://localhost:8080/` | 通过 | HTTP 200，nginx 访问日志记录 `GET /` 200 |
+| Docker 挂载工作区运行 `tests/root/test_dependency_manifest_contract.R` | 通过 | 0 failures / 0 errors |
+| Docker 挂载工作区运行 `tests/root/test_deploy_scripts_contract.R` | 通过 | 0 failures / 0 errors |
+| Docker 挂载工作区运行 `tests/root/test_project_docs_guard.R` | 通过 | 0 failures / 0 errors |
+| Docker 挂载工作区运行 `tests/check_test_guide_index.R` | 通过 | 测试索引校验通过 |
+
+#### Issues / Blockers
+- Docker 部署阻塞已解除。
+- Windows 主机 R 环境仍有测试入口风险：加载 `rlang`/`cli`/`testthat` 会非零退出；CRAN 重装 `rlang`/`cli` 被 VS Code R language/help server 占用的用户库 DLL 拒绝。后续回归优先使用 Docker R 环境，或先关闭 VS Code R server 后重装主机 R 基础包。
+- 本地 `package/` 目录存在但无 `PACKAGES` 索引；当前构建会回退在线 CRAN 镜像。完全离线发布前仍需重新生成离线包索引。
+
+#### Next
+1. 后续统计图形/分析回归优先使用当前已验证的 Docker 环境，避免主机 R 包退出码假红干扰。
+2. 如需恢复主机本地 R 测试入口，先关闭 VS Code R language/help server，再从 CRAN 重装 `rlang`、`cli`、`testthat`。
+3. 完全离线部署前运行离线包下载脚本，确保 `package/PACKAGES` 存在。
+
+#### Files Changed / Commits
+- `install_dependencies.R`（修改）— 新增 `package_installed()`，修复缺失包 `NA` 路径误判。
+- `Dockerfile`（修改）— 移除 `r-base-dev`，依赖安装与运行显式使用 `/usr/local/bin/R*`。
+- `tests/root/test_dependency_manifest_contract.R`（修改）— 增加依赖判断与 Dockerfile R 边界守卫。
+- `docs/deploy/DEPLOY_GUIDE.md`（修改）— 同步离线包索引与 Docker R 运行时约束。
+- `docs/dep/devlog/INDEX.md`、`docs/dep/devlog/active/DEVLOG-R001-R040.md`（修改）— R020 记录。
+- `(uncommitted)`
+
+---
+
 ### R019 [16:04] — 统计图形首批可用性与正确性修复：布局、committed-state、复现代码
 
 #### Done

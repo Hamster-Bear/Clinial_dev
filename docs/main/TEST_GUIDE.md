@@ -180,8 +180,10 @@
   - `tests/statistical_graphics/survival/test_label_mapping.R`
 - Combo:
   - `tests/statistical_graphics/combo/test_combo_layout_guard.R`
+  - `tests/statistical_graphics/combo/test_combo_behavior.R`
 - Boxplot:
   - `tests/statistical_graphics/boxplot/test_boxplot_layout_guard.R`
+  - `tests/statistical_graphics/boxplot/test_boxplot_behavior.R`
 - Spider:
   - `tests/statistical_graphics/spider/test_spider_layout_guard.R`
 - Swimmer:
@@ -195,6 +197,7 @@
   - `tests/statistical_graphics/waterfall/test_waterfall_symbol_choices.R`
 - Heatmap:
   - `tests/statistical_graphics/heatmap/test_heatmap_layout_guard.R`
+  - `tests/statistical_graphics/heatmap/test_heatmap_behavior.R`
 - Correlation Matrix:
   - `tests/statistical_graphics/correlation_matrix/test_correlation_matrix_layout_guard.R`
 

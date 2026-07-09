@@ -61,8 +61,41 @@ test_that("Docker 构建在运行安装脚本前复制依赖清单目录", {
   expect_match(docker_text, "COPY config /app/config", fixed = TRUE)
   expect_lt(
     regexpr("COPY config /app/config", docker_text, fixed = TRUE)[[1]],
-    regexpr("Rscript /app/install_dependencies.R", docker_text, fixed = TRUE)[[1]]
+    regexpr("/usr/local/bin/Rscript /app/install_dependencies.R", docker_text, fixed = TRUE)[[1]]
   )
+})
+
+test_that("Docker 构建只使用 rocker 自带 R 安装依赖", {
+  docker_text <- read_text(file.path(root_dir, "Dockerfile"))
+
+  expect_match(docker_text, "/usr/local/bin/R -e", fixed = TRUE)
+  expect_match(docker_text, "/usr/local/bin/Rscript /app/install_dependencies.R", fixed = TRUE)
+  expect_match(docker_text, 'CMD ["/usr/local/bin/R"', fixed = TRUE)
+  expect_false(grepl("r-base-dev", docker_text, fixed = TRUE))
+})
+
+test_that("依赖安装脚本不会把缺失包的 NA 路径当作已安装", {
+  guard_name <- ".__install_deps_main_called"
+  had_guard <- exists(guard_name, envir = .GlobalEnv, inherits = FALSE)
+  old_guard <- if (had_guard) get(guard_name, envir = .GlobalEnv) else NULL
+  assign(guard_name, TRUE, envir = .GlobalEnv)
+  on.exit({
+    if (had_guard) {
+      assign(guard_name, old_guard, envir = .GlobalEnv)
+    } else {
+      rm(list = guard_name, envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+
+  old_wd <- getwd()
+  setwd(root_dir)
+  on.exit(setwd(old_wd), add = TRUE)
+
+  install_env <- new.env(parent = globalenv())
+  source(file.path(root_dir, "install_dependencies.R"), local = install_env)
+
+  expect_true(install_env$package_installed("stats"))
+  expect_false(install_env$package_installed("__autotfl_missing_package_sentinel__"))
 })
 
 test_that("Docker 构建上下文包含依赖清单目录", {

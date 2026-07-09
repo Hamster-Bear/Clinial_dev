@@ -148,8 +148,9 @@ AutoTFL/
 
 - 当前 `Dockerfile` 会先执行 `COPY package /app/package` 与 `COPY config /app/config`。
 - 因此，如果要按当前 `Dockerfile` 构建镜像，必须先在项目根目录准备好 `package/` 目录。
-- `package/` 目录由 `download_offline_packages.R` 生成，并应包含 `PACKAGES` 索引；依赖列表来自 `config/required_packages.R`。
+- `package/` 目录由 `download_offline_packages.R` 生成；离线构建时应包含 `PACKAGES` 索引，缺少索引时依赖安装脚本会跳过本地仓库并回退到在线 CRAN 镜像。
 - 如果没有先生成 `package/`，当前 Docker 构建流程会在复制阶段失败。
+- Docker 镜像的 R 运行时只使用 `rocker/shiny:4.5.3` 自带的 `/usr/local/bin/R` 与 `/usr/local/bin/Rscript`；Dockerfile 不应安装发行版 `r-base-dev`，避免构建期和运行期落到不同 R 库。
 
 ### 4.3 数据与网络前提
 

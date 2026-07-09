@@ -6,6 +6,26 @@ library(ggplot2)
 library(plotly)
 library(DT)
 
+heatmap_order_correlation_matrix <- function(cor_matrix, cluster = TRUE) {
+  if (!isTRUE(cluster) ||
+      is.null(dim(cor_matrix)) ||
+      nrow(cor_matrix) < 2 ||
+      ncol(cor_matrix) < 2) {
+    return(cor_matrix)
+  }
+
+  distance_source <- cor_matrix
+  distance_source[!is.finite(distance_source)] <- 0
+  diag(distance_source) <- 1
+
+  order_idx <- tryCatch(
+    stats::hclust(stats::as.dist(1 - distance_source))$order,
+    error = function(e) seq_len(ncol(cor_matrix))
+  )
+
+  cor_matrix[order_idx, order_idx, drop = FALSE]
+}
+
 if (!exists("app_card_box", mode = "function") ||
     !exists("app_card_note", mode = "function") ||
     !exists("app_result_panel", mode = "function")) {
@@ -260,6 +280,7 @@ heatmap_server <- function(input, output, session, data) {
     
     # 计算相关性矩阵
     cor_matrix <- cor(heatmap_data, use = "complete.obs")
+    cor_matrix <- heatmap_order_correlation_matrix(cor_matrix, params$heatmap_cluster)
     
     # 转换为长格式
     cor_long <- as.data.frame(as.table(cor_matrix))
@@ -336,6 +357,7 @@ heatmap_server <- function(input, output, session, data) {
       # 计算相关性矩阵
       heatmap_data <- data()[, params$heatmap_vars, drop = FALSE]
       cor_matrix <- cor(heatmap_data, use = "complete.obs")
+      cor_matrix <- heatmap_order_correlation_matrix(cor_matrix, params$heatmap_cluster)
       
       # 转换为数据框用于显示
       cor_df <- as.data.frame(cor_matrix)

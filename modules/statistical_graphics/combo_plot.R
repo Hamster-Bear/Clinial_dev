@@ -261,6 +261,76 @@ combo_plot_server <- function(input, output, session, data) {
     graphics_collect_size_config(input)
   })
 
+  collect_combo_params <- function() {
+    list(
+      main_x_var = input$main_x_var,
+      main_y_var = input$main_y_var,
+      group_var = input$group_var,
+      facet_var = input$facet_var,
+      combo_method = input$combo_method,
+      plot_types = input$plot_types,
+      export_format = input$export_format,
+      export_dpi = if (is.null(input$export_dpi)) 300 else input$export_dpi,
+      scatter_size = input$scatter_size,
+      scatter_alpha = input$scatter_alpha,
+      scatter_jitter = input$scatter_jitter,
+      line_width = input$line_width,
+      line_type = input$line_type,
+      line_smooth = input$line_smooth,
+      bar_position = input$bar_position,
+      bar_width = input$bar_width,
+      bar_alpha = input$bar_alpha,
+      boxplot_width = input$boxplot_width,
+      boxplot_outliers = input$boxplot_outliers,
+      boxplot_notch = input$boxplot_notch,
+      density_alpha = input$density_alpha,
+      density_position = input$density_position,
+      density_adjust = input$density_adjust,
+      hist_bins = input$hist_bins,
+      hist_position = input$hist_position,
+      hist_alpha = input$hist_alpha,
+      area_position = input$area_position,
+      area_alpha = input$area_alpha,
+      violin_trim = input$violin_trim,
+      violin_draw_quantiles = input$violin_draw_quantiles,
+      violin_alpha = input$violin_alpha
+    )
+  }
+
+  combo_repro_state <- function(params) {
+    list(
+      main_x_var = params$main_x_var,
+      main_y_var = params$main_y_var,
+      group_var = params$group_var,
+      facet_var = params$facet_var,
+      plot_types = params$plot_types,
+      method = params$combo_method,
+      scatter_size = params$scatter_size,
+      scatter_alpha = params$scatter_alpha,
+      scatter_jitter = params$scatter_jitter,
+      line_width = params$line_width,
+      line_type = params$line_type,
+      line_smooth = params$line_smooth,
+      bar_position = params$bar_position,
+      bar_width = params$bar_width,
+      bar_alpha = params$bar_alpha,
+      boxplot_width = params$boxplot_width,
+      boxplot_outliers = params$boxplot_outliers,
+      boxplot_notch = params$boxplot_notch,
+      density_alpha = params$density_alpha,
+      density_position = params$density_position,
+      density_adjust = params$density_adjust,
+      hist_bins = params$hist_bins,
+      hist_position = params$hist_position,
+      hist_alpha = params$hist_alpha,
+      area_position = params$area_position,
+      area_alpha = params$area_alpha,
+      violin_trim = params$violin_trim,
+      violin_draw_quantiles = params$violin_draw_quantiles,
+      violin_alpha = params$violin_alpha
+    )
+  }
+
   # 更新变量选择
   observe({
     req(data())
@@ -514,39 +584,7 @@ combo_plot_server <- function(input, output, session, data) {
       incProgress(0.1, detail = "完成")
 
       # 快照当前参数到 committed state
-      params <- list(
-        main_x_var    = input$main_x_var,
-        main_y_var    = input$main_y_var,
-        group_var     = input$group_var,
-        facet_var     = input$facet_var,
-        combo_method  = input$combo_method,
-        plot_types    = input$plot_types,
-        export_format = input$export_format,
-        export_dpi    = if (is.null(input$export_dpi)) 300 else input$export_dpi,
-        scatter_size  = input$scatter_size,
-        scatter_alpha = input$scatter_alpha,
-        scatter_jitter = input$scatter_jitter,
-        line_width    = input$line_width,
-        line_type     = input$line_type,
-        line_smooth   = input$line_smooth,
-        bar_position  = input$bar_position,
-        bar_width     = input$bar_width,
-        bar_alpha     = input$bar_alpha,
-        boxplot_width = input$boxplot_width,
-        boxplot_outliers = input$boxplot_outliers,
-        boxplot_notch = input$boxplot_notch,
-        density_alpha = input$density_alpha,
-        density_position = input$density_position,
-        density_adjust = input$density_adjust,
-        hist_bins     = input$hist_bins,
-        hist_position = input$hist_position,
-        hist_alpha    = input$hist_alpha,
-        area_position = input$area_position,
-        area_alpha    = input$area_alpha,
-        violin_trim   = input$violin_trim,
-        violin_draw_quantiles = input$violin_draw_quantiles,
-        violin_alpha  = input$violin_alpha
-      )
+      params <- collect_combo_params()
       committed_params(params)
 
       list(
@@ -662,13 +700,11 @@ combo_plot_server <- function(input, output, session, data) {
   }
 
   state_reactive <- reactive({
-    cp <- committed_params()
-    graphics_build_task_state(
+    params <- committed_params() %||% collect_combo_params()
+    graphics_build_committed_task_state(
       input,
-      extra_state = list(
-        plot_types = if (!is.null(cp$plot_types)) cp$plot_types else input$plot_types,
-        method = if (!is.null(cp$combo_method)) cp$combo_method else input$combo_method
-      )
+      committed_input_state = params,
+      extra_state = combo_repro_state(params)
     )
   })
 
