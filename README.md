@@ -123,7 +123,7 @@ Docker 与服务器部署细节已统一迁移到 `docs/deploy/DEPLOY_GUIDE.md`�
 - 瀑布图外层使用公共卡片壳：将参数区回正为 `数据与变量 / 图形与样式 / 输出与导出` 三张独立顶层卡片，并统一结果区卡片与说明块，但保持原有排序/轨道、RECIST 阈值、committed 参数快照与导出链路不变。
 - Tables 总入口使用公共卡片壳：直接复用已收口的全局筛选卡，并统一参数设置卡、结果卡与导出区说明块，但保持原有表格类型切换、动态参数 UI、生成与导出链路不变。
 - 探索分析总入口使用公共卡片壳：统一变量托盘、图形控制器与图形输出三块入口卡片，补充说明块与结果 panel，但保持原有变量映射、Plotly 输出与重置链路不变。
-- `run_app_test.ps1` 对应的测试环境变量示例已写入 `.env.test.example`；`docker-compose.local.yml` 现直接读取 `.env.test`，与本机测试脚本共用同一套 PostgreSQL 与管理员参数；本地若使用 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起 PostgreSQL，宿主机测试端口统一使用 `5432`，默认管理员示例为 `admin / admin@example.com / admin123`。
+- `run_app_test.ps1` 对应的测试环境变量示例已写入 `.env.test.example`；`docker-compose.local.yml` 通过 `env_file` 直接读取 `.env`（模板见 `.env.example`，该文件已加入 `.gitignore`），与本机测试脚本共用同一套 PostgreSQL 与管理员参数；本地若使用 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起 PostgreSQL，宿主机测试端口统一使用 `5432`，默认管理员示例为 `admin / admin@example.com / admin123`。
 - `docker-compose1.yml` 当前收口为轻量测试基础设施栈，只启动 PostgreSQL 与 Redis，并复用宿主机 `5432/6379`；用于项目更新期间避免反复重建整套应用镜像时，仍可让本机 `run_app.R` / `run_app_test.ps1` 直接连库跑业务测试。
 - 账号与权限模块已补充 PostgreSQL 集成测试 `tests/common/auth/test_auth_access_postgres_integration.R`；测试会优先读取 `.env.test`，并在隔离 schema 中验证管理员初始化、workspace 访问边界与清理逻辑，避免污染现有数据。
 - 管理员页另补充了按需启用的 `shinytest2` smoke test `tests/admin_manager/test_admin_manager_smoke_shinytest2.R`；仅在显式设置 `RUN_ADMIN_SMOKE=1` 且本地具备 `.env.test`、管理员账号与 `shinytest2` 依赖时运行，用于验证管理员登录、进入系统管理页与关键信息区块加载。

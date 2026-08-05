@@ -216,7 +216,7 @@ AutoTFL/
 - `run_app_test.ps1` 会读取 `.env.test`；可先从 `.env.test.example` 复制。
 - `run_app_test.ps1` 会读取 `SHINY_PORT`；若未设置则默认占用检查与启动 `8190`。
 - 本地若数据库由 `docker-compose.local.yml` 或 `docker-compose1.yml` 拉起，应用应连接 `localhost:5432`。
-- `docker-compose.local.yml` 现直接读取 `.env.test`，以统一本地联调与 `run_app_test.ps1` 使用的 PostgreSQL 与管理员参数；其中 app 容器仍会在内部网络中覆盖 `POSTGRES_HOST=postgres`。
+- `docker-compose.local.yml` 通过 `env_file` 直接读取 `.env`（模板见 `.env.example`），以统一本地联调与 `run_app_test.ps1` 使用的 PostgreSQL 与管理员参数；其中 app 容器仍会在内部网络中覆盖 `POSTGRES_HOST=postgres`。
 - `docker-compose1.yml` 只提供 PostgreSQL 与 Redis 基础设施，适用于项目更新期间避免重建整套应用镜像时，继续让本机 `run_app.R` / `run_app_test.ps1` 复用同一组 `5432/6379` 端口做业务测试。
 - 测试环境管理员示例为 `APP_ADMIN_USERNAME=admin`、`APP_ADMIN_EMAIL=admin@example.com`、`APP_ADMIN_PASSWORD=admin123`。
 - 测试与回归入口详见 [TEST_GUIDE.md](../main/TEST_GUIDE.md) §4。
@@ -318,10 +318,11 @@ AutoTFL/
 
 ### 7.5 启动顺序
 
-1. 确认已准备好 `package/` 目录。
-2. 在项目根目录执行 `docker compose -f docker-compose.local.yml up -d --build`。
-3. 访问 `http://localhost:8080` 检查 Landing。
-4. 打开 `http://localhost:8080/app/` 检查应用。
+1. 从模板生成本地环境变量：`cp .env.example .env`，并按需修改数据库密码与管理员账号（`.env` 已被 `.gitignore` 忽略）。
+2. 确认已准备好 `package/` 目录。
+3. 在项目根目录执行 `docker compose -f docker-compose.local.yml up -d --build`。
+4. 访问 `http://localhost:8080` 检查 Landing。
+5. 打开 `http://localhost:8080/app/` 检查应用。
 
 ### 7.6 当前特点
 

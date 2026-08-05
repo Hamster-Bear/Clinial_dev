@@ -17,8 +17,9 @@ ENV LC_ALL=en_US.UTF-8
 RUN /usr/local/bin/R -e 'install.packages("pak", repos = "https://mirrors.tuna.tsinghua.edu.cn/CRAN/")'
 
 # 切换 Ubuntu 清华镜像源（国内网络环境加速）
-RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/ubuntu.sources && \
-    sed -i 's|http://security.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/ubuntu.sources
+# 注意：必须使用 HTTPS，HTTP 会被拦截并返回 HTML 页面，apt 报 "Clearsigned file isn't valid (NOSPLIT)"
+RUN sed -i 's|http://archive.ubuntu.com|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/ubuntu.sources && \
+    sed -i 's|http://security.ubuntu.com|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/ubuntu.sources
 
 # 安装系统编译依赖；R 版本只使用 rocker/shiny 自带的 /usr/local/bin/R
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \

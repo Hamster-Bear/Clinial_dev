@@ -20,6 +20,7 @@ __pycache__/
 AI prompt
 .roo/
 .vscode/
+.env
 .env.test
 deploy/alicloud/env/.env
 deploy/alicloud/certs/*.pem
@@ -30,7 +31,8 @@ plans/
 test/tmp_*.R
 
 # local package cache for offline deployment
-package/
+package/**
+!package/.gitkeep
 
 # local offline image bundles
 apps/**

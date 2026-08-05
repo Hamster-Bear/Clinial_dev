@@ -3,7 +3,7 @@ services:
     image: postgres:14-alpine
     container_name: hamster-analysis-postgres
     env_file:
-      - .env.test
+      - .env
     environment:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     volumes:
@@ -41,7 +41,7 @@ services:
     image: autotfl-shiny-app:latest
     container_name: hamster-analysis-shiny
     env_file:
-      - .env.test
+      - .env
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
